@@ -1833,7 +1833,7 @@ Item {
                                     width: parent.width
                                 }
                                 Text {
-                                    text: qsTranslate("Application", "For improving on failsafe65's PCK extraction and packing scripts which have been used as reference.")
+                                    text: qsTranslate("Application", "For making HAMM and for making the Wwise project file.")
                                     color: '#888888'
                                     font.family: "Alatsi"
                                     font.pixelSize: 14
