@@ -1488,6 +1488,7 @@ class AudioBrowserBridge(QObject):
                     "fileId": display_file_id,
                     "trackerKey": tracker_key,
                     "pckFile": pck_filename,
+                    "pckPath": self._resolve_pck_path(pck_filename),
                     "fileType": display_type,
                     "itemType": item_type,
                     "bnkId": bnk_id,
@@ -1774,6 +1775,12 @@ class AudioBrowserBridge(QObject):
 
         except Exception as e:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Playback Error"), str(e))
+
+    @pyqtSlot(str, str, str, str)
+    def playOriginalAudio(self, file_id, item_type, pck_path, bnk_id):
+        if not pck_path:
+            pck_path = ""
+        self.onTreeItemDoubleClicked(file_id, item_type, pck_path)
 
     @pyqtSlot(str, str, str, str)
     def navigateToChange(self, pck_filename, file_id, item_type, bnk_id):
@@ -2501,6 +2508,13 @@ class AudioBrowserBridge(QObject):
             self._index_cache[self._indexing_directory] = index_data
 
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Index ready - %1 unique file IDs").replace("%1", str(len(self.file_id_index))))
+
+    def _resolve_pck_path(self, pck_filename):
+        for data in self._item_data.values():
+            p = data.get("pck_path", "")
+            if p and Path(p).name == pck_filename:
+                return p
+        return ""
 
     def _find_item_meta(self, item_id, item_type, pck_path, parent_bnk=""):
 

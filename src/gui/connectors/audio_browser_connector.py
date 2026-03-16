@@ -35,6 +35,7 @@ class AudioBrowserConnector:
         self.audio_page.removeChangeRequested.connect(ab.removeChange)
         self.audio_page.navigateToChangeClicked.connect(ab.navigateToChange)
         self.audio_page.playReplacementClicked.connect(ab.playReplacementAudio)
+        self.audio_page.playOriginalClicked.connect(ab.playOriginalAudio)
         self.audio_page.applyChangesClicked.connect(ab.applyAllChanges)
         self.audio_page.exportModClicked.connect(ab.exportAsMod)
         self.audio_page.createModPackageRequested.connect(ab.createModPackage)
