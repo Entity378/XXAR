@@ -41,6 +41,7 @@ Item {
     signal removeChangeRequested(string pckFile, string fileId)
     signal navigateToChangeClicked(string pckFile, string fileId, string itemType, string bnkId)
     signal playReplacementClicked(string wemPath)
+    signal playOriginalClicked(string fileId, string itemType, string pckPath, string bnkId)
     signal playClicked()
     signal pauseClicked()
     signal stopClicked()
@@ -1467,6 +1468,7 @@ Item {
                 "fileId": changes[i].fileId || "",
                 "trackerKey": changes[i].trackerKey || changes[i].fileId || "",
                 "pckFile": changes[i].pckFile || "",
+                "pckPath": changes[i].pckPath || "",
                 "fileType": changes[i].fileType || "",
                 "itemType": changes[i].itemType || "",
                 "bnkId": changes[i].bnkId || "",
@@ -2509,7 +2511,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 120
+                            Layout.preferredWidth: 175
                         }
                     }
                 }
@@ -2602,6 +2604,18 @@ Item {
                                 visible: model.wemPath !== ""
                                 onClicked: {
                                     playReplacementClicked(model.wemPath)
+                                }
+                            }
+
+                            ZZARButton {
+                                text: "▶ Orig"
+                                Layout.preferredWidth: 55
+                                Layout.preferredHeight: 28
+                                buttonColor: "#555555"
+                                fontSize: 11
+                                visible: model.pckPath !== ""
+                                onClicked: {
+                                    playOriginalClicked(model.fileId, model.itemType, model.pckPath, model.bnkId)
                                 }
                             }
 

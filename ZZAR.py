@@ -13,7 +13,7 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db
 
 from src.app_config import APP_VERSION
 __version__ = APP_VERSION
-DEV_MODE = True 
+DEV_MODE = True
 
 def get_base_path():
 
