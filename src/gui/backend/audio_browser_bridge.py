@@ -2012,7 +2012,8 @@ class AudioBrowserBridge(QObject):
         try:
             from src.audio_matcher import AudioMatcher
 
-            matcher = AudioMatcher(fingerprint_db=self.fingerprint_db)
+            ffmpeg_path = AudioConverter()._find_ffmpeg() or 'ffmpeg'
+            matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=self.fingerprint_db)
 
             recording_fp = matcher.extract_fingerprint(recording_path, duration=30)
             if recording_fp is None:
