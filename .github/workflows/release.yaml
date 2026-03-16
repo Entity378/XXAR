@@ -5,9 +5,23 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target'
+        required: true
+        default: 'SRAR'
+        type: choice
+        options:
+          - ZZAR
+          - SRAR
 
 permissions:
   contents: write
+
+env:
+  # On tag push: repo name determines target (ZZAR repo → ZZAR, SRAR repo → SRAR)
+  # On manual run: use the dropdown input
+  BUILD_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || (github.event.repository.name == 'SRAR' && 'SRAR' || 'ZZAR') }}
 
 jobs:
   build-linux:
@@ -43,15 +57,15 @@ jobs:
 
       - name: Build with PyInstaller (Flatpak mode)
         run: |
-          ZZAR_FLATPAK_BUILD=1 pyinstaller --clean ZZAR.spec
+          ${BUILD_TARGET}_FLATPAK_BUILD=1 pyinstaller --clean ${BUILD_TARGET}.spec
 
       - name: Verify PyInstaller Build
         run: |
-          if [ ! -e dist/ZZAR ]; then
-            echo "Error: dist/ZZAR not found. Check your spec file output name."
+          if [ ! -e dist/${BUILD_TARGET} ]; then
+            echo "Error: dist/${BUILD_TARGET} not found. Check your spec file output name."
             exit 1
           fi
-          chmod +x dist/ZZAR
+          chmod +x dist/${BUILD_TARGET}
 
       - name: Set up Flatpak
         run: |
@@ -62,17 +76,19 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --force-clean --repo=flatpak-repo build-dir flatpak/io.github.pucas01.ZZAR.yml
+          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.${BUILD_TARGET}.yml | awk '{print $2}')
+          flatpak-builder --force-clean --repo=flatpak-repo build-dir flatpak/io.github.pucas01.${BUILD_TARGET}.yml
 
       - name: Export Flatpak Bundle
         run: |
-          flatpak build-bundle flatpak-repo ZZAR-linux-x64.flatpak io.github.pucas01.ZZAR
+          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.${BUILD_TARGET}.yml | awk '{print $2}')
+          flatpak build-bundle flatpak-repo ${BUILD_TARGET}-linux-x64.flatpak ${APP_ID}
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZZAR-linux-x64
-          path: ZZAR-linux-x64.flatpak
+          name: ${{ env.BUILD_TARGET }}-linux-x64
+          path: ${{ env.BUILD_TARGET }}-linux-x64.flatpak
 
   build-windows:
     runs-on: windows-latest
@@ -94,20 +110,20 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --clean ZZAR.spec
+          pyinstaller --clean $env:BUILD_TARGET.spec
 
       - name: Verify Build
         run: |
-          if (-not (Test-Path dist/ZZAR.exe)) {
-            Write-Error "dist/ZZAR.exe not found. Check your spec file output name."
+          if (-not (Test-Path dist/$env:BUILD_TARGET.exe)) {
+            Write-Error "dist/$env:BUILD_TARGET.exe not found. Check your spec file output name."
             exit 1
           }
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZZAR-windows-x64
-          path: dist/ZZAR.exe
+          name: ${{ env.BUILD_TARGET }}-windows-x64
+          path: dist/${{ env.BUILD_TARGET }}.exe
 
   release:
     needs: [build-linux, build-windows]
@@ -121,15 +137,16 @@ jobs:
 
       - name: Package for Release
         run: |
-          cp artifacts/ZZAR-linux-x64/ZZAR-linux-x64.flatpak .
-          (cd artifacts/ZZAR-windows-x64 && zip ../../ZZAR-windows-x64.zip ZZAR.exe)
+          TARGET=${{ env.BUILD_TARGET }}
+          cp artifacts/${TARGET}-linux-x64/${TARGET}-linux-x64.flatpak .
+          (cd artifacts/${TARGET}-windows-x64 && zip ../../${TARGET}-windows-x64.zip ${TARGET}.exe)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ZZAR-linux-x64.flatpak
-            ZZAR-windows-x64.zip
+            ${{ env.BUILD_TARGET }}-linux-x64.flatpak
+            ${{ env.BUILD_TARGET }}-windows-x64.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

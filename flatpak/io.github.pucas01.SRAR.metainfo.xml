@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.pucas01.SRAR</id>
+
+  <name>SRAR</name>
+  <summary>Honkai Star Rail Audio Replacer</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <developer id="io.github.pucas01">
+    <name>Pucas01</name>
+  </developer>
+
+  <description>
+    <p>
+      SRAR is a mod manager and mod creator for Honkai Star Rail.
+      Replace any sound in the game with your own audio. No command line required.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Mod Manager: Install, enable/disable, and manage audio mods</li>
+      <li>Audio Browser: Browse every sound in the game with preview playback</li>
+      <li>Mod Creator: Build your own .srar mod packages</li>
+      <li>Audio Converter: Convert between MP3, WAV, WEM, and other formats automatically</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.pucas01.SRAR.desktop</launchable>
+
+  <url type="homepage">https://github.com/Pucas01/SRAR</url>
+  <url type="bugtracker">https://github.com/Pucas01/SRAR/issues</url>
+
+  <branding>
+    <color type="primary" scheme_preference="dark">#1a1a2e</color>
+    <color type="primary" scheme_preference="light">#3f9ec3</color>
+  </branding>
+
+  <content_rating type="oars-1.1" />
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <releases>
+    <release version="1.0.0" date="2026-03-16">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+</component>
