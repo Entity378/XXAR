@@ -57,7 +57,8 @@ jobs:
 
       - name: Build with PyInstaller (Flatpak mode)
         run: |
-          ${BUILD_TARGET}_FLATPAK_BUILD=1 pyinstaller --clean ${BUILD_TARGET}.spec
+          export ${BUILD_TARGET}_FLATPAK_BUILD=1
+          pyinstaller --clean ${BUILD_TARGET}.spec
 
       - name: Verify PyInstaller Build
         run: |
@@ -110,12 +111,12 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --clean $env:BUILD_TARGET.spec
+          pyinstaller --clean "${env:BUILD_TARGET}.spec"
 
       - name: Verify Build
         run: |
-          if (-not (Test-Path dist/$env:BUILD_TARGET.exe)) {
-            Write-Error "dist/$env:BUILD_TARGET.exe not found. Check your spec file output name."
+          if (-not (Test-Path "dist/${env:BUILD_TARGET}.exe")) {
+            Write-Error "dist/${env:BUILD_TARGET}.exe not found. Check your spec file output name."
             exit 1
           }
 
@@ -124,6 +125,7 @@ jobs:
         with:
           name: ${{ env.BUILD_TARGET }}-windows-x64
           path: dist/${{ env.BUILD_TARGET }}.exe
+
 
   release:
     needs: [build-linux, build-windows]
