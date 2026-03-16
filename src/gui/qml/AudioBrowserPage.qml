@@ -2700,7 +2700,7 @@ Item {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
-                            anchors.rightMargin: 125
+                            anchors.rightMargin: 202
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
