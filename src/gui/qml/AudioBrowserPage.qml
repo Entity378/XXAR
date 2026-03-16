@@ -346,7 +346,7 @@ Item {
                     ZZARButton {
                         id: findMatchingSoundBtn
                         text: qsTranslate("Application", "Find Matching Sound")
-                        buttonColor: Theme.secondaryAccent
+                        buttonColor: Theme.primaryAccent
                         onClicked: audioMatchDialog.show()
                     }
                 }
