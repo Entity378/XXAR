@@ -154,7 +154,7 @@ class AudioConverter:
                 f"FFmpeg cannot decode this WEM file format.\n"
             )
 
-    def any_to_wav(self, input_file, output_file=None, sample_rate=48000, channels=2, normalize=True):
+    def any_to_wav(self, input_file, output_file=None, sample_rate=48000, channels=2, normalize=True, normalize_lufs=-9):
 
         input_file = Path(input_file)
         if output_file is None:
@@ -182,7 +182,7 @@ class AudioConverter:
                 '-i', str(input_file),
             ]
             if normalize:
-                cmd.extend(['-af', 'loudnorm=I=-9:TP=-1.5:LRA=11'])
+                cmd.extend(['-af', f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true'])
             cmd.extend([
                 '-acodec', 'pcm_s16le',
                 '-ar', str(sample_rate),
@@ -192,7 +192,7 @@ class AudioConverter:
             ])
 
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **_subprocess_kwargs)
-            norm_msg = " (normalized to -9 LUFS)" if normalize else ""
+            norm_msg = f" (normalized to {normalize_lufs} LUFS)" if normalize else ""
             print(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
             return output_file
         except subprocess.CalledProcessError as e:
