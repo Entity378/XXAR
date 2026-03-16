@@ -4,79 +4,84 @@
     <context>
         <name>Application</name>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="65" />
+            <location filename="../qml/AudioBrowserPage.qml" line="67" />
             <source>Select a game audio directory to start</source>
             <translation>Selecciona un directorio de audio del juego para empezar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="66" />
+            <location filename="../qml/AudioBrowserPage.qml" line="68" />
             <source>Not playing</source>
             <translation>No reproduciendo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="179" />
+            <location filename="../qml/AudioBrowserPage.qml" line="182" />
             <source>Open Game Folder</source>
             <translation>Abrir la carpeta del juego</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="328" />
+            <location filename="../qml/AudioBrowserPage.qml" line="331" />
             <source>Search by ID, name, or tag</source>
             <translation>Buscar por ID, nombre o etiqueta</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="335" />
+            <location filename="../qml/AudioBrowserPage.qml" line="338" />
             <source>Search</source>
             <translation>Buscar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="339" />
+            <location filename="../qml/AudioBrowserPage.qml" line="342" />
             <source>Clear</source>
             <translation>Despejar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="347" />
+            <location filename="../qml/AudioBrowserPage.qml" line="350" />
             <location filename="../qml/AudioMatchDialog.qml" line="90" />
             <source>Find Matching Sound</source>
             <translation>Encontrar sonido equivalente</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="371" />
+            <location filename="../qml/AudioBrowserPage.qml" line="374" />
             <source>Options</source>
             <translation>Opciones</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="455" />
+            <location filename="../qml/AudioBrowserPage.qml" line="458" />
             <source>Merge Streaming PCK</source>
             <translation>Fusionar PCK de streaming</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="505" />
+            <location filename="../qml/AudioBrowserPage.qml" line="508" />
             <source>Hide all non soundbank language PCK's</source>
             <translation>Ocultar PCK's de idiomas ajenos al banco de sonidos</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="555" />
+            <location filename="../qml/AudioBrowserPage.qml" line="558" />
             <source>Hide BNK files with no audio</source>
             <translation>Ocultar archivos BNK sin audio</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="605" />
+            <location filename="../qml/AudioBrowserPage.qml" line="608" />
             <source>Normalize Audio on Replace</source>
             <translation>Normalizar audio al reemplazar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="633" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3755" />
+            <location filename="../qml/AudioBrowserPage.qml" line="631" />
+            <source>Target:</source>
+            <translation>Objetivo:</translation>
+        </message>
+        <message>
+            <location filename="../qml/AudioBrowserPage.qml" line="699" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3853" />
             <source>Downloading...</source>
             <translation>Descargando...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="634" />
+            <location filename="../qml/AudioBrowserPage.qml" line="700" />
             <source>Download Official Tags</source>
             <translation>Descargar etiquetas oficiales</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="723" />
+            <location filename="../qml/AudioBrowserPage.qml" line="789" />
             <source>Tags help you identify and search
 for audio files. The official tag
 database provides community names
@@ -87,293 +92,299 @@ te da nombres y palabras para audios del
 juego de parte de la comunidad.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="734" />
+            <location filename="../qml/AudioBrowserPage.qml" line="800" />
             <source>Want to contribute?</source>
             <translation>¿Quieres contribuir?</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="762" />
+            <location filename="../qml/AudioBrowserPage.qml" line="828" />
             <source>Open Tag Database Folder</source>
             <translation>Abre la carpeta de base de etiquetas</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="792" />
+            <location filename="../qml/AudioBrowserPage.qml" line="858" />
             <source>File</source>
             <translation>Archivo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="801" />
+            <location filename="../qml/AudioBrowserPage.qml" line="867" />
             <source>ID</source>
             <translation>ID</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="815" />
+            <location filename="../qml/AudioBrowserPage.qml" line="881" />
             <source>Size </source>
             <translation>Tamaño </translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="841" />
+            <location filename="../qml/AudioBrowserPage.qml" line="907" />
             <source>Duration </source>
             <translation>Duración </translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="862" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2470" />
+            <location filename="../qml/AudioBrowserPage.qml" line="928" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2556" />
             <source>Type</source>
             <translation>Tipo de archivo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="904" />
+            <location filename="../qml/AudioBrowserPage.qml" line="970" />
             <source>No audio files loaded.
 Select a game directory to browse.</source>
             <translation>Ningun archivo de audio fue cargado.
 Selecciona un directorio de juego para navegar.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1070" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1138" />
             <source>Import .zzar for Editing</source>
             <translation>Importar .zzar para edición</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1076" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1144" />
             <source>Show Changes (%1)</source>
             <translation>Mostrar cambios (%1)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1076" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1144" />
             <source>Show Changes</source>
             <translation>Mostrar cambios</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1081" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1149" />
             <source>Export as Mod Package</source>
             <translation>Exportar como paquete de mod</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1086" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1154" />
             <source>Reset All Changes</source>
             <translation>Reiniciar todos los cambios</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1192" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1260" />
             <source>Volume:</source>
             <translation>Volumen:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1415" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2828" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1490" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2926" />
             <source>Hash: </source>
             <translation>Hash:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1415" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2556" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1490" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2642" />
             <location filename="../qml/ModInfoDialog.qml" line="276" />
             <source>Unknown</source>
             <translation>Desconocido</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1467" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2425" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1544" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2511" />
             <source>Current Changes</source>
             <translation>Cambios actuales</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1467" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1544" />
             <source>replacements</source>
             <translation>reemplazo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1467" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1544" />
             <source>replacement</source>
             <translation>reemplazo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1489" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1566" />
             <source>Search Results for '%1' (%2 found)</source>
             <translation>Búsqueda para '%1' (%2 encontrados)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1790" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1867" />
             <source>Replace with Custom Audio...</source>
             <translation>Reemplazar con audio personalizado...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1821" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1898" />
             <source>Tag This Sound...</source>
             <translation>Etiquetar este sonido...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1851" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1928" />
             <source>Mute Audio</source>
             <translation>Silenciar audio</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1886" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1963" />
             <source>Play</source>
             <translation>Reproducir</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1916" />
+            <location filename="../qml/AudioBrowserPage.qml" line="1993" />
             <source>Export as WAV...</source>
             <translation>Exportar como WAV...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="1952" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2029" />
             <source>Copy ID</source>
             <translation>Copiar ID</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2028" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2105" />
             <source>Search Results</source>
             <translation>Buscar resultados</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2104" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2156" />
+            <source>BNK: </source>
+            <translation>BNK: </translation>
+        </message>
+        <message>
+            <location filename="../qml/AudioBrowserPage.qml" line="2190" />
             <source>No results found.</source>
             <translation>No se encontraron resultados.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2116" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2352" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2646" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2202" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2438" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2744" />
+            <location filename="../qml/DiscordDialog.qml" line="112" />
             <location filename="../qml/ModInfoDialog.qml" line="392" />
             <source>Close</source>
             <translation>Cerrar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2181" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2267" />
             <source>Match Results</source>
             <translation>Buscar resultados</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2181" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2267" />
             <location filename="../qml/ConflictResolutionDialog.qml" line="101" />
             <source>found</source>
             <translation>encontrado</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2195" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2281" />
             <source>Score</source>
             <translation>Tema</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2203" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2289" />
             <source>Sound</source>
             <translation>Sonido</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2211" />
-            <location filename="../qml/AudioBrowserPage.qml" line="2446" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2297" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2532" />
             <source>File ID</source>
             <translation>ID del archivo</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2219" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2305" />
             <source>PCK</source>
             <translation>PCK</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2340" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2426" />
             <source>No matches found.</source>
             <translation>No se encontraron similares.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2454" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2540" />
             <source>Tagged Name</source>
             <translation>Nombre de la etiqueta</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2462" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2548" />
             <source>Replaced By</source>
             <translation>Reemplazado por</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2478" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2564" />
             <source>Modified</source>
             <translation>Modificado</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2486" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2572" />
             <source>Actions</source>
             <translation>Acciones</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2563" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2649" />
             <source>Just now</source>
             <translation>Justo ahora</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2564" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2650" />
             <source>%1m ago</source>
             <translation>hace %1 minuto(s)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2565" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2651" />
             <source>%1h ago</source>
             <translation>hace $1 hora(s)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2566" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2652" />
             <source>%1d ago</source>
             <translation>hace %1 día(s)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2588" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2686" />
             <source>Remove</source>
             <translation>Borrar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2619" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2717" />
             <source>No changes yet.
 Replace some audio files to see them here.</source>
             <translation>No hay cambios aún.
 Reemplaza unos audios para verlos aquí.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2635" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2733" />
             <source>Apply Changes</source>
             <translation>Aplicar cambios</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2712" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2810" />
             <source>Tag Sound</source>
             <translation>Etiquetar sonido</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2721" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2819" />
             <source>Name:</source>
             <translation>Nombre:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2750" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2848" />
             <source>e.g., Astra Ultimate Voice</source>
             <translation>p.ej., la Voz de Astra en la Habilidad definitiva/Ultimate</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2757" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2855" />
             <source>Tags (comma-separated):</source>
             <translation>Etiquetas (separado por comma)</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2786" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2884" />
             <source>e.g., astra, ultimate, voice</source>
             <translation>p.ej., astra, ultimate, voz, definitiva</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2793" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2891" />
             <source>Notes:</source>
             <translation>Notas:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2820" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2918" />
             <source>Additional notes...</source>
             <translation>Notas adicionales...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2844" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3150" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3303" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2942" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3248" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3401" />
             <location filename="../qml/AudioMatchDialog.qml" line="255" />
             <location filename="../qml/ConflictResolutionDialog.qml" line="348" />
             <location filename="../qml/CustomDialog.qml" line="14" />
@@ -386,90 +397,90 @@ Reemplaza unos audios para verlos aquí.</translation>
             <translation>Cancelar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2853" />
+            <location filename="../qml/AudioBrowserPage.qml" line="2951" />
             <location filename="../qml/SettingsPage.qml" line="1656" />
             <source>Save</source>
             <translation>Guardar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2958" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3056" />
             <source>Mod Package Metadata</source>
             <translation>Metadata del paquete del mod</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2967" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3065" />
             <source>Name*:</source>
             <translation>Nombre*:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="2995" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3093" />
             <location filename="../qml/ImportWizard.qml" line="621" />
             <source>My Awesome Mod</source>
             <translation>Mi Increíble Mod</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3002" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3100" />
             <source>Author*:</source>
             <translation>Autor*:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3030" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3128" />
             <location filename="../qml/ImportWizard.qml" line="663" />
             <source>Your Name</source>
             <translation>Tu nombre</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3037" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3135" />
             <location filename="../qml/ImportWizard.qml" line="678" />
             <location filename="../qml/SettingsPage.qml" line="1718" />
             <source>Version:</source>
             <translation>Versión:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3063" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3161" />
             <location filename="../qml/ImportWizard.qml" line="712" />
             <source>Description:</source>
             <translation>Descripción:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3089" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3187" />
             <source>Describe what your mod does...</source>
             <translation>Describe que hace tu mod...</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3096" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3194" />
             <location filename="../qml/ImportWizard.qml" line="753" />
             <source>Thumbnail:</source>
             <translation>Miniatura:</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3129" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3227" />
             <source>Optional: Select thumbnail image</source>
             <translation>Opcional: Selecciona una imagen de miniatura</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3136" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3234" />
             <location filename="../qml/AudioConversionPage.qml" line="328" />
             <location filename="../qml/ImportWizard.qml" line="446" />
             <location filename="../qml/ImportWizard.qml" line="790" />
             <location filename="../qml/SettingsPage.qml" line="530" />
             <location filename="../qml/SettingsPage.qml" line="795" />
-            <location filename="../qml/WelcomeDialog.qml" line="343" />
+            <location filename="../qml/WelcomeDialog.qml" line="351" />
             <source>Browse</source>
             <translation>Navegar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3159" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3257" />
             <source>Create Package</source>
             <translation>Crear Paquete</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3256" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3354" />
             <source>Official Tag Database</source>
             <translation>Base de etiquetas oficial</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3266" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3364" />
             <source>Downloaded %1 tag entries.
 
 How would you like to apply them?</source>
@@ -478,63 +489,63 @@ How would you like to apply them?</source>
 Cómo quieres aplicarlas?</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3277" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3875" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3375" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3973" />
             <source>Merge adds new entries and updates existing ones.
 Replace completely replaces your local database.</source>
             <translation>Fusiona y agrega nuevas etiquetas e actualiza las existentes.
 Reemplaza completamente tu base local.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3331" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3932" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3429" />
+            <location filename="../qml/AudioBrowserPage.qml" line="4030" />
             <source>Replace</source>
             <translation>Reemplazar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3360" />
-            <location filename="../qml/AudioBrowserPage.qml" line="3901" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3458" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3999" />
             <source>Merge</source>
             <translation>Fusionar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3458" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3556" />
             <source>New Official Tags Available!</source>
             <translation>Nuevas etiquetas oficiales disponible!</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3468" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3566" />
             <source>%1 tag entries are available for download.</source>
             <translation>%1 etiquetas disponibles para descargar.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3479" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3577" />
             <source>You can always download them later from the Options menu on this page.</source>
             <translation>Siempre puedes descargarlos despues en el menu de opciones en esta pagina.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3527" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3625" />
             <location filename="../qml/SettingsPage.qml" line="61" />
             <source>Don't show this again</source>
             <translation>No volver a mostrar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3557" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3655" />
             <source>Dismiss</source>
             <translation>Ignorar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3587" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3685" />
             <source>Download Now</source>
             <translation>Descargar ahora</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3678" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3776" />
             <source>Audio Fingerprint Found!</source>
             <translation>¡Base de Datos de Huellas de Audio!</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3688" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3786" />
             <source>We found a premade fingerprint database!
 
 Downloading it will significantly speed up audio matching by using pre-computed fingerprints.</source>
@@ -543,28 +554,28 @@ Downloading it will significantly speed up audio matching by using pre-computed 
 Descargarla acelerará significativamente la coincidencia de audio usando huellas precalculadas.</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3699" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3797" />
             <source>Would you like to download it now?</source>
             <translation>¿Quieres descargarla ahora?</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3725" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3823" />
             <source>No Thanks</source>
             <translation>No, gracias</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3755" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3853" />
             <location filename="../qml/GameBananaModDialog.qml" line="876" />
             <source>Download</source>
             <translation>Descargar</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3854" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3952" />
             <source>Official Fingerprint Database</source>
             <translation>Base de Datos de Huellas Oficial</translation>
         </message>
         <message>
-            <location filename="../qml/AudioBrowserPage.qml" line="3864" />
+            <location filename="../qml/AudioBrowserPage.qml" line="3962" />
             <source>Downloaded %1 fingerprint entries.
 
 How would you like to apply them?</source>
@@ -892,7 +903,7 @@ How would you like to apply them?</source>
         </message>
         <message>
             <location filename="../qml/ImportWizard.qml" line="896" />
-            <location filename="../qml/WelcomeDialog.qml" line="837" />
+            <location filename="../qml/WelcomeDialog.qml" line="845" />
             <source>&lt; Back</source>
             <translation>&lt; Regresar</translation>
         </message>
@@ -933,7 +944,7 @@ How would you like to apply them?</source>
         </message>
         <message>
             <location filename="../qml/MainWindow.qml" line="140" />
-            <location filename="../qml/MainWindow.qml" line="1111" />
+            <location filename="../qml/MainWindow.qml" line="1178" />
             <source>Processing...</source>
             <translation>Procesando...</translation>
         </message>
@@ -946,7 +957,7 @@ How would you like to apply them?</source>
         <message>
             <location filename="../qml/MainWindow.qml" line="202" />
             <location filename="../qml/TutorialOverlay.qml" line="23" />
-            <location filename="../qml/WelcomeDialog.qml" line="164" />
+            <location filename="../qml/WelcomeDialog.qml" line="165" />
             <source>Mod Manager</source>
             <translation>Administrador de Mods</translation>
         </message>
@@ -991,52 +1002,52 @@ How would you like to apply them?</source>
             <translation>Cambiar la configuración de aplicación</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="769" />
+            <location filename="../qml/MainWindow.qml" line="836" />
             <source>Oops! We found some files in the wrong place!</source>
             <translation>Ups! Encontramos unos archivos en el lugar incorrecto!</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="780" />
+            <location filename="../qml/MainWindow.qml" line="847" />
             <source>Some language audio folders are in the Persistent folder instead of StreamingAssets.</source>
             <translation>Algunas carpetas de audio de idiomas estan en la carpeta Persistent en vez de StreamingAssets.</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="806" />
+            <location filename="../qml/MainWindow.qml" line="873" />
             <source>Folders that need to be moved:</source>
             <translation>Carpetas que necesitan ser movidos:</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="851" />
+            <location filename="../qml/MainWindow.qml" line="918" />
             <source>Move to Streaming</source>
             <translation>Mover a Streaming</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="881" />
+            <location filename="../qml/MainWindow.qml" line="948" />
             <source>Moving...</source>
             <translation>Moviendo...</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="894" />
+            <location filename="../qml/MainWindow.qml" line="961" />
             <source>ZZAR needs these folders in StreamingAssets to work properly. Click "Move to Streaming" to fix this automatically.</source>
             <translation>ZZAR necesita estas carpetas en StreamingAssets para que funcione correctamente. Clic y muevelo a Streaming" para arreglat esto automaticamente.</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="905" />
+            <location filename="../qml/MainWindow.qml" line="972" />
             <source>If you experience any audio oddities after moving, please repair your game files.</source>
             <translation>Si experimentas problems de audio luego de moverlos, por favor repara tus archivos de juego.</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="953" />
+            <location filename="../qml/MainWindow.qml" line="1020" />
             <source>Don't show this warning again</source>
             <translation>No volver a enseñar esta advertencia de nuevo</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="984" />
+            <location filename="../qml/MainWindow.qml" line="1051" />
             <source>Got it</source>
             <translation>Entendido</translation>
         </message>
         <message>
-            <location filename="../qml/MainWindow.qml" line="1325" />
+            <location filename="../qml/MainWindow.qml" line="1392" />
             <source>Drop .zzar mod(s) here to install</source>
             <translation>Suelta mod(s) .zzar aquí para instalar</translation>
         </message>
@@ -1195,6 +1206,7 @@ How would you like to apply them?</source>
             <translation>Buscar mods...</translation>
         </message>
         <message>
+            <location filename="../qml/AudioBrowserPage.qml" line="680" />
             <location filename="../qml/GameBananaPage.qml" line="245" />
             <location filename="../qml/ModManagerPage.qml" line="27" />
             <source>Default</source>
@@ -1408,31 +1420,31 @@ Solo hablo inglés y neerlandés.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="460" />
-            <location filename="../qml/WelcomeDialog.qml" line="277" />
+            <location filename="../qml/WelcomeDialog.qml" line="285" />
             <source>Game Directory</source>
             <translation>Directorio del Juego</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="468" />
-            <location filename="../qml/WelcomeDialog.qml" line="284" />
+            <location filename="../qml/WelcomeDialog.qml" line="292" />
             <source>Select the ZenlessZoneZero_Data folder from your game installation.</source>
             <translation>Selecciona la carpeta ZenlessZoneZero_Data de tu instalación del juego.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="506" />
-            <location filename="../qml/WelcomeDialog.qml" line="322" />
+            <location filename="../qml/WelcomeDialog.qml" line="330" />
             <source>Path to ZenlessZoneZero_Data folder...</source>
             <translation>Ruta a la carpeta ZenlessZoneZero_Data...</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="595" />
-            <location filename="../qml/WelcomeDialog.qml" line="407" />
+            <location filename="../qml/WelcomeDialog.qml" line="415" />
             <source>Searching...</source>
             <translation>Buscando...</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="595" />
-            <location filename="../qml/WelcomeDialog.qml" line="407" />
+            <location filename="../qml/WelcomeDialog.qml" line="415" />
             <source>Auto-Detect</source>
             <translation>Auto-detectar</translation>
         </message>
@@ -1503,21 +1515,21 @@ Solo hablo inglés y neerlandés.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1004" />
-            <location filename="../qml/WelcomeDialog.qml" line="473" />
+            <location filename="../qml/WelcomeDialog.qml" line="481" />
             <source>Wwise Setup</source>
             <translation>Instalación de Wwise</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1012" />
-            <location filename="../qml/WelcomeDialog.qml" line="480" />
+            <location filename="../qml/WelcomeDialog.qml" line="488" />
             <source>Wwise is required to convert audio files for Zenless Zone Zero.</source>
             <translation>Wwise es requerido para convertir audios para Zenless Zone Zero.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1024" />
             <location filename="../qml/SettingsPage.qml" line="1174" />
-            <location filename="../qml/WelcomeDialog.qml" line="493" />
-            <location filename="../qml/WelcomeDialog.qml" line="658" />
+            <location filename="../qml/WelcomeDialog.qml" line="501" />
+            <location filename="../qml/WelcomeDialog.qml" line="666" />
             <source>Status:</source>
             <translation>Estado:</translation>
         </message>
@@ -1530,26 +1542,31 @@ Solo hablo inglés y neerlandés.</translation>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1031" />
             <location filename="../qml/SettingsPage.qml" line="1181" />
-            <location filename="../qml/WelcomeDialog.qml" line="500" />
-            <location filename="../qml/WelcomeDialog.qml" line="665" />
+            <location filename="../qml/WelcomeDialog.qml" line="508" />
+            <location filename="../qml/WelcomeDialog.qml" line="673" />
             <source>NOT INSTALLED</source>
             <translation>NO INSTALADO</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1053" />
             <location filename="../qml/SettingsPage.qml" line="1203" />
-            <location filename="../qml/WelcomeDialog.qml" line="519" />
-            <location filename="../qml/WelcomeDialog.qml" line="684" />
+            <location filename="../qml/WelcomeDialog.qml" line="527" />
+            <location filename="../qml/WelcomeDialog.qml" line="692" />
             <source>Check</source>
             <translation>Comprobar</translation>
+        </message>
+        <message>
+            <location filename="../qml/SettingsPage.qml" line="1836" />
+            <source>For making HAMM and for making the Wwise project file.</source>
+            <translation>Para crear HAMM y para crear el archivo de proyecto de Wwise.</translation>
         </message>
         <message>
             <location filename="../qml/GameBananaModDialog.qml" line="707" />
             <location filename="../qml/GameBananaModDialog.qml" line="732" />
             <location filename="../qml/SettingsPage.qml" line="1114" />
             <location filename="../qml/SettingsPage.qml" line="1264" />
-            <location filename="../qml/WelcomeDialog.qml" line="577" />
-            <location filename="../qml/WelcomeDialog.qml" line="742" />
+            <location filename="../qml/WelcomeDialog.qml" line="585" />
+            <location filename="../qml/WelcomeDialog.qml" line="750" />
             <source>Installing...</source>
             <translation>Instalando...</translation>
         </message>
@@ -1584,25 +1601,25 @@ Superar este límite te bloqueará temporalmente el acceso a los mods durante 1 
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1114" />
-            <location filename="../qml/WelcomeDialog.qml" line="577" />
+            <location filename="../qml/WelcomeDialog.qml" line="585" />
             <source>Run Automated Setup</source>
             <translation>Ejecutar Configuración Automática</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1154" />
-            <location filename="../qml/WelcomeDialog.qml" line="638" />
+            <location filename="../qml/WelcomeDialog.qml" line="646" />
             <source>Windows Audio Tools</source>
             <translation>Herramientas de Audio de Windows</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1162" />
-            <location filename="../qml/WelcomeDialog.qml" line="645" />
+            <location filename="../qml/WelcomeDialog.qml" line="653" />
             <source>FFmpeg and vgmstream are required to convert audio files.</source>
             <translation>FFmpeg y vgmstream son necesarios para convertir archivos de audio.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1264" />
-            <location filename="../qml/WelcomeDialog.qml" line="742" />
+            <location filename="../qml/WelcomeDialog.qml" line="750" />
             <source>Install Audio Tools</source>
             <translation>Instalar Herramientas de Audio</translation>
         </message>
@@ -1711,11 +1728,6 @@ Superar este límite te bloqueará temporalmente el acceso a los mods durante 1 
             <location filename="../qml/SettingsPage.qml" line="1815" />
             <source>For making PCK extraction and packing scripts which have been used as refrence.</source>
             <translation>por crear el extractor de PCK y empaquetando scripts/secuencia de comandos el cual fueron usados como referencia</translation>
-        </message>
-        <message>
-            <location filename="../qml/SettingsPage.qml" line="1836" />
-            <source>For improving on failsafe65's PCK extraction and packing scripts which have been used as reference.</source>
-            <translation>por mejorar en el extractor de PCK de failsafe64 y empaquetando scripts/secuencia de comandos el cual fueron usados como referencia.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="1857" />
@@ -1985,7 +1997,7 @@ Superar este límite te bloqueará temporalmente el acceso a los mods durante 1 
         </message>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="677" />
-            <location filename="../qml/WelcomeDialog.qml" line="919" />
+            <location filename="../qml/WelcomeDialog.qml" line="927" />
             <source>Skip tutorial</source>
             <translation>Saltar tutorial</translation>
         </message>
@@ -2050,92 +2062,92 @@ Superar este límite te bloqueará temporalmente el acceso a los mods durante 1 
             <translation>Todo se ve bién!</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="172" />
+            <location filename="../qml/WelcomeDialog.qml" line="176" />
             <source>Download and install
 .zzar mod packages</source>
             <translation>Descargar e instalar
 .zzar paquetes de mod</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="221" />
+            <location filename="../qml/WelcomeDialog.qml" line="226" />
             <source>Mod Creator</source>
             <translation>Creador del mod</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="229" />
+            <location filename="../qml/WelcomeDialog.qml" line="237" />
             <source>Create and export your
 own .zzar mod packages</source>
             <translation>Crea y exporta tu
 propios .zzar paquetes de mod</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="430" />
+            <location filename="../qml/WelcomeDialog.qml" line="438" />
             <source>✓ Game directory set</source>
             <translation>Directorio de juego definido.</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="430" />
+            <location filename="../qml/WelcomeDialog.qml" line="438" />
             <source>⚠ No game directory configured</source>
             <translation>⚠ No hay un directorio de juego configurado.</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="439" />
+            <location filename="../qml/WelcomeDialog.qml" line="447" />
             <source>You can configure this later from the Settings page</source>
             <translation>Puedes configurar esto luego en la pagina de configuración</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="500" />
-            <location filename="../qml/WelcomeDialog.qml" line="665" />
+            <location filename="../qml/WelcomeDialog.qml" line="508" />
+            <location filename="../qml/WelcomeDialog.qml" line="673" />
             <source>INSTALLED ✓</source>
             <translation>INSTALADO ✓</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="603" />
+            <location filename="../qml/WelcomeDialog.qml" line="611" />
             <source>Wwise is installed and ready! You can start creating mods.</source>
             <translation>Wwise esta instalado y listo! Puedes empezar creando mods.</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="604" />
+            <location filename="../qml/WelcomeDialog.qml" line="612" />
             <source>You can install Wwise later from the Settings page</source>
             <translation>Puedes instalar Wwise después en la pagina de configuración</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="768" />
+            <location filename="../qml/WelcomeDialog.qml" line="776" />
             <source>Audio tools are installed! You can now convert audio files.</source>
             <translation>Las herramientas de audio estan instaladas! Puedes ahora convertir archivos de audio.</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="769" />
+            <location filename="../qml/WelcomeDialog.qml" line="777" />
             <source>You can install these tools later from the Settings page</source>
             <translation>Puedes instalar estas herramientas después en la pagina de configuración</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="797" />
+            <location filename="../qml/WelcomeDialog.qml" line="805" />
             <source>You're all set!</source>
             <translation>Ya estás listo!</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="806" />
+            <location filename="../qml/WelcomeDialog.qml" line="814" />
             <source>ZZAR is configured for mod creation. Go make something!!</source>
             <translation>ZZAR esta configurado para creación de mods. Anda y crea algo!</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="807" />
+            <location filename="../qml/WelcomeDialog.qml" line="815" />
             <source>ZZAR is ready to manage some mods. Install something!</source>
             <translation>ZZAR esta listo para manejar unos mods. Instala algo!</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="873" />
+            <location filename="../qml/WelcomeDialog.qml" line="881" />
             <source>Start Tutorial</source>
             <translation>Empezar tutorial</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="873" />
+            <location filename="../qml/WelcomeDialog.qml" line="881" />
             <source>Continue &gt;</source>
             <translation>Continuar &gt;</translation>
         </message>
         <message>
-            <location filename="../qml/WelcomeDialog.qml" line="946" />
+            <location filename="../qml/WelcomeDialog.qml" line="954" />
             <source>You can always change this later in settings</source>
             <translation>Siempre puedes cambiar esto después en la configuración</translation>
         </message>
@@ -2145,6 +2157,21 @@ propios .zzar paquetes de mod</translation>
 Image</source>
             <translation>No
 Imagen</translation>
+        </message>
+        <message>
+            <location filename="../qml/DiscordDialog.qml" line="74" />
+            <source>Need Help?</source>
+            <translation>¿Necesitas ayuda?</translation>
+        </message>
+        <message>
+            <location filename="../qml/DiscordDialog.qml" line="85" />
+            <source>Join our Discord server for support, mod sharing, and updates!</source>
+            <translation>¡Únete a nuestro servidor de Discord para soporte, compartir mods y novedades!</translation>
+        </message>
+        <message>
+            <location filename="../qml/DiscordDialog.qml" line="140" />
+            <source>Join Discord</source>
+            <translation>Unirse a Discord</translation>
         </message>
         <message>
             <location filename="../main_qml.py" line="436" />
@@ -2161,7 +2188,7 @@ This will be added in a future update. (i hope)</source>
 Será agregado en una próxima actualización. (eso espero.)</translation>
         </message>
         <message>
-            <location filename="../connectors/audio_browser_connector.py" line="327" />
+            <location filename="../connectors/audio_browser_connector.py" line="333" />
             <source>Folder does not exist:
 %1</source>
             <translation>Carpeta no existe:
@@ -2401,157 +2428,157 @@ el nuevo archivo puede descargarse de https://github.com/Pucas01/ZZAR/releases</
             <translation>ZZAR fue actualizado a la versión %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="105" />
+            <location filename="../backend/audio_browser_bridge.py" line="103" />
             <source>Staging replacement...</source>
             <translation>Preparando reemplazo...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="95" />
+            <location filename="../backend/audio_browser_bridge.py" line="96" />
             <source>Converting %1 to WEM...</source>
             <translation>Convirtiendo %1 a WEM...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="118" />
+            <location filename="../backend/audio_browser_bridge.py" line="116" />
             <source>Replacement staged: %1 (ID: %2) - Click 'Apply Changes' to activate</source>
             <translation>Reemplazo preparado: %1 (ID: %2) - Clic 'Aplicar cambios' para activar</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="158" />
+            <location filename="../backend/audio_browser_bridge.py" line="156" />
             <source>Downloaded file is not valid JSON</source>
             <translation>El archivo descargado no es un JSON válido</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="161" />
+            <location filename="../backend/audio_browser_bridge.py" line="159" />
             <source>Official tag database not found on GitHub</source>
             <translation>La base de datos oficial de etiquetas no fue encontrado en GitHub</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="165" />
+            <location filename="../backend/audio_browser_bridge.py" line="163" />
             <source>Network error: %1</source>
             <translation>Error de red: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="167" />
+            <location filename="../backend/audio_browser_bridge.py" line="165" />
             <source>Download failed: %1</source>
             <translation>Falla al descargar: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="163" />
+            <location filename="../backend/audio_browser_bridge.py" line="161" />
             <source>HTTP error: %1 %2</source>
             <translation>Error HTTP: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="233" />
+            <location filename="../backend/audio_browser_bridge.py" line="231" />
             <source>Official fingerprint database not found on GitHub</source>
             <translation>La base de datos oficial de huellas no fue encontrada en GitHub</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1031" />
+            <location filename="../backend/audio_browser_bridge.py" line="1035" />
             <source>Stopped</source>
             <translation>Detenido</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1070" />
+            <location filename="../backend/audio_browser_bridge.py" line="1074" />
             <source>Playback Error</source>
             <translation>Error de reprodución</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1256" />
+            <location filename="../backend/audio_browser_bridge.py" line="1277" />
             <source>Ready</source>
             <translation>Listo</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1275" />
+            <location filename="../backend/audio_browser_bridge.py" line="1296" />
             <source>Converting audio...</source>
             <translation>Convirtiendo audio...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1276" />
+            <location filename="../backend/audio_browser_bridge.py" line="1297" />
             <source>Processing your custom audio...</source>
             <translation>Procesando tu audio personalizado...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1950" />
+            <location filename="../backend/audio_browser_bridge.py" line="1978" />
             <source>Preparing audio fingerprint...</source>
             <translation>Preparando huella de audio...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1962" />
+            <location filename="../backend/audio_browser_bridge.py" line="1990" />
             <source>Match cancelled</source>
             <translation>Similitud cancelada</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2240" />
+            <location filename="../backend/audio_browser_bridge.py" line="2269" />
             <source>No matches found</source>
             <translation>No hay similitudes encontradas</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2261" />
+            <location filename="../backend/audio_browser_bridge.py" line="2290" />
             <source>Match Error</source>
             <translation>Error de similitud</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2594" />
+            <location filename="../backend/audio_browser_bridge.py" line="2635" />
             <source>Downloading official tag database...</source>
             <translation>Descargando el base de datos oficial de etiquetas...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2700" />
+            <location filename="../backend/audio_browser_bridge.py" line="2741" />
             <source>Downloading official fingerprint database...</source>
             <translation>Descargando la base de datos oficial de huellas...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="401" />
+            <location filename="../backend/audio_browser_bridge.py" line="405" />
             <source>Could not find ZenlessZoneZero_Data folder.</source>
             <translation>No se pudo encontrar la carpeta ZenlessZoneZero_Data</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="449" />
+            <location filename="../backend/audio_browser_bridge.py" line="453" />
             <source>No Audio Files</source>
             <translation>No hay archivos de audio</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="632" />
+            <location filename="../backend/audio_browser_bridge.py" line="636" />
             <source>No PCK files found</source>
             <translation>No se encontró archivos PCK</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="958" />
+            <location filename="../backend/audio_browser_bridge.py" line="962" />
             <source>Loading audio...</source>
             <translation>Cargando audio...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1149" />
+            <location filename="../backend/audio_browser_bridge.py" line="1170" />
             <source>Index still building... Please wait</source>
             <translation>Índice en progreso... Por favor espera</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1263" />
+            <location filename="../backend/audio_browser_bridge.py" line="1284" />
             <source>Could not find item data</source>
             <translation>No se pudo encontrar datos del ítem</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1323" />
+            <location filename="../backend/audio_browser_bridge.py" line="1344" />
             <source>Exporting audio...</source>
             <translation>Exportando audio..</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1367" />
+            <location filename="../backend/audio_browser_bridge.py" line="1388" />
             <source>Creating silent audio replacement...</source>
             <translation>Creando reemplazo de silencio para el audio...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1396" />
+            <location filename="../backend/audio_browser_bridge.py" line="1417" />
             <source>Converting silent audio to WEM...</source>
             <translation>Convirtiendo sonido en silencio a WEM...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1458" />
+            <location filename="../backend/audio_browser_bridge.py" line="1479" />
             <source>No Changes found</source>
             <translation>No se encontraron cambios</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1458" />
+            <location filename="../backend/audio_browser_bridge.py" line="1479" />
             <source>No audio replacements found.
 
 Did you even replace anything?.</source>
@@ -2560,7 +2587,7 @@ Did you even replace anything?.</source>
 Acaso al menos reemplazaste algo?</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1501" />
+            <location filename="../backend/audio_browser_bridge.py" line="1523" />
             <source>No manual audio replacements found.
 
 Changes from installed mods are managed in the Mod Manager.</source>
@@ -2569,196 +2596,196 @@ Changes from installed mods are managed in the Mod Manager.</source>
 Cambios de mods instalados son manejados en el gestor de mods.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1555" />
+            <location filename="../backend/audio_browser_bridge.py" line="1577" />
             <source>No Directory</source>
             <translation>No hay directorio</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1555" />
+            <location filename="../backend/audio_browser_bridge.py" line="1577" />
             <source>Please select a game directory first.</source>
             <translation>Por favor selecciona un directorio de juego primero.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1643" />
+            <location filename="../backend/audio_browser_bridge.py" line="1666" />
             <source>No Replacements</source>
             <translation>No hay reemplazo</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1644" />
+            <location filename="../backend/audio_browser_bridge.py" line="1667" />
             <source>No audio replacements found. Replace some audio files first.</source>
             <translation>No hay reemplazos de audio. Reemplaza unos primero.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1666" />
+            <location filename="../backend/audio_browser_bridge.py" line="1689" />
             <source>No audio replacements found.</source>
             <translation>No hay reemplazos de audio.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1684" />
+            <location filename="../backend/audio_browser_bridge.py" line="1707" />
             <source>Creating mod package...</source>
             <translation>Creando un paquete de mod...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1773" />
+            <location filename="../backend/audio_browser_bridge.py" line="1795" />
             <source>Playing replacement audio</source>
             <translation>Reproduciendo audio de reemplazo</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1782" />
+            <location filename="../backend/audio_browser_bridge.py" line="1810" />
             <source>Cannot navigate: no game directory selected</source>
             <translation>No hay navegación: No se ha seleccionado un directorio de juego</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1823" />
+            <location filename="../backend/audio_browser_bridge.py" line="1851" />
             <source>No replacements to reset</source>
             <translation>No hay reemplazos para reiniciar</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1838" />
+            <location filename="../backend/audio_browser_bridge.py" line="1866" />
             <source>All changes reset</source>
             <translation>Todos los cambios se reiniciaron</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1899" />
+            <location filename="../backend/audio_browser_bridge.py" line="1927" />
             <source>No tagging context available</source>
             <translation>No hay contexto de la etiqueta disponible</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1931" />
+            <location filename="../backend/audio_browser_bridge.py" line="1959" />
             <source>Not Ready</source>
             <translation>No listo</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1931" />
+            <location filename="../backend/audio_browser_bridge.py" line="1959" />
             <source>The file index is still building. Please wait.</source>
             <translation>El índice de archivo aún se prepara. Espera por favor.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1935" />
+            <location filename="../backend/audio_browser_bridge.py" line="1963" />
             <source>A match is already in progress</source>
             <translation>Una similitud esta en progreso</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2290" />
+            <location filename="../backend/audio_browser_bridge.py" line="2319" />
             <source>Importing .zzar mod for editing...</source>
             <translation>Importando mod .zzar para editar...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2625" />
+            <location filename="../backend/audio_browser_bridge.py" line="2666" />
             <source>No downloaded database available</source>
             <translation>No hay bases de dato descargados y disponibles</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2630" />
+            <location filename="../backend/audio_browser_bridge.py" line="2671" />
             <source>Merged</source>
             <translation>Fusionado</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2630" />
+            <location filename="../backend/audio_browser_bridge.py" line="2671" />
             <source>Replaced</source>
             <translation>Reemplazado</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="675" />
+            <location filename="../backend/audio_browser_bridge.py" line="679" />
             <source>Found %1 PCK files - building index...</source>
             <translation>Se encontró %1 archivos PCK - construyendo índice...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="714" />
+            <location filename="../backend/audio_browser_bridge.py" line="718" />
             <source>Indexing %1...</source>
             <translation>Ordenando %1...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1051" />
+            <location filename="../backend/audio_browser_bridge.py" line="1055" />
             <source>Playback: %1</source>
             <translation>Reproducción: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1296" />
+            <location filename="../backend/audio_browser_bridge.py" line="1317" />
             <source>Wwise Required</source>
             <translation>Wwise requerido</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1300" />
+            <location filename="../backend/audio_browser_bridge.py" line="1321" />
             <source>Error: Failed to stage replacement</source>
             <translation>Error: Falla en preparar el reemplazo</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1352" />
+            <location filename="../backend/audio_browser_bridge.py" line="1373" />
             <source>Export failed</source>
             <translation>Exportación fallida</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1353" />
+            <location filename="../backend/audio_browser_bridge.py" line="1374" />
             <source>Export Error</source>
             <translation>Error de exportación</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1428" />
+            <location filename="../backend/audio_browser_bridge.py" line="1449" />
             <source>Error: Failed to mute audio</source>
             <translation>Error: Falla al silenciar audio</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1505" />
+            <location filename="../backend/audio_browser_bridge.py" line="1527" />
             <source>Showing %1 replacement(s)</source>
             <translation>Enseñando $1 reemplazo(s)</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1551" />
+            <location filename="../backend/audio_browser_bridge.py" line="1573" />
             <source>No Changes</source>
             <translation>No hay cambios</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1551" />
+            <location filename="../backend/audio_browser_bridge.py" line="1573" />
             <source>No changes to apply.</source>
             <translation>No hay cambios para aplicar.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1633" />
+            <location filename="../backend/audio_browser_bridge.py" line="1656" />
             <source>Failed to apply changes</source>
             <translation>Error al aplicar cambios</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2408" />
+            <location filename="../backend/audio_browser_bridge.py" line="2439" />
             <source>Failed to import .zzar</source>
             <translation>Error al importar .zzar</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2500" />
+            <location filename="../backend/audio_browser_bridge.py" line="2531" />
             <source>Index ready - %1 unique file IDs</source>
             <translation>Índice listo - %1 IDs de archivos únicos</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2620" />
+            <location filename="../backend/audio_browser_bridge.py" line="2661" />
             <source>Tag database download failed: %1</source>
             <translation>Falla descargar la base de etiquetas: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2725" />
+            <location filename="../backend/audio_browser_bridge.py" line="2766" />
             <source>Fingerprint database download failed: %1</source>
             <translation>Falla descargar la base de huellas: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="409" />
+            <location filename="../backend/audio_browser_bridge.py" line="413" />
             <source>Could not find audio folder at:
 %1</source>
             <translation>No se pudo encontrar la carpeta de audio en:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="450" />
+            <location filename="../backend/audio_browser_bridge.py" line="454" />
             <source>No PCK files found in:
 %1</source>
             <translation>No hay archivos PCK en:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="492" />
+            <location filename="../backend/audio_browser_bridge.py" line="496" />
             <source>Missing Streaming Audio Files</source>
             <translation>Archivos de audio "Streaming" faltantes</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="494" />
+            <location filename="../backend/audio_browser_bridge.py" line="498" />
             <source>No Streamed_SFX PCK files were found in the game's audio folder.
 
 This means your game installation is incomplete or corrupted. Audio mods may not work correctly without these files.
@@ -2771,112 +2798,112 @@ Signífica que la instalación del juego esta incompleto o corrupto. Mods de aud
 Por favor repara tus archivos mediante el launcher del juego.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="970" />
+            <location filename="../backend/audio_browser_bridge.py" line="974" />
             <source>Playing: %1.wem</source>
             <translation>Reproduciendo: %1.wem</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="972" />
+            <location filename="../backend/audio_browser_bridge.py" line="976" />
             <source>Playing %1.wem</source>
             <translation>Reproduciendo %1.wem</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="991" />
+            <location filename="../backend/audio_browser_bridge.py" line="995" />
             <source>Extracting BNK from PCK...</source>
             <translation>Extrayendo BNK del PCK...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1013" />
+            <location filename="../backend/audio_browser_bridge.py" line="1017" />
             <source>Playing %1.wem from BNK</source>
             <translation>Reproduciendo %1.wem del BNK</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1200" />
+            <location filename="../backend/audio_browser_bridge.py" line="1221" />
             <source>No files found matching '%1'</source>
             <translation>No hay archivos encontrados '%1'</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1208" />
+            <location filename="../backend/audio_browser_bridge.py" line="1229" />
             <source>Cannot navigate to file %1</source>
             <translation>No se pudo navegar al archivo %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1349" />
+            <location filename="../backend/audio_browser_bridge.py" line="1370" />
             <source>Exported to %1</source>
             <translation>Exportado a %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1560" />
+            <location filename="../backend/audio_browser_bridge.py" line="1582" />
             <source>Applying %1 change(s)...</source>
             <translation>Aplicando %1 cambio(s)</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1630" />
+            <location filename="../backend/audio_browser_bridge.py" line="1653" />
             <source>Successfully applied %1 change(s)!</source>
             <translation>Se aplicó %1 cambio(s) sucesivamente</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1697" />
+            <location filename="../backend/audio_browser_bridge.py" line="1720" />
             <source>Mod package created: %1</source>
             <translation>Paquetes de mods creados: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1743" />
+            <location filename="../backend/audio_browser_bridge.py" line="1765" />
             <source>All changes have been removed</source>
             <translation>Todos los cambios fueron borrados</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1761" />
+            <location filename="../backend/audio_browser_bridge.py" line="1783" />
             <source>Replacement audio file not found: %1</source>
             <translation>Reemplazo del audio no encontrado: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1771" />
+            <location filename="../backend/audio_browser_bridge.py" line="1793" />
             <source>Playing: %1</source>
             <translation>Reproduciendo: %1"</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1813" />
+            <location filename="../backend/audio_browser_bridge.py" line="1841" />
             <source>Could not find PCK file: %1</source>
             <translation>No se encontro archivo PCK: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1910" />
+            <location filename="../backend/audio_browser_bridge.py" line="1938" />
             <source>Tagged sound: %1</source>
             <translation>Sonido etiquetado: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2022" />
+            <location filename="../backend/audio_browser_bridge.py" line="2051" />
             <source>Failed to process the selected audio file.</source>
             <translation>Falla al procesar el audio seleccionado</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2035" />
+            <location filename="../backend/audio_browser_bridge.py" line="2064" />
             <source>No audio directory loaded.</source>
             <translation>No hay directorio de audio cargado.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2127" />
+            <location filename="../backend/audio_browser_bridge.py" line="2156" />
             <source>No audio files found in the current directory.</source>
             <translation>No hay audios en el directorio actual</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2386" />
+            <location filename="../backend/audio_browser_bridge.py" line="2417" />
             <source>Mod Imported for Editing</source>
             <translation>Mod importado para editar</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2612" />
+            <location filename="../backend/audio_browser_bridge.py" line="2653" />
             <source>Official tag database downloaded (%1 entries)</source>
             <translation>Base de etiquetas oficial descargado (%1 tags)</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2717" />
+            <location filename="../backend/audio_browser_bridge.py" line="2758" />
             <source>Official fingerprint database downloaded (%1 entries)</source>
             <translation>Base de datos de huellas oficial descargada (%1 entradas)</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="566" />
+            <location filename="../backend/audio_browser_bridge.py" line="570" />
             <source>Your game installation may be incomplete or corrupted. Some audio mods may not work correctly without these files.
 
 Please repair your game files through the game launcher.</source>
@@ -2885,129 +2912,129 @@ Please repair your game files through the game launcher.</source>
 Por favor repara tus archivos del juego en el launcher.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1083" />
+            <location filename="../backend/audio_browser_bridge.py" line="1087" />
             <source>Merge mode %1</source>
             <translation>Modo de fusión</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1096" />
+            <location filename="../backend/audio_browser_bridge.py" line="1100" />
             <source>Hide useless PCK %1</source>
             <translation>Ocultar PCK no usados %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1109" />
+            <location filename="../backend/audio_browser_bridge.py" line="1113" />
             <source>Hide empty BNK %1</source>
             <translation>Ocultar BNK vacíos %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1251" />
+            <location filename="../backend/audio_browser_bridge.py" line="1272" />
             <source>Navigated to file %1 in %2</source>
             <translation>Navegando al archivo %1 en %2</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1303" />
+            <location filename="../backend/audio_browser_bridge.py" line="1324" />
             <source>Failed to stage replacement:
 %1</source>
             <translation>Error al preparar reemplazo:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1429" />
+            <location filename="../backend/audio_browser_bridge.py" line="1450" />
             <source>Failed to mute audio:
 %1</source>
             <translation>Error al silenciar audio:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1519" />
+            <location filename="../backend/audio_browser_bridge.py" line="1541" />
             <source>Cleaning up Persistent folder...</source>
             <translation>Limpiando carpeta Persistent...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1547" />
+            <location filename="../backend/audio_browser_bridge.py" line="1569" />
             <source>No changes to apply and no Persistent folder found.</source>
             <translation>No hay cambios a aplicar y no hay carpeta Persistent.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1549" />
+            <location filename="../backend/audio_browser_bridge.py" line="1571" />
             <source>Cleanup Error</source>
             <translation>Error de limpieza</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1584" />
+            <location filename="../backend/audio_browser_bridge.py" line="1606" />
             <source>Creating modded %1...</source>
             <translation>Creando %1 modificado...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1623" />
+            <location filename="../backend/audio_browser_bridge.py" line="1646" />
             <source>Packing %1...</source>
             <translation>Empaquetando %1...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1634" />
+            <location filename="../backend/audio_browser_bridge.py" line="1657" />
             <source>Failed to apply changes:
 %1</source>
             <translation>Error al aplicar cambios:
 $1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1699" />
+            <location filename="../backend/audio_browser_bridge.py" line="1722" />
             <source>Failed to create mod package:
 %1</source>
             <translation>Error al crear paquete de mod
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1733" />
+            <location filename="../backend/audio_browser_bridge.py" line="1755" />
             <source>Removed replacement and deleted imported mod file</source>
             <translation>Se borro el reemplazo y eliminado archivo mod importado</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1748" />
+            <location filename="../backend/audio_browser_bridge.py" line="1770" />
             <source>Could not find replacement for file %1</source>
             <translation>No se puedo encontrar reemplazos para archivo %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1751" />
+            <location filename="../backend/audio_browser_bridge.py" line="1773" />
             <source>Failed to remove change: %1</source>
             <translation>Error al borrar cambios:%1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1841" />
+            <location filename="../backend/audio_browser_bridge.py" line="1869" />
             <source>Failed to reset: %1</source>
             <translation>Error al reiniciar: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1893" />
+            <location filename="../backend/audio_browser_bridge.py" line="1921" />
             <source>Failed to load sound info:
 %1</source>
             <translation>Error al cargar info de sonido:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1921" />
+            <location filename="../backend/audio_browser_bridge.py" line="1949" />
             <source>Failed to save tag:
 %1</source>
             <translation>Error al guardar etiqueta:
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2045" />
+            <location filename="../backend/audio_browser_bridge.py" line="2074" />
             <source>Scanning %1 PCK files for sounds...</source>
             <translation>Escaneando %1 archivos PCK para sonidos...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2134" />
+            <location filename="../backend/audio_browser_bridge.py" line="2163" />
             <source>Matching against %1 sounds...</source>
             <translation>Similitudes contra %1 sonidos...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2237" />
+            <location filename="../backend/audio_browser_bridge.py" line="2266" />
             <source>Found %1 match(es) — best score: %2%</source>
             <translation>Se encontró %1 similitud(es) - mejor porcentaje: %2%</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2411" />
+            <location filename="../backend/audio_browser_bridge.py" line="2442" />
             <source>Failed to import .zzar mod for editing:
 
 %1</source>
@@ -3016,114 +3043,114 @@ $1</translation>
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2490" />
+            <location filename="../backend/audio_browser_bridge.py" line="2521" />
             <source>Indexing... %1/%2 PCK files</source>
             <translation>Ordenando %1/%2 archivos PCK</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2615" />
+            <location filename="../backend/audio_browser_bridge.py" line="2656" />
             <source>Failed to read downloaded database: %1</source>
             <translation>Error al leer la base de tags descargada: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2647" />
+            <location filename="../backend/audio_browser_bridge.py" line="2688" />
             <source>Failed to apply tag database: %1</source>
             <translation>Error al aplicar base de etiquetas: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2760" />
+            <location filename="../backend/audio_browser_bridge.py" line="2801" />
             <source>Failed to apply fingerprint database: %1</source>
             <translation>Error al aplicar base de huellas: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="804" />
+            <location filename="../backend/audio_browser_bridge.py" line="808" />
             <source>Loaded %1 files from %2</source>
             <translation>Se cargo %1 archivos de %2</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1010" />
+            <location filename="../backend/audio_browser_bridge.py" line="1014" />
             <source>Playing: %1.wem (from BNK %2)</source>
             <translation>Reproduciendo: %1.wem</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1197" />
+            <location filename="../backend/audio_browser_bridge.py" line="1218" />
             <source>Found %1 match(es) for '%2'</source>
             <translation>Se encontró %1 similar(es) para '%2"</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1424" />
+            <location filename="../backend/audio_browser_bridge.py" line="1445" />
             <source>Audio muted: %1 (ID: %2) - Click 'Apply Changes' to activate</source>
             <translation>En silencio: %1 (ID: %2) - Clic 'Aplicar cambios' para activar</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1545" />
+            <location filename="../backend/audio_browser_bridge.py" line="1567" />
             <source>No modded PCK files found in Persistent folder</source>
             <translation>No hay archivos PCK encontrados en la carpeta Persistent</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1576" />
+            <location filename="../backend/audio_browser_bridge.py" line="1598" />
             <source>Warning: %1 not found, skipping</source>
             <translation>Advertencia: %1 no encontrado, saltando</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1737" />
+            <location filename="../backend/audio_browser_bridge.py" line="1759" />
             <source>Removed replacement for file %1</source>
             <translation>Reemplazo borrado por archivo %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2209" />
+            <location filename="../backend/audio_browser_bridge.py" line="2238" />
             <source>Matching failed: %1</source>
             <translation>Falla de similitud: %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2632" />
+            <location filename="../backend/audio_browser_bridge.py" line="2673" />
             <source>%1 tag database — %2 entries imported</source>
             <translation>Base de etiquetas %1 - %2 tags importados</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2751" />
+            <location filename="../backend/audio_browser_bridge.py" line="2792" />
             <source>%1 fingerprint database — %2 entries imported</source>
             <translation>Base de datos de huellas %1 - %2 entradas importadas</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="810" />
+            <location filename="../backend/audio_browser_bridge.py" line="814" />
             <source>Error loading %1: %2</source>
             <translation>Error al cargar %1: %2</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="920" />
+            <location filename="../backend/audio_browser_bridge.py" line="924" />
             <source>Error loading BNK %1: %2</source>
             <translation>Error al cargar BNK %1: %2</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1549" />
+            <location filename="../backend/audio_browser_bridge.py" line="1571" />
             <source>Failed to clean up Persistent folder:
 %1</source>
             <translation>Error al limpiar la carpeta Persistent;
 %1</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1599" />
+            <location filename="../backend/audio_browser_bridge.py" line="1621" />
             <source>Adding %1 replacement(s) to %2...</source>
             <translation>Agregando %1 reemplazo(s) a %2...</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1543" />
+            <location filename="../backend/audio_browser_bridge.py" line="1565" />
             <source>Cleaned up %1 modded PCK file(s) from Persistent folder</source>
             <translation>Limpiando %1 archivo(s) pck modificado de la carpeta Persistent</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="1735" />
+            <location filename="../backend/audio_browser_bridge.py" line="1757" />
             <source>Removed replacement (but couldn't delete file: %1)</source>
             <translation>Reemplazo borrado (pero no se pudo eliminar: %1)</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2381" />
+            <location filename="../backend/audio_browser_bridge.py" line="2412" />
             <source>Imported '%1' - %2 replacement(s) loaded. You can now view, edit, or add more replacements.</source>
             <translation>Importado '%1" - %2 reemplazo(s) cargados. Puedes ver, editar o agregar más reemplazos.</translation>
         </message>
         <message>
-            <location filename="../backend/audio_browser_bridge.py" line="2387" />
+            <location filename="../backend/audio_browser_bridge.py" line="2418" />
             <source>Successfully imported:
 
 Name: %1
