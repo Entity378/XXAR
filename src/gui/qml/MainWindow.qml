@@ -1326,7 +1326,7 @@ ApplicationWindow {
                         }
                     }
                     if (installed > 0) {
-                        currentTab = 0
+                        currentTab = 1
                         drop.accept()
                     }
                 }
