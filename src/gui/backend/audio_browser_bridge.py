@@ -81,11 +81,12 @@ class ReplaceAudioWorker(QThread):
     progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, custom_file_path, meta, normalize, mod_manager, audio_root=None):
+    def __init__(self, custom_file_path, meta, normalize, mod_manager, audio_root=None, normalize_lufs=-9):
         super().__init__()
         self.custom_file_path = custom_file_path
         self.meta = meta
         self.normalize = normalize
+        self.normalize_lufs = normalize_lufs
         self.mod_manager = mod_manager
         self.audio_root = audio_root
 
@@ -111,10 +112,7 @@ class ReplaceAudioWorker(QThread):
                     QCoreApplication.translate("Application", "Converting %1 to WEM...").replace("%1", custom_file.suffix)
                 )
                 converter = AudioConverter()
-                if custom_file.suffix.lower() == ".wav":
-                    wav_file = custom_file
-                else:
-                    wav_file = converter.any_to_wav(str(custom_file), normalize=self.normalize)
+                wav_file = converter.any_to_wav(str(custom_file), normalize=self.normalize, normalize_lufs=self.normalize_lufs)
                 wem_file = converter.wav_to_wem(str(wav_file))
 
             self.progress.emit(
@@ -278,6 +276,7 @@ class AudioBrowserBridge(QObject):
     thumbnailPathSelected = pyqtSignal(str, arguments=["path"])
     changesCountUpdated = pyqtSignal(int, arguments=["count"])
     normalizeAudioChanged = pyqtSignal(bool, arguments=["enabled"])
+    normalizeTargetLufsChanged = pyqtSignal(int, arguments=["lufs"])
     hideEmptyBnkChanged = pyqtSignal(bool, arguments=["enabled"])
     loadingStarted = pyqtSignal(str, arguments=["message"])
     loadingFinished = pyqtSignal()
@@ -313,6 +312,7 @@ class AudioBrowserBridge(QObject):
         self.hide_useless_pck_enabled = BUILD_TARGET != "SRAR"
         self.hide_empty_bnk_enabled = True
         self.normalize_audio_enabled = True
+        self.normalize_target_lufs = -9
 
         self.file_id_index = {}
         self.index_ready = False
@@ -374,6 +374,10 @@ class AudioBrowserBridge(QObject):
             normalize = settings.get("normalize_audio", True)
             self.normalize_audio_enabled = normalize
             self.normalizeAudioChanged.emit(normalize)
+
+            lufs = settings.get("normalize_target_lufs", -9)
+            self.normalize_target_lufs = lufs
+            self.normalizeTargetLufsChanged.emit(lufs)
 
             hide_empty_bnk = settings.get("hide_empty_bnk", True)
             self.hide_empty_bnk_enabled = hide_empty_bnk
@@ -1154,6 +1158,23 @@ class AudioBrowserBridge(QObject):
         except Exception as e:
             print(f"[Audio Browser] Error saving normalize setting: {e}")
 
+    @pyqtSlot(int)
+    def setNormalizeTargetLufs(self, lufs):
+        self.normalize_target_lufs = lufs
+        self.normalizeTargetLufsChanged.emit(lufs)
+        try:
+            if self.settings_file.exists():
+                with open(self.settings_file, "r") as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            settings["normalize_target_lufs"] = lufs
+            self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=2)
+        except Exception as e:
+            print(f"[Audio Browser] Error saving normalize_target_lufs setting: {e}")
+
     @pyqtSlot(str)
     def search(self, query):
 
@@ -1291,7 +1312,7 @@ class AudioBrowserBridge(QObject):
         self.loadingStarted.emit(QCoreApplication.translate("Application", "Converting audio..."))
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Processing your custom audio..."))
 
-        self._replace_worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root)
+        self._replace_worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, self.normalize_target_lufs)
         self._replace_worker.progress.connect(self._on_replace_progress)
         self._replace_worker.finished.connect(self._on_replace_finished)
         self._replace_worker.start()

@@ -27,6 +27,7 @@ Item {
     signal hideUselessPckToggled(bool checked)
     signal hideEmptyBnkToggled(bool checked)
     signal normalizeAudioToggled(bool checked)
+    signal normalizeTargetLufsSet(int lufs)
     signal treeItemExpanded(string itemId, string itemType)
 
     signal treeItemDoubleClicked(string itemId, string itemType, string pckPath)
@@ -75,6 +76,7 @@ Item {
     property bool hideUselessPckChecked: true
     property bool hideEmptyBnkChecked: true
     property bool normalizeAudioChecked: true
+    property int normalizeTargetLufs: -9
     property string highlightItemId: ""
     property int changesCount: 0
     property bool tagDbDownloading: false
@@ -619,6 +621,69 @@ Item {
                                             normalizeAudioToggled(normalizeAudioChecked)
                                         }
                                     }
+                                }
+                            }
+
+                            Row {
+                                spacing: Theme.spacingSmall
+                                visible: normalizeAudioChecked
+                                leftPadding: 28
+
+                                Text {
+                                    text: qsTranslate("Application", "Target:")
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Slider {
+                                    id: lufsSlider
+                                    from: -24
+                                    to: -1
+                                    stepSize: 1
+                                    value: normalizeTargetLufs
+                                    implicitWidth: 120
+                                    anchors.verticalCenter: parent.verticalCenter
+
+                                    onMoved: {
+                                        normalizeTargetLufs = Math.round(value)
+                                        normalizeTargetLufsSet(normalizeTargetLufs)
+                                    }
+
+                                    background: Rectangle {
+                                        x: lufsSlider.leftPadding
+                                        y: lufsSlider.topPadding + lufsSlider.availableHeight / 2 - height / 2
+                                        width: lufsSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: Theme.cardBackground
+
+                                        Rectangle {
+                                            width: lufsSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: Theme.primaryAccent
+                                            opacity: 0.7
+                                        }
+                                    }
+
+                                    handle: Rectangle {
+                                        x: lufsSlider.leftPadding + lufsSlider.visualPosition * (lufsSlider.availableWidth - width)
+                                        y: lufsSlider.topPadding + lufsSlider.availableHeight / 2 - height / 2
+                                        width: 14
+                                        height: 14
+                                        radius: 7
+                                        color: Theme.primaryAccent
+                                    }
+                                }
+
+                                Text {
+                                    text: normalizeTargetLufs === -9 ? qsTranslate("Application", "Default") : (normalizeTargetLufs + " LUFS")
+                                    color: Theme.primaryAccent
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
 
@@ -2637,7 +2702,7 @@ Item {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
-                            anchors.rightMargin: 125
+                            anchors.rightMargin: 202
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {

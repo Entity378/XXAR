@@ -48,6 +48,7 @@ class AudioBrowserConnector:
         self.audio_page.seekRequested.connect(ab.seekTo)
         self.audio_page.wipDialogRequested.connect(self.on_wip_dialog_requested)
         self.audio_page.normalizeAudioToggled.connect(ab.setNormalizeAudio)
+        self.audio_page.normalizeTargetLufsSet.connect(ab.setNormalizeTargetLufs)
 
         ab.statusUpdate.connect(
             lambda msg: self.audio_page.setProperty("statusText", msg)
@@ -88,6 +89,9 @@ class AudioBrowserConnector:
         ab.changesCountUpdated.connect(self._on_changes_count_updated)
         ab.normalizeAudioChanged.connect(
             lambda enabled: self.audio_page.setProperty("normalizeAudioChecked", enabled)
+        )
+        ab.normalizeTargetLufsChanged.connect(
+            lambda lufs: self.audio_page.setProperty("normalizeTargetLufs", lufs)
         )
         ab.hideEmptyBnkChanged.connect(
             lambda enabled: self.audio_page.setProperty("hideEmptyBnkChecked", enabled)
