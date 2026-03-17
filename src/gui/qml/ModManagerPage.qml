@@ -24,6 +24,9 @@ Item {
     property var selectedModUuids: []
     property int currentSortMode: 0
     property bool gridViewMode: false
+    property bool devMode: false
+
+    signal testPermissionDialogClicked()
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
 
     Settings {
@@ -895,6 +898,40 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            Item {
+                id: devPermissionTestButton
+                visible: mod_Manager.devMode
+                anchors.right: applyModsButton.left
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 8
+                anchors.bottomMargin: 16
+                height: 60
+                width: visible ? 180 : 0
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 30
+                    color: devPermMouse.pressed ? "#a800cc" : devPermMouse.containsMouse ? "#cc33ff" : "#aa00ee"
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Test Perm Error"
+                        color: "#ffffff"
+                        font.family: "Alatsi"
+                        font.pixelSize: 14
+                    }
+                }
+
+                MouseArea {
+                    id: devPermMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: testPermissionDialogClicked()
                 }
             }
 
