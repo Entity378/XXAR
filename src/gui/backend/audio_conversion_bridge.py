@@ -16,13 +16,14 @@ class ConversionWorker(QThread):
     progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, mode, input_path, output_path, sample_rate, normalize=True):
+    def __init__(self, mode, input_path, output_path, sample_rate, normalize=True, normalize_lufs=-9):
         super().__init__()
         self.mode = mode
         self.input_path = input_path
         self.output_path = output_path
         self.sample_rate = sample_rate
         self.normalize = normalize
+        self.normalize_lufs = normalize_lufs
         self.converter = None
 
     def run(self):
@@ -58,7 +59,7 @@ class ConversionWorker(QThread):
                     self.progress.emit("Converting audio files in directory...")
                     result = self.converter.batch_convert_to_wav(
                         str(input_p), str(output_p) if output_p else None,
-                        normalize=self.normalize
+                        normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
                     self.finished.emit(True, f"Converted {len(result)} files to WAV")
                 else:
@@ -72,7 +73,7 @@ class ConversionWorker(QThread):
                             output_file = str(output_p)
                     result = self.converter.any_to_wav(
                         str(input_p), output_file, sample_rate=self.sample_rate,
-                        normalize=self.normalize
+                        normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
                     self.finished.emit(True, f"Converted to: {result}")
 
@@ -81,7 +82,8 @@ class ConversionWorker(QThread):
                 if input_p.is_dir():
                     self.progress.emit("Converting WAV files to WEM...")
                     result = self.converter.batch_convert_wav_to_wem(
-                        str(input_p), str(output_p) if output_p else None
+                        str(input_p), str(output_p) if output_p else None,
+                        normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
                     self.finished.emit(True, f"Converted {len(result)} WAV files to WEM")
                 else:
@@ -93,7 +95,9 @@ class ConversionWorker(QThread):
                             output_file = str(output_p / input_p.with_suffix('.wem').name)
                         else:
                             output_file = str(output_p)
-                    result = self.converter.wav_to_wem(str(input_p), output_file)
+                    result = self.converter.wav_to_wem(str(input_p), output_file,
+                                                       normalize=self.normalize,
+                                                       normalize_lufs=self.normalize_lufs)
                     self.finished.emit(True, f"Converted to: {result}")
 
         except Exception as e:
@@ -116,8 +120,8 @@ class AudioConversionBridge(QObject):
         super().__init__()
         self.worker = None
 
-    @pyqtSlot(int, str, str, int, bool)
-    def convertAudio(self, mode, input_path, output_path, sample_rate, normalize):
+    @pyqtSlot(int, str, str, int, bool, int)
+    def convertAudio(self, mode, input_path, output_path, sample_rate, normalize, lufs=-9):
 
         print(f"[Audio Conversion] Starting conversion - Mode: {mode}, Input: {input_path}")
 
@@ -133,10 +137,10 @@ class AudioConversionBridge(QObject):
         self.logMessage.emit(f"Input: {input_path}")
         self.logMessage.emit(f"Output: {output_path if output_path else 'Auto (same as input)'}")
         self.logMessage.emit(f"Mode: {['WEM → WAV', 'Audio → WAV', 'WAV → WEM'][mode]}")
-        self.logMessage.emit(f"Normalize: {'On' if normalize else 'Off'}")
+        self.logMessage.emit(f"Normalize: {'On (' + str(lufs) + ' LUFS)' if normalize else 'Off'}")
         self.logMessage.emit("Starting conversion...\n")
 
-        self.worker = ConversionWorker(mode, input_path, output_path, sample_rate, normalize)
+        self.worker = ConversionWorker(mode, input_path, output_path, sample_rate, normalize, lufs)
         self.worker.progress.connect(self._onProgress)
         self.worker.finished.connect(self._onFinished)
         self.worker.start()

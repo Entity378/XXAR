@@ -638,7 +638,7 @@ Item {
                                 Slider {
                                     id: lufsSlider
                                     from: -24
-                                    to: -1
+                                    to: -5
                                     stepSize: 1
                                     value: normalizeTargetLufs
                                     implicitWidth: 120

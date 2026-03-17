@@ -177,12 +177,42 @@ class AudioConverter:
                 )
 
         try:
-            cmd = [
-                self.ffmpeg_path,
-                '-i', str(input_file),
-            ]
             if normalize:
-                cmd.extend(['-af', f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true'])
+                # Pass 1: measure integrated loudness
+                measure_cmd = [
+                    self.ffmpeg_path,
+                    '-i', str(input_file),
+                    '-af', f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:print_format=json',
+                    '-f', 'null', '-'
+                ]
+                result = subprocess.run(
+                    measure_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                    **_subprocess_kwargs
+                )
+                stderr_text = result.stderr.decode('utf-8', errors='replace')
+                # Extract measured values from JSON block in stderr
+                import re as _re
+                json_match = _re.search(r'\{[^{}]+\}', stderr_text, _re.DOTALL)
+                if json_match:
+                    import json as _json
+                    measured = _json.loads(json_match.group())
+                    af = (
+                        f"loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true"
+                        f":measured_I={measured['input_i']}"
+                        f":measured_TP={measured['input_tp']}"
+                        f":measured_LRA={measured['input_lra']}"
+                        f":measured_thresh={measured['input_thresh']}"
+                        f":offset={measured['target_offset']}"
+                    )
+                else:
+                    # Fallback to single-pass dynamic if parse fails
+                    af = f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11'
+            else:
+                af = None
+
+            cmd = [self.ffmpeg_path, '-i', str(input_file)]
+            if af:
+                cmd.extend(['-af', af])
             cmd.extend([
                 '-acodec', 'pcm_s16le',
                 '-ar', str(sample_rate),
@@ -198,7 +228,7 @@ class AudioConverter:
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to convert {input_file}: {e}")
 
-    def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None):
+    def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None, normalize=False, normalize_lufs=-9):
 
         wav_file = Path(wav_file)
 
@@ -226,7 +256,23 @@ class AudioConverter:
             output_dir = output_file.parent
 
         try:
-            result_wem = wwise.convert_to_wem(wav_file, output_dir)
+            if normalize:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                try:
+                    self.any_to_wav(wav_file, tmp_path, normalize=True, normalize_lufs=normalize_lufs)
+                    result_wem = wwise.convert_to_wem(tmp_path, output_dir)
+                    # Wwise names output after the input stem — rename to match original
+                    expected = output_dir / (tmp_path.stem + '.wem')
+                    target = output_dir / (wav_file.stem + '.wem')
+                    if expected.exists() and expected != target:
+                        expected.rename(target)
+                        result_wem = target
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+            else:
+                result_wem = wwise.convert_to_wem(wav_file, output_dir)
 
             if output_file and result_wem != output_file:
                 result_wem.rename(output_file)
@@ -263,7 +309,7 @@ class AudioConverter:
         print(f"\nConverted {len(converted)}/{len(wem_files)} files")
         return converted
 
-    def batch_convert_to_wav(self, input_dir, output_dir=None, pattern='*', normalize=True):
+    def batch_convert_to_wav(self, input_dir, output_dir=None, pattern='*', normalize=True, normalize_lufs=-9):
 
         input_dir = Path(input_dir)
         if output_dir is None:
@@ -286,7 +332,7 @@ class AudioConverter:
         for i, audio_file in enumerate(audio_files):
             try:
                 output_file = output_dir / audio_file.with_suffix('.wav').name
-                self.any_to_wav(audio_file, output_file, normalize=normalize)
+                self.any_to_wav(audio_file, output_file, normalize=normalize, normalize_lufs=normalize_lufs)
                 converted.append(output_file)
             except Exception as e:
                 print(f"[{i+1}/{len(audio_files)}] Error: {e}")
@@ -294,7 +340,7 @@ class AudioConverter:
         print(f"\nConverted {len(converted)}/{len(audio_files)} files")
         return converted
 
-    def batch_convert_wav_to_wem(self, input_dir, output_dir=None):
+    def batch_convert_wav_to_wem(self, input_dir, output_dir=None, normalize=False, normalize_lufs=-9):
 
         input_dir = Path(input_dir)
         if output_dir is None:
@@ -316,7 +362,18 @@ class AudioConverter:
             print(f"No .wav files found in {input_dir}")
             return []
 
-        return self.wwise_console.batch_convert_to_wem(wav_files, output_dir)
+        if not normalize:
+            return self.wwise_console.batch_convert_to_wem(wav_files, output_dir)
+
+        converted = []
+        for wav_file in wav_files:
+            try:
+                self.wav_to_wem(wav_file, output_dir / wav_file.with_suffix('.wem').name,
+                                normalize=True, normalize_lufs=normalize_lufs)
+                converted.append(output_dir / wav_file.with_suffix('.wem').name)
+            except Exception as e:
+                print(f"Error converting {wav_file.name}: {e}")
+        return converted
 
 def main():
 
