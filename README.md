@@ -15,6 +15,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey"/>
   <img alt="Python" src="https://img.shields.io/badge/python-3.14-green"/>
   <img alt="License" src="https://img.shields.io/badge/status-Released-green"/>
+  <img alt="License" src="https://img.shields.io/badge/license-GPL%20v3-blue"/>
 </p>
 
 ---
@@ -118,6 +119,10 @@ Found a bug or have an idea? Open an issue! Pull requests are welcome too.
 ### Translators
 
 - **Luafile_Gabriel** - Spanish translation.
+
+## License
+
+ZZAR is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Disclaimer
 
