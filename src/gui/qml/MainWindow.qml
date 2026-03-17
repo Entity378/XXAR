@@ -924,7 +924,7 @@ ApplicationWindow {
                                                 color: "#000000"
                                                 font.family: "Alatsi"
                                                 font.pixelSize: 14
-                                                font.bold: true
+                                                font.bold: false
                                             }
 
                                             MouseArea {
@@ -1028,6 +1028,7 @@ ApplicationWindow {
                                                 color: "#000000"
                                                 font.family: "Alatsi"
                                                 font.pixelSize: 14
+                                                font.bold: false
                                             }
 
                                             MouseArea {
