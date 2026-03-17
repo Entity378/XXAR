@@ -497,19 +497,32 @@ class SettingsConnector:
                             moveable_folders.append(item.name)
                             print(f"[ZZAR] Language folder {item.name} is moveable to streaming")
 
-            if moveable_folders:
-                print(f"[ZZAR] Found moveable language folders in Persistent: {moveable_folders}")
+            # Detect game-pushed PCK files identified by a sibling .hash file
+            hash_pcks = []
+            if streaming_path:
+                for hash_file in persistent_path.glob("*.hash"):
+                    pck_name = hash_file.stem.split("_")[0] + ".pck"
+                    pck_in_persistent = persistent_path / pck_name
+                    pck_in_streaming = streaming_path / pck_name
+                    if pck_in_persistent.exists():
+                        hash_pcks.append(pck_name)
+                        print(f"[ZZAR] Found hash-identified PCK in Persistent (missing from Streaming): {pck_name}")
+
+            if moveable_folders or hash_pcks:
+                print(f"[ZZAR] Found moveable language folders: {moveable_folders}, hash PCKs: {hash_pcks}")
                 languages_text = ", ".join(language_folders)
                 moveable_text = ", ".join(moveable_folders)
+                hash_pcks_text = ", ".join(hash_pcks)
                 QMetaObject.invokeMethod(
                     self.root,
                     "showMultipleLanguagesWarning",
                     Qt.QueuedConnection,
                     Q_ARG("QVariant", languages_text),
                     Q_ARG("QVariant", moveable_text),
+                    Q_ARG("QVariant", hash_pcks_text),
                 )
             else:
-                print(f"[ZZAR] Language check OK: {len(language_folders)} language folder(s), none moveable")
+                print(f"[ZZAR] Language check OK: {len(language_folders)} language folder(s), no hash PCKs, none moveable")
                 QMetaObject.invokeMethod(
                     self.root,
                     "hideLanguageWarningDialog",
@@ -587,6 +600,58 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root, "showErrorToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", folder_name).replace("%2", str(e))),
+            )
+
+    def on_move_hash_pck_to_streaming(self, pck_name):
+        """Move a game-pushed PCK file (identified by a .hash file) from Persistent to StreamingAssets."""
+        import shutil
+
+        try:
+            settings = self.load_settings()
+            persistent_dir = settings.get("persistent_audio_dir", "")
+            streaming_dir = settings.get("game_audio_dir", "")
+
+            if not persistent_dir or not streaming_dir:
+                QMetaObject.invokeMethod(
+                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Game directories not configured")),
+                )
+                return
+
+            persistent_path = Path(persistent_dir)
+            streaming_path = Path(streaming_dir)
+            source_pck = persistent_path / pck_name
+            dest_pck = streaming_path / pck_name
+
+            if not source_pck.exists():
+                QMetaObject.invokeMethod(
+                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "File '%1' not found in Persistent").replace("%1", pck_name)),
+                )
+                return
+
+            print(f"[ZZAR] Moving hash PCK: {source_pck} -> {dest_pck}")
+            shutil.move(str(source_pck), str(dest_pck))
+
+            # Remove the accompanying .hash file(s) from Persistent
+            pck_stem = Path(pck_name).stem
+            for hash_file in persistent_path.glob(f"{pck_stem}_*.hash"):
+                hash_file.unlink()
+                print(f"[ZZAR] Removed hash file: {hash_file.name}")
+
+            print(f"[ZZAR] Successfully moved {pck_name} to StreamingAssets")
+            QMetaObject.invokeMethod(
+                self.root, "showSuccessToast", Qt.QueuedConnection,
+                Q_ARG("QVariant", QCoreApplication.translate("Application", "Moved '%1' to StreamingAssets successfully!").replace("%1", pck_name)),
+            )
+
+            self.check_multiple_languages()
+
+        except Exception as e:
+            print(f"[ZZAR] Error moving hash PCK: {e}")
+            QMetaObject.invokeMethod(
+                self.root, "showErrorToast", Qt.QueuedConnection,
+                Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", pck_name).replace("%2", str(e))),
             )
 
     def on_welcome_mode_selected(self, mode):

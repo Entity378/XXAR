@@ -22,6 +22,7 @@ Item {
     signal restartClicked()
     signal githubTokenSaved(string token)
     signal testUpdateDialogClicked()
+    signal testLanguageDialogClicked()
     signal redoTutorialClicked()
     signal languageChanged(string langCode)
 
@@ -1443,6 +1444,35 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: testUpdateDialogClicked()
+                                    }
+                                }
+
+                                Item {
+                                    width: 130
+                                    height: 36
+                                    visible: settingsPage.devMode
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        color: testLangDialogMouse.pressed ? "#a800cc" : testLangDialogMouse.containsMouse ? "#cc33ff" : "#aa00ee"
+                                        radius: 20
+                                        Behavior on color { ColorAnimation { duration: 100 } }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: qsTranslate("Application", "Test Lang Dialog")
+                                        color: "#ffffff"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 14
+                                    }
+
+                                    MouseArea {
+                                        id: testLangDialogMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: testLanguageDialogClicked()
                                     }
                                 }
                             }

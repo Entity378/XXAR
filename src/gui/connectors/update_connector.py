@@ -28,6 +28,7 @@ class UpdateConnector:
         self.settings_page.restartClicked.connect(self._on_restart_for_update)
         self.settings_page.githubTokenSaved.connect(self._on_github_token_changed)
         self.settings_page.testUpdateDialogClicked.connect(self._on_test_update_dialog)
+        self.settings_page.testLanguageDialogClicked.connect(self._on_test_language_dialog)
         if hasattr(self.settings_page, 'redoTutorialClicked'):
             self.settings_page.redoTutorialClicked.connect(self.on_start_tutorial)
 
@@ -146,6 +147,17 @@ class UpdateConnector:
                 Q_ARG("QVariant", "99.0.0"),
                 Q_ARG("QVariant", "## Test Release\n\n- This is a test changelog entry\n- Another cool feature\n- Bug fixes and improvements\n\nThis dialog is for testing only."),
             )
+
+    def _on_test_language_dialog(self):
+        print("[ZZAR] Test language dialog triggered")
+        QMetaObject.invokeMethod(
+            self.root,
+            "showMultipleLanguagesWarning",
+            Qt.QueuedConnection,
+            Q_ARG("QVariant", "English, Japanese"),
+            Q_ARG("QVariant", "English"),
+            Q_ARG("QVariant", "External0.pck"),
+        )
 
     def _on_update_dialog_accepted(self):
         print("[ZZAR] User accepted update from dialog")

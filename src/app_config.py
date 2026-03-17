@@ -34,7 +34,7 @@ if BUILD_TARGET == "ZZAR":
     STREAMED_PCK_GLOB    = "Streamed_SFX_*.pck"
     STREAMED_PCK_PREFIX  = "Streamed_SFX_"
     SOUNDBANK_PCK_PREFIX = "SoundBank_SFX_"
-    LANGUAGE_FOLDERS          = {"En": "English", "Jp": "Japanese", "Kr": "Korean", "Cn": "Chinese"}
+    LANGUAGE_FOLDERS          = {"En": "English", "japanese(jp)": "Japanese", "Kr": "Korean", "Cn": "Chinese"}
     AUDIO_ROOT_FRIENDLY_NAME  = "SFX/Music"
     SUBFOLDER_SORT_PRIORITY   = {}  # all subfolders sort alphabetically
 
@@ -81,7 +81,7 @@ elif BUILD_TARGET == "SRAR":
     STREAMED_PCK_GLOB    = "Streamed*.pck"
     STREAMED_PCK_PREFIX  = "Streamed"
     SOUNDBANK_PCK_PREFIX = "Banks"
-    LANGUAGE_FOLDERS          = {"English": "English", "SFX": "SFX"}
+    LANGUAGE_FOLDERS          = {"English": "English", "Japanese": "Japanese", "Korean": "Korean", "Chinese(PRC)": "Chinese", "SFX": "SFX"}
     AUDIO_ROOT_FRIENDLY_NAME  = "Music"
     SUBFOLDER_SORT_PRIORITY   = {"SFX": 0}  # SFX before language folders (which get priority 1)
 

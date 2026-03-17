@@ -50,6 +50,7 @@ class ModManagerConnector:
         root.conflictsResolved.connect(self.on_conflicts_resolved)
         root.languageWarningDontShowAgain.connect(self.on_language_warning_dont_show_again)
         root.moveLanguageToStreaming.connect(self.on_move_language_to_streaming)
+        root.moveHashPckToStreaming.connect(self.on_move_hash_pck_to_streaming)
 
         mod_page.setProperty("modManager", self.mod_manager_bridge)
 
