@@ -1093,7 +1093,8 @@ def screen_cluster(cache, min_cluster_size=3):
         hide_cursor()
         return None
 
-    print(f"  Clustering {colored(len(features), C.BOLD)} voice clips...")
+    method = colored("ECAPA-TDNN (neural)", C.GREEN) if _SPEECHBRAIN_AVAILABLE else colored("MFCC fallback", C.YELLOW)
+    print(f"  Clustering {colored(len(features), C.BOLD)} voice clips...  [{method}]")
     print()
 
     # For small sets, show pairwise distances to aid debugging
