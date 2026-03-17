@@ -18,6 +18,7 @@ class ModManagerConnector:
 
         self.mod_manager_bridge.progressUpdate.connect(self.on_progress_update)
         self.mod_manager_bridge.errorOccurred.connect(self.on_error_occurred)
+        self.mod_manager_bridge.alertDialogRequested.connect(self.on_alert_dialog_requested)
 
         if not mod_page:
             return
@@ -39,6 +40,7 @@ class ModManagerConnector:
         mod_page.refreshClicked.connect(self.mod_manager_bridge.refreshMods)
         mod_page.openFolderClicked.connect(self.on_open_folder_clicked)
         mod_page.applyModsClicked.connect(self.mod_manager_bridge.applyMods)
+        mod_page.testPermissionDialogClicked.connect(self._on_test_permission_dialog)
         mod_page.modToggled.connect(self.on_mod_toggled)
         mod_page.modSelected.connect(self.on_mod_selected)
         mod_page.moreInfoClicked.connect(self.on_more_info_clicked)
@@ -50,7 +52,18 @@ class ModManagerConnector:
         root.moveLanguageToStreaming.connect(self.on_move_language_to_streaming)
 
         mod_page.setProperty("modManager", self.mod_manager_bridge)
+
+        from ZZAR import DEV_MODE
+        mod_page.setProperty("devMode", DEV_MODE)
+
         print("[ZZAR] Mod manager page connected")
+
+    def _on_test_permission_dialog(self):
+        self.on_alert_dialog_requested(
+            QCoreApplication.translate("Application", "Permission Denied"),
+            QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+            ""
+        )
 
     def _get_last_install_dir(self):
         try:

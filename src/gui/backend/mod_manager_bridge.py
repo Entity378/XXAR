@@ -121,6 +121,7 @@ class ModManagerBridge(QObject):
     modRemoved = pyqtSignal(str, arguments=["modUuid"])
     progressUpdate = pyqtSignal(str, arguments=["message"])
     errorOccurred = pyqtSignal(str, str, arguments=["title", "message"])
+    alertDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "stickerPath"])
 
     wwiseStatusChanged = pyqtSignal(bool, arguments=["installed"])
     modCreationModeChanged = pyqtSignal(bool, arguments=["enabled"])
@@ -648,7 +649,17 @@ class ModManagerBridge(QObject):
 
         except Exception as e:
             print(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            is_permission_error = isinstance(e, PermissionError) or (
+                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
+            ) or "permission denied" in str(e).lower()
+            if is_permission_error:
+                self.alertDialogRequested.emit(
+                    QCoreApplication.translate("Application", "Permission Denied"),
+                    QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+                    ""
+                )
+            else:
+                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
 
     def _apply_mods_internal(self):
 
@@ -711,7 +722,17 @@ class ModManagerBridge(QObject):
 
         except Exception as e:
             print(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            is_permission_error = isinstance(e, PermissionError) or (
+                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
+            ) or "permission denied" in str(e).lower()
+            if is_permission_error:
+                self.alertDialogRequested.emit(
+                    QCoreApplication.translate("Application", "Permission Denied"),
+                    QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+                    ""
+                )
+            else:
+                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
 
     @pyqtSlot(result=str)
     def getModLibraryPath(self):
