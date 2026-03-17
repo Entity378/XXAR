@@ -24,6 +24,26 @@ if sys.platform.startswith('linux') and 'QT_QPA_PLATFORM' not in os.environ:
 if sys.platform == 'win32':
     os.environ.setdefault('QT_SCALE_FACTOR_ROUNDING_POLICY', 'PassThrough')
 
+def _load_ui_scale():
+    import json
+    from pathlib import Path
+    try:
+        if sys.platform == 'win32':
+            appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
+            settings_file = appdata / 'ZZAR' / 'settings.json'
+        else:
+            xdg_config = os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')
+            settings_file = Path(xdg_config) / 'ZZAR' / 'settings.json'
+        if settings_file.exists():
+            with open(settings_file, 'r') as f:
+                scale = json.load(f).get('ui_scale', 1.0)
+            if scale != 1.0:
+                os.environ['QT_SCALE_FACTOR'] = str(scale)
+    except Exception:
+        pass
+
+_load_ui_scale()
+
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db=false;qt.network.ssl=false'
 
 __version__ = "1.2.3"

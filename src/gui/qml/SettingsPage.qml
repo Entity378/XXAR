@@ -24,9 +24,11 @@ Item {
     signal testUpdateDialogClicked()
     signal redoTutorialClicked()
     signal languageChanged(string langCode)
+    signal uiScaleSelected(real scale)
 
     property string gameDirectory: ""
     property string currentLanguage: "en"
+    property real uiScale: 1.0
     property string modsDirectory: ""
     property string defaultModsDirectory: ""
     property bool modCreationEnabled: false
@@ -434,6 +436,146 @@ Item {
                                                 qsTranslate("Application", "I need your help to translate ZZAR to more languages!\n\nIf you're interested in translating, reach out to:\n\nDiscord: Pucas01\nTwitter: Pucas02\n\nOr open an issue on the GitHub repo.\n\nI only speak English and Dutch."),
                                                 "../assets/YeShunguangReed.png"
                                             )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: uiScaleContent.height + 40
+                        color: "#333333"
+                        radius: 20
+                        visible: currentCategory === 0
+                        Behavior on height { NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
+
+                        Column {
+                            id: uiScaleContent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 20
+                            spacing: 15
+
+                            Text {
+                                text: qsTranslate("Application", "UI Scale")
+                                color: Theme.primaryAccent
+                                font.family: "Alatsi"
+                                font.pixelSize: 24
+                                font.weight: Font.Normal
+                            }
+
+                            Row {
+                                width: parent.width
+                                spacing: 16
+
+                                Slider {
+                                    id: uiScaleSlider
+                                    from: 0.50
+                                    to: 1.50
+                                    stepSize: 0.05
+                                    value: settingsPage.uiScale
+                                    width: parent.width - scaleLabel.width - 16
+                                    topPadding: 12
+                                    bottomPadding: 12
+
+                                    onMoved: settingsPage.uiScale = value
+
+                                    onPressedChanged: {
+                                        if (!pressed) {
+                                            settingsPage.uiScaleSelected(value)
+                                        }
+                                    }
+
+                                    background: Rectangle {
+                                        x: uiScaleSlider.leftPadding
+                                        y: uiScaleSlider.topPadding + uiScaleSlider.availableHeight / 2 - height / 2
+                                        width: uiScaleSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: Qt.rgba(1, 1, 1, 0.1)
+
+                                        Rectangle {
+                                            width: uiScaleSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: Theme.primaryAccent
+                                        }
+                                    }
+
+                                    handle: Rectangle {
+                                        x: uiScaleSlider.leftPadding + uiScaleSlider.visualPosition * uiScaleSlider.availableWidth - width / 2
+                                        y: uiScaleSlider.topPadding + uiScaleSlider.availableHeight / 2 - height / 2
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: uiScaleSlider.pressed ? Theme.accentDark : Theme.primaryAccent
+                                        Behavior on color { ColorAnimation { duration: 100 } }
+                                    }
+                                }
+
+                                Text {
+                                    id: scaleLabel
+                                    text: Math.round(settingsPage.uiScale * 100) + "%"
+                                    color: Theme.primaryAccent
+                                    font.family: "Alatsi"
+                                    font.pixelSize: 16
+                                    font.bold: false
+                                    anchors.verticalCenter: uiScaleSlider.verticalCenter
+                                    width: 48
+                                }
+                            }
+
+                            Text {
+                                text: qsTranslate("Application", "Requires restart to apply.")
+                                color: "#888888"
+                                font.family: "Alatsi"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                            }
+
+                            Item {
+                                width: parent.width
+                                height: scaleWarningShown ? scaleWarningRect.implicitHeight : 0
+                                clip: true
+                                property bool scaleWarningShown: settingsPage.uiScale < 0.75 || settingsPage.uiScale > 1.10
+
+                                Rectangle {
+                                    id: scaleWarningRect
+                                    width: parent.width
+                                    implicitHeight: scaleWarningCol.implicitHeight + 20
+                                    radius: 10
+                                    color: "#2a2000"
+                                    border.color: "#ffaa00"
+                                    border.width: 1
+
+                                    Column {
+                                        id: scaleWarningCol
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 10
+                                        spacing: 4
+
+                                        Text {
+                                            text: qsTranslate("Application", "Warning")
+                                            color: "#ffaa00"
+                                            font.family: "Alatsi"
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: qsTranslate("Application", "Extreme scale values may cause UI elements to overlap or get cut off.")
+                                            color: "#ccaa66"
+                                            font.family: "Alatsi"
+                                            font.pixelSize: 12
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            lineHeight: 1.2
                                         }
                                     }
                                 }
