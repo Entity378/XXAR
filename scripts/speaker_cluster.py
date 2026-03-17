@@ -28,12 +28,107 @@ from pck_indexer import PCKIndexer
 from bnk_indexer import BNKIndexer
 from sound_database import SoundDatabase
 
-SAMPLE_RATE = 22050
+# Try to load speechbrain from pipx venv
+_SPEECHBRAIN_AVAILABLE = False
+_encoder_model = None
+
+def _find_speechbrain_site_packages():
+    """Return the site-packages path inside the speechbrain pipx venv, or None."""
+    venv_lib = Path.home() / ".local/share/pipx/venvs/speechbrain/lib"
+    if not venv_lib.exists():
+        return None
+    for site_packages in sorted(venv_lib.glob("python*/site-packages")):
+        return site_packages
+    return None
+
+def _patch_speechbrain(site_packages):
+    """
+    Auto-patch known speechbrain compatibility issues so users don't have to
+    manually edit files after `pipx install speechbrain`.
+
+    Patches applied:
+      1. torch_audio_backend.py — torchaudio 2.x removed list_audio_backends();
+         wrap the call in hasattr() guard.
+      2. speechbrain/utils/fetching.py — huggingface_hub ≥1.0 renamed
+         use_auth_token= to token=.
+    """
+    patched = []
+
+    # --- Patch 1: torch_audio_backend.py ---
+    tab_path = site_packages / "speechbrain" / "utils" / "torch_audio_backend.py"
+    if tab_path.exists():
+        text = tab_path.read_text(encoding="utf-8")
+        old = "available_backends = torchaudio.list_audio_backends()"
+        new = (
+            "if not hasattr(torchaudio, 'list_audio_backends'):\n"
+            "                    logger.warning(\n"
+            "                        \"torchaudio.list_audio_backends not available in this version.\"\n"
+            "                    )\n"
+            "                else:\n"
+            "                    available_backends = torchaudio.list_audio_backends()"
+        )
+        # Only patch if the bare call exists and the guard is not already there
+        if old in text and "hasattr(torchaudio, 'list_audio_backends')" not in text:
+            # Replace the surrounding if-block so the indentation stays consistent
+            old_block = (
+                "            available_backends = torchaudio.list_audio_backends()\n"
+                "            if len(available_backends) == 0:"
+            )
+            new_block = (
+                "            if not hasattr(torchaudio, 'list_audio_backends'):\n"
+                "                logger.warning(\n"
+                "                    \"torchaudio.list_audio_backends not available in this torchaudio version.\"\n"
+                "                )\n"
+                "            else:\n"
+                "                available_backends = torchaudio.list_audio_backends()\n"
+                "                if len(available_backends) == 0:"
+            )
+            if old_block in text:
+                text = text.replace(old_block, new_block)
+                tab_path.write_text(text, encoding="utf-8")
+                patched.append("torch_audio_backend.py")
+
+    # --- Patch 2: fetching.py (use_auth_token → token) ---
+    fetching_path = site_packages / "speechbrain" / "utils" / "fetching.py"
+    if fetching_path.exists():
+        text = fetching_path.read_text(encoding="utf-8")
+        if "use_auth_token=use_auth_token" in text and "token=use_auth_token" not in text:
+            text = text.replace(
+                "use_auth_token=use_auth_token",
+                "token=use_auth_token if use_auth_token else None",
+            )
+            fetching_path.write_text(text, encoding="utf-8")
+            patched.append("fetching.py")
+
+    return patched
+
+def _try_load_speechbrain():
+    global _SPEECHBRAIN_AVAILABLE
+    site_packages = _find_speechbrain_site_packages()
+    if site_packages is not None:
+        # Apply compatibility patches before importing
+        try:
+            patched = _patch_speechbrain(site_packages)
+            if patched:
+                print(colored(f"  [speechbrain] Auto-patched: {', '.join(patched)}", C.YELLOW), flush=True)
+        except Exception as patch_err:
+            print(colored(f"  [speechbrain] Patch warning: {patch_err}", C.YELLOW), flush=True)
+        if str(site_packages) not in sys.path:
+            sys.path.insert(0, str(site_packages))
+    try:
+        import speechbrain  # noqa
+        _SPEECHBRAIN_AVAILABLE = True
+    except ImportError:
+        pass
+
+_try_load_speechbrain()
+
+SAMPLE_RATE = 16000  # ECAPA-TDNN expects 16kHz; fallback also uses 16k
 N_FFT = 2048
 HOP = 512
 N_MELS = 40
 N_MFCC = 13
-FEATURE_DIM = 39
+FEATURE_DIM = 192  # ECAPA-TDNN embedding size; 39 for fallback
 MIN_CLIP_DURATION = 0.5
 MIN_VOICED_RATIO = 0.20
 MIN_RMS_ENERGY = 0.005
@@ -373,19 +468,55 @@ def compute_ltas(freqs, power_spec):
 
     return np.array([low, mid, high])
 
+def _get_encoder():
+    global _encoder_model
+    if _encoder_model is not None:
+        return _encoder_model
+    if not _SPEECHBRAIN_AVAILABLE:
+        return None
+    try:
+        import torch
+        from speechbrain.inference.speaker import EncoderClassifier
+        _encoder_model = EncoderClassifier.from_hparams(
+            source="speechbrain/spkrec-ecapa-voxceleb",
+            run_opts={"device": "cpu"},
+            savedir=str(Path.home() / ".cache/zzar/speechbrain_ecapa"),
+            pymodule_file="",
+        )
+        return _encoder_model
+    except Exception as e:
+        print(f"\n  [speechbrain] Failed to load ECAPA model: {e}", flush=True)
+        return None
+
+
 def extract_speaker_features(audio, sr):
-    
+    encoder = _get_encoder()
+    if encoder is not None:
+        try:
+            import torch
+            # Resample to 16kHz if needed (ECAPA expects 16kHz)
+            if sr != 16000:
+                from scipy.signal import resample_poly
+                from math import gcd
+                g = gcd(sr, 16000)
+                audio = resample_poly(audio, 16000 // g, sr // g).astype(np.float32)
+            wav = torch.tensor(audio).unsqueeze(0)  # (1, T)
+            with torch.no_grad():
+                emb = encoder.encode_batch(wav)  # (1, 1, 192)
+            return emb.squeeze().numpy()  # (192,)
+        except Exception as e:
+            print(f"\n  [speechbrain] Embedding failed, falling back: {e}", flush=True)
+
+    # Fallback: handcrafted features
     freqs, times, Sxx = signal.spectrogram(
         audio, sr, nperseg=N_FFT, noverlap=N_FFT - HOP,
         window="hann", mode="magnitude",
     )
     power = Sxx ** 2
-
     mfcc = extract_mfcc(power, sr, N_FFT, N_MFCC, N_MELS)
     f0_stats, _ = estimate_f0(audio, sr)
     spectral = compute_spectral_stats(freqs, power)
     ltas = compute_ltas(freqs, power)
-
     return np.concatenate([mfcc, f0_stats, spectral, ltas])
 
 def is_voice_clip(audio, sr):
@@ -491,9 +622,15 @@ class FeatureCache:
         self.known_hashes = set()
 
     def load(self):
-        
         if self.features_path.exists() and self.metadata_path.exists():
-            self.features = list(np.load(self.features_path))
+            loaded = np.load(self.features_path)
+            # Invalidate cache if feature dimension changed (e.g. handcrafted→neural)
+            if len(loaded) > 0 and loaded.shape[1] != FEATURE_DIM:
+                print(colored(f"\n  Cache feature dim mismatch ({loaded.shape[1]} vs {FEATURE_DIM}) — clearing cache.", C.YELLOW))
+                self.features_path.unlink(missing_ok=True)
+                self.metadata_path.unlink(missing_ok=True)
+                return False
+            self.features = list(loaded)
             with open(self.metadata_path, "r") as f:
                 self.metadata = json.load(f)
             self.known_hashes = {m["hash"] for m in self.metadata}
@@ -688,9 +825,11 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
 
     status_ok = colored("OK", C.GREEN, C.BOLD)
     status_missing = colored("MISSING", C.RED, C.BOLD)
+    status_warn = colored("NOT FOUND", C.YELLOW, C.BOLD)
 
     print(f"  ffmpeg:       {status_ok if ffmpeg_ok else status_missing}")
-    print(f"  vgmstream:    {status_ok if vgmstream_ok else status_missing}")
+    print(f"  vgmstream:    {status_ok if vgmstream_ok else status_warn}")
+    print(f"  speechbrain:  {status_ok if _SPEECHBRAIN_AVAILABLE else colored('not found — using fallback', C.YELLOW)}")
     print()
 
     if not ffmpeg_ok:
@@ -701,6 +840,11 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
 
     if not vgmstream_ok:
         print(colored("  Warning: vgmstream not found. Some WEM files may fail to decode.", C.YELLOW))
+        print()
+
+    if not _SPEECHBRAIN_AVAILABLE:
+        print(colored("  Tip: Install speechbrain for better speaker separation:", C.DIM))
+        print(colored("    pipx install speechbrain", C.DIM))
         print()
 
     return True
