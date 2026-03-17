@@ -17,6 +17,7 @@ class ModManagerConnector:
 
         self.mod_manager_bridge.progressUpdate.connect(self.on_progress_update)
         self.mod_manager_bridge.errorOccurred.connect(self.on_error_occurred)
+        self.mod_manager_bridge.alertDialogRequested.connect(self.on_alert_dialog_requested)
 
         if not mod_page:
             return
