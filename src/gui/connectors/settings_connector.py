@@ -450,10 +450,7 @@ class SettingsConnector:
 
     def _can_move_language_folder(self, folder_name, persistent_path, streaming_path):
         """Check if a persistent language folder can be moved to streaming.
-        Moveable only if:
-        1. The streaming folder does NOT already have this language folder
-        2. The persistent folder contains original (unmodded) audio files"""
-        persistent_folder = persistent_path / folder_name
+        Moveable only if the streaming folder does NOT already have this language folder."""
         streaming_folder = streaming_path / folder_name
 
         streaming_exists = streaming_folder.exists()
@@ -462,14 +459,6 @@ class SettingsConnector:
 
         if streaming_has_pcks:
             print(f"[ZZAR]   -> NOT moveable: streaming already has '{folder_name}' with PCK files")
-            return False
-
-        is_original = self._is_original_language_folder(persistent_folder)
-        pck_count = len(list(persistent_folder.glob("*.pck")))
-        print(f"[ZZAR]   -> persistent has {pck_count} PCKs, is_original={is_original}")
-
-        if not is_original:
-            print(f"[ZZAR]   -> NOT moveable: not original game files (expected 57 PCKs)")
             return False
 
         print(f"[ZZAR]   -> MOVEABLE")
@@ -562,13 +551,6 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root, "showErrorToast", Qt.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder '%1' already exists in StreamingAssets").replace("%1", folder_name)),
-                )
-                return
-
-            if not self._is_original_language_folder(source):
-                QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
-                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder '%1' does not contain original game files").replace("%1", folder_name)),
                 )
                 return
 
