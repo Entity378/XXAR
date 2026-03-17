@@ -8,7 +8,7 @@ import os
 import sys
 import shutil
 import subprocess
-from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, APP_NAME
 
 from src.mod_package_manager import ModPackageManager, InvalidModPackageError
 from src.persistent_mod_manager import PersistentModManager
@@ -655,7 +655,7 @@ class ModManagerBridge(QObject):
             if is_permission_error:
                 self.alertDialogRequested.emit(
                     QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
                     ""
                 )
             else:
@@ -728,7 +728,7 @@ class ModManagerBridge(QObject):
             if is_permission_error:
                 self.alertDialogRequested.emit(
                     QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
                     ""
                 )
             else:

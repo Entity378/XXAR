@@ -3,6 +3,7 @@ import json
 import platform
 import subprocess
 from pathlib import Path
+from src.app_config import APP_NAME
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
@@ -62,7 +63,7 @@ class ModManagerConnector:
     def _on_test_permission_dialog(self):
         self.on_alert_dialog_requested(
             QCoreApplication.translate("Application", "Permission Denied"),
-            QCoreApplication.translate("Application", "ZZAR does not have permission to write to the game folder.\n\nTry one of the following:\n• Run ZZAR as Administrator\n• Repair your game files in the launcher"),
+            QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
             ""
         )
 
