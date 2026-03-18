@@ -1328,9 +1328,9 @@
     "date_modified": "2026-03-05T13:01:14.865877"
   },
   "4d97b7f2a253a1ac14b9832dea445cbc2fa03fba06f6c7f6816d2f3c82a3bfd6": {
-    "name": "Trigger \"Quick shot\"",
+    "name": "Magus \"Quick shot\"",
     "tags": [
-      "trigger"
+      "magus"
     ],
     "notes": "",
     "file_ids": [
@@ -5570,9 +5570,9 @@
     "date_modified": "2026-03-18T10:11:51.513039"
   },
   "590b295db5dcead32d2cf0aefa6f98345328c33046e433301ad9444679ef7775": {
-    "name": "Trigger \"Keep your balance, Orphe!\"",
+    "name": "Magus \"Keep your balance, Orphe!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -5583,9 +5583,9 @@
     "date_modified": "2026-03-18T10:11:51.574314"
   },
   "f1fb6fc7a3b2187094d252b56be4253a226f7bb2a8a9075b5b9cd69fa1283f46": {
-    "name": "Trigger \"Soldier or fate?\"",
+    "name": "Magus \"Soldier or fate?\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -5596,9 +5596,9 @@
     "date_modified": "2026-03-18T10:11:51.580246"
   },
   "8a3bbf56f8a9f5c280577347e56d091b9e9bd8aca77af609374014e064842b5a": {
-    "name": "Trigger \"Show no mercy to the enemy!\"",
+    "name": "Magus \"Show no mercy to the enemy!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -5609,9 +5609,9 @@
     "date_modified": "2026-03-18T10:11:51.587831"
   },
   "4aeaed0ed50e363e2176b4b743e2e9482381d22f0457f46ca32d89ee11a6c947": {
-    "name": "Trigger \"Technical strategy, take out the leader!\"",
+    "name": "Magus \"Technical strategy, take out the leader!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6492,9 +6492,9 @@
     "date_modified": "2026-03-18T10:11:51.484649"
   },
   "680ba7a0075b20afebd1380a8b028fc7a4d6e007bfed40a6c04bec51e8839b77": {
-    "name": "Trigger \"Keep up the fire!\"",
+    "name": "Magus \"Keep up the fire!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6505,9 +6505,9 @@
     "date_modified": "2026-03-18T10:11:51.518587"
   },
   "a3fede4893180660fbf2fbfaee72215095180f51062257bc10c3397720bcd1ee": {
-    "name": "Trigger \"The art of joint combat!\"",
+    "name": "Magus \"The art of joint combat!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6518,9 +6518,9 @@
     "date_modified": "2026-03-18T10:11:51.524764"
   },
   "9efdc17c146000a421be39731b26ba68b6c26abc4d94dfea34ed8ac41703fa1b": {
-    "name": "Trigger \"Tactical strategy! SCARTS DIRT!\"",
+    "name": "Magus \"Tactical strategy! SCARTS DIRT!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6531,9 +6531,9 @@
     "date_modified": "2026-03-18T10:11:51.530311"
   },
   "19ba00cc60f26be526f61d53229f04347212f4b9b86cbddd8879b76ea4a4647a": {
-    "name": "Trigger \"What's out? The enemy's recovered!\"",
+    "name": "Magus \"What's out? The enemy's recovered!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6544,9 +6544,9 @@
     "date_modified": "2026-03-18T10:11:51.536081"
   },
   "2cde37ecbf08f977e3d187957ee16d7c31444a178878928d7f9ef6167636c5cf": {
-    "name": "Trigger \"Just walking fuel for my fire!\"",
+    "name": "Magus \"Just walking fuel for my fire!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6557,9 +6557,9 @@
     "date_modified": "2026-03-18T10:11:51.541722"
   },
   "f548260845a3279ced715e8e41a1f31809e15afba95084f9d284429d1549e568": {
-    "name": "Trigger \"Let's go, Orphe!\"",
+    "name": "Magus \"Let's go, Orphe!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6570,9 +6570,9 @@
     "date_modified": "2026-03-18T10:11:51.547139"
   },
   "3717cbefe8ce8ba5800f5060fd46debfd154a59e1f8f7294499bb99de6219c12": {
-    "name": "Trigger \"Perfect response, Orphe!\"",
+    "name": "Magus \"Perfect response, Orphe!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6583,9 +6583,9 @@
     "date_modified": "2026-03-18T10:11:51.554756"
   },
   "69e9310541b599c5994271ced35fb94986887e243f856df3bf083042479d8cc2": {
-    "name": "Trigger \"What a magnificent fight or fee!\"",
+    "name": "Magus \"What a magnificent fight or fee!\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
@@ -6596,9 +6596,9 @@
     "date_modified": "2026-03-18T10:11:51.562061"
   },
   "9259c1ae3da71355631971c22c6cd65e390b3af59a5a9456eec095a367605749": {
-    "name": "Trigger \"Orphe, I'm right here behind you.\"",
+    "name": "Magus \"Orphe, I'm right here behind you.\"",
     "tags": [
-      "trigger",
+      "magus",
       "autogen"
     ],
     "notes": "",
