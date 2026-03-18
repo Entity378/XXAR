@@ -244,6 +244,23 @@ def read_key():
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
+def _kbhit():
+    """Return True if a key is waiting in stdin (non-blocking)."""
+    if _is_windows:
+        import msvcrt
+        return msvcrt.kbhit()
+    else:
+        import select
+        return bool(select.select([sys.stdin], [], [], 0)[0])
+
+def _getch():
+    """Read one character from stdin without blocking (call only after _kbhit())."""
+    if _is_windows:
+        import msvcrt
+        return msvcrt.getwch()
+    else:
+        return sys.stdin.read(1)
+
 def progress_bar(current, total, width=40, label=""):
     if total == 0:
         return ""
@@ -864,7 +881,7 @@ def fetch_wem_bytes(meta, audio_dir):
 
 
 def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
-    """Play up to n clips from a speaker group. Blocks until each finishes."""
+    """Play up to n clips from a speaker group. Press any key to skip a clip."""
     import random
     sample = random.sample(clips, min(n, len(clips)))
     ffplay = shutil.which("ffplay") or (str(Path(ffmpeg_path).parent / "ffplay") if ffmpeg_path else None)
@@ -881,9 +898,10 @@ def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
         tmp_dir = tempfile.mkdtemp(prefix="zzar_prev_")
         tmp_wem = Path(tmp_dir) / "preview.wem"
         tmp_wav = Path(tmp_dir) / "preview.wav"
+        proc = None
         try:
             tmp_wem.write_bytes(wem_bytes)
-            print(colored(f"  Playing clip {i+1}/{len(sample)}: wem_id={clip.get('wem_id')}  (Ctrl+C to skip)", C.DIM))
+            print(colored(f"  Playing clip {i+1}/{len(sample)}: wem_id={clip.get('wem_id')}  (any key to skip)", C.DIM))
 
             if vgmstream_path:
                 subprocess.run(
@@ -892,15 +910,32 @@ def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
                 )
                 play_path = tmp_wav if tmp_wav.exists() else None
             else:
-                play_path = tmp_wem  # let ffplay try directly
+                play_path = tmp_wem
 
             if play_path:
-                subprocess.run(
+                proc = subprocess.Popen(
                     [ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", str(play_path)],
-                    timeout=30, **_subprocess_kwargs,
+                    **_subprocess_kwargs,
                 )
+                # Poll until done, checking for a keypress each iteration
+                if not _is_windows:
+                    import tty, termios
+                    fd = sys.stdin.fileno()
+                    old_settings = termios.tcgetattr(fd)
+                    tty.setraw(fd)
+                try:
+                    while proc.poll() is None:
+                        if _kbhit():
+                            _getch()
+                            proc.terminate()
+                            break
+                        time.sleep(0.05)
+                finally:
+                    if not _is_windows:
+                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         except (subprocess.TimeoutExpired, KeyboardInterrupt):
-            pass
+            if proc is not None:
+                proc.terminate()
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -1275,7 +1310,7 @@ def screen_rename(clusters_data, audio_dir=None, vgmstream_path=None, ffmpeg_pat
 
         print()
         can_preview = bool(audio_dir and shutil.which("ffplay"))
-        preview_hint = "  [p] Preview audio  " if can_preview else ""
+        preview_hint = "  [p] Preview audio (any key skips)  " if can_preview else ""
         print(colored(f"  [Enter] Rename  {preview_hint}[d] Done  [q] Quit without applying", C.DIM))
 
         key = read_key()
@@ -1313,7 +1348,14 @@ def screen_rename(clusters_data, audio_dir=None, vgmstream_path=None, ffmpeg_pat
         if old_name == "_metadata":
             continue
         new_name = renames.get(old_name, old_name)
-        new_data[new_name] = group
+        if new_name in new_data:
+            merged_clips = new_data[new_name]["clips"] + group["clips"]
+            new_data[new_name] = {
+                "clip_count": len(merged_clips),
+                "clips": merged_clips,
+            }
+        else:
+            new_data[new_name] = group
     return new_data
 
 def screen_apply(clusters_data, audio_dir):
@@ -1392,6 +1434,8 @@ def main():
             if not json_path:
                 return
             json_path = Path(json_path)
+            if json_path.is_dir():
+                json_path = json_path / "speaker_clusters.json"
             if not json_path.exists():
                 print(colored(f"\n  File not found: {json_path}", C.RED))
                 show_cursor()
