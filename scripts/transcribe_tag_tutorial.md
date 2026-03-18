@@ -24,6 +24,9 @@ python scripts/transcribe_tag.py <tag> <wem_dir>
 
 ```
 python scripts/transcribe_tag.py seed /home/user/Downloads/diff_audio_en_2.2
+
+  pipx run --spec openai-whisper python transcribe_tag.py "alice" /home/pucas01/Downloads/ZZZ_Audio_Stuff/diff_audio_en_2.2
+
 ```
 
 This will:
