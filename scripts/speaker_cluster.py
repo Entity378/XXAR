@@ -28,12 +28,107 @@ from pck_indexer import PCKIndexer
 from bnk_indexer import BNKIndexer
 from sound_database import SoundDatabase
 
-SAMPLE_RATE = 22050
+# Try to load speechbrain from pipx venv
+_SPEECHBRAIN_AVAILABLE = False
+_encoder_model = None
+
+def _find_speechbrain_site_packages():
+    """Return the site-packages path inside the speechbrain pipx venv, or None."""
+    venv_lib = Path.home() / ".local/share/pipx/venvs/speechbrain/lib"
+    if not venv_lib.exists():
+        return None
+    for site_packages in sorted(venv_lib.glob("python*/site-packages")):
+        return site_packages
+    return None
+
+def _patch_speechbrain(site_packages):
+    """
+    Auto-patch known speechbrain compatibility issues so users don't have to
+    manually edit files after `pipx install speechbrain`.
+
+    Patches applied:
+      1. torch_audio_backend.py — torchaudio 2.x removed list_audio_backends();
+         wrap the call in hasattr() guard.
+      2. speechbrain/utils/fetching.py — huggingface_hub ≥1.0 renamed
+         use_auth_token= to token=.
+    """
+    patched = []
+
+    # --- Patch 1: torch_audio_backend.py ---
+    tab_path = site_packages / "speechbrain" / "utils" / "torch_audio_backend.py"
+    if tab_path.exists():
+        text = tab_path.read_text(encoding="utf-8")
+        old = "available_backends = torchaudio.list_audio_backends()"
+        new = (
+            "if not hasattr(torchaudio, 'list_audio_backends'):\n"
+            "                    logger.warning(\n"
+            "                        \"torchaudio.list_audio_backends not available in this version.\"\n"
+            "                    )\n"
+            "                else:\n"
+            "                    available_backends = torchaudio.list_audio_backends()"
+        )
+        # Only patch if the bare call exists and the guard is not already there
+        if old in text and "hasattr(torchaudio, 'list_audio_backends')" not in text:
+            # Replace the surrounding if-block so the indentation stays consistent
+            old_block = (
+                "            available_backends = torchaudio.list_audio_backends()\n"
+                "            if len(available_backends) == 0:"
+            )
+            new_block = (
+                "            if not hasattr(torchaudio, 'list_audio_backends'):\n"
+                "                logger.warning(\n"
+                "                    \"torchaudio.list_audio_backends not available in this torchaudio version.\"\n"
+                "                )\n"
+                "            else:\n"
+                "                available_backends = torchaudio.list_audio_backends()\n"
+                "                if len(available_backends) == 0:"
+            )
+            if old_block in text:
+                text = text.replace(old_block, new_block)
+                tab_path.write_text(text, encoding="utf-8")
+                patched.append("torch_audio_backend.py")
+
+    # --- Patch 2: fetching.py (use_auth_token → token) ---
+    fetching_path = site_packages / "speechbrain" / "utils" / "fetching.py"
+    if fetching_path.exists():
+        text = fetching_path.read_text(encoding="utf-8")
+        if "use_auth_token=use_auth_token" in text and "token=use_auth_token" not in text:
+            text = text.replace(
+                "use_auth_token=use_auth_token",
+                "token=use_auth_token if use_auth_token else None",
+            )
+            fetching_path.write_text(text, encoding="utf-8")
+            patched.append("fetching.py")
+
+    return patched
+
+def _try_load_speechbrain():
+    global _SPEECHBRAIN_AVAILABLE
+    site_packages = _find_speechbrain_site_packages()
+    if site_packages is not None:
+        # Apply compatibility patches before importing
+        try:
+            patched = _patch_speechbrain(site_packages)
+            if patched:
+                print(colored(f"  [speechbrain] Auto-patched: {', '.join(patched)}", C.YELLOW), flush=True)
+        except Exception as patch_err:
+            print(colored(f"  [speechbrain] Patch warning: {patch_err}", C.YELLOW), flush=True)
+        if str(site_packages) not in sys.path:
+            sys.path.insert(0, str(site_packages))
+    try:
+        import speechbrain  # noqa
+        _SPEECHBRAIN_AVAILABLE = True
+    except ImportError:
+        pass
+
+_try_load_speechbrain()
+
+SAMPLE_RATE = 16000  # ECAPA-TDNN expects 16kHz; fallback also uses 16k
 N_FFT = 2048
 HOP = 512
 N_MELS = 40
 N_MFCC = 13
-FEATURE_DIM = 39
+FEATURE_DIM = 192  # ECAPA-TDNN embedding size; 39 for fallback
 MIN_CLIP_DURATION = 0.5
 MIN_VOICED_RATIO = 0.20
 MIN_RMS_ENERGY = 0.005
@@ -148,6 +243,23 @@ def read_key():
             return ch
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+def _kbhit():
+    """Return True if a key is waiting in stdin (non-blocking)."""
+    if _is_windows:
+        import msvcrt
+        return msvcrt.kbhit()
+    else:
+        import select
+        return bool(select.select([sys.stdin], [], [], 0)[0])
+
+def _getch():
+    """Read one character from stdin without blocking (call only after _kbhit())."""
+    if _is_windows:
+        import msvcrt
+        return msvcrt.getwch()
+    else:
+        return sys.stdin.read(1)
 
 def progress_bar(current, total, width=40, label=""):
     if total == 0:
@@ -373,19 +485,55 @@ def compute_ltas(freqs, power_spec):
 
     return np.array([low, mid, high])
 
+def _get_encoder():
+    global _encoder_model
+    if _encoder_model is not None:
+        return _encoder_model
+    if not _SPEECHBRAIN_AVAILABLE:
+        return None
+    try:
+        import torch
+        from speechbrain.inference.speaker import EncoderClassifier
+        _encoder_model = EncoderClassifier.from_hparams(
+            source="speechbrain/spkrec-ecapa-voxceleb",
+            run_opts={"device": "cpu"},
+            savedir=str(Path.home() / ".cache/zzar/speechbrain_ecapa"),
+            pymodule_file="",
+        )
+        return _encoder_model
+    except Exception as e:
+        print(f"\n  [speechbrain] Failed to load ECAPA model: {e}", flush=True)
+        return None
+
+
 def extract_speaker_features(audio, sr):
-    
+    encoder = _get_encoder()
+    if encoder is not None:
+        try:
+            import torch
+            # Resample to 16kHz if needed (ECAPA expects 16kHz)
+            if sr != 16000:
+                from scipy.signal import resample_poly
+                from math import gcd
+                g = gcd(sr, 16000)
+                audio = resample_poly(audio, 16000 // g, sr // g).astype(np.float32)
+            wav = torch.tensor(audio).unsqueeze(0)  # (1, T)
+            with torch.no_grad():
+                emb = encoder.encode_batch(wav)  # (1, 1, 192)
+            return emb.squeeze().numpy()  # (192,)
+        except Exception as e:
+            print(f"\n  [speechbrain] Embedding failed, falling back: {e}", flush=True)
+
+    # Fallback: handcrafted features
     freqs, times, Sxx = signal.spectrogram(
         audio, sr, nperseg=N_FFT, noverlap=N_FFT - HOP,
         window="hann", mode="magnitude",
     )
     power = Sxx ** 2
-
     mfcc = extract_mfcc(power, sr, N_FFT, N_MFCC, N_MELS)
     f0_stats, _ = estimate_f0(audio, sr)
     spectral = compute_spectral_stats(freqs, power)
     ltas = compute_ltas(freqs, power)
-
     return np.concatenate([mfcc, f0_stats, spectral, ltas])
 
 def is_voice_clip(audio, sr):
@@ -428,6 +576,21 @@ def find_audio_directory(game_dir, lang_code):
             return candidate
 
     return None
+
+def scan_wem_folder(wem_dir):
+    """Yield (wem_bytes, meta) for every .wem file directly in wem_dir."""
+    wem_files = sorted(Path(wem_dir).glob("*.wem"))
+    for wem_file in wem_files:
+        try:
+            wem_bytes = wem_file.read_bytes()
+            yield wem_bytes, {
+                "wem_id": wem_file.stem,
+                "bnk_id": None,
+                "pck_file": wem_file.name,
+                "type": "wem_loose",
+            }
+        except Exception:
+            continue
 
 def scan_voice_clips(audio_dir):
     
@@ -491,9 +654,15 @@ class FeatureCache:
         self.known_hashes = set()
 
     def load(self):
-        
         if self.features_path.exists() and self.metadata_path.exists():
-            self.features = list(np.load(self.features_path))
+            loaded = np.load(self.features_path)
+            # Invalidate cache if feature dimension changed (e.g. handcrafted→neural)
+            if len(loaded) > 0 and loaded.shape[1] != FEATURE_DIM:
+                print(colored(f"\n  Cache feature dim mismatch ({loaded.shape[1]} vs {FEATURE_DIM}) — clearing cache.", C.YELLOW))
+                self.features_path.unlink(missing_ok=True)
+                self.metadata_path.unlink(missing_ok=True)
+                return False
+            self.features = list(loaded)
             with open(self.metadata_path, "r") as f:
                 self.metadata = json.load(f)
             self.known_hashes = {m["hash"] for m in self.metadata}
@@ -521,32 +690,43 @@ class FeatureCache:
         return np.array(self.features, dtype=np.float32)
 
 def find_elbow_threshold(Z):
-    
+
     merge_distances = Z[:, 2]
     if len(merge_distances) < 10:
-        return 0.35
+        # Too few clips for elbow detection — use a generous default for ECAPA embeddings
+        return 0.85
 
     diffs = np.diff(merge_distances)
     window = max(5, len(diffs) // 20)
 
+    # Scale sensitivity with dataset size: larger sets need a stricter multiplier
+    # to avoid false elbows in the dense low-distance region
+    n = len(merge_distances)
+    sensitivity = 2.0 + (n / 500.0)  # 2.0 at ~0 clips, ~4.3 at 1170 clips
+    sensitivity = min(sensitivity, 5.0)
+
+    MIN_THRESHOLD = 0.55  # never split below this — ECAPA same-speaker pairs cluster below 0.5
+
     for i in range(window, len(diffs)):
+        if merge_distances[i] < MIN_THRESHOLD:
+            continue
         local_mean = diffs[max(0, i - window) : i].mean()
         local_std = diffs[max(0, i - window) : i].std()
-        if diffs[i] > local_mean + 2.0 * local_std and local_std > 0:
+        if diffs[i] > local_mean + sensitivity * local_std and local_std > 0:
             return merge_distances[i]
 
-    return 0.35
+    return 0.75
 
 def cluster_speakers(features, threshold=None, min_cluster_size=3):
-    
+
     n = len(features)
     if n < 2:
         return [0] * n, 1
 
-    mean = features.mean(axis=0)
-    std = features.std(axis=0)
-    std[std < 1e-8] = 1.0
-    normed = (features - mean) / std
+    # L2-normalize each row so cosine distance is well-defined (range 0–2, same-speaker ~0–0.5)
+    norms = np.linalg.norm(features, axis=1, keepdims=True)
+    norms[norms < 1e-8] = 1.0
+    normed = features / norms
 
     distances = pdist(normed, metric="cosine")
     distances = np.nan_to_num(distances, nan=1.0)
@@ -616,7 +796,7 @@ def build_cluster_output(labels, metadata, language, threshold):
     return output
 
 def apply_clusters_to_db(clusters_data, audio_dir):
-    
+
     db = SoundDatabase()
     applied_count = 0
     speaker_count = 0
@@ -635,24 +815,15 @@ def apply_clusters_to_db(clusters_data, audio_dir):
 
         for clip in clips:
             try:
-
-                pck_path = Path(audio_dir) / clip["pck_file"]
-                if not pck_path.exists():
+                wem_bytes = fetch_wem_bytes(clip, audio_dir)
+                if not wem_bytes:
                     continue
 
-                indexer = PCKIndexer(str(pck_path))
-                indexer.build_index()
-
                 wem_id = clip["wem_id"]
-                bnk_id = clip.get("bnk_id")
-
-                if bnk_id is not None:
-                    bnk_bytes = indexer.extract_single_file(bnk_id, "bnk", 0)
-                    bnk_indexer = BNKIndexer(bnk_bytes)
-                    bnk_indexer.parse_didx()
-                    wem_bytes = bnk_indexer.extract_wem(wem_id)
-                else:
-                    wem_bytes = indexer.extract_single_file(wem_id, "wem", 0)
+                try:
+                    wem_id = int(wem_id)
+                except (ValueError, TypeError):
+                    pass
 
                 existing = db.get_sound_info(wem_bytes)
                 if existing:
@@ -676,6 +847,99 @@ def apply_clusters_to_db(clusters_data, audio_dir):
 
     return speaker_count, applied_count
 
+def fetch_wem_bytes(meta, audio_dir):
+    """Re-read raw WEM bytes for a clip given its metadata dict."""
+    try:
+        clip_type = meta.get("type", "wem")
+        pck_name  = meta.get("pck_file")
+        wem_id    = meta.get("wem_id")
+        bnk_id    = meta.get("bnk_id")
+
+        if clip_type == "wem_loose":
+            # loose .wem file in a folder
+            wem_path = Path(audio_dir) / pck_name
+            if wem_path.exists():
+                return wem_path.read_bytes()
+            return None
+
+        pck_path = Path(audio_dir) / pck_name
+        if not pck_path.exists():
+            return None
+
+        indexer = PCKIndexer(str(pck_path))
+        indexer.build_index()
+
+        if clip_type == "wem_embedded" and bnk_id is not None:
+            bnk_bytes = indexer.extract_single_file(bnk_id, "bnk")
+            bnk_idx   = BNKIndexer(bnk_bytes)
+            bnk_idx.parse_didx()
+            return bnk_idx.extract_wem(wem_id)
+        else:
+            return indexer.extract_single_file(wem_id, "wem")
+    except Exception:
+        return None
+
+
+def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
+    """Play up to n clips from a speaker group. Press any key to skip a clip."""
+    import random
+    sample = random.sample(clips, min(n, len(clips)))
+    ffplay = shutil.which("ffplay") or (str(Path(ffmpeg_path).parent / "ffplay") if ffmpeg_path else None)
+    if not ffplay or not Path(ffplay).exists():
+        print(colored("  ffplay not found — cannot preview audio", C.RED))
+        time.sleep(1.5)
+        return
+
+    for i, clip in enumerate(sample):
+        wem_bytes = fetch_wem_bytes(clip, audio_dir)
+        if not wem_bytes:
+            continue
+
+        tmp_dir = tempfile.mkdtemp(prefix="zzar_prev_")
+        tmp_wem = Path(tmp_dir) / "preview.wem"
+        tmp_wav = Path(tmp_dir) / "preview.wav"
+        proc = None
+        try:
+            tmp_wem.write_bytes(wem_bytes)
+            print(colored(f"  Playing clip {i+1}/{len(sample)}: wem_id={clip.get('wem_id')}  (any key to skip)", C.DIM))
+
+            if vgmstream_path:
+                subprocess.run(
+                    [vgmstream_path, "-o", str(tmp_wav), str(tmp_wem)],
+                    capture_output=True, timeout=10, **_subprocess_kwargs,
+                )
+                play_path = tmp_wav if tmp_wav.exists() else None
+            else:
+                play_path = tmp_wem
+
+            if play_path:
+                proc = subprocess.Popen(
+                    [ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", str(play_path)],
+                    **_subprocess_kwargs,
+                )
+                # Poll until done, checking for a keypress each iteration
+                if not _is_windows:
+                    import tty, termios
+                    fd = sys.stdin.fileno()
+                    old_settings = termios.tcgetattr(fd)
+                    tty.setraw(fd)
+                try:
+                    while proc.poll() is None:
+                        if _kbhit():
+                            _getch()
+                            proc.terminate()
+                            break
+                        time.sleep(0.05)
+                finally:
+                    if not _is_windows:
+                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            if proc is not None:
+                proc.terminate()
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def screen_welcome(ffmpeg_ok, vgmstream_ok):
     clear_screen()
     print()
@@ -688,9 +952,11 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
 
     status_ok = colored("OK", C.GREEN, C.BOLD)
     status_missing = colored("MISSING", C.RED, C.BOLD)
+    status_warn = colored("NOT FOUND", C.YELLOW, C.BOLD)
 
     print(f"  ffmpeg:       {status_ok if ffmpeg_ok else status_missing}")
-    print(f"  vgmstream:    {status_ok if vgmstream_ok else status_missing}")
+    print(f"  vgmstream:    {status_ok if vgmstream_ok else status_warn}")
+    print(f"  speechbrain:  {status_ok if _SPEECHBRAIN_AVAILABLE else colored('not found — using fallback', C.YELLOW)}")
     print()
 
     if not ffmpeg_ok:
@@ -701,6 +967,11 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
 
     if not vgmstream_ok:
         print(colored("  Warning: vgmstream not found. Some WEM files may fail to decode.", C.YELLOW))
+        print()
+
+    if not _SPEECHBRAIN_AVAILABLE:
+        print(colored("  Tip: Install speechbrain for better speaker separation:", C.DIM))
+        print(colored("    pipx install speechbrain", C.DIM))
         print()
 
     return True
@@ -745,6 +1016,79 @@ def screen_language(game_dir):
 
     code, _, _, audio_dir = available[idx]
     return code, audio_dir
+
+def screen_extract_wem_folder(wem_dir, cache_dir, ffmpeg_path, vgmstream_path):
+    cache = FeatureCache(cache_dir)
+    loaded_existing = cache.load()
+
+    clear_screen()
+    print()
+    print(colored("  Feature Extraction (loose WEM files)", C.BOLD, C.CYAN))
+    print()
+
+    if loaded_existing:
+        print(colored(f"  Found existing cache: {len(cache.metadata)} clips", C.GREEN))
+        print(colored("  New clips will be added incrementally.", C.DIM))
+    print()
+    print(colored("  Scanning WEM files...", C.DIM))
+
+    all_clips = list(scan_wem_folder(wem_dir))
+    total = len(all_clips)
+
+    print(f"  Found {colored(total, C.BOLD)} WEM files")
+    print()
+
+    processed = 0
+    skipped_cached = 0
+    skipped_filter = 0
+    errors = 0
+    new_clips = 0
+    start_time = time.monotonic()
+
+    for wem_bytes, meta in all_clips:
+        wem_hash = hashlib.sha256(wem_bytes).hexdigest()
+
+        if cache.has_hash(wem_hash):
+            skipped_cached += 1
+            processed += 1
+            _print_extract_progress(processed, total, new_clips, skipped_filter, errors, start_time)
+            continue
+
+        try:
+            audio = wem_bytes_to_float32(wem_bytes, vgmstream_path, ffmpeg_path, max_duration=3.0)
+            if audio is None or len(audio) == 0:
+                skipped_filter += 1
+                processed += 1
+                _print_extract_progress(processed, total, new_clips, skipped_filter, errors, start_time)
+                continue
+
+            # No voice filter in loose WEM mode — process everything that decoded
+            features = extract_speaker_features(audio, SAMPLE_RATE)
+            meta["hash"] = wem_hash
+            cache.add(features, meta)
+            new_clips += 1
+
+        except Exception:
+            errors += 1
+
+        processed += 1
+        _print_extract_progress(processed, total, new_clips, skipped_filter, errors, start_time)
+
+    cache.save()
+    print()
+    print()
+    print(colored("  Extraction complete!", C.GREEN, C.BOLD))
+    print(f"  Total cached:   {colored(len(cache.metadata), C.BOLD)}")
+    print(f"  New this run:   {colored(new_clips, C.GREEN)}")
+    print(f"  Already cached: {colored(skipped_cached, C.DIM)}")
+    print(f"  Filtered out:   {colored(skipped_filter, C.DIM)}")
+    print(f"  Errors:         {colored(errors, C.RED) if errors else colored(0, C.DIM)}")
+    print()
+    show_cursor()
+    input("  Press Enter to continue...")
+    hide_cursor()
+
+    return cache
 
 def screen_extract(audio_dir, cache_dir, ffmpeg_path, vgmstream_path):
     
@@ -860,8 +1204,27 @@ def screen_cluster(cache, min_cluster_size=3):
         hide_cursor()
         return None
 
-    print(f"  Clustering {colored(len(features), C.BOLD)} voice clips...")
+    method = colored("ECAPA-TDNN (neural)", C.GREEN) if _SPEECHBRAIN_AVAILABLE else colored("MFCC fallback", C.YELLOW)
+    print(f"  Clustering {colored(len(features), C.BOLD)} voice clips...  [{method}]")
     print()
+
+    # For small sets, show pairwise distances to aid debugging
+    if len(features) <= 20:
+        norms = np.linalg.norm(features, axis=1, keepdims=True)
+        norms[norms < 1e-8] = 1.0
+        normed = features / norms
+        distances = pdist(normed, metric="cosine")
+        distances = np.nan_to_num(distances, nan=1.0)
+        names = [m.get("pck_file", str(m.get("wem_id", i))) for i, m in enumerate(cache.metadata)]
+        print(colored("  Pairwise cosine distances:", C.DIM))
+        idx = 0
+        for i in range(len(features)):
+            for j in range(i + 1, len(features)):
+                d = distances[idx]
+                bar = colored("█" * int(d * 20), C.GREEN if d < 0.5 else C.YELLOW if d < 0.75 else C.RED)
+                print(f"    {names[i][:20]:20s} ↔ {names[j][:20]:20s}  {d:.3f}  {bar}")
+                idx += 1
+        print()
 
     labels, n_speakers = cluster_speakers(features, threshold=None, min_cluster_size=min_cluster_size)
 
@@ -875,7 +1238,7 @@ def screen_cluster(cache, min_cluster_size=3):
 
     return labels
 
-def screen_rename(clusters_data):
+def screen_rename(clusters_data, audio_dir=None, vgmstream_path=None, ffmpeg_path=None):
     
     speaker_names = [k for k in clusters_data if k not in ("_metadata", "Unclustered")]
     if not speaker_names:
@@ -913,8 +1276,13 @@ def screen_rename(clusters_data):
         for i in range(visible_start, visible_end):
             name = speaker_names[i]
             display_name = renames.get(name, name)
+            clips = clusters_data[name].get("clips", [])
             clip_count = clusters_data[name]["clip_count"]
             is_renamed = name in renames and not SPEAKER_PATTERN.match(renames[name])
+
+            # Show up to 2 sample WEM IDs for identification
+            sample_ids = [str(c.get("wem_id", "?")) for c in clips[:2]]
+            ids_str = colored("  ids: " + ", ".join(sample_ids) + ("…" if clip_count > 2 else ""), C.DIM)
 
             prefix = "  > " if i == selected else "    "
             count_str = colored(f"({clip_count} clips)", C.DIM)
@@ -923,11 +1291,11 @@ def screen_rename(clusters_data):
                 badge = colored(" (renamed)", C.GREEN)
                 name_display = colored(display_name, C.GREEN, C.BOLD)
                 orig = colored(f" [{name}]", C.DIM)
-                line = f"{prefix}{name_display} {count_str}{badge}{orig}"
+                line = f"{prefix}{name_display} {count_str}{badge}{orig}{ids_str}"
             elif i == selected:
-                line = f"{prefix}{colored(display_name, C.BOLD, C.WHITE)} {count_str}"
+                line = f"{prefix}{colored(display_name, C.BOLD, C.WHITE)} {count_str}{ids_str}"
             else:
-                line = f"{prefix}{colored(display_name, C.DIM)} {count_str}"
+                line = f"{prefix}{colored(display_name, C.DIM)} {count_str}{ids_str}"
 
             print(line)
 
@@ -941,7 +1309,9 @@ def screen_rename(clusters_data):
             print(colored(f"  + {unc} unclustered clips (not shown)", C.DIM))
 
         print()
-        print(colored("  [Enter] Rename  [d] Done  [q] Quit without applying", C.DIM))
+        can_preview = bool(audio_dir and shutil.which("ffplay"))
+        preview_hint = "  [p] Preview audio (any key skips)  " if can_preview else ""
+        print(colored(f"  [Enter] Rename  {preview_hint}[d] Done  [q] Quit without applying", C.DIM))
 
         key = read_key()
 
@@ -949,6 +1319,15 @@ def screen_rename(clusters_data):
             selected -= 1
         elif key == "down" and selected < len(speaker_names) - 1:
             selected += 1
+        elif key == "p" and audio_dir:
+            name = speaker_names[selected]
+            clips = clusters_data[name].get("clips", [])
+            if clips:
+                print()
+                print(colored(f"  Previewing {min(3, len(clips))} clips from {name}...", C.CYAN))
+                show_cursor()
+                play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3)
+                hide_cursor()
         elif key == "enter":
             name = speaker_names[i] if i == selected else speaker_names[selected]
             current = renames.get(name, "")
@@ -969,7 +1348,14 @@ def screen_rename(clusters_data):
         if old_name == "_metadata":
             continue
         new_name = renames.get(old_name, old_name)
-        new_data[new_name] = group
+        if new_name in new_data:
+            merged_clips = new_data[new_name]["clips"] + group["clips"]
+            new_data[new_name] = {
+                "clip_count": len(merged_clips),
+                "clips": merged_clips,
+            }
+        else:
+            new_data[new_name] = group
     return new_data
 
 def screen_apply(clusters_data, audio_dir):
@@ -1030,87 +1416,244 @@ def main():
         if not screen_welcome(ffmpeg_path is not None, vgmstream_path is not None):
             return
 
-        while True:
-            game_dir = screen_directory()
-            if not game_dir:
-                continue
-            if not Path(game_dir).is_dir():
-                clear_screen()
-                print()
-                print(colored(f"  Directory not found: {game_dir}", C.RED))
-                print()
-                show_cursor()
-                input("  Press Enter to try again...")
-                hide_cursor()
-                continue
-            break
-
-        lang_code, audio_dir = screen_language(game_dir)
-        if not lang_code:
+        mode = menu_select("Select Mode", ["ZZZ game directory", "Loose WEM folder", "Import clusters JSON → DB"])
+        if mode < 0:
             return
 
-        cache_dir = Path(audio_dir).parent / f"speaker_cache_{lang_code}"
-
-        while True:
-            actions = ["Extract & Cluster", "Load cached + Re-cluster", "Quit"]
-            if (cache_dir / "features.npy").exists():
-                actions[0] = "Extract & Cluster (will update cache)"
-
-            choice = menu_select(
-                f"Speaker Clustering — {VOICE_LANGUAGES[lang_code]} ({audio_dir})",
-                actions,
-                allow_quit=False,
-            )
-
-            if choice == 2:
+        if mode == 2:
+            # --- Import existing speaker_clusters.json into the sound database ---
+            clear_screen()
+            print()
+            print(colored("  Import Clusters to Database", C.BOLD, C.CYAN))
+            print()
+            print(colored("  Only speakers with real names (not 'Speaker N') will be imported.", C.DIM))
+            print()
+            show_cursor()
+            json_path = input(colored("  Path to speaker_clusters.json: ", C.CYAN)).strip()
+            hide_cursor()
+            if not json_path:
+                return
+            json_path = Path(json_path)
+            if json_path.is_dir():
+                json_path = json_path / "speaker_clusters.json"
+            if not json_path.exists():
+                print(colored(f"\n  File not found: {json_path}", C.RED))
+                show_cursor()
+                input("  Press Enter...")
                 return
 
-            if choice == 0:
-                cache = screen_extract(audio_dir, cache_dir, ffmpeg_path, vgmstream_path)
-            elif choice == 1:
-                cache = FeatureCache(cache_dir)
-                if not cache.load():
+            with open(json_path) as f:
+                clusters_data = json.load(f)
+
+            # Infer WEM folder from JSON location: speaker_cache/ lives inside the WEM folder
+            wem_dir = json_path.parent.parent
+            if not wem_dir.is_dir():
+                wem_dir = json_path.parent  # fallback: JSON is directly next to the WEMs
+
+            named = [k for k in clusters_data if k not in ("_metadata", "Unclustered") and not SPEAKER_PATTERN.match(k)]
+            print()
+            print(colored(f"  Found {len(named)} named speaker(s): {', '.join(named)}", C.GREEN))
+            print()
+
+            speaker_count, applied_count = apply_clusters_to_db(clusters_data, wem_dir)
+
+            clear_screen()
+            print()
+            print(colored("  Import complete!", C.GREEN, C.BOLD))
+            print()
+            print(f"  Speakers tagged: {colored(speaker_count, C.GREEN)}")
+            print(f"  Clips updated:   {colored(applied_count, C.GREEN)}")
+            print()
+            show_cursor()
+            input("  Press Enter to finish...")
+            return
+
+        if mode == 1:
+            # --- Loose WEM folder mode ---
+            while True:
+                clear_screen()
+                print()
+                print(colored("  WEM Folder", C.BOLD, C.CYAN))
+                print()
+                print(colored("  Enter the path to a folder containing .wem files.", C.DIM))
+                print()
+                show_cursor()
+                wem_dir = input(colored("  Path: ", C.CYAN)).strip()
+                hide_cursor()
+                if not wem_dir:
+                    continue
+                wem_path = Path(wem_dir)
+                if not wem_path.is_dir():
                     clear_screen()
                     print()
-                    print(colored("  No cache found. Run extraction first.", C.RED))
+                    print(colored(f"  Directory not found: {wem_dir}", C.RED))
+                    print()
+                    show_cursor()
+                    input("  Press Enter to try again...")
+                    hide_cursor()
+                    continue
+                wem_count = len(list(wem_path.glob("*.wem")))
+                if wem_count == 0:
+                    clear_screen()
+                    print()
+                    print(colored("  No .wem files found in that folder.", C.RED))
+                    print()
+                    show_cursor()
+                    input("  Press Enter to try again...")
+                    hide_cursor()
+                    continue
+                break
+
+            cache_dir = wem_path / "speaker_cache"
+            lang_code = "wem"
+
+            while True:
+                actions = ["Extract & Cluster", "Load cached + Re-cluster", "Quit"]
+                if (cache_dir / "features.npy").exists():
+                    actions[0] = "Extract & Cluster (will update cache)"
+
+                choice = menu_select(
+                    f"Speaker Clustering — {wem_count} WEM files ({wem_dir})",
+                    actions,
+                    allow_quit=False,
+                )
+
+                if choice == 2:
+                    return
+
+                if choice == 0:
+                    cache = screen_extract_wem_folder(wem_dir, cache_dir, ffmpeg_path, vgmstream_path)
+                elif choice == 1:
+                    cache = FeatureCache(cache_dir)
+                    if not cache.load():
+                        clear_screen()
+                        print()
+                        print(colored("  No cache found. Run extraction first.", C.RED))
+                        print()
+                        show_cursor()
+                        input("  Press Enter...")
+                        hide_cursor()
+                        continue
+
+                if not cache.metadata:
+                    clear_screen()
+                    print()
+                    print(colored("  No voice clips found or cached.", C.RED))
                     print()
                     show_cursor()
                     input("  Press Enter...")
                     hide_cursor()
                     continue
 
-            if not cache.metadata:
+                labels = screen_cluster(cache, min_cluster_size=1)
+                if labels is None:
+                    continue
+
+                clusters_data = build_cluster_output(labels, cache.metadata, lang_code, threshold=0.35)
+                json_path = cache_dir / "speaker_clusters.json"
+                with open(json_path, "w") as f:
+                    json.dump(clusters_data, f, indent=2)
+
+                clusters_data = screen_rename(clusters_data, wem_dir, vgmstream_path, ffmpeg_path)
+                if clusters_data is None:
+                    continue
+
+                with open(json_path, "w") as f:
+                    json.dump(clusters_data, f, indent=2)
+
                 clear_screen()
                 print()
-                print(colored("  No voice clips found or cached.", C.RED))
+                print(colored("  Done!", C.GREEN, C.BOLD))
+                print(f"  Results saved to: {colored(str(json_path), C.CYAN)}")
                 print()
                 show_cursor()
-                input("  Press Enter...")
+                input("  Press Enter to finish...")
                 hide_cursor()
-                continue
+                break
 
-            labels = screen_cluster(cache)
-            if labels is None:
-                continue
+        else:
+            # --- ZZZ game directory mode ---
+            while True:
+                game_dir = screen_directory()
+                if not game_dir:
+                    continue
+                if not Path(game_dir).is_dir():
+                    clear_screen()
+                    print()
+                    print(colored(f"  Directory not found: {game_dir}", C.RED))
+                    print()
+                    show_cursor()
+                    input("  Press Enter to try again...")
+                    hide_cursor()
+                    continue
+                break
 
-            clusters_data = build_cluster_output(
-                labels, cache.metadata, lang_code,
-                threshold=0.35,
-            )
+            lang_code, audio_dir = screen_language(game_dir)
+            if not lang_code:
+                return
 
-            json_path = cache_dir / "speaker_clusters.json"
-            with open(json_path, "w") as f:
-                json.dump(clusters_data, f, indent=2)
+            cache_dir = Path(audio_dir).parent / f"speaker_cache_{lang_code}"
 
-            clusters_data = screen_rename(clusters_data)
-            if clusters_data is None:
-                continue
+            while True:
+                actions = ["Extract & Cluster", "Load cached + Re-cluster", "Quit"]
+                if (cache_dir / "features.npy").exists():
+                    actions[0] = "Extract & Cluster (will update cache)"
 
-            with open(json_path, "w") as f:
-                json.dump(clusters_data, f, indent=2)
+                choice = menu_select(
+                    f"Speaker Clustering — {VOICE_LANGUAGES[lang_code]} ({audio_dir})",
+                    actions,
+                    allow_quit=False,
+                )
 
-            screen_apply(clusters_data, audio_dir)
-            break
+                if choice == 2:
+                    return
+
+                if choice == 0:
+                    cache = screen_extract(audio_dir, cache_dir, ffmpeg_path, vgmstream_path)
+                elif choice == 1:
+                    cache = FeatureCache(cache_dir)
+                    if not cache.load():
+                        clear_screen()
+                        print()
+                        print(colored("  No cache found. Run extraction first.", C.RED))
+                        print()
+                        show_cursor()
+                        input("  Press Enter...")
+                        hide_cursor()
+                        continue
+
+                if not cache.metadata:
+                    clear_screen()
+                    print()
+                    print(colored("  No voice clips found or cached.", C.RED))
+                    print()
+                    show_cursor()
+                    input("  Press Enter...")
+                    hide_cursor()
+                    continue
+
+                labels = screen_cluster(cache)
+                if labels is None:
+                    continue
+
+                clusters_data = build_cluster_output(
+                    labels, cache.metadata, lang_code,
+                    threshold=0.35,
+                )
+
+                json_path = cache_dir / "speaker_clusters.json"
+                with open(json_path, "w") as f:
+                    json.dump(clusters_data, f, indent=2)
+
+                clusters_data = screen_rename(clusters_data, audio_dir, vgmstream_path, ffmpeg_path)
+                if clusters_data is None:
+                    continue
+
+                with open(json_path, "w") as f:
+                    json.dump(clusters_data, f, indent=2)
+
+                screen_apply(clusters_data, audio_dir)
+                break
 
     except KeyboardInterrupt:
         pass

@@ -402,10 +402,12 @@ class Application(
 
         ab = self.audio_browser_bridge
         self.conversion_page.normalizeAudioToggled.connect(ab.setNormalizeAudio)
+        self.conversion_page.normalizeTargetLufsSet.connect(ab.setNormalizeTargetLufs)
         ab.normalizeAudioChanged.connect(
             lambda enabled: self.conversion_page.setProperty("normalizeChecked", enabled)
         )
         self.conversion_page.setProperty("normalizeChecked", ab.normalize_audio_enabled)
+        self.conversion_page.setProperty("normalizeTargetLufs", ab.normalize_target_lufs)
 
         print(f"[{APP_NAME}] Audio conversion page connected")
 

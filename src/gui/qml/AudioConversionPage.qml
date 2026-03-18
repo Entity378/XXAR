@@ -13,14 +13,16 @@ Item {
     signal browseInputFileClicked()
     signal browseInputDirectoryClicked()
     signal browseOutputDirectoryClicked()
-    signal convertAudioClicked(int mode, string inputPath, string outputPath, int sampleRate, bool normalize)
+    signal convertAudioClicked(int mode, string inputPath, string outputPath, int sampleRate, bool normalize, int lufs)
     signal normalizeAudioToggled(bool checked)
+    signal normalizeTargetLufsSet(int lufs)
 
     property string inputPath: ""
     property string outputPath: ""
     property int currentMode: 0
     property bool converting: false
     property bool normalizeChecked: true
+    property int normalizeTargetLufs: -9
     property string logText: ""
 
     Rectangle {
@@ -168,7 +170,6 @@ Item {
 
                 Row {
                     spacing: Theme.spacingSmall
-                    visible: currentMode === 1
 
                     Rectangle {
                         width: 20
@@ -214,6 +215,75 @@ Item {
                                 normalizeAudioToggled(normalizeChecked)
                             }
                         }
+                    }
+                }
+
+                Row {
+                    spacing: Theme.spacingSmall
+                    visible: normalizeChecked
+                    leftPadding: 28
+
+                    Text {
+                        text: qsTranslate("Application", "Target:")
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Slider {
+                        id: lufsSlider
+                        from: -24
+                        to: -5
+                        stepSize: 1
+                        value: normalizeTargetLufs
+                        implicitWidth: 120
+                        topPadding: 12
+                        bottomPadding: 12
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        onMoved: {
+                            normalizeTargetLufs = Math.round(value)
+                        }
+                        onPressedChanged: {
+                            if (!pressed) {
+                                normalizeTargetLufsSet(normalizeTargetLufs)
+                            }
+                        }
+
+                        background: Rectangle {
+                            x: lufsSlider.leftPadding
+                            y: lufsSlider.topPadding + lufsSlider.availableHeight / 2 - height / 2
+                            width: lufsSlider.availableWidth
+                            height: 4
+                            radius: 2
+                            color: Theme.cardBackground
+
+                            Rectangle {
+                                width: lufsSlider.visualPosition * parent.width
+                                height: parent.height
+                                radius: 2
+                                color: Theme.primaryAccent
+                                opacity: 0.7
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: lufsSlider.leftPadding + lufsSlider.visualPosition * (lufsSlider.availableWidth - width)
+                            y: lufsSlider.topPadding + lufsSlider.availableHeight / 2 - height / 2
+                            width: 14
+                            height: 14
+                            radius: 7
+                            color: Theme.primaryAccent
+                        }
+                    }
+
+                    Text {
+                        text: normalizeTargetLufs === -9 ? qsTranslate("Application", "Default") : (normalizeTargetLufs + " LUFS")
+                        color: Theme.primaryAccent
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
@@ -467,7 +537,8 @@ Item {
                             inputField.text,
                             outputField.text,
                             parseInt(sampleRateCombo.currentText),
-                            normalizeChecked
+                            normalizeChecked,
+                            normalizeTargetLufs
                         )
                     }
                 }

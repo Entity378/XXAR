@@ -39,6 +39,7 @@ class SettingsConnector:
             self.mod_manager_bridge.runAudioToolsSetup
         )
         self.settings_page.languageChanged.connect(self.on_language_changed)
+        self.settings_page.uiScaleSelected.connect(self.on_ui_scale_changed)
 
         self.mod_manager_bridge.modCreationModeChanged.connect(
             self.on_mod_creation_mode_changed
@@ -151,6 +152,9 @@ class SettingsConnector:
         saved_lang = settings.get("language", "en")
         self.settings_page.setProperty("currentLanguage", saved_lang)
 
+        saved_scale = settings.get("ui_scale", 1.0)
+        self.settings_page.setProperty("uiScale", saved_scale)
+
     def on_language_changed(self, lang_code):
         self.translation_manager.changeLanguage(lang_code)
 
@@ -166,6 +170,21 @@ class SettingsConnector:
             print(f"[ZZAR] Language changed to: {lang_code}")
         except Exception as e:
             print(f"[ZZAR] Error saving language preference: {e}")
+
+    def on_ui_scale_changed(self, scale):
+        try:
+            settings = self.load_settings()
+            settings["ui_scale"] = scale
+            self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=2)
+            print(f"[ZZAR] UI scale changed to: {scale}")
+            QMetaObject.invokeMethod(
+                self.root, "showSuccessToast", Qt.QueuedConnection,
+                Q_ARG("QVariant", QCoreApplication.translate("Application", "UI scale saved. Restart to apply.")),
+            )
+        except Exception as e:
+            print(f"[ZZAR] Error saving UI scale: {e}")
 
     def on_mod_creation_mode_changed(self, enabled):
         self.root.setProperty("modCreationEnabled", enabled)
