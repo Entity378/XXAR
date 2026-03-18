@@ -682,10 +682,20 @@ def find_elbow_threshold(Z):
     diffs = np.diff(merge_distances)
     window = max(5, len(diffs) // 20)
 
+    # Scale sensitivity with dataset size: larger sets need a stricter multiplier
+    # to avoid false elbows in the dense low-distance region
+    n = len(merge_distances)
+    sensitivity = 2.0 + (n / 500.0)  # 2.0 at ~0 clips, ~4.3 at 1170 clips
+    sensitivity = min(sensitivity, 5.0)
+
+    MIN_THRESHOLD = 0.55  # never split below this — ECAPA same-speaker pairs cluster below 0.5
+
     for i in range(window, len(diffs)):
+        if merge_distances[i] < MIN_THRESHOLD:
+            continue
         local_mean = diffs[max(0, i - window) : i].mean()
         local_std = diffs[max(0, i - window) : i].std()
-        if diffs[i] > local_mean + 2.0 * local_std and local_std > 0:
+        if diffs[i] > local_mean + sensitivity * local_std and local_std > 0:
             return merge_distances[i]
 
     return 0.75
@@ -769,7 +779,7 @@ def build_cluster_output(labels, metadata, language, threshold):
     return output
 
 def apply_clusters_to_db(clusters_data, audio_dir):
-    
+
     db = SoundDatabase()
     applied_count = 0
     speaker_count = 0
@@ -788,24 +798,15 @@ def apply_clusters_to_db(clusters_data, audio_dir):
 
         for clip in clips:
             try:
-
-                pck_path = Path(audio_dir) / clip["pck_file"]
-                if not pck_path.exists():
+                wem_bytes = fetch_wem_bytes(clip, audio_dir)
+                if not wem_bytes:
                     continue
 
-                indexer = PCKIndexer(str(pck_path))
-                indexer.build_index()
-
                 wem_id = clip["wem_id"]
-                bnk_id = clip.get("bnk_id")
-
-                if bnk_id is not None:
-                    bnk_bytes = indexer.extract_single_file(bnk_id, "bnk", 0)
-                    bnk_indexer = BNKIndexer(bnk_bytes)
-                    bnk_indexer.parse_didx()
-                    wem_bytes = bnk_indexer.extract_wem(wem_id)
-                else:
-                    wem_bytes = indexer.extract_single_file(wem_id, "wem", 0)
+                try:
+                    wem_id = int(wem_id)
+                except (ValueError, TypeError):
+                    pass
 
                 existing = db.get_sound_info(wem_bytes)
                 if existing:
@@ -828,6 +829,81 @@ def apply_clusters_to_db(clusters_data, audio_dir):
                 continue
 
     return speaker_count, applied_count
+
+def fetch_wem_bytes(meta, audio_dir):
+    """Re-read raw WEM bytes for a clip given its metadata dict."""
+    try:
+        clip_type = meta.get("type", "wem")
+        pck_name  = meta.get("pck_file")
+        wem_id    = meta.get("wem_id")
+        bnk_id    = meta.get("bnk_id")
+
+        if clip_type == "wem_loose":
+            # loose .wem file in a folder
+            wem_path = Path(audio_dir) / pck_name
+            if wem_path.exists():
+                return wem_path.read_bytes()
+            return None
+
+        pck_path = Path(audio_dir) / pck_name
+        if not pck_path.exists():
+            return None
+
+        indexer = PCKIndexer(str(pck_path))
+        indexer.build_index()
+
+        if clip_type == "wem_embedded" and bnk_id is not None:
+            bnk_bytes = indexer.extract_single_file(bnk_id, "bnk")
+            bnk_idx   = BNKIndexer(bnk_bytes)
+            bnk_idx.parse_didx()
+            return bnk_idx.extract_wem(wem_id)
+        else:
+            return indexer.extract_single_file(wem_id, "wem")
+    except Exception:
+        return None
+
+
+def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
+    """Play up to n clips from a speaker group. Blocks until each finishes."""
+    import random
+    sample = random.sample(clips, min(n, len(clips)))
+    ffplay = shutil.which("ffplay") or (str(Path(ffmpeg_path).parent / "ffplay") if ffmpeg_path else None)
+    if not ffplay or not Path(ffplay).exists():
+        print(colored("  ffplay not found — cannot preview audio", C.RED))
+        time.sleep(1.5)
+        return
+
+    for i, clip in enumerate(sample):
+        wem_bytes = fetch_wem_bytes(clip, audio_dir)
+        if not wem_bytes:
+            continue
+
+        tmp_dir = tempfile.mkdtemp(prefix="zzar_prev_")
+        tmp_wem = Path(tmp_dir) / "preview.wem"
+        tmp_wav = Path(tmp_dir) / "preview.wav"
+        try:
+            tmp_wem.write_bytes(wem_bytes)
+            print(colored(f"  Playing clip {i+1}/{len(sample)}: wem_id={clip.get('wem_id')}  (Ctrl+C to skip)", C.DIM))
+
+            if vgmstream_path:
+                subprocess.run(
+                    [vgmstream_path, "-o", str(tmp_wav), str(tmp_wem)],
+                    capture_output=True, timeout=10, **_subprocess_kwargs,
+                )
+                play_path = tmp_wav if tmp_wav.exists() else None
+            else:
+                play_path = tmp_wem  # let ffplay try directly
+
+            if play_path:
+                subprocess.run(
+                    [ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", str(play_path)],
+                    timeout=30, **_subprocess_kwargs,
+                )
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            pass
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
 
 def screen_welcome(ffmpeg_ok, vgmstream_ok):
     clear_screen()
@@ -1127,7 +1203,7 @@ def screen_cluster(cache, min_cluster_size=3):
 
     return labels
 
-def screen_rename(clusters_data):
+def screen_rename(clusters_data, audio_dir=None, vgmstream_path=None, ffmpeg_path=None):
     
     speaker_names = [k for k in clusters_data if k not in ("_metadata", "Unclustered")]
     if not speaker_names:
@@ -1198,7 +1274,9 @@ def screen_rename(clusters_data):
             print(colored(f"  + {unc} unclustered clips (not shown)", C.DIM))
 
         print()
-        print(colored("  [Enter] Rename  [d] Done  [q] Quit without applying", C.DIM))
+        can_preview = bool(audio_dir and shutil.which("ffplay"))
+        preview_hint = "  [p] Preview audio  " if can_preview else ""
+        print(colored(f"  [Enter] Rename  {preview_hint}[d] Done  [q] Quit without applying", C.DIM))
 
         key = read_key()
 
@@ -1206,6 +1284,15 @@ def screen_rename(clusters_data):
             selected -= 1
         elif key == "down" and selected < len(speaker_names) - 1:
             selected += 1
+        elif key == "p" and audio_dir:
+            name = speaker_names[selected]
+            clips = clusters_data[name].get("clips", [])
+            if clips:
+                print()
+                print(colored(f"  Previewing {min(3, len(clips))} clips from {name}...", C.CYAN))
+                show_cursor()
+                play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3)
+                hide_cursor()
         elif key == "enter":
             name = speaker_names[i] if i == selected else speaker_names[selected]
             current = renames.get(name, "")
@@ -1287,8 +1374,54 @@ def main():
         if not screen_welcome(ffmpeg_path is not None, vgmstream_path is not None):
             return
 
-        mode = menu_select("Select Mode", ["ZZZ game directory", "Loose WEM folder"])
+        mode = menu_select("Select Mode", ["ZZZ game directory", "Loose WEM folder", "Import clusters JSON → DB"])
         if mode < 0:
+            return
+
+        if mode == 2:
+            # --- Import existing speaker_clusters.json into the sound database ---
+            clear_screen()
+            print()
+            print(colored("  Import Clusters to Database", C.BOLD, C.CYAN))
+            print()
+            print(colored("  Only speakers with real names (not 'Speaker N') will be imported.", C.DIM))
+            print()
+            show_cursor()
+            json_path = input(colored("  Path to speaker_clusters.json: ", C.CYAN)).strip()
+            hide_cursor()
+            if not json_path:
+                return
+            json_path = Path(json_path)
+            if not json_path.exists():
+                print(colored(f"\n  File not found: {json_path}", C.RED))
+                show_cursor()
+                input("  Press Enter...")
+                return
+
+            with open(json_path) as f:
+                clusters_data = json.load(f)
+
+            # Infer WEM folder from JSON location: speaker_cache/ lives inside the WEM folder
+            wem_dir = json_path.parent.parent
+            if not wem_dir.is_dir():
+                wem_dir = json_path.parent  # fallback: JSON is directly next to the WEMs
+
+            named = [k for k in clusters_data if k not in ("_metadata", "Unclustered") and not SPEAKER_PATTERN.match(k)]
+            print()
+            print(colored(f"  Found {len(named)} named speaker(s): {', '.join(named)}", C.GREEN))
+            print()
+
+            speaker_count, applied_count = apply_clusters_to_db(clusters_data, wem_dir)
+
+            clear_screen()
+            print()
+            print(colored("  Import complete!", C.GREEN, C.BOLD))
+            print()
+            print(f"  Speakers tagged: {colored(speaker_count, C.GREEN)}")
+            print(f"  Clips updated:   {colored(applied_count, C.GREEN)}")
+            print()
+            show_cursor()
+            input("  Press Enter to finish...")
             return
 
         if mode == 1:
@@ -1377,7 +1510,7 @@ def main():
                 with open(json_path, "w") as f:
                     json.dump(clusters_data, f, indent=2)
 
-                clusters_data = screen_rename(clusters_data)
+                clusters_data = screen_rename(clusters_data, wem_dir, vgmstream_path, ffmpeg_path)
                 if clusters_data is None:
                     continue
 
@@ -1468,7 +1601,7 @@ def main():
                 with open(json_path, "w") as f:
                     json.dump(clusters_data, f, indent=2)
 
-                clusters_data = screen_rename(clusters_data)
+                clusters_data = screen_rename(clusters_data, audio_dir, vgmstream_path, ffmpeg_path)
                 if clusters_data is None:
                     continue
 
