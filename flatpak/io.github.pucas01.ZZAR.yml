@@ -116,7 +116,7 @@ modules:
         path: io.github.pucas01.ZZAR.desktop
 
       - type: file
-        path: ../src/gui/assets/ZZAR-Logo2-256.png
+        path: ../src/gui/assets/ZZAR/ZZAR-Logo2-256.png
 
       - type: file
         path: io.github.pucas01.ZZAR.metainfo.xml
