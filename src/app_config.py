@@ -1,4 +1,4 @@
-BUILD_TARGET = "SRAR"  
+BUILD_TARGET = "ZZAR"  
 
 if BUILD_TARGET == "ZZAR":
 
