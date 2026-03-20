@@ -1817,7 +1817,31 @@ class AudioBrowserBridge(QObject):
     def playOriginalAudio(self, file_id, item_type, pck_path, bnk_id):
         if not pck_path:
             pck_path = ""
-        self.onTreeItemDoubleClicked(file_id, item_type, pck_path)
+
+        # Try to find full meta from loaded data first
+        meta = self._find_item_meta(file_id, item_type, pck_path, bnk_id)
+        if not meta:
+            meta_key = f"{file_id}:{pck_path}"
+            meta = self._match_metadata.get(meta_key)
+
+        if not meta:
+            # Build minimal meta — must include bnk_id for wem_embedded playback
+            if not pck_path or not Path(pck_path).exists():
+                return
+            meta = {
+                "type": item_type or "wem",
+                "pck_path": pck_path,
+                "file_id": file_id,
+                "wem_id": file_id,
+                "lang_id": "0",
+            }
+            if bnk_id:
+                meta["bnk_id"] = bnk_id
+
+        if meta["type"] == "wem":
+            self._play_wem_from_pck(meta)
+        elif meta["type"] == "wem_embedded":
+            self._play_wem_from_bnk(meta)
 
     @pyqtSlot(str, str, str, str)
     def navigateToChange(self, pck_filename, file_id, item_type, bnk_id):
@@ -2547,10 +2571,32 @@ class AudioBrowserBridge(QObject):
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Index ready - %1 unique file IDs").replace("%1", str(len(self.file_id_index))))
 
     def _resolve_pck_path(self, pck_filename):
+        # Check already-loaded items first
         for data in self._item_data.values():
             p = data.get("pck_path", "")
-            if p and Path(p).name == pck_filename:
+            if p and Path(p).name == Path(pck_filename).name:
                 return p
+
+        # Check loaded PCK paths
+        for loaded_path in self._pck_loaded:
+            if Path(loaded_path).name == Path(pck_filename).name:
+                return loaded_path
+
+        # Search game directory
+        if self.game_root_dir:
+            base_path = Path(self.game_root_dir).joinpath(*AUDIO_SUBPATH)
+            potential_path = base_path / pck_filename
+            if potential_path.exists():
+                return str(potential_path)
+            for lang_dir in LANGUAGE_FOLDERS:
+                potential_path = base_path / lang_dir / Path(pck_filename).name
+                if potential_path.exists():
+                    return str(potential_path)
+            if base_path.exists():
+                for pck_file in base_path.rglob("*.pck"):
+                    if pck_file.name == Path(pck_filename).name:
+                        return str(pck_file)
+
         return ""
 
     def _find_item_meta(self, item_id, item_type, pck_path, parent_bnk=""):

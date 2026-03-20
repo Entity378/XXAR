@@ -159,7 +159,14 @@ class AudioConverter:
 
         input_file = Path(input_file)
         if output_file is None:
-            output_file = input_file.with_suffix('.wav')
+            candidate = input_file.with_suffix('.wav')
+            if candidate == input_file:
+                import tempfile
+                tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                tmp.close()
+                output_file = Path(tmp.name)
+            else:
+                output_file = candidate
         else:
             output_file = Path(output_file)
 
@@ -222,7 +229,13 @@ class AudioConverter:
                 str(output_file)
             ])
 
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **_subprocess_kwargs)
+            result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **_subprocess_kwargs)
+            if result.returncode != 0:
+                stderr_msg = result.stderr.decode('utf-8', errors='replace').strip()
+                # Extract the last meaningful line from ffmpeg stderr
+                lines = [l for l in stderr_msg.splitlines() if l.strip()]
+                short_reason = lines[-1] if lines else "unknown error"
+                raise RuntimeError(f"FFmpeg failed to convert {input_file.name}: {short_reason}")
             norm_msg = f" (normalized to {normalize_lufs} LUFS)" if normalize else ""
             print(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
             return output_file
