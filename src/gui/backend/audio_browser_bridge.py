@@ -16,7 +16,7 @@ from PyQt5.QtCore import (
 
 from src.app_config import (
     GAME_DATA_FOLDER, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR, APP_NAME, DATA_SUBDIR,
-    AUDIO_SUBPATH, SOUNDBANK_PCK_GLOB, STREAMED_PCK_GLOB, STREAMED_PCK_PREFIX, SOUNDBANK_PCK_PREFIX,
+    AUDIO_SUBPATH, SOUNDBANK_PCK_GLOB, STREAMED_PCK_GLOB, STREAMED_PCK_PREFIX, SOUNDBANK_PCK_PREFIX, SOUNDBANK_PCK_FILTER_PREFIX,
     LANGUAGE_FOLDERS, BUILD_TARGET, AUDIO_ROOT_FRIENDLY_NAME, SUBFOLDER_SORT_PRIORITY,
 )
 from src.pck_indexer import PCKIndexer
@@ -660,7 +660,7 @@ class AudioBrowserBridge(QObject):
 
             is_language_folder = self.current_language_folder not in ["Full", "Common"]
             if self.hide_useless_pck_enabled and is_language_folder:
-                if not pck_file.name.startswith(SOUNDBANK_PCK_PREFIX):
+                if not pck_file.name.startswith(SOUNDBANK_PCK_FILTER_PREFIX):
                     continue
 
             pck_path = str(pck_file)
