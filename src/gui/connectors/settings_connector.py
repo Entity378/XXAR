@@ -29,31 +29,6 @@ from src.game_registry import (
 
 
 class SettingsConnector:
-    @staticmethod
-    def _normalize_game_data_dir(path):
-        return normalize_game_data_dir(path)
-
-    @staticmethod
-    def _is_valid_game_data_dir(path):
-        return is_valid_game_data_dir(path)
-
-    @staticmethod
-    def _build_audio_paths(game_data_path):
-        game_id = detect_game_id_from_path(game_data_path, default=DEFAULT_GAME_ID)
-        return build_audio_paths(game_id, game_data_path)
-
-    @staticmethod
-    def _audio_settings_keys(game_id):
-        return get_audio_settings_keys(game_id)
-
-    @staticmethod
-    def _extract_game_data_dir_from_audio_path(audio_dir):
-        return extract_game_data_dir_from_audio_path(audio_dir)
-
-    @staticmethod
-    def _get_game_data_folder_name(game_id):
-        return get_game(game_id).data_dir_name
-
     def _set_root_active_game_props(self, game_id):
         if not self.root:
             return
@@ -87,9 +62,9 @@ class SettingsConnector:
         target_game_id = normalize_game_id(target_game_id)
         settings["selected_game"] = target_game_id
 
-        game_audio_key, persistent_audio_key = self._audio_settings_keys(target_game_id)
+        game_audio_key, persistent_audio_key = get_audio_settings_keys(target_game_id)
         game_data_dir = self._get_saved_game_data_dir(settings, target_game_id)
-        if game_data_dir and self._is_valid_game_data_dir(game_data_dir):
+        if game_data_dir and is_valid_game_data_dir(game_data_dir):
             audio_dir, persistent_dir = build_audio_paths(target_game_id, game_data_dir)
             settings[game_audio_key] = str(audio_dir)
             settings[persistent_audio_key] = str(persistent_dir)
@@ -179,15 +154,15 @@ class SettingsConnector:
         if not game_data_dir:
             return None
 
-        normalized = self._normalize_game_data_dir(game_data_dir)
-        if not self._is_valid_game_data_dir(normalized):
+        normalized = normalize_game_data_dir(game_data_dir)
+        if not is_valid_game_data_dir(normalized):
             return None
 
         game_id = normalize_game_id(
             detect_game_id_from_path(normalized, default=DEFAULT_GAME_ID)
         )
-        game_audio_key, persistent_audio_key = self._audio_settings_keys(game_id)
-        audio_dir, persistent_dir = self._build_audio_paths(normalized)
+        game_audio_key, persistent_audio_key = get_audio_settings_keys(game_id)
+        audio_dir, persistent_dir = build_audio_paths(game_id, normalized)
         settings[game_audio_key] = str(audio_dir)
         settings[persistent_audio_key] = str(persistent_dir)
 
@@ -200,11 +175,11 @@ class SettingsConnector:
         return game_id
 
     def _get_saved_game_data_dir(self, settings, game_id):
-        game_audio_key, _ = self._audio_settings_keys(game_id)
+        game_audio_key, _ = get_audio_settings_keys(game_id)
         audio_dir = settings.get(game_audio_key, "")
         if not audio_dir and game_id == DEFAULT_GAME_ID:
             audio_dir = settings.get("game_audio_dir", "")
-        return self._extract_game_data_dir_from_audio_path(audio_dir)
+        return extract_game_data_dir_from_audio_path(audio_dir)
 
     @staticmethod
     def _get_custom_mods_dir_for_game(settings, game_id):
@@ -322,11 +297,11 @@ class SettingsConnector:
         selected_game = normalize_game_id(
             settings.get("selected_game", DEFAULT_GAME_ID)
         )
-        game_audio_key, _ = self._audio_settings_keys(selected_game)
+        game_audio_key, _ = get_audio_settings_keys(selected_game)
         existing_audio_dir = settings.get(game_audio_key, "") or settings.get(
             "game_audio_dir", ""
         )
-        selected_data_dir = self._extract_game_data_dir_from_audio_path(
+        selected_data_dir = extract_game_data_dir_from_audio_path(
             existing_audio_dir
         )
 
@@ -480,15 +455,15 @@ class SettingsConnector:
         current = self.settings_page.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
         game_id = self._get_selected_or_detected_game_id(current or "")
-        game_data_folder = self._get_game_data_folder_name(game_id)
+        game_data_folder = get_game(game_id).data_dir_name
 
         dirname = NativeDialogs.get_directory(
             QCoreApplication.translate("Application", "Select %1 Folder").replace("%1", game_data_folder), start_dir
         )
 
         if dirname:
-            selected_path = self._normalize_game_data_dir(dirname)
-            if not self._is_valid_game_data_dir(selected_path):
+            selected_path = normalize_game_data_dir(dirname)
+            if not is_valid_game_data_dir(selected_path):
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
@@ -549,7 +524,7 @@ class SettingsConnector:
         game_id = self._get_selected_or_detected_game_id(
             self.settings_page.property("gameDirectory") if self.settings_page else ""
         )
-        game_data_folder = self._get_game_data_folder_name(game_id)
+        game_data_folder = get_game(game_id).data_dir_name
 
         QMetaObject.invokeMethod(
             self.root,
@@ -714,7 +689,7 @@ class SettingsConnector:
                 print("[ZZAR] Language warning disabled by user")
                 return
 
-            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            streaming_key, persistent_key = get_audio_settings_keys(selected_game)
             persistent_dir = settings.get(persistent_key, "") or settings.get(
                 "persistent_audio_dir", ""
             )
@@ -787,7 +762,7 @@ class SettingsConnector:
             selected_game = normalize_game_id(
                 settings.get("selected_game", DEFAULT_GAME_ID)
             )
-            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            streaming_key, persistent_key = get_audio_settings_keys(selected_game)
             persistent_dir = settings.get(persistent_key, "") or settings.get("persistent_audio_dir", "")
             streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
 
@@ -861,7 +836,7 @@ class SettingsConnector:
             selected_game = normalize_game_id(
                 settings.get("selected_game", DEFAULT_GAME_ID)
             )
-            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            streaming_key, persistent_key = get_audio_settings_keys(selected_game)
             persistent_dir = settings.get(persistent_key, "") or settings.get("persistent_audio_dir", "")
             streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
 
@@ -990,7 +965,7 @@ class SettingsConnector:
         current = self.welcome_dialog.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
         game_id = self._get_selected_or_detected_game_id(current or "")
-        game_data_folder = self._get_game_data_folder_name(game_id)
+        game_data_folder = get_game(game_id).data_dir_name
 
         was_visible = self.welcome_dialog.property("visible")
         if was_visible:
@@ -1005,8 +980,8 @@ class SettingsConnector:
             self.welcome_dialog.setProperty("visible", True)
 
         if dirname:
-            selected_path = self._normalize_game_data_dir(dirname)
-            if not self._is_valid_game_data_dir(selected_path):
+            selected_path = normalize_game_data_dir(dirname)
+            if not is_valid_game_data_dir(selected_path):
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
@@ -1065,7 +1040,7 @@ class SettingsConnector:
         game_id = self._get_selected_or_detected_game_id(
             self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
         )
-        game_data_folder = self._get_game_data_folder_name(game_id)
+        game_data_folder = get_game(game_id).data_dir_name
 
         QMetaObject.invokeMethod(
             self.root,
