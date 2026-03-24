@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import struct
 import threading
 import tempfile
@@ -15,9 +16,16 @@ from PyQt5.QtCore import (
 )
 
 from src.app_config import (
-    GAME_DATA_FOLDER, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR, APP_NAME, DATA_SUBDIR,
-    AUDIO_SUBPATH, SOUNDBANK_PCK_GLOB, STREAMED_PCK_GLOB, STREAMED_PCK_PREFIX, SOUNDBANK_PCK_PREFIX, SOUNDBANK_PCK_FILTER_PREFIX,
-    LANGUAGE_FOLDERS, BUILD_TARGET, AUDIO_ROOT_FRIENDLY_NAME, SUBFOLDER_SORT_PRIORITY,
+    MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR, APP_NAME, DATA_SUBDIR,
+)
+from src.game_registry import (
+    DEFAULT_GAME_ID,
+    detect_game_id_from_path,
+    extract_game_data_dir_from_audio_path,
+    get_audio_settings_keys,
+    get_data_dir_to_game_id_map,
+    get_game,
+    normalize_game_mode,
 )
 from src.pck_indexer import PCKIndexer
 from src.bnk_indexer import BNKIndexer
@@ -29,11 +37,23 @@ from src.fingerprint_database import FingerprintDatabase
 from src.persistent_mod_manager import PersistentModManager
 from src.pck_packer import PCKPacker
 from src.mod_package_manager import ModPackageManager
-from src.config_manager import get_settings_file, get_config_dir
+from src.config_manager import (
+    get_config_dir,
+    get_game_fingerprint_database_file,
+    get_game_sound_database_file,
+    get_settings_file,
+)
+from src.gui.backend.audio_games import (
+    GIARBrowserHandler,
+    SRARBrowserHandler,
+    ZZARBrowserHandler,
+)
 from gui.backend.update_manager_bridge import _urlopen
 
 OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{DATA_SUBDIR}/official_sound_database.json"
 OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{DATA_SUBDIR}/official_fingerprint_database.json"
+
+_DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
 def _get_tag_db_url():
     from ZZAR import DEV_MODE, get_base_path
@@ -306,10 +326,13 @@ class AudioBrowserBridge(QObject):
         self.mod_manager = PersistentModManager()
 
         self.game_root_dir = None
+        self.game_mode = DEFAULT_GAME_ID
+        active_game = get_game(self.game_mode)
+        self.game_data_name = active_game.data_dir_name
         self.language_folders = {}
         self.current_language_folder = ""
-        self.merge_wem_enabled = BUILD_TARGET != "SRAR"
-        self.hide_useless_pck_enabled = BUILD_TARGET != "SRAR"
+        self.merge_wem_enabled = active_game.merge_wem_default
+        self.hide_useless_pck_enabled = active_game.hide_useless_pck_default
         self.hide_empty_bnk_enabled = True
         self.normalize_audio_enabled = True
         self.normalize_target_lufs = -9
@@ -324,8 +347,17 @@ class AudioBrowserBridge(QObject):
         self._index_cache = {}
         self._tree_cache = {}
         self._current_directory = None
+        self._current_tree_key = None
         self._audio_root = None
         self._match_metadata = {}
+        self._active_pck_filter = None
+        self._active_pck_filter_tag = ""
+        self._browser_handlers = {
+            "zzz": ZZARBrowserHandler(self),
+            "genshin": GIARBrowserHandler(self),
+            "hsr": SRARBrowserHandler(self),
+        }
+        self._active_browser_handler = self._browser_handlers["zzz"]
 
         self._worker = None
         self._index_thread = None
@@ -345,17 +377,89 @@ class AudioBrowserBridge(QObject):
         self._fingerprint_db_temp_path = None
         self._fingerprint_db_prompt_shown = False
         self._pending_match_path = None
+        self._active_db_game_id = None
 
         self.audio_player.state_changed.connect(self._on_playback_state_changed)
         self.audio_player.position_changed.connect(self._on_position_changed)
         self.audio_player.duration_changed.connect(self._on_duration_changed)
         self.audio_player.error_occurred.connect(self._on_playback_error)
+        self._set_active_game_databases(self.game_mode)
 
     def _invalidate_caches(self):
         self._index_cache.clear()
         self._tree_cache.clear()
         self._current_directory = None
+        self._current_tree_key = None
         self.index_ready = False
+
+    @staticmethod
+    def _normalize_game_mode(game_mode, default="zzz"):
+        return normalize_game_mode(game_mode, default=default)
+
+    def _set_active_pck_filter(self, file_filter, filter_tag=""):
+        self._active_pck_filter = file_filter
+        self._active_pck_filter_tag = filter_tag or ""
+
+    def _set_active_browser_handler(self, game_mode):
+        normalized = self._normalize_game_mode(game_mode)
+        game_changed = self.game_mode != normalized
+        self.game_mode = normalized
+        game = get_game(normalized)
+        self.game_data_name = game.data_dir_name
+        if game_changed:
+            self.merge_wem_enabled = game.merge_wem_default
+            self.hide_useless_pck_enabled = game.hide_useless_pck_default
+        self._active_browser_handler = self._browser_handlers.get(
+            normalized, self._browser_handlers["zzz"]
+        )
+        self._set_active_game_databases(normalized)
+
+    def _set_active_game_databases(self, game_id):
+        normalized = self._normalize_game_mode(game_id)
+        if self._active_db_game_id == normalized:
+            return
+
+        self.sound_db = SoundDatabase(
+            db_path=get_game_sound_database_file(normalized)
+        )
+        self.fingerprint_db = FingerprintDatabase(
+            db_path=get_game_fingerprint_database_file(normalized)
+        )
+        self._active_db_game_id = normalized
+
+    @staticmethod
+    def _detect_game_mode_from_path(path, default="zzz"):
+        return detect_game_id_from_path(path, default=default)
+
+    @staticmethod
+    def _extract_game_data_dir_from_audio_path(path):
+        resolved = extract_game_data_dir_from_audio_path(path)
+        return Path(resolved)
+
+    def _active_game(self):
+        return get_game(self.game_mode)
+
+    def _tracker_display_file_id(self, tracker_key):
+        handler = self._active_browser_handler
+        parse_fn = getattr(handler, "tracker_display_file_id", None)
+        if callable(parse_fn):
+            try:
+                return str(parse_fn(tracker_key))
+            except Exception:
+                pass
+        key_text = str(tracker_key or "")
+        return key_text.split("|")[1] if "|" in key_text else key_text
+
+    def _tracker_plain_file_id(self, tracker_key):
+        handler = self._active_browser_handler
+        parse_fn = getattr(handler, "tracker_plain_file_id", None)
+        if callable(parse_fn):
+            try:
+                return str(parse_fn(tracker_key))
+            except Exception:
+                pass
+        key_text = str(tracker_key or "")
+        return key_text.split("|")[-1] if "|" in key_text else key_text
 
     @pyqtSlot()
     def invalidateIndexCache(self):
@@ -386,16 +490,19 @@ class AudioBrowserBridge(QObject):
             self._tag_db_notify_dismissed = settings.get("tag_db_notify_dismissed", False)
             self._tag_db_last_seen_hash = settings.get("tag_db_last_seen_hash", "")
 
-            game_audio_dir = settings.get("game_audio_dir", "")
+            selected_game = self._normalize_game_mode(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            game_audio_key, _ = get_audio_settings_keys(selected_game)
+            game_audio_dir = settings.get(game_audio_key, "")
+            if not game_audio_dir:
+                game_audio_dir = settings.get("game_audio_dir", "")
             if not game_audio_dir:
                 return
 
-            audio_path = Path(game_audio_dir)
-
-            if "StreamingAssets" in audio_path.parts:
-                game_data_dir = str(audio_path.parent.parent.parent.parent)
-            else:
-                game_data_dir = game_audio_dir
+            game_data_dir = str(
+                self._extract_game_data_dir_from_audio_path(Path(game_audio_dir))
+            )
 
             if Path(game_data_dir).exists():
                 self.gameDirectoryReady.emit(game_data_dir)
@@ -408,81 +515,36 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str)
     def scanLanguageFolders(self, selected_dir):
-
         selected_dir = Path(selected_dir)
 
         data_folder = None
-        if selected_dir.name == GAME_DATA_FOLDER:
+        if selected_dir.name in _DATA_DIR_TO_GAME_MODE:
             data_folder = selected_dir
-        elif (selected_dir / GAME_DATA_FOLDER).exists():
-            data_folder = selected_dir / GAME_DATA_FOLDER
+        else:
+            for data_dir_name in _DATA_DIR_TO_GAME_MODE:
+                candidate = selected_dir / data_dir_name
+                if candidate.exists():
+                    data_folder = candidate
+                    break
+
+        if not data_folder:
+            data_folder = self._extract_game_data_dir_from_audio_path(selected_dir)
+            if data_folder.name not in _DATA_DIR_TO_GAME_MODE:
+                data_folder = None
 
         if not data_folder or not data_folder.exists():
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Invalid Directory"),
-                                    QCoreApplication.translate("Application", f"Could not find {GAME_DATA_FOLDER} folder."))
+            self.errorOccurred.emit(
+                QCoreApplication.translate("Application", "Invalid Directory"),
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not find a supported *_Data folder. Supported folders: %1",
+                ).replace("%1", ", ".join(_DATA_DIR_TO_GAME_MODE.keys())),
+            )
             return
 
-        self.game_root_dir = data_folder
-        full_folder = data_folder.joinpath(*AUDIO_SUBPATH)
-
-        if not full_folder.exists():
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Invalid Directory"),
-                                    QCoreApplication.translate("Application", "Could not find audio folder at:\n%1").replace("%1", str(full_folder)))
-            return
-
-        self._audio_root = full_folder
-        self.language_folders = {}
-        language_mapping = LANGUAGE_FOLDERS
-
-        pck_files = list(full_folder.glob("*.pck"))
-        if pck_files:
-            self.language_folders["Full"] = {
-                "path": full_folder,
-                "friendly_name": AUDIO_ROOT_FRIENDLY_NAME,
-                "pck_count": len(pck_files),
-            }
-
-        for subfolder in full_folder.iterdir():
-            if subfolder.is_dir() and subfolder.name in language_mapping:
-                pck_files = list(subfolder.glob("*.pck"))
-                if pck_files:
-                    self.language_folders[subfolder.name] = {
-                        "path": subfolder,
-                        "friendly_name": language_mapping[subfolder.name],
-                        "pck_count": len(pck_files),
-                    }
-
-        persistent_full = Path(str(full_folder).replace("StreamingAssets", "Persistent"))
-        if persistent_full.exists():
-            for subfolder in persistent_full.iterdir():
-                if subfolder.is_dir() and subfolder.name in language_mapping and subfolder.name not in self.language_folders:
-                    pck_files = list(subfolder.glob("*.pck"))
-                    if pck_files:
-                        self.language_folders[subfolder.name] = {
-                            "path": subfolder,
-                            "friendly_name": language_mapping[subfolder.name],
-                            "pck_count": len(pck_files),
-                        }
-                        print(f"[ZZAR] Found language folder in Persistent: {subfolder.name} ({len(pck_files)} PCKs)")
-
-        if not self.language_folders:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "No Audio Files"),
-                                    QCoreApplication.translate("Application", "No PCK files found in:\n%1").replace("%1", str(full_folder)))
-            return
-
-        sorted_folders = sorted(self.language_folders.keys(),
-                                key=lambda x: (0, "") if x == "Full" else (1, str(SUBFOLDER_SORT_PRIORITY.get(x, 99)).zfill(3) + x))
-
-        tabs = []
-        for folder_name in sorted_folders:
-            info = self.language_folders[folder_name]
-            tabs.append(f"{info['friendly_name']} ({info['pck_count']})")
-
-        self.languageTabsReady.emit(tabs)
-
-        self._check_missing_streaming_pcks(full_folder)
-
-        self._load_language_tab(0)
+        game_mode = self._detect_game_mode_from_path(data_folder, default="zzz")
+        self._set_active_browser_handler(game_mode)
+        self._active_browser_handler.scan_language_folders(data_folder)
 
     def _check_missing_streaming_pcks(self, full_folder):
         thread = threading.Thread(
@@ -494,8 +556,9 @@ class AudioBrowserBridge(QObject):
 
     def _check_missing_streaming_threaded(self, full_folder):
         try:
-            soundbank_files = sorted(full_folder.glob(SOUNDBANK_PCK_GLOB))
-            streamed_files = sorted(full_folder.glob(STREAMED_PCK_GLOB))
+            game = self._active_game()
+            soundbank_files = sorted(full_folder.glob(game.soundbank_pck_glob))
+            streamed_files = sorted(full_folder.glob(game.streamed_pck_glob))
 
             print(f"[File Check] Found {len(soundbank_files)} soundbank PCK(s), "
                   f"{len(streamed_files)} streamed PCK(s) in {full_folder.name}/")
@@ -523,8 +586,8 @@ class AudioBrowserBridge(QObject):
 
             missing_pairs = []
             for sb_file in soundbank_files:
-                suffix = sb_file.name.replace(SOUNDBANK_PCK_PREFIX, "", 1)
-                expected_streamed = f"{STREAMED_PCK_PREFIX}{suffix}"
+                suffix = sb_file.name.replace(game.soundbank_pck_prefix, "", 1)
+                expected_streamed = f"{game.streamed_pck_prefix}{suffix}"
                 if expected_streamed not in streamed_names:
                     missing_pairs.append((sb_file.name, expected_streamed))
                     print(f"[File Check] WARNING: {sb_file.name} has no matching {expected_streamed}")
@@ -604,38 +667,51 @@ class AudioBrowserBridge(QObject):
         self._load_language_tab(index)
 
     def _load_language_tab(self, index):
+        if self._active_browser_handler:
+            self._active_browser_handler.load_language_tab(index)
+            return
 
-        sorted_folders = sorted(self.language_folders.keys(),
-                                key=lambda x: (0, "") if x == "Full" else (1, str(SUBFOLDER_SORT_PRIORITY.get(x, 99)).zfill(3) + x))
+        sorted_folders = sorted(
+            self.language_folders.keys(),
+            key=lambda x: (0, "") if x == "Full" else (1, str(x)),
+        )
         if index < 0 or index >= len(sorted_folders):
             return
 
         folder_name = sorted_folders[index]
         self.current_language_folder = folder_name
         folder_path = self.language_folders[folder_name]["path"]
+        self._set_active_pck_filter(None, "")
         self._load_pck_files(folder_path)
 
-    def _load_pck_files(self, directory):
+    def _load_pck_files(self, directory, file_filter=None, filter_tag=""):
 
         directory = Path(directory)
-        dir_key = str(directory)
+        if file_filter is None:
+            file_filter = self._active_pck_filter
+        if not filter_tag:
+            filter_tag = self._active_pck_filter_tag
 
-        if dir_key == str(self._current_directory) and self.index_ready:
+        dir_key = str(directory)
+        cache_key = dir_key if not filter_tag else f"{dir_key}::{filter_tag}"
+
+        if cache_key == self._current_tree_key and self.index_ready:
             return
 
         self._current_directory = directory
+        self._current_tree_key = cache_key
 
         self.treeCleared.emit()
 
-        if dir_key in self._tree_cache:
-            cached = self._tree_cache[dir_key]
+        if cache_key in self._tree_cache:
+            cached = self._tree_cache[cache_key]
             self._item_data = dict(cached["item_data"])
             self._pck_loaded = dict(cached["pck_loaded"])
             self._bnk_loaded = dict(cached["bnk_loaded"])
             self.treeItemsReady.emit(cached["items"])
 
-            if dir_key in self._index_cache:
-                self.file_id_index = self._index_cache[dir_key]
+            if cache_key in self._index_cache:
+                self.file_id_index = self._index_cache[cache_key]
                 self.index_ready = True
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Index ready - %1 unique file IDs").replace("%1", str(len(self.file_id_index))))
             else:
@@ -647,25 +723,43 @@ class AudioBrowserBridge(QObject):
         self._pck_loaded.clear()
         self._bnk_loaded.clear()
 
-        pck_files = sorted(directory.glob("*.pck"))
+        handler = self._active_browser_handler
+        collect_pck_files = getattr(
+            handler,
+            "collect_pck_files",
+            lambda d: sorted(Path(d).glob("*.pck"), key=lambda p: p.name.lower()),
+        )
+        include_pck_file = getattr(
+            handler,
+            "include_pck_file",
+            lambda p, folder, merge, hide: True,
+        )
+        format_pck_display_name = getattr(
+            handler,
+            "format_pck_display_name",
+            lambda p, d: p.name,
+        )
+
+        pck_files = list(collect_pck_files(directory))
+        if file_filter is not None:
+            pck_files = [p for p in pck_files if file_filter(p)]
         if not pck_files:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "No PCK files found"))
             return
 
         items = []
         for pck_file in pck_files:
-
-            if self.merge_wem_enabled and pck_file.name.startswith(STREAMED_PCK_PREFIX):
+            if not include_pck_file(
+                pck_file,
+                self.current_language_folder,
+                self.merge_wem_enabled,
+                self.hide_useless_pck_enabled,
+            ):
                 continue
-
-            is_language_folder = self.current_language_folder not in ["Full", "Common"]
-            if self.hide_useless_pck_enabled and is_language_folder:
-                if not pck_file.name.startswith(SOUNDBANK_PCK_FILTER_PREFIX):
-                    continue
 
             pck_path = str(pck_file)
             item = {
-                "fileName": pck_file.name,
+                "fileName": format_pck_display_name(pck_file, directory),
                 "itemId": "",
                 "fileSize": "",
                 "duration": "",
@@ -683,7 +777,7 @@ class AudioBrowserBridge(QObject):
                 "path": pck_path,
             }
 
-        self._tree_cache[dir_key] = {
+        self._tree_cache[cache_key] = {
             "items": items,
             "item_data": dict(self._item_data),
             "pck_loaded": dict(self._pck_loaded),
@@ -777,7 +871,12 @@ class AudioBrowserBridge(QObject):
                     "parentPck": pck_path,
                 })
 
-            if not self.merge_wem_enabled:
+            should_list_direct_wem = getattr(
+                self._active_browser_handler,
+                "should_list_direct_wem",
+                lambda merge_enabled: not merge_enabled,
+            )
+            if should_list_direct_wem(self.merge_wem_enabled):
                 for wem_info in indexer.index_data["sounds"] + indexer.index_data["externals"]:
                     wem_id = str(wem_info["id"])
                     data_key = f"wem:{pck_path}:{wem_id}"
@@ -791,21 +890,25 @@ class AudioBrowserBridge(QObject):
 
                     tag_text = ""
                     duration_text = ""
+                    display_name = f"{wem_id}.wem"
                     try:
                         wem_bytes = indexer.extract_single_file(
                             wem_info["id"], "wem", wem_info["lang_id"]
                         )
                         duration_text = self._get_wem_duration(wem_bytes)
-                        sound_info = self.sound_db.get_sound_info(wem_bytes)
+                        sound_info = self._lookup_sound_info(wem_bytes, wem_info["id"])
                         if sound_info:
-                            tag_text = sound_info["name"]
+                            sound_name = str(sound_info.get("name", "")).strip()
+                            if sound_name:
+                                display_name = sound_name
+                            tag_text = sound_name
                             if sound_info["tags"]:
                                 tag_text += f" [{', '.join(sound_info['tags'])}]"
                     except Exception:
                         pass
 
                     items.append({
-                        "fileName": f"{wem_id}.wem",
+                        "fileName": display_name,
                         "itemId": wem_id,
                         "fileSize": self._format_size(wem_info["size"]),
                         "duration": duration_text,
@@ -859,8 +962,9 @@ class AudioBrowserBridge(QObject):
 
             streaming_wem_data = {}
             if self.merge_wem_enabled:
+                streamed_glob = self._active_game().streamed_pck_glob
                 pck_dir = Path(bnk_data["pck_path"]).parent
-                for streamed_pck in pck_dir.glob(STREAMED_PCK_GLOB):
+                for streamed_pck in pck_dir.glob(streamed_glob):
                     try:
                         si = PCKIndexer(str(streamed_pck))
                         si.build_index()
@@ -900,6 +1004,7 @@ class AudioBrowserBridge(QObject):
 
                 tag_text = ""
                 duration_text = ""
+                display_name = f"{wem_id}.wem"
                 try:
                     if streaming:
 
@@ -912,16 +1017,19 @@ class AudioBrowserBridge(QObject):
                         wem_bytes = bnk_indexer.extract_wem(wem_id)
 
                     duration_text = self._get_wem_duration(wem_bytes)
-                    sound_info = self.sound_db.get_sound_info(wem_bytes)
+                    sound_info = self._lookup_sound_info(wem_bytes, wem_id)
                     if sound_info:
-                        tag_text = sound_info["name"]
+                        sound_name = str(sound_info.get("name", "")).strip()
+                        if sound_name:
+                            display_name = sound_name
+                        tag_text = sound_name
                         if sound_info["tags"]:
                             tag_text += f" [{', '.join(sound_info['tags'])}]"
                 except Exception:
                     pass
 
                 items.append({
-                    "fileName": f"{wem_id}.wem",
+                    "fileName": display_name,
                     "itemId": str(wem_id),
                     "fileSize": self._format_size(display_size),
                     "duration": duration_text,
@@ -1175,6 +1283,123 @@ class AudioBrowserBridge(QObject):
         except Exception as e:
             print(f"[Audio Browser] Error saving normalize_target_lufs setting: {e}")
 
+    @pyqtSlot(str, str, str)
+    def setChangeLoopPointMode(self, pck_file, tracker_key, mode):
+        replacements = self.mod_manager.get_all_replacements()
+        file_changes = replacements.get(pck_file, {})
+        repl_info = file_changes.get(tracker_key)
+        if not repl_info:
+            return
+
+        handler = self._active_browser_handler
+        is_applicable = getattr(handler, "is_loop_entry_applicable", None)
+        normalize_mode = getattr(handler, "normalize_loop_mode", None)
+        if not callable(is_applicable) or not callable(normalize_mode):
+            return
+        if not is_applicable(pck_file, repl_info):
+            return
+
+        normalized = normalize_mode(mode)
+        current_mode = normalize_mode(repl_info.get("loop_point_mode", "auto"))
+        if current_mode == normalized:
+            return
+
+        update_fields = {"loop_point_mode": normalized}
+        if normalized == "manual":
+            normalize_manual = getattr(handler, "normalize_loop_manual_ms", None)
+            get_suggested = getattr(handler, "_get_suggested_manual_ms", None)
+            if callable(normalize_manual) and callable(get_suggested):
+                current_manual_ms = normalize_manual(
+                    repl_info.get("loop_point_manual_ms", 0)
+                )
+                if current_manual_ms <= 0:
+                    suggested_ms = normalize_manual(get_suggested(repl_info))
+                    if suggested_ms > 0:
+                        update_fields["loop_point_manual_ms"] = suggested_ms
+
+        if self.mod_manager.update_replacement_fields(
+            pck_file,
+            tracker_key,
+            **update_fields,
+        ):
+            self.statusUpdate.emit(
+                QCoreApplication.translate(
+                    "Application",
+                    "Loop point mode updated for %1 (%2).",
+                )
+                .replace("%1", str(pck_file))
+                .replace("%2", str(tracker_key))
+            )
+
+    @staticmethod
+    def _parse_duration_to_ms(duration_text):
+        text = str(duration_text or "").strip()
+        if not text:
+            return None
+
+        if text.isdigit():
+            return int(text)
+
+        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*:\s*(\d{1,3})$", text)
+        if m:
+            minutes = int(m.group(1))
+            seconds = int(m.group(2))
+            millis = int(m.group(3).ljust(3, "0")[:3])
+            return (minutes * 60 + seconds) * 1000 + millis
+
+        m2 = re.match(r"^(\d+)\s*:\s*([0-5]?\d)$", text)
+        if m2:
+            minutes = int(m2.group(1))
+            seconds = int(m2.group(2))
+            return (minutes * 60 + seconds) * 1000
+
+        return None
+
+    @pyqtSlot(str, str, str)
+    def setChangeLoopPointManualMs(self, pck_file, tracker_key, duration_text):
+        replacements = self.mod_manager.get_all_replacements()
+        file_changes = replacements.get(pck_file, {})
+        repl_info = file_changes.get(tracker_key)
+        if not repl_info:
+            return
+
+        handler = self._active_browser_handler
+        is_applicable = getattr(handler, "is_loop_entry_applicable", None)
+        normalize_manual = getattr(handler, "normalize_loop_manual_ms", None)
+        if not callable(is_applicable) or not callable(normalize_manual):
+            return
+        if not is_applicable(pck_file, repl_info):
+            return
+
+        parsed_ms = self._parse_duration_to_ms(duration_text)
+        if parsed_ms is None:
+            self.statusUpdate.emit(
+                QCoreApplication.translate(
+                    "Application",
+                    "Invalid loop duration format. Use mm:ss:mmm.",
+                )
+            )
+            return
+
+        normalized = normalize_manual(parsed_ms)
+        current = normalize_manual(repl_info.get("loop_point_manual_ms", 0))
+        if current == normalized:
+            return
+
+        if self.mod_manager.update_replacement_fields(
+            pck_file,
+            tracker_key,
+            loop_point_manual_ms=normalized,
+        ):
+            self.statusUpdate.emit(
+                QCoreApplication.translate(
+                    "Application",
+                    "Loop point manual duration updated for %1 (%2).",
+                )
+                .replace("%1", str(pck_file))
+                .replace("%2", str(tracker_key))
+            )
+
     @pyqtSlot(str)
     def search(self, query):
 
@@ -1226,9 +1451,10 @@ class AudioBrowserBridge(QObject):
                     if len(matches) >= 100:
                         break
 
+        streamed_prefix = self._active_game().streamed_pck_prefix
         if self.merge_wem_enabled and matches:
             matches = [m for m in matches
-                       if not Path(m["pckPath"]).name.startswith(STREAMED_PCK_PREFIX)]
+                       if not Path(m["pckPath"]).name.startswith(streamed_prefix)]
 
         if matches:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Found %1 match(es) for '%2'").replace("%1", str(len(matches))).replace("%2", query))
@@ -1245,14 +1471,18 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Cannot navigate to file %1").replace("%1", str(file_id)))
             return
 
-        if self.merge_wem_enabled and Path(pck_path).name.startswith(STREAMED_PCK_PREFIX):
-            print(f"[Navigate] Streamed_SFX detected with merge enabled, looking up file_id_index")
+        streamed_prefix = self._active_game().streamed_pck_prefix
+        if self.merge_wem_enabled and Path(pck_path).name.startswith(streamed_prefix):
+            print(
+                f"[Navigate] {streamed_prefix}* detected with merge enabled, "
+                "looking up file_id_index"
+            )
             file_id_int = int(file_id) if file_id.isdigit() else file_id
             locs = self.file_id_index.get(file_id_int, [])
 
             alt_loc = None
             for loc in locs:
-                if loc.get("type") == "wem_embedded" and not Path(loc["pck_path"]).name.startswith(STREAMED_PCK_PREFIX):
+                if loc.get("type") == "wem_embedded" and not Path(loc["pck_path"]).name.startswith(streamed_prefix):
                     alt_loc = loc
                     break
             if alt_loc:
@@ -1498,7 +1728,7 @@ class AudioBrowserBridge(QObject):
         changes = []
         for pck_filename, files in replacements.items():
             for tracker_key, info in files.items():
-                display_file_id = tracker_key.split('|')[1] if '|' in tracker_key else tracker_key
+                display_file_id = self._tracker_display_file_id(tracker_key)
 
                 if info['file_type'] == 'bnk' and info.get('bnk_id'):
                     display_type = f"WEM (in BNK {info['bnk_id']})"
@@ -1520,8 +1750,7 @@ class AudioBrowserBridge(QObject):
 
                 wem_path = info.get('wem_path', '')
                 source_file = Path(wem_path).name if wem_path else ''
-
-                changes.append({
+                change_entry = {
                     "fileId": display_file_id,
                     "trackerKey": tracker_key,
                     "pckFile": pck_filename,
@@ -1533,7 +1762,19 @@ class AudioBrowserBridge(QObject):
                     "taggedName": tagged_name,
                     "sourceFile": source_file,
                     "wemPath": wem_path,
-                })
+                    "loopPointEditable": False,
+                    "loopPointMode": "auto",
+                    "loopPointManualMs": 0,
+                    "loopPointSuggestedMs": 0,
+                }
+
+                enrich_change_entry = getattr(
+                    self._active_browser_handler, "enrich_change_entry", None
+                )
+                if callable(enrich_change_entry):
+                    enrich_change_entry(pck_filename, tracker_key, info, change_entry)
+
+                changes.append(change_entry)
 
         if not changes:
             self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No manual audio replacements found.\n\nChanges from installed mods are managed in the Mod Manager."), f"../assets/{ASSETS_DIR}/EllenSleep.png")
@@ -1546,60 +1787,102 @@ class AudioBrowserBridge(QObject):
     def applyAllChanges(self):
 
         replacements = self.mod_manager.get_all_replacements()
-        if not replacements:
-
-            if self.game_root_dir:
-                try:
-                    streaming_path = Path(self.game_root_dir).joinpath(*AUDIO_SUBPATH)
-                    persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
-
-                    if persistent_path.exists():
-                        self.statusUpdate.emit(QCoreApplication.translate("Application", "Cleaning up Persistent folder..."))
-
-                        lang_folders_to_skip = set()
-                        for lang_folder in persistent_path.iterdir():
-                            if lang_folder.is_dir():
-                                pck_count = len(list(lang_folder.glob("*.pck")))
-                                if pck_count == 57:
-                                    lang_folders_to_skip.add(lang_folder)
-                                    print(f"[Audio Browser] Skipping language folder {lang_folder.name} (has 57 PCK files)")
-
-                        cleaned_files = 0
-                        for pck_file in persistent_path.rglob("*.pck"):
-
-                            if any(lang_folder in pck_file.parents for lang_folder in lang_folders_to_skip):
-                                continue
-
-                            try:
-                                pck_file.chmod(0o644)
-                                pck_file.unlink()
-                                cleaned_files += 1
-                            except Exception as e:
-                                print(f"[Audio Browser] Failed to delete {pck_file}: {e}")
-
-                        if cleaned_files > 0:
-                            self.statusUpdate.emit(QCoreApplication.translate("Application", "Cleaned up %1 modded PCK file(s) from Persistent folder").replace("%1", str(cleaned_files)))
-                        else:
-                            self.statusUpdate.emit(QCoreApplication.translate("Application", "No modded PCK files found in Persistent folder"))
-                    else:
-                        self.errorOccurred.emit(QCoreApplication.translate("Application", "No Changes"), QCoreApplication.translate("Application", "No changes to apply and no Persistent folder found."))
-                except Exception as e:
-                    self.errorOccurred.emit(QCoreApplication.translate("Application", "Cleanup Error"), QCoreApplication.translate("Application", "Failed to clean up Persistent folder:\n%1").replace("%1", str(e)))
-            else:
-                self.errorOccurred.emit(QCoreApplication.translate("Application", "No Changes"), QCoreApplication.translate("Application", "No changes to apply."))
-            return
-
         if not self.game_root_dir:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "No Directory"), QCoreApplication.translate("Application", "Please select a game directory first."))
+            if replacements:
+                self.errorOccurred.emit(
+                    QCoreApplication.translate("Application", "No Directory"),
+                    QCoreApplication.translate(
+                        "Application", "Please select a game directory first."
+                    ),
+                )
+            else:
+                self.errorOccurred.emit(
+                    QCoreApplication.translate("Application", "No Changes"),
+                    QCoreApplication.translate("Application", "No changes to apply."),
+                )
             return
 
         try:
+            game = self._active_game()
+            streaming_base = (
+                Path(self._audio_root)
+                if self._audio_root
+                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+            )
+            persistent_path = Path(self.game_root_dir).joinpath(
+                *game.persistent_audio_subpath
+            )
+
+            # Always rebuild from a clean Persistent state when applying changes.
+            if persistent_path.exists():
+                self.statusUpdate.emit(
+                    QCoreApplication.translate(
+                        "Application", "Cleaning up Persistent folder..."
+                    )
+                )
+
+                should_skip_cleanup_folder = getattr(
+                    self._active_browser_handler,
+                    "should_skip_persistent_cleanup_folder",
+                    lambda folder, count: False,
+                )
+                lang_folders_to_skip = set()
+                for lang_folder in persistent_path.iterdir():
+                    if not lang_folder.is_dir():
+                        continue
+                    pck_count = len(list(lang_folder.glob("*.pck")))
+                    if should_skip_cleanup_folder(lang_folder, pck_count):
+                        lang_folders_to_skip.add(lang_folder)
+                        print(
+                            f"[Audio Browser] Skipping language folder "
+                            f"{lang_folder.name} (has {pck_count} PCK files)"
+                        )
+
+                cleaned_files = 0
+                for pck_file in persistent_path.rglob("*.pck"):
+                    if any(
+                        lang_folder in pck_file.parents
+                        for lang_folder in lang_folders_to_skip
+                    ):
+                        continue
+
+                    try:
+                        pck_file.chmod(0o644)
+                        pck_file.unlink()
+                        cleaned_files += 1
+                    except Exception as e:
+                        print(f"[Audio Browser] Failed to delete {pck_file}: {e}")
+
+                if cleaned_files > 0:
+                    self.statusUpdate.emit(
+                        QCoreApplication.translate(
+                            "Application",
+                            "Cleaned up %1 modded PCK file(s) from Persistent folder",
+                        ).replace("%1", str(cleaned_files))
+                    )
+                else:
+                    self.statusUpdate.emit(
+                        QCoreApplication.translate(
+                            "Application", "No modded PCK files found in Persistent folder"
+                        )
+                    )
+            elif not replacements:
+                self.errorOccurred.emit(
+                    QCoreApplication.translate("Application", "No Changes"),
+                    QCoreApplication.translate(
+                        "Application",
+                        "No changes to apply and no Persistent folder found.",
+                    ),
+                )
+                return
+
+            if not replacements:
+                return
+
             total_files = sum(len(files) for files in replacements.values())
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
 
             for pck_filename, files in replacements.items():
-
-                streaming_base = Path(self.game_root_dir).joinpath(*AUDIO_SUBPATH)
                 pck_file_path = streaming_base / pck_filename
 
                 if not pck_file_path.exists():
@@ -1654,7 +1937,7 @@ class AudioBrowserBridge(QObject):
                             bnk_temp = Path(tempfile.mkdtemp(prefix="zzar_bnk_", dir=str(get_temp_dir())))
                             bnk_wem_dir = bnk_temp / f"{repl_bnk_id}_bnk"
                             bnk_wem_dir.mkdir(parents=True, exist_ok=True)
-                            plain_wem_id = str(file_id).split('|')[-1] if '|' in str(file_id) else str(file_id)
+                            plain_wem_id = self._tracker_plain_file_id(file_id)
                             shutil.copy(str(repl_wem), str(bnk_wem_dir / f"{plain_wem_id}.wem"))
                             packer.replace_bnk_wems(repl_bnk_id, str(bnk_wem_dir), repl_info["lang_id"])
                             shutil.rmtree(str(bnk_temp), ignore_errors=True)
@@ -1665,6 +1948,12 @@ class AudioBrowserBridge(QObject):
 
                 import os, stat
                 os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+
+            post_pack_steps = getattr(
+                self._active_browser_handler, "apply_post_pack_steps", None
+            )
+            if callable(post_pack_steps):
+                post_pack_steps(replacements)
 
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))
 
@@ -1739,7 +2028,7 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str, str)
     def removeChange(self, pck_file, tracker_key):
-        display_id = tracker_key.split('|')[1] if '|' in tracker_key else tracker_key
+        display_id = self._tracker_display_file_id(tracker_key)
 
         try:
             replacements = self.mod_manager.get_all_replacements()
@@ -1858,18 +2147,16 @@ class AudioBrowserBridge(QObject):
 
         if not pck_path:
 
-            base_path = Path(self.game_root_dir).joinpath(*AUDIO_SUBPATH)
+            game = self._active_game()
+            base_path = (
+                Path(self._audio_root)
+                if self._audio_root
+                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+            )
 
             potential_path = base_path / pck_filename
             if potential_path.exists():
                 pck_path = str(potential_path)
-
-            if not pck_path:
-                for lang_dir in LANGUAGE_FOLDERS:
-                    potential_path = base_path / lang_dir / pck_filename
-                    if potential_path.exists():
-                        pck_path = str(potential_path)
-                        break
 
             if not pck_path and base_path.exists():
                 for pck_file in base_path.rglob("*.pck"):
@@ -1887,23 +2174,78 @@ class AudioBrowserBridge(QObject):
     def resetAllChanges(self):
 
         stats = self.mod_manager.get_stats()
-        if stats["modded_pcks"] == 0:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "No replacements to reset"))
-            return
 
         try:
-            if self.mod_manager.persistent_base_path:
+            cleaned_files = 0
+
+            if self.game_root_dir:
+                game = self._active_game()
+                persistent_path = Path(self.game_root_dir).joinpath(
+                    *game.persistent_audio_subpath
+                )
+                if persistent_path.exists():
+                    should_skip_cleanup_folder = getattr(
+                        self._active_browser_handler,
+                        "should_skip_persistent_cleanup_folder",
+                        lambda folder, count: False,
+                    )
+                    lang_folders_to_skip = set()
+                    for lang_folder in persistent_path.iterdir():
+                        if not lang_folder.is_dir():
+                            continue
+                        pck_count = len(list(lang_folder.glob("*.pck")))
+                        if should_skip_cleanup_folder(lang_folder, pck_count):
+                            lang_folders_to_skip.add(lang_folder)
+                            print(
+                                f"[Audio Browser] Skipping language folder "
+                                f"{lang_folder.name} (has {pck_count} PCK files)"
+                            )
+
+                    for pck_file in persistent_path.rglob("*.pck"):
+                        if any(
+                            lang_folder in pck_file.parents
+                            for lang_folder in lang_folders_to_skip
+                        ):
+                            continue
+                        try:
+                            pck_file.chmod(0o644)
+                            pck_file.unlink()
+                            cleaned_files += 1
+                        except Exception as e:
+                            print(f"[Audio Browser] Failed to delete {pck_file}: {e}")
+
+            if cleaned_files == 0 and self.mod_manager.persistent_base_path:
                 for pck_name in stats["pcks"]:
                     pck_path = self.mod_manager.get_persistent_pck_path(pck_name)
-                    if pck_path.exists():
+                    if not pck_path.exists():
+                        continue
+                    try:
                         pck_path.chmod(0o644)
                         pck_path.unlink()
+                        cleaned_files += 1
+                    except Exception as e:
+                        print(f"[Audio Browser] Failed to delete {pck_path}: {e}")
+
+            if cleaned_files == 0 and stats["modded_pcks"] == 0:
+                self.statusUpdate.emit(
+                    QCoreApplication.translate("Application", "No replacements to reset")
+                )
+                return
 
             self.mod_manager.clear_all_replacements()
 
             self._imported_mod_metadata = None
 
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "All changes reset"))
+            if cleaned_files > 0:
+                self.statusUpdate.emit(
+                    QCoreApplication.translate(
+                        "Application", "All changes reset (%1 PCK file(s) removed)."
+                    ).replace("%1", str(cleaned_files))
+                )
+            else:
+                self.statusUpdate.emit(
+                    QCoreApplication.translate("Application", "All changes reset")
+                )
             self._emit_changes_count()
         except Exception as e:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to reset: %1").replace("%1", str(e)))
@@ -2105,7 +2447,12 @@ class AudioBrowserBridge(QObject):
                 )
                 return
 
-            pck_files = sorted(Path(directory).glob("*.pck"))
+            collect_pck_files = getattr(
+                self._active_browser_handler,
+                "collect_pck_files",
+                lambda d: sorted(Path(d).glob("*.pck"), key=lambda p: p.name.lower()),
+            )
+            pck_files = list(collect_pck_files(Path(directory)))
             total_pcks = len(pck_files)
 
             QMetaObject.invokeMethod(
@@ -2130,7 +2477,7 @@ class AudioBrowserBridge(QObject):
                                 wem_info["id"], "wem", wem_info["lang_id"]
                             )
                             tag_text = ""
-                            sound_info = self.sound_db.get_sound_info(wem_bytes)
+                            sound_info = self._lookup_sound_info(wem_bytes, wem_info["id"])
                             if sound_info:
                                 tag_text = sound_info.get("name", "")
                                 if sound_info.get("tags"):
@@ -2163,7 +2510,7 @@ class AudioBrowserBridge(QObject):
                                 try:
                                     wem_bytes = bnk_indexer.extract_wem(wem["wem_id"])
                                     tag_text = ""
-                                    sound_info = self.sound_db.get_sound_info(wem_bytes)
+                                    sound_info = self._lookup_sound_info(wem_bytes, wem["wem_id"])
                                     if sound_info:
                                         tag_text = sound_info.get("name", "")
                                         if sound_info.get("tags"):
@@ -2413,7 +2760,7 @@ class AudioBrowserBridge(QObject):
                     normalized_replacements = mod_pkg._normalize_metadata_replacements(metadata)
                     for pck_name, files in normalized_replacements.items():
                         for file_key, file_info in files.items():
-                            file_id = file_key.split('|')[-1]
+                            file_id = self._tracker_plain_file_id(file_key)
                             wem_file = file_info.get('wem_file', '')
                             if not wem_file:
                                 continue
@@ -2491,7 +2838,7 @@ class AudioBrowserBridge(QObject):
         self.file_id_index = {}
         self.index_ready = False
         pck_paths = [str(pck) for pck in pck_files]
-        self._indexing_directory = str(self._current_directory)
+        self._indexing_directory = str(self._current_tree_key or self._current_directory)
 
         self._index_cancel = threading.Event()
         cancel = self._index_cancel
@@ -2584,17 +2931,26 @@ class AudioBrowserBridge(QObject):
 
         # Search game directory
         if self.game_root_dir:
-            base_path = Path(self.game_root_dir).joinpath(*AUDIO_SUBPATH)
-            potential_path = base_path / pck_filename
-            if potential_path.exists():
-                return str(potential_path)
-            for lang_dir in LANGUAGE_FOLDERS:
-                potential_path = base_path / lang_dir / Path(pck_filename).name
-                if potential_path.exists():
-                    return str(potential_path)
+            game = self._active_game()
+            base_path = (
+                Path(self._audio_root)
+                if self._audio_root
+                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+            )
+            candidate = base_path / Path(pck_filename)
+            if candidate.exists():
+                return str(candidate)
+
+            direct_candidate = base_path / Path(pck_filename).name
+            if direct_candidate.exists():
+                return str(direct_candidate)
+
             if base_path.exists():
+                target_name = Path(pck_filename).name
+                target_rel = str(Path(pck_filename)).replace("\\", "/")
                 for pck_file in base_path.rglob("*.pck"):
-                    if pck_file.name == Path(pck_filename).name:
+                    rel = str(pck_file.relative_to(base_path)).replace("\\", "/")
+                    if pck_file.name == target_name or rel == target_rel:
                         return str(pck_file)
 
         return ""
@@ -2614,6 +2970,25 @@ class AudioBrowserBridge(QObject):
             elif data.get("type") == "bnk" and str(data.get("file_id")) == item_id:
                 if not pck_path or data.get("pck_path") == pck_path:
                     return data
+        return None
+
+    def _lookup_sound_info(self, wem_bytes, file_id=None):
+        try:
+            info = self.sound_db.get_sound_info(wem_bytes)
+            if info:
+                return info
+        except Exception:
+            pass
+
+        if file_id is None:
+            return None
+
+        try:
+            by_id = self.sound_db.search_by_id(file_id)
+            if by_id:
+                return next(iter(by_id.values()))
+        except Exception:
+            pass
         return None
 
     @staticmethod

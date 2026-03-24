@@ -301,15 +301,21 @@ Item {
                             }
 
                             Canvas {
+                                id: audioMatchSpinnerCanvas
                                 anchors.fill: parent
                                 onPaint: {
                                     var ctx = getContext("2d");
                                     ctx.reset();
                                     ctx.beginPath();
                                     ctx.arc(9, 9, 7, 0, Math.PI * 1.5);
-                                    ctx.strokeStyle = "#000000";
+                                    ctx.strokeStyle = Theme.accentDark;
                                     ctx.lineWidth = 2;
                                     ctx.stroke();
+                                }
+
+                                Connections {
+                                    target: uiTheme
+                                    function onThemeChanged() { audioMatchSpinnerCanvas.requestPaint() }
                                 }
                             }
                         }

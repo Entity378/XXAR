@@ -30,10 +30,12 @@ from gui.backend.audio_browser_bridge import AudioBrowserBridge
 from gui.backend.audio_conversion_bridge import AudioConversionBridge
 from gui.backend.update_manager_bridge import UpdateManagerBridge
 from gui.backend.gamebanana_bridge import GameBananaBridge
+from gui.backend.ui_theme_bridge import UIThemeBridge
 from gui.backend.native_dialogs import NativeDialogs
-from src.config_manager import get_settings_file, get_cache_dir
+from src.config_manager import get_settings_file, get_cache_dir, normalize_game_id
+from src.game_registry import DEFAULT_GAME_ID
 from src.app_config import (
-    APP_NAME, APP_FULL_NAME, GAME_NAME, GAME_SHORT, GAME_DATA_FOLDER,
+    APP_NAME, APP_FULL_NAME, APP_VERSION, GAME_NAME, GAME_SHORT, GAME_DATA_FOLDER,
     GAME_DATA_FOLDER_SEARCH, GAME_INSTALL_SUBDIRS, GAME_INSTALL_HOME_SUBDIR,
     LOGO_PNG, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR,
     ACCENT_COLOR, ACCENT_COLOR_LIGHT, ACCENT_COLOR_DARK,
@@ -123,6 +125,7 @@ class Application(
         self.audio_browser_bridge = None
         self.audio_conversion_bridge = None
         self.gamebanana_bridge = None
+        self.ui_theme_bridge = None
         self.settings_file = get_settings_file()
         self.settings_page = None
         self.mod_page = None
@@ -209,10 +212,18 @@ class Application(
         self.update_manager_bridge.setCurrentVersion(QCoreApplication.applicationVersion())
 
         context = self.engine.rootContext()
+        startup_settings = self.load_settings()
+        startup_game = normalize_game_id(
+            startup_settings.get("selected_game", DEFAULT_GAME_ID)
+        )
+        self.gamebanana_bridge.set_active_game(startup_game, reload=False)
+        self.ui_theme_bridge = UIThemeBridge(startup_game)
+
         context.setContextProperty("modManagerBackend", self.mod_manager_bridge)
         context.setContextProperty("audioBrowserBackend", self.audio_browser_bridge)
         context.setContextProperty("audioConversionBackend", self.audio_conversion_bridge)
         context.setContextProperty("gameBananaBackend", self.gamebanana_bridge)
+        context.setContextProperty("uiTheme", self.ui_theme_bridge)
         self.clipboard_helper = ClipboardHelper()
         context.setContextProperty("clipboardHelper", self.clipboard_helper)
 
@@ -233,7 +244,7 @@ class Application(
         self.translation_manager = TranslationManager(self.engine)
         context.setContextProperty("translationManager", self.translation_manager)
 
-        settings = self.load_settings()
+        settings = startup_settings
         saved_lang = settings.get("language", "en")
         if saved_lang != "en":
             self.translation_manager.changeLanguage(saved_lang)
@@ -537,7 +548,7 @@ class Application(
 
 def main():
 
-    app = Application(version=__version__)
+    app = Application(version=APP_VERSION)
     return app.run()
 
 if __name__ == "__main__":

@@ -1,6 +1,13 @@
 
-
-from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, pyqtProperty, QThread, QTimer
+from PyQt5.QtCore import (
+    QObject,
+    pyqtSlot,
+    pyqtSignal,
+    pyqtProperty,
+    QThread,
+    QTimer,
+    QCoreApplication,
+)
 from PyQt5.QtQml import QQmlApplicationEngine
 from pathlib import Path
 import json
@@ -13,6 +20,8 @@ from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_F
 from src.mod_package_manager import ModPackageManager, InvalidModPackageError
 from src.persistent_mod_manager import PersistentModManager
 from src.config_manager import get_settings_file
+from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, normalize_game_id
+from src.gui.backend.audio_games import get_browser_handler_class
 from .native_dialogs import NativeDialogs
 
 class WwiseSetupWorker(QThread):
@@ -143,6 +152,7 @@ class ModManagerBridge(QObject):
         self.audio_tools_worker = None
         self.game_audio_dir = ""
         self.persistent_dir = ""
+        self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
 
         self.persistent_mod_manager = PersistentModManager()
@@ -152,6 +162,34 @@ class ModManagerBridge(QObject):
 
         self.load_settings()
 
+    @staticmethod
+    def _resolve_active_game_id(settings, game_audio_dir="", persistent_dir=""):
+        selected = normalize_game_id(
+            settings.get("selected_game", DEFAULT_GAME_ID), default=DEFAULT_GAME_ID
+        )
+
+        detected = None
+        if game_audio_dir:
+            detected = detect_game_id_from_path(game_audio_dir, default=None)
+        if not detected and persistent_dir:
+            detected = detect_game_id_from_path(persistent_dir, default=None)
+
+        if detected:
+            return normalize_game_id(detected, default=selected)
+        return selected
+
+    def _should_skip_cleanup_folder(self, lang_folder, pck_count):
+        handler_cls = get_browser_handler_class(self.active_game_id)
+        should_skip_fn = getattr(
+            handler_cls,
+            "should_skip_persistent_cleanup_folder",
+            lambda folder, count: False,
+        )
+        try:
+            return bool(should_skip_fn(lang_folder, pck_count))
+        except Exception:
+            return False
+
     def load_settings(self):
 
         try:
@@ -160,15 +198,37 @@ class ModManagerBridge(QObject):
                     settings = json.load(f)
                     self.game_audio_dir = settings.get("game_audio_dir", "")
                     self.persistent_dir = settings.get("persistent_audio_dir", "")
+                    self.active_game_id = self._resolve_active_game_id(
+                        settings,
+                        game_audio_dir=self.game_audio_dir,
+                        persistent_dir=self.persistent_dir,
+                    )
                     self.mod_creation_mode = settings.get("mod_creation_mode", False)
                     self.conflict_preferences = settings.get("conflict_preferences", {})
 
-                    custom_mods_dir = settings.get("custom_mod_library_dir", "")
-                    from src.config_manager import set_mod_library_dir, get_mod_library_dir
+                    from src.config_manager import (
+                        get_custom_mod_library_settings_key,
+                        get_game_mod_library_dir,
+                        get_mod_library_dir,
+                        set_mod_library_dir,
+                    )
+                    custom_mods_key = get_custom_mod_library_settings_key(
+                        self.active_game_id
+                    )
+                    custom_mods_dir = settings.get(custom_mods_key, "")
+                    if (
+                        not custom_mods_dir
+                        and self.active_game_id == DEFAULT_GAME_ID
+                    ):
+                        custom_mods_dir = settings.get("custom_mod_library_dir", "")
 
                     old_mods_dir = self.mod_package_manager.mods_dir
-                    set_mod_library_dir(custom_mods_dir if custom_mods_dir else None)
-                    new_library = get_mod_library_dir()
+                    if custom_mods_dir:
+                        set_mod_library_dir(custom_mods_dir)
+                        new_library = get_mod_library_dir()
+                    else:
+                        set_mod_library_dir(None)
+                        new_library = get_game_mod_library_dir(self.active_game_id)
                     new_mods_dir = new_library / 'mods'
 
                     if old_mods_dir != new_mods_dir and old_mods_dir.exists():
@@ -198,6 +258,7 @@ class ModManagerBridge(QObject):
 
                     if self.game_audio_dir or self.persistent_dir:
                         print(f"[Mod Manager] Loaded game directories from settings")
+                        print(f"[Mod Manager]   Active game: {self.active_game_id}")
                         if self.game_audio_dir:
                             print(f"[Mod Manager]   Game audio: {self.game_audio_dir}")
                         if self.persistent_dir:
@@ -206,10 +267,12 @@ class ModManagerBridge(QObject):
                 print(
                     "[Mod Manager] No settings file found - please configure game directory in Settings"
                 )
+                self.active_game_id = DEFAULT_GAME_ID
         except Exception as e:
             print(f"[Mod Manager] Warning: Failed to load settings: {e}")
             self.game_audio_dir = ""
             self.persistent_dir = ""
+            self.active_game_id = DEFAULT_GAME_ID
 
     @pyqtSlot(result=bool)
     def getModCreationMode(self):
@@ -568,6 +631,7 @@ class ModManagerBridge(QObject):
     def applyMods(self):
 
         print("[Mod Manager] Starting mod application...")
+        self.load_settings()
 
         if not self.game_audio_dir or not Path(self.game_audio_dir).exists():
             print("[Mod Manager] ERROR: Game audio directory not set or doesn't exist")
@@ -676,9 +740,12 @@ class ModManagerBridge(QObject):
                         for lang_folder in persistent_path.iterdir():
                             if lang_folder.is_dir():
                                 pck_count = len(list(lang_folder.glob("*.pck")))
-                                if pck_count == 57:
+                                if self._should_skip_cleanup_folder(lang_folder, pck_count):
                                     lang_folders_to_skip.add(lang_folder)
-                                    print(f"[Mod Manager] Skipping language folder {lang_folder.name} (has 57 PCK files)")
+                                    print(
+                                        f"[Mod Manager] Skipping language folder "
+                                        f"{lang_folder.name} (has {pck_count} PCK files)"
+                                    )
 
                         PROTECTED_PCKS = {'Patch.pck', 'Hotfix.pck'}
 

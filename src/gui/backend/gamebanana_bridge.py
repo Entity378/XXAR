@@ -11,6 +11,7 @@ import urllib.parse
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 from src.app_config import FLATPAK_ENV_VAR, GAMEBANANA_GAME_ID, CONFIG_DIR_NAME, MOD_FILE_EXT
+from src.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
 
 if os.environ.get(FLATPAK_ENV_VAR):
     _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
@@ -164,17 +165,18 @@ class FetchModsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
-    def __init__(self, page=1, per_page=50, sort="default", category=None):
+    def __init__(self, page=1, per_page=50, sort="default", category=None, gamebanana_game_id=GAMEBANANA_GAME_ID):
         super().__init__()
         self.page = page
         self.per_page = per_page
         self.sort = sort
         self.category = category
+        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else GAMEBANANA_GAME_ID
 
     def run(self):
         try:
 
-            filters = f"_aFilters[Generic_Game]={GAMEBANANA_GAME_ID}"
+            filters = f"_aFilters[Generic_Game]={self.gamebanana_game_id}"
 
             params = {
                 '_nPage': self.page,
@@ -287,15 +289,16 @@ class FetchMiscZZARModsWorker(QThread):
 
     CONCURRENT_CHECKS = 5
 
-    def __init__(self, page=1, per_page=50, sort="default"):
+    def __init__(self, page=1, per_page=50, sort="default", gamebanana_game_id=GAMEBANANA_GAME_ID):
         super().__init__()
         self.page = page
         self.per_page = per_page
         self.sort = sort
+        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else GAMEBANANA_GAME_ID
 
     def run(self):
         try:
-            filters = f"_aFilters[Generic_Game]={GAMEBANANA_GAME_ID}"
+            filters = f"_aFilters[Generic_Game]={self.gamebanana_game_id}"
             params = {'_nPage': self.page, '_nPerpage': self.per_page}
             if self.sort and self.sort != "default":
                 params['_sOrderBy'] = self.sort
@@ -1127,6 +1130,59 @@ class GameBananaBridge(QObject):
         self._combined_mods = []
         self._sound_mod_ids = []
         self._total_sound_mods = 0
+        self._active_game_id = DEFAULT_GAME_ID
+        self._active_gamebanana_game_id = get_gamebanana_game_id(
+            DEFAULT_GAME_ID, default=GAMEBANANA_GAME_ID
+        )
+
+    def _stop_worker(self, worker_attr):
+        worker = getattr(self, worker_attr, None)
+        if worker and worker.isRunning():
+            worker.terminate()
+            worker.wait(300)
+
+    def _cancel_fetch_pipeline(self):
+        self._stop_worker("fetch_worker")
+        self._stop_worker("misc_fetch_worker")
+        self._stop_worker("zzar_support_worker")
+        self._pending_fetch_count = 0
+        self._combined_mods = []
+        self._sound_mod_ids = []
+        self._total_sound_mods = 0
+        self.loadingStateChanged.emit(False)
+
+    @pyqtSlot(str)
+    def setActiveGame(self, game_id):
+        self.set_active_game(game_id, reload=False)
+
+    def set_active_game(self, game_id, reload=False):
+        normalized = normalize_game_id(game_id)
+        resolved_gb_id = get_gamebanana_game_id(
+            normalized, default=GAMEBANANA_GAME_ID
+        )
+        if (
+            normalized == self._active_game_id
+            and resolved_gb_id == self._active_gamebanana_game_id
+        ):
+            return False
+
+        self._cancel_fetch_pipeline()
+        self.current_page = 1
+        self.cached_mods = []
+        self._mod_item_types = {}
+        self.modsLoaded.emit([])
+        self.totalModsCount.emit(0)
+
+        self._active_game_id = normalized
+        self._active_gamebanana_game_id = resolved_gb_id
+        print(
+            f"[GameBanana] Active game set to '{self._active_game_id}' "
+            f"(Generic_Game={self._active_gamebanana_game_id})"
+        )
+
+        if reload:
+            self.refresh()
+        return True
 
     @pyqtSlot(int)
     def fetchThumbnail(self, mod_id):
@@ -1189,11 +1245,21 @@ class GameBananaBridge(QObject):
         self._total_sound_mods = 0
         self.loadingStateChanged.emit(True)
 
-        self.fetch_worker = FetchModsWorker(page, per_page=50, sort=sort)
+        self.fetch_worker = FetchModsWorker(
+            page,
+            per_page=50,
+            sort=sort,
+            gamebanana_game_id=self._active_gamebanana_game_id,
+        )
         self.fetch_worker.finished.connect(self._on_sound_mods_partial)
         self.fetch_worker.start()
 
-        self.misc_fetch_worker = FetchMiscZZARModsWorker(page, per_page=50, sort=sort)
+        self.misc_fetch_worker = FetchMiscZZARModsWorker(
+            page,
+            per_page=50,
+            sort=sort,
+            gamebanana_game_id=self._active_gamebanana_game_id,
+        )
         self.misc_fetch_worker.finished.connect(self._on_misc_mods_partial)
         self.misc_fetch_worker.start()
 

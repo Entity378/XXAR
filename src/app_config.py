@@ -1,103 +1,89 @@
-BUILD_TARGET = "ZZAR"  
+from src.game_registry import (
+    get_game_for_build_target,
+    get_game_id_for_build_target,
+    get_game_language_folders,
+    get_game_subfolder_sort_priority,
+)
+
+
+BUILD_TARGET = "ZZAR"
+
+if BUILD_TARGET not in {"ZZAR", "SRAR", "GIAR"}:
+    raise ValueError(
+        f"Unknown BUILD_TARGET: {BUILD_TARGET!r}. Must be 'ZZAR', 'SRAR' or 'GIAR'."
+    )
+
+APP_NAME = BUILD_TARGET
+CONFIG_DIR_NAME = BUILD_TARGET
+
+FLATPAK_ENV_VAR = f"{BUILD_TARGET}_FLATPAK"
+FLATPAK_BUILD_ENV_VAR = f"{BUILD_TARGET}_FLATPAK_BUILD"
+
+_TARGET_GAME_ID = get_game_id_for_build_target(BUILD_TARGET)
+_GAME = get_game_for_build_target(BUILD_TARGET)
+
+GAME_NAME = _GAME.display_name
+GAME_SHORT = _GAME.short_label
+GAME_DATA_FOLDER = _GAME.data_dir_name
+GAME_DATA_FOLDER_SEARCH = GAME_DATA_FOLDER
+GAMEBANANA_GAME_ID = _GAME.gamebanana_game_id
+
+GAME_INSTALL_SUBDIRS = [
+    f"Program Files/HoYoPlay/games/{_GAME.install_dir_name}",
+    f"Program Files (x86)/HoYoPlay/games/{_GAME.install_dir_name}",
+]
+GAME_INSTALL_HOME_SUBDIR = f"Games/{_GAME.install_dir_name}"
+
+AUDIO_SUBPATH = _GAME.game_audio_subpath
+SOUNDBANK_PCK_GLOB = _GAME.soundbank_pck_glob
+STREAMED_PCK_GLOB = _GAME.streamed_pck_glob
+STREAMED_PCK_PREFIX = _GAME.streamed_pck_prefix
+SOUNDBANK_PCK_PREFIX = _GAME.soundbank_pck_prefix
+SOUNDBANK_PCK_FILTER_PREFIX = _GAME.soundbank_pck_filter_prefix
+LANGUAGE_FOLDERS = get_game_language_folders(_TARGET_GAME_ID)
+AUDIO_ROOT_FRIENDLY_NAME = _GAME.audio_root_friendly_name
+SUBFOLDER_SORT_PRIORITY = get_game_subfolder_sort_priority(_TARGET_GAME_ID)
+LOOP_POINT_PATCHING_SUPPORTED = _GAME.loop_point_patching_supported
+LOOP_POINT_MODES = _GAME.loop_point_modes
+
+GAME_THEME_PALETTES = {
+    "zzz": ("#d8fa00", "#e8ff33", "#a8c800"),
+    "genshin": ("#34c27a", "#6fe3a5", "#238a58"),
+    "hsr": ("#3f9ec3", "#62b8d8", "#2d7a99"),
+}
+ACCENT_COLOR, ACCENT_COLOR_LIGHT, ACCENT_COLOR_DARK = GAME_THEME_PALETTES.get(
+    _TARGET_GAME_ID,
+    GAME_THEME_PALETTES["zzz"],
+)
 
 if BUILD_TARGET == "ZZAR":
-
-    APP_NAME            = "ZZAR"
-    APP_FULL_NAME       = "Zenless Zone Zero Audio Replacer"
-    APP_VERSION         = "1.2.2"
-
-    GAME_NAME           = "Zenless Zone Zero"
-    GAME_SHORT          = "ZZZ"
-    GAME_DATA_FOLDER    = "ZenlessZoneZero_Data"
-
-    MOD_FILE_EXT        = ".zzar"
-    MOD_FILE_EXT_UPPER  = "ZZAR"
-
-    GAMEBANANA_GAME_ID  = 19567
-
-    CONFIG_DIR_NAME     = "ZZAR"
-
-    FLATPAK_ENV_VAR       = "ZZAR_FLATPAK"
-    FLATPAK_BUILD_ENV_VAR = "ZZAR_FLATPAK_BUILD"
-
-    GAME_INSTALL_SUBDIRS = [
-        "Program Files/HoYoPlay/games/ZenlessZoneZero Game",
-        "Program Files (x86)/HoYoPlay/games/ZenlessZoneZero Game",
-    ]
-    GAME_INSTALL_HOME_SUBDIR = "Games/ZenlessZoneZero Game"
-
-    GAME_DATA_FOLDER_SEARCH = "ZenlessZoneZero_Data"
-
-    # Audio path layout
-    AUDIO_SUBPATH        = ("StreamingAssets", "Audio", "Windows", "Full")
-    SOUNDBANK_PCK_GLOB          = "SoundBank_SFX_*.pck"
-    STREAMED_PCK_GLOB           = "Streamed_SFX_*.pck"
-    STREAMED_PCK_PREFIX         = "Streamed_SFX_"
-    SOUNDBANK_PCK_PREFIX        = "SoundBank_SFX_"
-    SOUNDBANK_PCK_FILTER_PREFIX = "SoundBank_"
-    LANGUAGE_FOLDERS          = {"En": "English", "japanese(jp)": "Japanese", "Kr": "Korean", "Cn": "Chinese"}
-    AUDIO_ROOT_FRIENDLY_NAME  = "SFX/Music"
-    SUBFOLDER_SORT_PRIORITY   = {}  # all subfolders sort alphabetically
-
-    ACCENT_COLOR        = "#d8fa00"
-    ACCENT_COLOR_LIGHT  = "#e8ff33"
-    ACCENT_COLOR_DARK   = "#a8c800"
-
+    APP_FULL_NAME = "Zenless Zone Zero Audio Replacer"
+    APP_VERSION = "1.2.2"
+    MOD_FILE_EXT = ".zzar"
+    MOD_FILE_EXT_UPPER = "ZZAR"
     ASSETS_DIR = "ZZAR"
-    LOGO_PNG   = "ZZAR-Logo2.png"
-    LOGO_ICO   = "ZZAR-Logo2.ico"
-    LOGO_256   = "ZZAR-Logo2-256.png"
-
+    LOGO_PNG = "ZZAR-Logo2.png"
+    LOGO_ICO = "ZZAR-Logo2.ico"
+    LOGO_256 = "ZZAR-Logo2-256.png"
 elif BUILD_TARGET == "SRAR":
-
-    APP_NAME            = "SRAR"
-    APP_FULL_NAME       = "Honkai Star Rail Audio Replacer"
-    APP_VERSION         = "1.0.0"
-
-    GAME_NAME           = "Honkai Star Rail"
-    GAME_SHORT          = "HSR"
-    GAME_DATA_FOLDER    = "StarRail_Data"
-
-    MOD_FILE_EXT        = ".srar"
-    MOD_FILE_EXT_UPPER  = "SRAR"
-
-    GAMEBANANA_GAME_ID  = 18366
-
-    CONFIG_DIR_NAME     = "SRAR"
-
-    FLATPAK_ENV_VAR       = "SRAR_FLATPAK"
-    FLATPAK_BUILD_ENV_VAR = "SRAR_FLATPAK_BUILD"
-
-    GAME_INSTALL_SUBDIRS = [
-        "Program Files/HoYoPlay/games/Honkai Star Rail Game",
-        "Program Files (x86)/HoYoPlay/games/Honkai Star Rail Game",
-    ]
-    GAME_INSTALL_HOME_SUBDIR = "Games/Honkai Star Rail Game"
-
-    GAME_DATA_FOLDER_SEARCH = "StarRail_Data"
-
-    # Audio path layout
-    AUDIO_SUBPATH        = ("StreamingAssets", "Audio", "AudioPackage", "Windows")
-    SOUNDBANK_PCK_GLOB          = "Banks*.pck"
-    STREAMED_PCK_GLOB           = "Streamed*.pck"
-    STREAMED_PCK_PREFIX         = "Streamed"
-    SOUNDBANK_PCK_PREFIX        = "Banks"
-    SOUNDBANK_PCK_FILTER_PREFIX = "Banks"
-    LANGUAGE_FOLDERS          = {"English": "English", "Japanese": "Japanese", "Korean": "Korean", "Chinese(PRC)": "Chinese", "SFX": "SFX"}
-    AUDIO_ROOT_FRIENDLY_NAME  = "Music"
-    SUBFOLDER_SORT_PRIORITY   = {"SFX": 0}  # SFX before language folders (which get priority 1)
-
-    ACCENT_COLOR        = "#3f9ec3"
-    ACCENT_COLOR_LIGHT  = "#62b8d8"
-    ACCENT_COLOR_DARK   = "#2d7a99"
-
+    APP_FULL_NAME = "Honkai Star Rail Audio Replacer"
+    APP_VERSION = "1.0.0"
+    MOD_FILE_EXT = ".srar"
+    MOD_FILE_EXT_UPPER = "SRAR"
     ASSETS_DIR = "SRAR"
-    LOGO_PNG   = "SRAR-Logo2.png"
-    LOGO_ICO   = "SRAR-Logo2.ico"
-    LOGO_256   = "SRAR-Logo2-256.png"
-
+    LOGO_PNG = "SRAR-Logo2.png"
+    LOGO_ICO = "SRAR-Logo2.ico"
+    LOGO_256 = "SRAR-Logo2-256.png"
 else:
-    raise ValueError(f"Unknown BUILD_TARGET: {BUILD_TARGET!r}. Must be 'ZZAR' or 'SRAR'.")
+    APP_FULL_NAME = "Genshin Impact Audio Replacer"
+    APP_VERSION = "1.0.0"
+    MOD_FILE_EXT = ".giar"
+    MOD_FILE_EXT_UPPER = "GIAR"
+    # Reuse existing assets until GIAR-specific assets are added.
+    ASSETS_DIR = "ZZAR"
+    LOGO_PNG = "ZZAR-Logo2.png"
+    LOGO_ICO = "ZZAR-Logo2.ico"
+    LOGO_256 = "ZZAR-Logo2-256.png"
 
-# Derived — always matches APP_NAME
+# Derived - always matches APP_NAME
 DATA_SUBDIR = APP_NAME

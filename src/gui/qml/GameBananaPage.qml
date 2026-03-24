@@ -70,6 +70,15 @@ Item {
     signal downloadModRequested(string downloadUrl, string filename, string modName, int modId)
     signal installChosenZZARRequested(string zipPath, string zzarName)
 
+    function reloadForActiveGame() {
+        currentPage = 1
+        totalPages = 1
+        modsList = []
+        isLoading = true
+        _hasLoaded = true
+        loadModsRequested(1, currentSort, "")
+    }
+
     function _refreshInstallState() {
         installedModIds = gameBananaBackend.getInstalledModIds()
         installedDownloadUrls = gameBananaBackend.getInstalledDownloadUrls()
@@ -541,6 +550,11 @@ Item {
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI)
                                 ctx.stroke()
+                            }
+
+                            Connections {
+                                target: uiTheme
+                                function onThemeChanged() { loadingSpinner.requestPaint() }
                             }
 
                             RotationAnimator on rotation {

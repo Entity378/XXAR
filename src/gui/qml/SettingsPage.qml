@@ -28,6 +28,7 @@ Item {
     signal uiScaleSelected(real scale)
 
     property string gameDirectory: ""
+    property string gameDataFolderName: gameDataFolder
     property string currentLanguage: "en"
     property real uiScale: 1.0
     property string modsDirectory: ""
@@ -608,7 +609,7 @@ Item {
                             }
 
                             Text {
-                                text: qsTranslate("Application", "Select the %1 folder from your game installation.").replace("%1", gameDataFolder)
+                                text: qsTranslate("Application", "Select the %1 folder from your game installation.").replace("%1", gameDataFolderName)
                                 color: "#888888"
                                 font.family: "Alatsi"
                                 font.pixelSize: 14
@@ -646,7 +647,7 @@ Item {
                                         Text {
                                             anchors.fill: parent
                                             verticalAlignment: Text.AlignVCenter
-                                            text: qsTranslate("Application", "Path to %1 folder...").replace("%1", gameDataFolder)
+                                            text: qsTranslate("Application", "Path to %1 folder...").replace("%1", gameDataFolderName)
                                             color: "#555555"
                                             font.family: "Alatsi"
                                             font.pixelSize: 14
@@ -720,15 +721,21 @@ Item {
                                             }
 
                                             Canvas {
+                                                id: settingsAutoDetectSpinnerCanvas
                                                 anchors.fill: parent
                                                 onPaint: {
                                                     var ctx = getContext("2d");
                                                     ctx.reset();
                                                     ctx.beginPath();
                                                     ctx.arc(8, 8, 6, 0, Math.PI * 1.5);
-                                                    ctx.strokeStyle = Theme.textOnAccent;
+                                                    ctx.strokeStyle = Theme.accentDark;
                                                     ctx.lineWidth = 2;
                                                     ctx.stroke();
+                                                }
+
+                                                Connections {
+                                                    target: uiTheme
+                                                    function onThemeChanged() { settingsAutoDetectSpinnerCanvas.requestPaint() }
                                                 }
                                             }
                                         }
@@ -1240,15 +1247,21 @@ Item {
                                         }
                                         
                                         Canvas {
+                                            id: settingsWwiseSpinnerCanvas
                                             anchors.fill: parent
                                             onPaint: {
                                                 var ctx = getContext("2d");
                                                 ctx.reset();
                                                 ctx.beginPath();
                                                 ctx.arc(10, 10, 7, 0, Math.PI * 1.5);
-                                                ctx.strokeStyle = "#000000";
+                                                ctx.strokeStyle = Theme.accentDark;
                                                 ctx.lineWidth = 2.5;
                                                 ctx.stroke();
+                                            }
+
+                                            Connections {
+                                                target: uiTheme
+                                                function onThemeChanged() { settingsWwiseSpinnerCanvas.requestPaint() }
                                             }
                                         }
                                     }
@@ -1390,15 +1403,21 @@ Item {
                                         }
 
                                         Canvas {
+                                            id: settingsAudioToolsSpinnerCanvas
                                             anchors.fill: parent
                                             onPaint: {
                                                 var ctx = getContext("2d");
                                                 ctx.reset();
                                                 ctx.beginPath();
                                                 ctx.arc(10, 10, 7, 0, Math.PI * 1.5);
-                                                ctx.strokeStyle = "#000000";
+                                                ctx.strokeStyle = Theme.accentDark;
                                                 ctx.lineWidth = 2.5;
                                                 ctx.stroke();
+                                            }
+
+                                            Connections {
+                                                target: uiTheme
+                                                function onThemeChanged() { settingsAudioToolsSpinnerCanvas.requestPaint() }
                                             }
                                         }
                                     }
@@ -1538,15 +1557,21 @@ Item {
                                             }
 
                                             Canvas {
+                                                id: settingsCheckUpdatesSpinnerCanvas
                                                 anchors.fill: parent
                                                 onPaint: {
                                                     var ctx = getContext("2d");
                                                     ctx.reset();
                                                     ctx.beginPath();
                                                     ctx.arc(8, 8, 6, 0, Math.PI * 1.5);
-                                                    ctx.strokeStyle = "#ffffff";
+                                                    ctx.strokeStyle = Theme.primaryAccent;
                                                     ctx.lineWidth = 2;
                                                     ctx.stroke();
+                                                }
+
+                                                Connections {
+                                                    target: uiTheme
+                                                    function onThemeChanged() { settingsCheckUpdatesSpinnerCanvas.requestPaint() }
                                                 }
                                             }
                                         }
@@ -1667,15 +1692,21 @@ Item {
                                                 }
 
                                                 Canvas {
+                                                    id: settingsDownloadSpinnerCanvas
                                                     anchors.fill: parent
                                                     onPaint: {
                                                         var ctx = getContext("2d");
                                                         ctx.reset();
                                                         ctx.beginPath();
                                                         ctx.arc(10, 10, 7, 0, Math.PI * 1.5);
-                                                        ctx.strokeStyle = "#000000";
+                                                        ctx.strokeStyle = Theme.accentDark;
                                                         ctx.lineWidth = 2.5;
                                                         ctx.stroke();
+                                                    }
+
+                                                    Connections {
+                                                        target: uiTheme
+                                                        function onThemeChanged() { settingsDownloadSpinnerCanvas.requestPaint() }
                                                     }
                                                 }
                                             }

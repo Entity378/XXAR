@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-from src.app_config import SOUNDBANK_PCK_PREFIX, STREAMED_PCK_PREFIX, MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+from src.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 
 class ImportWorker(QThread):
 
@@ -21,6 +22,32 @@ class ImportWorker(QThread):
         self.data = data
         self.game_audio_dir = game_audio_dir
         self.mod_package_manager = mod_package_manager
+        self.game_id = detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID)
+        self.game = get_game(self.game_id)
+
+    def _get_pck_priority(self, pck_name):
+        name = str(pck_name or "")
+        if name.startswith(self.game.soundbank_pck_prefix):
+            return 1
+        if name.startswith(self.game.streamed_pck_prefix):
+            return 0
+        return 0
+
+    def _priority_label(self, priority):
+        if priority == 1:
+            return self.game.soundbank_pck_prefix or "Primary"
+        return self.game.streamed_pck_prefix or "Streamed"
+
+    def _priority_suffix(self, priority):
+        return f" ({self._priority_label(priority)})"
+
+    def _is_language_specific_candidate(self, relative_pck):
+        rel = Path(relative_pck)
+        if len(rel.parts) <= 1:
+            return False
+        top_dir = rel.parts[0]
+        non_language_tabs = set(self.game.non_language_tabs or ())
+        return top_dir not in non_language_tabs
 
     def run(self):
 
@@ -135,12 +162,7 @@ class ImportWorker(QThread):
                             game_pck_name = str(game_pck_path.relative_to(game_audio_dir)).replace("\\", "/")
                         except ValueError:
                             game_pck_name = game_pck_path.name
-                        if game_pck_path.name.startswith(SOUNDBANK_PCK_PREFIX):
-                            priority = 1
-                        elif game_pck_path.name.startswith(STREAMED_PCK_PREFIX):
-                            priority = 0
-                        else:
-                            priority = 0
+                        priority = self._get_pck_priority(game_pck_path.name)
 
                         for bnk_info in indexer.index_data['banks']:
                             bnk_id = bnk_info['id']
@@ -270,12 +292,7 @@ class ImportWorker(QThread):
                             pck_name = str(pck_path.relative_to(game_audio_dir)).replace("\\", "/")
                         except ValueError:
                             pck_name = pck_path.name
-                        if pck_path.name.startswith(SOUNDBANK_PCK_PREFIX):
-                            priority = 1
-                        elif pck_path.name.startswith(STREAMED_PCK_PREFIX):
-                            priority = 0
-                        else:
-                            priority = 0
+                        priority = self._get_pck_priority(pck_path.name)
 
                         bnk_wems = 0
                         for bnk_info in indexer.index_data['banks']:
@@ -312,7 +329,7 @@ class ImportWorker(QThread):
                                 standalone_wems += 1
 
                         if standalone_wems > 0 or bnk_wems > 0:
-                            priority_label = "SoundBank" if priority == 1 else "Streamed"
+                            priority_label = self._priority_label(priority)
                             self.progress.emit(f"  {pck_name} ({priority_label}): {standalone_wems} standalone + {bnk_wems} BNK-embedded")
 
                     except Exception as e:
@@ -329,16 +346,20 @@ class ImportWorker(QThread):
 
                     if file_id in file_id_to_pck:
                         pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
-                        priority_str = " (SoundBank)" if priority == 1 else " (Streamed)"
+                        priority_str = self._priority_suffix(priority)
                         location_str = f" in BNK {bnk_id}" if bnk_id else ""
                         self.progress.emit(f"File {file_id} -> {pck_name}{priority_str}{location_str} (lang {lang_id})")
                     else:
                         # Check for pck name in path
                         all_game_pcks = [i.relative_to(game_audio_dir) for i in game_audio_dir.rglob('*.pck')]
-                        candidates = [i for i in all_game_pcks if i.stem in wem_path]
+                        candidates = [i for i in all_game_pcks if i.stem in str(wem_path)]
                         if len(candidates) > 1:
-                            # If there's duplicates, prioritize language folders
-                            candidates = [i for i in candidates if 'SFX' not in i and '/' in i]
+                            # If there are duplicates, prioritize game language-like subfolders.
+                            language_candidates = [
+                                i for i in candidates if self._is_language_specific_candidate(i)
+                            ]
+                            if language_candidates:
+                                candidates = language_candidates
                         if len(candidates) == 1:
                             pck_name = str(candidates[0])
                         else:

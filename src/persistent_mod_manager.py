@@ -61,6 +61,20 @@ class PersistentModManager:
                 return True
         return False
 
+    def update_replacement_fields(self, pck_filename, tracker_key, **fields):
+        if not fields:
+            return False
+        if pck_filename not in self.mod_tracker:
+            return False
+        if tracker_key not in self.mod_tracker[pck_filename]:
+            return False
+
+        replacement = self.mod_tracker[pck_filename][tracker_key]
+        replacement.update(fields)
+        replacement["date_modified"] = datetime.now().isoformat()
+        self.save_tracker()
+        return True
+
     def clear_pck_mods(self, pck_filename):
 
         if pck_filename in self.mod_tracker:

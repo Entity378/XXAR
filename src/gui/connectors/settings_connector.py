@@ -7,10 +7,212 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 from PyQt5.QtWidgets import QApplication
 
 from gui.backend.native_dialogs import NativeDialogs
-from src.app_config import GAME_DATA_FOLDER, AUDIO_SUBPATH, ASSETS_DIR
+from src.app_config import (
+    ASSETS_DIR,
+)
+from src.config_manager import (
+    get_custom_mod_library_settings_key,
+    get_game_mod_library_dir,
+    normalize_game_id,
+)
+from src.game_registry import (
+    DEFAULT_GAME_ID,
+    build_audio_paths,
+    detect_game_id_from_path,
+    extract_game_data_dir_from_audio_path,
+    get_game,
+    get_audio_settings_keys,
+    get_supported_game_ids,
+    is_valid_game_data_dir,
+    normalize_game_data_dir,
+)
 
 
 class SettingsConnector:
+    @staticmethod
+    def _normalize_game_data_dir(path):
+        return normalize_game_data_dir(path)
+
+    @staticmethod
+    def _is_valid_game_data_dir(path):
+        return is_valid_game_data_dir(path)
+
+    @staticmethod
+    def _build_audio_paths(game_data_path):
+        game_id = detect_game_id_from_path(game_data_path, default=DEFAULT_GAME_ID)
+        return build_audio_paths(game_id, game_data_path)
+
+    @staticmethod
+    def _audio_settings_keys(game_id):
+        return get_audio_settings_keys(game_id)
+
+    @staticmethod
+    def _extract_game_data_dir_from_audio_path(audio_dir):
+        return extract_game_data_dir_from_audio_path(audio_dir)
+
+    @staticmethod
+    def _get_game_data_folder_name(game_id):
+        return get_game(game_id).data_dir_name
+
+    def _set_root_active_game_props(self, game_id):
+        if not self.root:
+            return
+        game = get_game(game_id)
+        self.root.setProperty("activeGameShort", game.short_label)
+        self.root.setProperty("activeGameName", game.display_name)
+        if getattr(self, "settings_page", None):
+            self.settings_page.setProperty("gameDataFolderName", game.data_dir_name)
+        if getattr(self, "welcome_dialog", None):
+            self.welcome_dialog.setProperty("gameDataFolderName", game.data_dir_name)
+        if getattr(self, "ui_theme_bridge", None):
+            self.ui_theme_bridge.set_theme_for_game(game_id)
+
+    def _get_selected_or_detected_game_id(self, preferred_path=""):
+        detected = detect_game_id_from_path(preferred_path, default=None) if preferred_path else None
+        if detected:
+            return normalize_game_id(detected)
+        settings = self.load_settings()
+        return normalize_game_id(settings.get("selected_game", DEFAULT_GAME_ID))
+
+    def _cycle_game_id(self, current_game_id):
+        supported = [normalize_game_id(g) for g in get_supported_game_ids()]
+        if not supported:
+            return DEFAULT_GAME_ID
+        if current_game_id not in supported:
+            return supported[0]
+        return supported[(supported.index(current_game_id) + 1) % len(supported)]
+
+    def _switch_active_game(self, target_game_id):
+        settings = self.load_settings()
+        target_game_id = normalize_game_id(target_game_id)
+        settings["selected_game"] = target_game_id
+
+        game_audio_key, persistent_audio_key = self._audio_settings_keys(target_game_id)
+        game_data_dir = self._get_saved_game_data_dir(settings, target_game_id)
+        if game_data_dir and self._is_valid_game_data_dir(game_data_dir):
+            audio_dir, persistent_dir = build_audio_paths(target_game_id, game_data_dir)
+            settings[game_audio_key] = str(audio_dir)
+            settings[persistent_audio_key] = str(persistent_dir)
+            settings["game_audio_dir"] = str(audio_dir)
+            settings["persistent_audio_dir"] = str(persistent_dir)
+        else:
+            game_data_dir = ""
+            settings["game_audio_dir"] = ""
+            settings["persistent_audio_dir"] = ""
+
+        custom_mods_dir = self._get_custom_mods_dir_for_game(settings, target_game_id)
+
+        self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=2)
+
+        if self.settings_page:
+            self.settings_page.setProperty(
+                "defaultModsDirectory", str(get_game_mod_library_dir(target_game_id))
+            )
+            self.settings_page.setModsDirectory(custom_mods_dir or "")
+            self.settings_page.setGameDirectory(game_data_dir)
+
+        if self.audio_page:
+            QMetaObject.invokeMethod(
+                self.audio_page,
+                "setGameDirectory",
+                Qt.QueuedConnection,
+                Q_ARG("QVariant", game_data_dir),
+            )
+
+        if self.audio_browser_bridge:
+            self.audio_browser_bridge.loadFromSettings()
+        if self.mod_manager_bridge:
+            self.mod_manager_bridge.load_settings()
+            self.mod_manager_bridge.refreshMods()
+        if self.gamebanana_bridge:
+            self.gamebanana_bridge.set_active_game(target_game_id, reload=False)
+            if self.gamebanana_page:
+                QMetaObject.invokeMethod(
+                    self.gamebanana_page,
+                    "reloadForActiveGame",
+                    Qt.QueuedConnection,
+                )
+            else:
+                self.gamebanana_bridge.refresh()
+
+        self._set_root_active_game_props(target_game_id)
+        return target_game_id, game_data_dir
+
+    def on_swap_game_requested(self):
+        try:
+            settings = self.load_settings()
+            current = normalize_game_id(settings.get("selected_game", DEFAULT_GAME_ID))
+            next_game = self._cycle_game_id(current)
+            active_game_id, game_data_dir = self._switch_active_game(next_game)
+            active_game = get_game(active_game_id)
+
+            message = QCoreApplication.translate(
+                "Application", "Active game: %1"
+            ).replace("%1", active_game.display_name)
+            if not game_data_dir:
+                message += "\n" + QCoreApplication.translate(
+                    "Application",
+                    "No folder configured for this game yet. Set it in Settings.",
+                )
+
+            QMetaObject.invokeMethod(
+                self.root,
+                "showSuccessToast",
+                Qt.QueuedConnection,
+                Q_ARG("QVariant", message),
+            )
+        except Exception as e:
+            print(f"[Settings] Failed to swap active game: {e}")
+            QMetaObject.invokeMethod(
+                self.root,
+                "showErrorToast",
+                Qt.QueuedConnection,
+                Q_ARG(
+                    "QVariant",
+                    QCoreApplication.translate("Application", "Failed to swap game: %1").replace("%1", str(e)),
+                ),
+            )
+
+    def _store_game_data_dir_settings(self, settings, game_data_dir, set_active=False):
+        if not game_data_dir:
+            return None
+
+        normalized = self._normalize_game_data_dir(game_data_dir)
+        if not self._is_valid_game_data_dir(normalized):
+            return None
+
+        game_id = normalize_game_id(
+            detect_game_id_from_path(normalized, default=DEFAULT_GAME_ID)
+        )
+        game_audio_key, persistent_audio_key = self._audio_settings_keys(game_id)
+        audio_dir, persistent_dir = self._build_audio_paths(normalized)
+        settings[game_audio_key] = str(audio_dir)
+        settings[persistent_audio_key] = str(persistent_dir)
+
+        if set_active:
+            settings["selected_game"] = game_id
+            # Keep legacy keys for backward compatibility with current bridges.
+            settings["game_audio_dir"] = str(audio_dir)
+            settings["persistent_audio_dir"] = str(persistent_dir)
+
+        return game_id
+
+    def _get_saved_game_data_dir(self, settings, game_id):
+        game_audio_key, _ = self._audio_settings_keys(game_id)
+        audio_dir = settings.get(game_audio_key, "")
+        if not audio_dir and game_id == DEFAULT_GAME_ID:
+            audio_dir = settings.get("game_audio_dir", "")
+        return self._extract_game_data_dir_from_audio_path(audio_dir)
+
+    @staticmethod
+    def _get_custom_mods_dir_for_game(settings, game_id):
+        custom_key = get_custom_mod_library_settings_key(game_id)
+        custom_mods_dir = settings.get(custom_key, "")
+        if not custom_mods_dir and normalize_game_id(game_id) == DEFAULT_GAME_ID:
+            custom_mods_dir = settings.get("custom_mod_library_dir", "")
+        return custom_mods_dir
 
     def _connect_settings(self):
         self.settings_page = self.root.findChild(QObject, "settingsPage")
@@ -40,6 +242,7 @@ class SettingsConnector:
         )
         self.settings_page.languageChanged.connect(self.on_language_changed)
         self.settings_page.uiScaleSelected.connect(self.on_ui_scale_changed)
+        self.root.swapGameRequested.connect(self.on_swap_game_requested)
 
         self.mod_manager_bridge.modCreationModeChanged.connect(
             self.on_mod_creation_mode_changed
@@ -106,13 +309,26 @@ class SettingsConnector:
         if hasattr(self.welcome_dialog, 'startTutorialClicked'):
             self.welcome_dialog.startTutorialClicked.connect(self.on_start_tutorial)
 
+        settings = self.load_settings()
+        selected_game = normalize_game_id(
+            settings.get("selected_game", DEFAULT_GAME_ID)
+        )
+        self._set_root_active_game_props(selected_game)
+
         print("[ZZAR] Welcome dialog connected")
 
     def load_settings_to_ui(self):
-        from config_manager import get_default_mod_library_dir
-
         settings = self.load_settings()
-        existing_audio_dir = settings.get("game_audio_dir", "")
+        selected_game = normalize_game_id(
+            settings.get("selected_game", DEFAULT_GAME_ID)
+        )
+        game_audio_key, _ = self._audio_settings_keys(selected_game)
+        existing_audio_dir = settings.get(game_audio_key, "") or settings.get(
+            "game_audio_dir", ""
+        )
+        selected_data_dir = self._extract_game_data_dir_from_audio_path(
+            existing_audio_dir
+        )
 
         mod_creation_mode = settings.get("mod_creation_mode", False)
         self.root.setProperty("modCreationEnabled", mod_creation_mode)
@@ -135,17 +351,14 @@ class SettingsConnector:
         if platform.system() == "Windows":
             self.mod_manager_bridge.checkAudioToolsInstalled()
 
-        if existing_audio_dir:
-            audio_path = Path(existing_audio_dir)
+        if selected_data_dir:
+            self.settings_page.setGameDirectory(selected_data_dir)
+        self._set_root_active_game_props(selected_game)
 
-            if "StreamingAssets" in audio_path.parts:
-                game_data_dir = audio_path.parent.parent.parent.parent
-                self.settings_page.setGameDirectory(str(game_data_dir))
-            else:
-                self.settings_page.setGameDirectory(existing_audio_dir)
-
-        self.settings_page.setProperty("defaultModsDirectory", str(get_default_mod_library_dir()))
-        custom_mods_dir = settings.get("custom_mod_library_dir", "")
+        self.settings_page.setProperty(
+            "defaultModsDirectory", str(get_game_mod_library_dir(selected_game))
+        )
+        custom_mods_dir = self._get_custom_mods_dir_for_game(settings, selected_game)
         if custom_mods_dir:
             self.settings_page.setModsDirectory(custom_mods_dir)
 
@@ -266,18 +479,16 @@ class SettingsConnector:
     def on_browse_game_dir(self):
         current = self.settings_page.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
+        game_id = self._get_selected_or_detected_game_id(current or "")
+        game_data_folder = self._get_game_data_folder_name(game_id)
 
         dirname = NativeDialogs.get_directory(
-            QCoreApplication.translate("Application", "Select %1 Folder").replace("%1", GAME_DATA_FOLDER), start_dir
+            QCoreApplication.translate("Application", "Select %1 Folder").replace("%1", game_data_folder), start_dir
         )
 
         if dirname:
-            selected_path = Path(dirname)
-
-            if (
-                selected_path.name != GAME_DATA_FOLDER
-                and not (selected_path / "StreamingAssets").exists()
-            ):
+            selected_path = self._normalize_game_data_dir(dirname)
+            if not self._is_valid_game_data_dir(selected_path):
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
@@ -285,13 +496,13 @@ class SettingsConnector:
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                     Q_ARG(
                         "QVariant",
-                        QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", GAME_DATA_FOLDER),
+                        QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", game_data_folder),
                     ),
                     Q_ARG("QVariant", ""),
                 )
                 return
 
-            self.settings_page.setGameDirectory(dirname)
+            self.settings_page.setGameDirectory(str(selected_path))
 
     def on_browse_mods_dir(self):
         current = self.settings_page.property("modsDirectory")
@@ -335,6 +546,10 @@ class SettingsConnector:
     def on_auto_detect_not_found_settings(self):
         if self.settings_page:
             self.settings_page.setProperty("isAutoDetecting", False)
+        game_id = self._get_selected_or_detected_game_id(
+            self.settings_page.property("gameDirectory") if self.settings_page else ""
+        )
+        game_data_folder = self._get_game_data_folder_name(game_id)
 
         QMetaObject.invokeMethod(
             self.root,
@@ -343,7 +558,7 @@ class SettingsConnector:
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Not Found")),
             Q_ARG(
                 "QVariant",
-                QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", GAME_DATA_FOLDER),
+                QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", game_data_folder),
             ),
             Q_ARG("QVariant", ""),
         )
@@ -365,40 +580,31 @@ class SettingsConnector:
         except Exception:
             settings = {}
 
-        # Always save these settings regardless of game path
         settings["mod_creation_mode"] = mod_creation_mode
         settings["enable_gb_thumbnails"] = enable_gb_thumbnails
         settings["hide_gb_thumbnail_warning"] = hide_gb_thumbnail_warning
-        settings["custom_mod_library_dir"] = custom_mods_dir
+        current_game = normalize_game_id(
+            settings.get("selected_game", DEFAULT_GAME_ID)
+        )
+        custom_mods_key = get_custom_mod_library_settings_key(current_game)
+        settings[custom_mods_key] = custom_mods_dir
+        if current_game == DEFAULT_GAME_ID:
+            settings["custom_mod_library_dir"] = custom_mods_dir
 
         # Propagate thumbnailsEnabled to the GameBanana page immediately
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
-            gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))
-
-        # Validate and save game-path-dependent settings
-        game_path_valid = False
-        if game_path:
-            game_data_path = Path(game_path)
-            if not game_data_path.exists():
-                print(f"[Settings] WARNING: Path does not exist: {game_data_path}")
-            elif (
-                game_data_path.name != GAME_DATA_FOLDER
-                and not (game_data_path / "StreamingAssets").exists()
-            ):
-                print(f"[Settings] WARNING: Invalid directory structure")
-            else:
-                game_path_valid = True
-
-        if game_path_valid:
-            audio_dir = game_data_path.joinpath(*AUDIO_SUBPATH)
-            persistent_dir = game_data_path.joinpath("Persistent", *AUDIO_SUBPATH[1:])
-            settings["game_audio_dir"] = str(audio_dir)
-            settings["persistent_audio_dir"] = str(persistent_dir)
-            print(f"[Settings] Game audio dir: {audio_dir}")
-            print(f"[Settings] Persistent dir: {persistent_dir}")
+            gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))        saved_game = self._store_game_data_dir_settings(
+            settings, game_path, set_active=True
+        )
+        if saved_game:
+            current_game = saved_game
+            custom_mods_key = get_custom_mod_library_settings_key(current_game)
+            settings[custom_mods_key] = custom_mods_dir
+            if current_game == DEFAULT_GAME_ID:
+                settings["custom_mod_library_dir"] = custom_mods_dir
+            print(f"[Settings] Active game saved: {saved_game}")
         elif game_path:
-            # Path was provided but invalid — warn the user but still save other settings
             QMetaObject.invokeMethod(
                 self.root,
                 "showAlertDialog",
@@ -410,7 +616,8 @@ class SettingsConnector:
                 ),
                 Q_ARG("QVariant", ""),
             )
-
+        elif "selected_game" not in settings:
+            settings["selected_game"] = DEFAULT_GAME_ID
         print(f"[Settings] Mod Creation Mode: {mod_creation_mode}")
         print(f"[Settings] Custom mods dir: {custom_mods_dir or '(default)'}")
 
@@ -432,6 +639,21 @@ class SettingsConnector:
                 print("[Settings] Reloading mod manager with new paths...")
                 self.mod_manager_bridge.load_settings()
                 self.mod_manager_bridge.refreshMods()
+
+            active_game = normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            self._set_root_active_game_props(active_game)
+            active_data_dir = self._get_saved_game_data_dir(settings, active_game)
+            if active_data_dir and self.audio_page:
+                QMetaObject.invokeMethod(
+                    self.audio_page,
+                    "setGameDirectory",
+                    Qt.QueuedConnection,
+                    Q_ARG("QVariant", active_data_dir),
+                )
+            if active_data_dir and self.audio_browser_bridge:
+                self.audio_browser_bridge.scanLanguageFolders(active_data_dir)
 
         except Exception as e:
             print(f"[Settings] ERROR: Failed to save settings: {e}")
@@ -461,12 +683,6 @@ class SettingsConnector:
             print(f"[ZZAR] Error checking first launch: {e}")
             return False
 
-    def _is_original_language_folder(self, folder_path):
-        """Check if a persistent language folder contains original (unmodded) game files.
-        Original folders have exactly 57 PCK files (the game's default count)."""
-        pck_files = list(folder_path.glob("*.pck"))
-        return len(pck_files) == 57
-
     def _can_move_language_folder(self, folder_name, persistent_path, streaming_path):
         """Check if a persistent language folder can be moved to streaming.
         Moveable only if the streaming folder does NOT already have this language folder."""
@@ -486,11 +702,22 @@ class SettingsConnector:
     def check_multiple_languages(self):
         try:
             settings = self.load_settings()
+            selected_game = normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            game_def = get_game(selected_game)
+            if not game_def.check_streaming_pairing:
+                print(f"[ZZAR] Skipping language check for game: {selected_game}")
+                return
+
             if settings.get("hide_language_warning", False):
                 print("[ZZAR] Language warning disabled by user")
                 return
 
-            persistent_dir = settings.get("persistent_audio_dir", "")
+            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            persistent_dir = settings.get(persistent_key, "") or settings.get(
+                "persistent_audio_dir", ""
+            )
             if not persistent_dir:
                 print("[ZZAR] No persistent directory configured yet")
                 return
@@ -500,7 +727,7 @@ class SettingsConnector:
                 print("[ZZAR] Persistent directory does not exist yet")
                 return
 
-            streaming_dir = settings.get("game_audio_dir", "")
+            streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
             streaming_path = Path(streaming_dir) if streaming_dir else None
 
             language_folders = []
@@ -557,8 +784,12 @@ class SettingsConnector:
 
         try:
             settings = self.load_settings()
-            persistent_dir = settings.get("persistent_audio_dir", "")
-            streaming_dir = settings.get("game_audio_dir", "")
+            selected_game = normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            persistent_dir = settings.get(persistent_key, "") or settings.get("persistent_audio_dir", "")
+            streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
 
             if not persistent_dir or not streaming_dir:
                 QMetaObject.invokeMethod(
@@ -627,8 +858,12 @@ class SettingsConnector:
 
         try:
             settings = self.load_settings()
-            persistent_dir = settings.get("persistent_audio_dir", "")
-            streaming_dir = settings.get("game_audio_dir", "")
+            selected_game = normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            streaming_key, persistent_key = self._audio_settings_keys(selected_game)
+            persistent_dir = settings.get(persistent_key, "") or settings.get("persistent_audio_dir", "")
+            streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
 
             if not persistent_dir or not streaming_dir:
                 QMetaObject.invokeMethod(
@@ -686,12 +921,17 @@ class SettingsConnector:
             settings["first_launch_complete"] = True
 
             game_dir = self.welcome_dialog.property("gameDirectory")
+            active_game_id = None
             if game_dir:
-                game_data_path = Path(game_dir)
-                audio_dir = game_data_path.joinpath(*AUDIO_SUBPATH)
-                persistent_dir = game_data_path.joinpath("Persistent", *AUDIO_SUBPATH[1:])
-                settings["game_audio_dir"] = str(audio_dir)
-                settings["persistent_audio_dir"] = str(persistent_dir)
+                active_game_id = self._store_game_data_dir_settings(
+                    settings, game_dir, set_active=True
+                )
+            if not active_game_id:
+                active_game_id = normalize_game_id(
+                    settings.get("selected_game", DEFAULT_GAME_ID)
+                )
+                game_dir = self._get_saved_game_data_dir(settings, active_game_id)
+            self._set_root_active_game_props(active_game_id)
 
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.settings_file, "w") as f:
@@ -749,6 +989,8 @@ class SettingsConnector:
         print("[ZZAR] Welcome browse button clicked!")
         current = self.welcome_dialog.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
+        game_id = self._get_selected_or_detected_game_id(current or "")
+        game_data_folder = self._get_game_data_folder_name(game_id)
 
         was_visible = self.welcome_dialog.property("visible")
         if was_visible:
@@ -756,19 +998,15 @@ class SettingsConnector:
             QApplication.processEvents()
 
         dirname = NativeDialogs.get_directory(
-            QCoreApplication.translate("Application", "Select %1 Folder").replace("%1", GAME_DATA_FOLDER), start_dir
+            QCoreApplication.translate("Application", "Select %1 Folder").replace("%1", game_data_folder), start_dir
         )
 
         if was_visible:
             self.welcome_dialog.setProperty("visible", True)
 
         if dirname:
-            selected_path = Path(dirname)
-
-            if (
-                selected_path.name != GAME_DATA_FOLDER
-                and not (selected_path / "StreamingAssets").exists()
-            ):
+            selected_path = self._normalize_game_data_dir(dirname)
+            if not self._is_valid_game_data_dir(selected_path):
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
@@ -776,7 +1014,7 @@ class SettingsConnector:
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                     Q_ARG(
                         "QVariant",
-                        QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", GAME_DATA_FOLDER),
+                        QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", game_data_folder),
                     ),
                     Q_ARG("QVariant", ""),
                 )
@@ -786,7 +1024,7 @@ class SettingsConnector:
                 self.welcome_dialog,
                 "setGameDirectory",
                 Qt.QueuedConnection,
-                Q_ARG("QVariant", dirname),
+                Q_ARG("QVariant", str(selected_path)),
             )
 
     def on_welcome_auto_detect(self):
@@ -824,6 +1062,10 @@ class SettingsConnector:
     def on_auto_detect_not_found_welcome(self):
         if self.welcome_dialog:
             self.welcome_dialog.setProperty("isAutoDetecting", False)
+        game_id = self._get_selected_or_detected_game_id(
+            self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
+        )
+        game_data_folder = self._get_game_data_folder_name(game_id)
 
         QMetaObject.invokeMethod(
             self.root,
@@ -832,7 +1074,7 @@ class SettingsConnector:
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Not Found")),
             Q_ARG(
                 "QVariant",
-                QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", GAME_DATA_FOLDER),
+                QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", game_data_folder),
             ),
             Q_ARG("QVariant", ""),
         )

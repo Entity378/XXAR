@@ -19,6 +19,8 @@ ApplicationWindow {
 
     property int currentTab: 1
     property bool modCreationEnabled: false
+    property string activeGameShort: gameShort
+    property string activeGameName: gameName
 
     onModCreationEnabledChanged: {
         if (!modCreationEnabled && (currentTab === 2 || currentTab === 3)) {
@@ -48,6 +50,7 @@ ApplicationWindow {
     signal languageWarningDontShowAgain(bool dontShow)
     signal moveLanguageToStreaming(string folderName)
     signal moveHashPckToStreaming(string pckName)
+    signal swapGameRequested()
 
     function showConfirmDialog(title, message, actionId, customSticker) {
         customDialog.title = title
@@ -301,7 +304,7 @@ ApplicationWindow {
                     anchors.rightMargin: 15
                     anchors.verticalCenter: parent.verticalCenter
                     height: 70
-                    width: modCreationEnabled ? 400 : 250
+                    width: modCreationEnabled ? 475 : 325
                     color: "#3c3d3f"
                     radius: 20
 
@@ -644,6 +647,67 @@ ApplicationWindow {
                                 onClicked: currentTab = 4
                             }
                         }
+
+                        Item {
+                            id: swapGame
+                            height: 60
+                            width: 60
+
+                            property bool hovered: false
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: swapGame.hovered ? "#5a5b5d" : "transparent"
+                                radius: 15
+                                border.color: Theme.primaryAccent
+                                border.width: 1
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: Theme.animationDuration
+                                        easing.type: Theme.easingStandard
+                                    }
+                                }
+                            }
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 0
+
+                                Text {
+                                    text: activeGameShort
+                                    color: Theme.primaryAccent
+                                    font.family: "Alatsi"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    width: 40
+                                }
+
+                                Text {
+                                    text: qsTranslate("Application", "SWAP")
+                                    color: swapGame.hovered ? Theme.primaryAccent : "#ffffff"
+                                    font.family: "Alatsi"
+                                    font.pixelSize: 8
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    width: 40
+                                }
+                            }
+
+                            MouseArea {
+                                id: swapGameMouse
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                onEntered: parent.hovered = true
+                                onExited: parent.hovered = false
+                                onClicked: mainWindow.swapGameRequested()
+                            }
+
+                            ToolTip.visible: swapGameMouse.containsMouse
+                            ToolTip.text: qsTranslate("Application", "Swap active game (%1)").replace("%1", activeGameName)
+                        }
                     }
                 }
             }
@@ -914,7 +978,7 @@ ApplicationWindow {
                                             width: 170
                                             height: 36
                                             radius: 8
-                                            color: moveBtnMouse.pressed ? "#a0c800" : (moveBtnMouse.containsMouse ? "#e0ff20" : Theme.primaryAccent)
+                                            color: moveBtnMouse.pressed ? Theme.accentDark : (moveBtnMouse.containsMouse ? Theme.accentLight : Theme.primaryAccent)
                                             anchors.verticalCenter: parent.verticalCenter
                                             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -1018,7 +1082,7 @@ ApplicationWindow {
                                             width: 170
                                             height: 36
                                             radius: 8
-                                            color: hashMoveBtnMouse.pressed ? "#a0c800" : (hashMoveBtnMouse.containsMouse ? "#e0ff20" : Theme.primaryAccent)
+                                            color: hashMoveBtnMouse.pressed ? Theme.accentDark : (hashMoveBtnMouse.containsMouse ? Theme.accentLight : Theme.primaryAccent)
                                             anchors.verticalCenter: parent.verticalCenter
                                             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -1379,6 +1443,11 @@ ApplicationWindow {
                                 }
 
                                 onAngleChanged: requestPaint()
+
+                                Connections {
+                                    target: uiTheme
+                                    function onThemeChanged() { spinnerArc.requestPaint() }
+                                }
                             }
                         }
                     }

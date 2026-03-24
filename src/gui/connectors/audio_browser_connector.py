@@ -6,7 +6,8 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from gui.backend.native_dialogs import NativeDialogs
-from src.app_config import AUDIO_SUBPATH
+from src.config_manager import get_game_sound_database_file
+from src.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
 
 
 class AudioBrowserConnector:
@@ -49,6 +50,8 @@ class AudioBrowserConnector:
         self.audio_page.wipDialogRequested.connect(self.on_wip_dialog_requested)
         self.audio_page.normalizeAudioToggled.connect(ab.setNormalizeAudio)
         self.audio_page.normalizeTargetLufsSet.connect(ab.setNormalizeTargetLufs)
+        self.audio_page.changeLoopPointModeSet.connect(ab.setChangeLoopPointMode)
+        self.audio_page.changeLoopPointManualMsSet.connect(ab.setChangeLoopPointManualMs)
 
         ab.statusUpdate.connect(
             lambda msg: self.audio_page.setProperty("statusText", msg)
@@ -322,10 +325,15 @@ class AudioBrowserConnector:
         if not game_dir:
             return
 
+        game_id = normalize_game_id(
+            getattr(self.audio_browser_bridge, "game_mode", DEFAULT_GAME_ID),
+            default=DEFAULT_GAME_ID,
+        )
+        streaming_dir, persistent_dir = build_audio_paths(game_id, game_dir)
         if folder_type == "streaming":
-            folder = Path(game_dir).joinpath(*AUDIO_SUBPATH)
+            folder = Path(streaming_dir)
         else:
-            folder = Path(game_dir).joinpath("Persistent", *AUDIO_SUBPATH[1:])
+            folder = Path(persistent_dir)
 
         if not folder.exists():
             print(f"[Audio Browser] Folder does not exist: {folder}")
@@ -356,9 +364,10 @@ class AudioBrowserConnector:
             print(f"[Audio Browser] ERROR: Could not open folder: {e}")
 
     def on_open_tag_db_folder(self):
-        from src.config_manager import get_sound_database_file
-
-        folder = get_sound_database_file().parent
+        game_id = normalize_game_id(
+            getattr(self.audio_browser_bridge, "game_mode", DEFAULT_GAME_ID)
+        )
+        folder = get_game_sound_database_file(game_id).parent
         folder.mkdir(parents=True, exist_ok=True)
 
         print(f"[Audio Browser] Opening tag DB folder: {folder}")

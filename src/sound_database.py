@@ -79,7 +79,8 @@ class SoundDatabase:
         results = {}
 
         for sound_hash, info in self.database.items():
-            if query_lower in info['name'].lower():
+            name = str(info.get('name', ''))
+            if query_lower in name.lower():
                 results[sound_hash] = info
 
         return results
@@ -90,7 +91,8 @@ class SoundDatabase:
         results = {}
 
         for sound_hash, info in self.database.items():
-            if any(tag_lower in t.lower() for t in info['tags']):
+            tags = info.get('tags', []) or []
+            if any(tag_lower in str(t).lower() for t in tags):
                 results[sound_hash] = info
 
         return results
@@ -98,9 +100,17 @@ class SoundDatabase:
     def search_by_id(self, file_id):
 
         results = {}
+        variants = {file_id, str(file_id)}
+        text = str(file_id).strip()
+        if text.isdigit():
+            try:
+                variants.add(int(text))
+            except Exception:
+                pass
 
         for sound_hash, info in self.database.items():
-            if file_id in info['file_ids']:
+            file_ids = info.get('file_ids', []) or []
+            if any(variant in file_ids for variant in variants):
                 results[sound_hash] = info
 
         return results
@@ -117,7 +127,7 @@ class SoundDatabase:
 
         try:
             if self.db_path.exists():
-                with open(self.db_path, 'r') as f:
+                with open(self.db_path, 'r', encoding='utf-8') as f:
                     self.database = json.load(f)
         except Exception as e:
             print(f"Warning: Failed to load sound database: {e}")
@@ -126,7 +136,7 @@ class SoundDatabase:
     def save(self):
 
         try:
-            with open(self.db_path, 'w') as f:
+            with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(self.database, f, indent=2)
         except Exception as e:
             print(f"Warning: Failed to save sound database: {e}")
@@ -134,14 +144,14 @@ class SoundDatabase:
     def export_to_file(self, export_path):
 
         export_path = Path(export_path)
-        with open(export_path, 'w') as f:
+        with open(export_path, 'w', encoding='utf-8') as f:
             json.dump(self.database, f, indent=2)
 
     def import_from_file(self, import_path, merge=True):
 
         import_path = Path(import_path)
 
-        with open(import_path, 'r') as f:
+        with open(import_path, 'r', encoding='utf-8') as f:
             imported_data = json.load(f)
 
         if merge:

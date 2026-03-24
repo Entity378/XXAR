@@ -683,6 +683,33 @@ class ModPackageManager:
                 if temp_dir.exists():
                     shutil.rmtree(temp_dir)
 
+        try:
+            from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path
+            from src.gui.backend.audio_games import get_browser_handler_class
+
+            active_game_id = detect_game_id_from_path(
+                game_audio_dir, default=DEFAULT_GAME_ID
+            )
+            handler_cls = get_browser_handler_class(active_game_id)
+            post_steps = getattr(handler_cls, "apply_post_mod_manager_steps", None)
+            if callable(post_steps):
+                status_callback = None
+                if progress_callback:
+                    status_callback = (
+                        lambda msg: progress_callback(
+                            str(msg), total_pcks, max(total_pcks, 1)
+                        )
+                    )
+                post_steps(
+                    resolved,
+                    streaming_root=game_audio_dir,
+                    persistent_root=persistent_audio_dir,
+                    resolved_pck_names=pck_list,
+                    status_callback=status_callback,
+                )
+        except Exception as e:
+            raise ModApplicationError(f"Failed to run loop point post-processing: {e}")
+
         if self.persistent_mod_manager:
 
             persistent_format = {}

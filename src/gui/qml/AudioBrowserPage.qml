@@ -28,6 +28,8 @@ Item {
     signal hideEmptyBnkToggled(bool checked)
     signal normalizeAudioToggled(bool checked)
     signal normalizeTargetLufsSet(int lufs)
+    signal changeLoopPointModeSet(string pckFile, string trackerKey, string mode)
+    signal changeLoopPointManualMsSet(string pckFile, string trackerKey, string durationText)
     signal treeItemExpanded(string itemId, string itemType)
 
     signal treeItemDoubleClicked(string itemId, string itemType, string pckPath)
@@ -93,6 +95,36 @@ Item {
     property string highlightPckPath: ""
     property bool sortBySizeAsc: false
     property bool sortByDurationAsc: false
+
+    function loopModeToIndex(mode) {
+        if (mode === "manual") return 1
+        if (mode === "disabled") return 2
+        return 0
+    }
+
+    function loopIndexToMode(index) {
+        if (index === 1) return "manual"
+        if (index === 2) return "disabled"
+        return "auto"
+    }
+
+    function pad2(n) {
+        return n < 10 ? "0" + n : "" + n
+    }
+
+    function pad3(n) {
+        if (n < 10) return "00" + n
+        if (n < 100) return "0" + n
+        return "" + n
+    }
+
+    function formatDurationMs(totalMs) {
+        var ms = Math.max(0, Math.floor(Number(totalMs) || 0))
+        var minutes = Math.floor(ms / 60000)
+        var seconds = Math.floor((ms % 60000) / 1000)
+        var millis = ms % 1000
+        return pad2(minutes) + ":" + pad2(seconds) + ":" + pad3(millis)
+    }
 
     ListModel { id: languageTabsModel }
     ListModel { id: treeModel }
@@ -1540,7 +1572,11 @@ Item {
                 "dateModified": changes[i].dateModified || "",
                 "taggedName": changes[i].taggedName || "",
                 "sourceFile": changes[i].sourceFile || "",
-                "wemPath": changes[i].wemPath || ""
+                "wemPath": changes[i].wemPath || "",
+                "loopPointEditable": changes[i].loopPointEditable || false,
+                "loopPointMode": changes[i].loopPointMode || "auto",
+                "loopPointManualMs": changes[i].loopPointManualMs || 0,
+                "loopPointSuggestedMs": changes[i].loopPointSuggestedMs || 0
             })
         }
         changesTitle.text = qsTranslate("Application", "Current Changes") + " (" + changes.length + " " + (changes.length !== 1 ? qsTranslate("Application", "replacements") : qsTranslate("Application", "replacement")) + ")"
@@ -2491,8 +2527,8 @@ Item {
 
         Rectangle {
             id: changesDialog
-            width: Math.min(900, parent.width - 60)
-            height: Math.min(550, parent.height - 80)
+            width: Math.min(1180, parent.width - 40)
+            height: Math.min(620, parent.height - 60)
             anchors.centerIn: parent
             color: Theme.surfaceColor
             radius: Theme.radiusLarge
@@ -2536,7 +2572,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 80
+                            Layout.preferredWidth: 86
                         }
                         Text {
                             text: qsTranslate("Application", "Tagged Name")
@@ -2544,7 +2580,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 150
+                            Layout.preferredWidth: 170
                         }
                         Text {
                             text: qsTranslate("Application", "Replaced By")
@@ -2560,7 +2596,15 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 170
+                            Layout.preferredWidth: 132
+                        }
+                        Text {
+                            text: qsTranslate("Application", "Loop")
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.bold: true
+                            Layout.preferredWidth: 260
                         }
                         Text {
                             text: qsTranslate("Application", "Modified")
@@ -2568,7 +2612,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 70
+                            Layout.preferredWidth: 84
                         }
                         Text {
                             text: qsTranslate("Application", "Actions")
@@ -2576,7 +2620,8 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 175
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.preferredWidth: 204
                         }
                     }
                 }
@@ -2595,6 +2640,7 @@ Item {
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     delegate: Rectangle {
+                        property int rowIndex: index
                         width: changesList.width
                         height: 36
                         color: changeMouse.containsMouse ? Qt.lighter(Theme.surfaceDark, 1.4) : Theme.surfaceDark
@@ -2612,7 +2658,7 @@ Item {
                                 color: Theme.textPrimary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 80
+                                Layout.preferredWidth: 86
                             }
                             Text {
                                 text: model.taggedName || "-"
@@ -2620,7 +2666,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
                                 elide: Text.ElideRight
-                                Layout.preferredWidth: 150
+                                Layout.preferredWidth: 170
                             }
                             Text {
                                 text: model.sourceFile || "-"
@@ -2635,7 +2681,246 @@ Item {
                                 color: Theme.secondaryAccent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 170
+                                Layout.preferredWidth: 132
+                            }
+
+                            Item {
+                                Layout.preferredWidth: 260
+                                Layout.fillHeight: true
+
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    visible: loopPointEditable
+
+                                    ComboBox {
+                                        id: rowLoopModeCombo
+                                        model: [
+                                            qsTranslate("Application", "Automatic"),
+                                            qsTranslate("Application", "Manual"),
+                                            qsTranslate("Application", "Disabled")
+                                        ]
+                                        width: 130
+                                        implicitHeight: 28
+                                        currentIndex: loopModeToIndex(loopPointMode || "auto")
+
+                                        background: Rectangle {
+                                            HoverHandler { id: loopModeBgHover }
+                                            color: rowLoopModeCombo.pressed ? Qt.darker(Theme.cardBackground, 1.2)
+                                                 : loopModeBgHover.hovered ? Qt.lighter(Theme.cardBackground, 1.1)
+                                                 : Theme.cardBackground
+                                            radius: Theme.radiusSmall
+                                            border.color: "transparent"
+                                            border.width: 0
+                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                        }
+
+                                        contentItem: Text {
+                                            text: rowLoopModeCombo.displayText
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                            leftPadding: 10
+                                            rightPadding: 26
+                                        }
+
+                                        indicator: Rectangle {
+                                            x: rowLoopModeCombo.width - width - 8
+                                            y: (rowLoopModeCombo.height - height) / 2
+                                            width: 14
+                                            height: 14
+                                            color: "transparent"
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "\u25BC"
+                                                color: Theme.textPrimary
+                                                font.pixelSize: 9
+                                            }
+                                        }
+
+                                        delegate: ItemDelegate {
+                                            id: loopModeDelegate
+                                            width: rowLoopModeCombo.width - 8
+                                            height: 28
+                                            highlighted: rowLoopModeCombo.highlightedIndex === index
+                                            HoverHandler { id: loopModeDelegateHover }
+
+                                            background: Rectangle {
+                                                color: {
+                                                    if (loopModeDelegate.highlighted) return Theme.primaryAccent
+                                                    if (loopModeDelegateHover.hovered) return Qt.lighter(Theme.surfaceDark, 1.3)
+                                                    return Theme.surfaceDark
+                                                }
+                                                radius: Theme.radiusSmall
+                                                Behavior on color { ColorAnimation { duration: 100 } }
+                                            }
+
+                                            contentItem: Text {
+                                                text: modelData
+                                                color: loopModeDelegate.highlighted ? Theme.textOnAccent : Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                verticalAlignment: Text.AlignVCenter
+                                                leftPadding: 10
+                                            }
+                                        }
+
+                                        popup: Popup {
+                                            y: rowLoopModeCombo.height + 4
+                                            width: rowLoopModeCombo.width
+                                            padding: 4
+                                            z: 3000
+
+                                            background: Rectangle {
+                                                color: Theme.surfaceDark
+                                                radius: Theme.radiusSmall
+                                                border.color: Qt.rgba(1, 1, 1, 0.1)
+                                                border.width: 1
+                                            }
+
+                                            contentItem: ListView {
+                                                clip: true
+                                                implicitHeight: contentHeight
+                                                model: rowLoopModeCombo.popup.visible ? rowLoopModeCombo.delegateModel : null
+                                                currentIndex: rowLoopModeCombo.highlightedIndex
+                                                spacing: 2
+                                            }
+                                        }
+
+                                        onActivated: function(selectedIndex) {
+                                            var selectedMode = loopIndexToMode(selectedIndex)
+                                            if (selectedMode !== (loopPointMode || "auto")) {
+                                                changesModel.setProperty(rowIndex, "loopPointMode", selectedMode)
+                                                changeLoopPointModeSet(pckFile, trackerKey, selectedMode)
+                                                if (selectedMode === "manual") {
+                                                    var suggestedMs = Math.max(
+                                                        1,
+                                                        loopPointSuggestedMs || loopPointManualMs || 0
+                                                    )
+                                                    changesModel.setProperty(rowIndex, "loopPointManualMs", suggestedMs)
+                                                    rowLoopManualSpin.value = suggestedMs
+                                                    changeLoopPointManualMsSet(
+                                                        pckFile,
+                                                        trackerKey,
+                                                        formatDurationMs(suggestedMs)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    SpinBox {
+                                        id: rowLoopManualSpin
+                                        from: 1
+                                        to: 3600000
+                                        width: 118
+                                        implicitHeight: 28
+                                        editable: true
+                                        value: Math.max(1, loopPointManualMs || 0)
+                                        visible: (loopPointMode || "auto") === "manual"
+                                        textFromValue: function(value, locale) {
+                                            return formatDurationMs(value)
+                                        }
+                                        valueFromText: function(text, locale) {
+                                            var raw = String(text || "").trim()
+                                            var m = raw.match(/^(\d+)\s*:\s*([0-5]?\d)\s*:\s*(\d{1,3})$/)
+                                            if (m) {
+                                                var mm = parseInt(m[1], 10)
+                                                var ss = parseInt(m[2], 10)
+                                                var mss = parseInt((m[3] + "000").slice(0, 3), 10)
+                                                return Math.max(1, (mm * 60 + ss) * 1000 + mss)
+                                            }
+                                            if (/^\d+$/.test(raw)) {
+                                                return Math.max(1, parseInt(raw, 10))
+                                            }
+                                            return Math.max(1, loopPointManualMs || 1)
+                                        }
+
+                                        background: Rectangle {
+                                            HoverHandler { id: loopSpinBgHover }
+                                            color: loopSpinBgHover.hovered
+                                                ? Qt.lighter(Theme.cardBackground, 1.08)
+                                                : Theme.cardBackground
+                                            radius: Theme.radiusSmall
+                                        }
+
+                                        contentItem: TextInput {
+                                            text: rowLoopManualSpin.textFromValue(rowLoopManualSpin.value, rowLoopManualSpin.locale)
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 6
+                                            anchors.rightMargin: 22
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.textPrimary
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                            readOnly: !rowLoopManualSpin.editable
+                                            validator: rowLoopManualSpin.validator
+                                            inputMethodHints: Qt.ImhNone
+                                            selectByMouse: true
+                                            clip: true
+                                            onTextEdited: {
+                                                rowLoopManualSpin.value = rowLoopManualSpin.valueFromText(
+                                                    text,
+                                                    rowLoopManualSpin.locale
+                                                )
+                                            }
+                                        }
+
+                                        up.indicator: Rectangle {
+                                            x: parent.width - width
+                                            y: 0
+                                            width: 20
+                                            height: parent.height / 2
+                                            color: "transparent"
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "+"
+                                                color: Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: 12
+                                            }
+                                        }
+
+                                        down.indicator: Rectangle {
+                                            x: parent.width - width
+                                            y: parent.height / 2
+                                            width: 20
+                                            height: parent.height / 2
+                                            color: "transparent"
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "-"
+                                                color: Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: 12
+                                            }
+                                        }
+
+                                        onValueChanged: {
+                                            if ((loopPointMode || "auto") === "manual"
+                                                    && value !== (loopPointManualMs || 0)) {
+                                                changesModel.setProperty(rowIndex, "loopPointManualMs", value)
+                                                changeLoopPointManualMsSet(
+                                                    pckFile,
+                                                    trackerKey,
+                                                    formatDurationMs(value)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !loopPointEditable
+                                    text: "-"
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
                             }
                             Text {
                                 text: {
@@ -2657,41 +2942,51 @@ Item {
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 70
+                                Layout.preferredWidth: 84
                             }
 
-                            ZZARButton {
-                                text: "▶"
-                                Layout.preferredWidth: 45
-                                Layout.preferredHeight: 28
-                                buttonColor: Theme.primaryAccent
-                                fontSize: 12
-                                visible: model.wemPath !== ""
-                                onClicked: {
-                                    playReplacementClicked(model.wemPath)
-                                }
-                            }
+                            Item {
+                                Layout.preferredWidth: 204
+                                Layout.fillHeight: true
 
-                            ZZARButton {
-                                text: "▶ Orig"
-                                Layout.preferredWidth: 55
-                                Layout.preferredHeight: 28
-                                buttonColor: "#555555"
-                                fontSize: 11
-                                visible: model.pckPath !== ""
-                                onClicked: {
-                                    playOriginalClicked(model.fileId, model.itemType, model.pckPath, model.bnkId)
-                                }
-                            }
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 10
 
-                            ZZARButton {
-                                text: qsTranslate("Application", "Remove")
-                                Layout.preferredWidth: 70
-                                Layout.preferredHeight: 28
-                                buttonColor: Theme.disabledAccent
-                                fontSize: 11
-                                onClicked: {
-                                    removeChangeRequested(model.pckFile, model.trackerKey)
+                                    ZZARButton {
+                                        text: qsTranslate("Application", "Play")
+                                        width: 52
+                                        height: 28
+                                        buttonColor: Theme.primaryAccent
+                                        fontSize: 12
+                                        visible: model.wemPath !== ""
+                                        onClicked: {
+                                            playReplacementClicked(model.wemPath)
+                                        }
+                                    }
+
+                                    ZZARButton {
+                                        text: qsTranslate("Application", "Orig")
+                                        width: 60
+                                        height: 28
+                                        buttonColor: "#555555"
+                                        fontSize: 11
+                                        visible: model.pckPath !== ""
+                                        onClicked: {
+                                            playOriginalClicked(model.fileId, model.itemType, model.pckPath, model.bnkId)
+                                        }
+                                    }
+
+                                    ZZARButton {
+                                        text: qsTranslate("Application", "Remove")
+                                        width: 72
+                                        height: 28
+                                        buttonColor: Theme.disabledAccent
+                                        fontSize: 11
+                                        onClicked: {
+                                            removeChangeRequested(model.pckFile, model.trackerKey)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2702,7 +2997,7 @@ Item {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
-                            anchors.rightMargin: 202
+                            anchors.rightMargin: 530
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {

@@ -7,9 +7,9 @@ QtObject {
     readonly property color surfaceDark: "#131416"
     readonly property color cardBackground: "#666666"
 
-    readonly property color primaryAccent: accentColor
-    readonly property color accentLight:   accentColorLight
-    readonly property color accentDark:    accentColorDark
+    readonly property color primaryAccent: uiTheme.accentColor
+    readonly property color accentLight:   uiTheme.accentColorLight
+    readonly property color accentDark:    uiTheme.accentColorDark
     readonly property color secondaryAccent: accentDark
     readonly property color dangerAccent: "#e91a1a"
     readonly property color disabledAccent: "#808080"
