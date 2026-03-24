@@ -44,9 +44,7 @@ from src.config_manager import (
     get_settings_file,
 )
 from src.gui.backend.audio_games import (
-    GIARBrowserHandler,
-    SRARBrowserHandler,
-    ZZARBrowserHandler,
+    build_browser_handlers,
 )
 from gui.backend.update_manager_bridge import _urlopen
 
@@ -352,12 +350,11 @@ class AudioBrowserBridge(QObject):
         self._match_metadata = {}
         self._active_pck_filter = None
         self._active_pck_filter_tag = ""
-        self._browser_handlers = {
-            "zzz": ZZARBrowserHandler(self),
-            "genshin": GIARBrowserHandler(self),
-            "hsr": SRARBrowserHandler(self),
-        }
-        self._active_browser_handler = self._browser_handlers["zzz"]
+        self._browser_handlers = build_browser_handlers(self)
+        self._active_browser_handler = self._browser_handlers.get(
+            DEFAULT_GAME_ID,
+            next(iter(self._browser_handlers.values())),
+        )
 
         self._worker = None
         self._index_thread = None
@@ -393,7 +390,7 @@ class AudioBrowserBridge(QObject):
         self.index_ready = False
 
     @staticmethod
-    def _normalize_game_mode(game_mode, default="zzz"):
+    def _normalize_game_mode(game_mode, default=DEFAULT_GAME_ID):
         return normalize_game_mode(game_mode, default=default)
 
     def _set_active_pck_filter(self, file_filter, filter_tag=""):
@@ -410,7 +407,7 @@ class AudioBrowserBridge(QObject):
             self.merge_wem_enabled = game.merge_wem_default
             self.hide_useless_pck_enabled = game.hide_useless_pck_default
         self._active_browser_handler = self._browser_handlers.get(
-            normalized, self._browser_handlers["zzz"]
+            normalized, self._browser_handlers[DEFAULT_GAME_ID]
         )
         self._set_active_game_databases(normalized)
 
@@ -428,7 +425,7 @@ class AudioBrowserBridge(QObject):
         self._active_db_game_id = normalized
 
     @staticmethod
-    def _detect_game_mode_from_path(path, default="zzz"):
+    def _detect_game_mode_from_path(path, default=DEFAULT_GAME_ID):
         return detect_game_id_from_path(path, default=default)
 
     @staticmethod
@@ -542,7 +539,7 @@ class AudioBrowserBridge(QObject):
             )
             return
 
-        game_mode = self._detect_game_mode_from_path(data_folder, default="zzz")
+        game_mode = self._detect_game_mode_from_path(data_folder, default=DEFAULT_GAME_ID)
         self._set_active_browser_handler(game_mode)
         self._active_browser_handler.scan_language_folders(data_folder)
 

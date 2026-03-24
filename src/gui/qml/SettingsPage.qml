@@ -64,7 +64,7 @@ Item {
         showCheckbox: true
         checkboxText: qsTranslate("Application", "Don't show this again")
         isChecked: false
-        
+
         onConfirmed: {
             settingsPage.enableGbThumbnails = true
             if (isChecked) {
@@ -1237,7 +1237,7 @@ Item {
                                         width: 20
                                         height: 20
                                         visible: settingsPage.isInstallingWwise
-                                        
+
                                         RotationAnimation on rotation {
                                             from: 0
                                             to: 360
@@ -1245,7 +1245,7 @@ Item {
                                             loops: Animation.Infinite
                                             running: settingsPage.isInstallingWwise
                                         }
-                                        
+
                                         Canvas {
                                             id: settingsWwiseSpinnerCanvas
                                             anchors.fill: parent
@@ -2044,7 +2044,7 @@ Item {
                                     width: parent.width
                                 }
                             }
-                        
+
                         Column {
                             spacing: 4
                             width: parent.width
@@ -2085,7 +2085,7 @@ Item {
                                     width: parent.width
                                 }
                             }
-                        
+
                         Column {
                             spacing: 4
                             width: parent.width

@@ -333,7 +333,7 @@ class SettingsConnector:
         mod_creation_mode = settings.get("mod_creation_mode", False)
         self.root.setProperty("modCreationEnabled", mod_creation_mode)
         self.settings_page.setProperty("modCreationEnabled", mod_creation_mode)
-        
+
         enable_gb_thumbnails = settings.get("enable_gb_thumbnails", False)
         self.settings_page.setProperty("enableGbThumbnails", enable_gb_thumbnails)
 
@@ -341,7 +341,7 @@ class SettingsConnector:
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
             gb_page.setProperty("thumbnailsEnabled", enable_gb_thumbnails)
-        
+
         hide_gb_thumbnail_warning = settings.get("hide_gb_thumbnail_warning", False)
         self.settings_page.setProperty("hideGbThumbnailWarning", hide_gb_thumbnail_warning)
 

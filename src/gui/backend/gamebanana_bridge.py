@@ -97,7 +97,7 @@ def _cache_set(section: str, mod_id: int, value):
 _load_cache()
 
 def extract_media_from_html(html_text):
-    
+
     if not html_text:
         return '', [], []
 
@@ -161,7 +161,7 @@ def is_audio_media(url):
 GAMEBANANA_API_BASE = "https://gamebanana.com/apiv11"
 
 class FetchModsWorker(QThread):
-    
+
 
     finished = pyqtSignal(bool, object)
 
@@ -227,7 +227,7 @@ class FetchModsWorker(QThread):
             self.finished.emit(False, f"Error: {str(e)}\n{traceback.format_exc()}")
 
     def _parse_mod_data(self, data):
-        
+
         if not isinstance(data, dict):
             return None
 
@@ -283,7 +283,7 @@ class FetchModsWorker(QThread):
         }
 
 class FetchMiscZZARModsWorker(QThread):
-    
+
 
     finished = pyqtSignal(bool, object)
 
@@ -410,7 +410,7 @@ class FetchMiscZZARModsWorker(QThread):
         }
 
     def _check_zzar(self, mod_id):
-        
+
         cached_zzar = _cache_get("zzar_support_mod", mod_id)
         cached_thumb = _cache_get("mod_thumbnail", mod_id) or ''
         if cached_zzar is not None:
@@ -442,7 +442,7 @@ class FetchMiscZZARModsWorker(QThread):
         return (False, '')
 
     def _extract_thumbnail(self, data):
-        
+
         preview_media = data.get('_aPreviewMedia', {})
         if isinstance(preview_media, dict):
             images = preview_media.get('_aImages', [])
@@ -490,7 +490,7 @@ class FetchMiscZZARModsWorker(QThread):
         return False
 
 class FetchModDetailsWorker(QThread):
-    
+
 
     finished = pyqtSignal(bool, object)
 
@@ -548,7 +548,7 @@ class FetchModDetailsWorker(QThread):
         self.finished.emit(True, mod_details)
 
     def _parse_mod_profile_page(self, data):
-        
+
         if not isinstance(data, dict):
             print(f"[GameBanana] Unexpected Mod ProfilePage format: {type(data)}")
             return None
@@ -611,7 +611,7 @@ class FetchModDetailsWorker(QThread):
         }
 
     def _parse_mod_details(self, data):
-        
+
 
         if not isinstance(data, list) or len(data) < 9:
             print(f"[GameBanana] Invalid data format: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
@@ -745,7 +745,7 @@ class FetchModDetailsWorker(QThread):
         return False
 
 class FetchThumbnailsWorker(QThread):
-    
+
 
     thumbnailReady = pyqtSignal(int, str)
 
@@ -925,7 +925,7 @@ class FetchZZARSupportWorker(QThread):
         _save_cache()
 
 def _open_archive(path):
-    
+
     suffix = path.suffix.lower()
     if suffix == '.zip':
         import zipfile
@@ -1044,7 +1044,7 @@ class InstallModWorker(QThread):
             self.finished.emit(False, f"Install failed: {str(e)}\n{traceback.format_exc()}")
 
 class DownloadModWorker(QThread):
-    
+
 
     progress = pyqtSignal(int)
     finished = pyqtSignal(bool, str)
@@ -1088,7 +1088,7 @@ class DownloadModWorker(QThread):
             self.finished.emit(False, f"Download failed: {str(e)}\n{traceback.format_exc()}")
 
 class GameBananaBridge(QObject):
-    
+
 
     modsLoaded = pyqtSignal('QVariantList')
     totalModsCount = pyqtSignal(int)
@@ -1369,7 +1369,7 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot(str, str)
     def downloadModToPath(self, download_url, filename):
-        
+
         from gui.backend.native_dialogs import NativeDialogs
         save_path = NativeDialogs.get_save_file(
             title="Save Mod File",
@@ -1377,7 +1377,7 @@ class GameBananaBridge(QObject):
             filter_str="All Files (*)"
         )
         if not save_path:
-            return  
+            return
 
         if self.download_worker and self.download_worker.isRunning():
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
@@ -1462,12 +1462,12 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot(result='QVariant')
     def getInstalledUrlMap(self):
-        
+
         return dict(_cache.get("url_to_mod_name", {}))
 
     @pyqtSlot(result='QVariantList')
     def getInstalledModIds(self):
-        
+
         try:
             from src.mod_package_manager import ModPackageManager
             manager = ModPackageManager()
@@ -1482,7 +1482,7 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot(result='QVariantList')
     def getInstalledDownloadUrls(self):
-        
+
         try:
             from src.mod_package_manager import ModPackageManager
             manager = ModPackageManager()
@@ -1514,7 +1514,7 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot(result='QVariant')
     def getInstalledZZARsByUrl(self):
-        
+
         try:
             from src.mod_package_manager import ModPackageManager
             manager = ModPackageManager()
@@ -1533,7 +1533,7 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot(result='QVariant')
     def getZZARTotalsByUrl(self):
-        
+
         try:
             from src.mod_package_manager import ModPackageManager
             totals = dict(_cache.get("zzar_totals_by_url", {}))
