@@ -30,3 +30,4 @@ tools*/
 # OS
 .DS_Store
 Thumbs.db
+*.md

@@ -9,10 +9,10 @@ from src.config_manager import get_mod_tracker_file
 class PersistentModManager:
 
 
-    def __init__(self, persistent_base_path=None):
+    def __init__(self, persistent_base_path=None, tracker_path=None):
 
         self.persistent_base_path = Path(persistent_base_path) if persistent_base_path else None
-        self.mod_tracker_path = get_mod_tracker_file()
+        self.mod_tracker_path = Path(tracker_path) if tracker_path else get_mod_tracker_file()
         self.mod_tracker = {}
 
         self._migrate_old_tracker()

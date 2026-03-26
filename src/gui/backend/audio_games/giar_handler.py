@@ -31,21 +31,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
         self._streamed_re = re.compile(self.game.streamed_pck_regex, re.IGNORECASE)
         self._bank_re = re.compile(self.game.bank_pck_regex, re.IGNORECASE)
 
-    def _emit_status(self, message):
-        if not message:
-            return
-        if callable(self._status_callback):
-            try:
-                self._status_callback(str(message))
-            except Exception:
-                pass
-            return
-        if self.bridge and hasattr(self.bridge, "statusUpdate"):
-            try:
-                self.bridge.statusUpdate.emit(str(message))
-            except Exception:
-                pass
-
     def scan_language_folders(self, data_folder):
         b = self.bridge
         self._reset_bridge_state(data_folder)
@@ -424,31 +409,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
         file_type = str((repl_info or {}).get("file_type", "")).lower()
         return file_type == "wem"
 
-    @classmethod
-    def normalize_loop_mode(cls, mode):
-        normalized = str(mode or "").strip().lower()
-        if normalized not in cls.LOOP_POINT_MODES:
-            return "auto"
-        return normalized
-
-    @staticmethod
-    def normalize_loop_manual_ms(duration_ms):
-        try:
-            value = int(duration_ms)
-        except Exception:
-            value = 0
-        return max(0, value)
-
-    @staticmethod
-    def _extract_tracker_file_id(tracker_key):
-        key_text = str(tracker_key or "").strip()
-        if "|" in key_text:
-            key_text = key_text.split("|")[-1]
-        try:
-            return int(key_text)
-        except Exception:
-            return None
-
     @staticmethod
     def tracker_display_file_id(tracker_key):
         key_text = str(tracker_key or "").strip()
@@ -458,77 +418,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
     def tracker_plain_file_id(tracker_key):
         key_text = str(tracker_key or "").strip()
         return key_text.split("|")[-1] if "|" in key_text else key_text
-
-    def _get_suggested_manual_ms(self, repl_info):
-        wem_path = Path(str((repl_info or {}).get("wem_path", "")))
-        if not wem_path.exists():
-            return 0
-        duration_ms = self._get_wem_duration_ms(wem_path)
-        if duration_ms is None:
-            return 0
-        return self.normalize_loop_manual_ms(round(duration_ms))
-
-    @staticmethod
-    def _get_wem_duration_ms(wem_path):
-        try:
-            wem_bytes = Path(wem_path).read_bytes()
-            if len(wem_bytes) < 12:
-                return None
-            if wem_bytes[:4] != b"RIFF" or wem_bytes[8:12] != b"WAVE":
-                return None
-
-            pos = 12
-            fmt_tag = 0
-            sample_rate = 0
-            avg_bytes = 0
-            channels = 0
-            bits = 0
-            total_samples = 0
-            data_size = 0
-
-            while pos <= len(wem_bytes) - 8:
-                chunk_id = wem_bytes[pos : pos + 4]
-                chunk_size = struct.unpack_from("<I", wem_bytes, pos + 4)[0]
-                chunk_data = pos + 8
-                chunk_end = min(chunk_data + chunk_size, len(wem_bytes))
-
-                if chunk_id == b"fmt " and chunk_size >= 16 and chunk_end >= chunk_data + 16:
-                    fmt_tag = struct.unpack_from("<H", wem_bytes, chunk_data)[0]
-                    channels = struct.unpack_from("<H", wem_bytes, chunk_data + 2)[0]
-                    sample_rate = struct.unpack_from("<I", wem_bytes, chunk_data + 4)[0]
-                    avg_bytes = struct.unpack_from("<I", wem_bytes, chunk_data + 8)[0]
-                    bits = struct.unpack_from("<H", wem_bytes, chunk_data + 14)[0]
-                    if fmt_tag == 0xFFFF and chunk_size >= 0x1C and chunk_end >= chunk_data + 0x1C + 4:
-                        total_samples = struct.unpack_from("<I", wem_bytes, chunk_data + 0x18)[0]
-
-                elif chunk_id == b"fact" and chunk_size >= 4 and chunk_end >= chunk_data + 4:
-                    if total_samples <= 0:
-                        total_samples = struct.unpack_from("<I", wem_bytes, chunk_data)[0]
-
-                elif chunk_id == b"vorb" and chunk_size >= 4 and chunk_end >= chunk_data + 4:
-                    if total_samples <= 0:
-                        total_samples = struct.unpack_from("<I", wem_bytes, chunk_data)[0]
-
-                elif chunk_id == b"data":
-                    data_size = max(data_size, max(chunk_end - chunk_data, 0))
-                    if fmt_tag == 1 and sample_rate > 0 and total_samples <= 0:
-                        frame_size = max(bits // 8, 1) * max(channels, 1)
-                        if frame_size > 0:
-                            total_samples = data_size // frame_size
-
-                pos = chunk_data + chunk_size
-                if chunk_size % 2:
-                    pos += 1
-
-            if sample_rate > 0 and total_samples > 0:
-                return (float(total_samples) / float(sample_rate)) * 1000.0
-
-            if sample_rate > 0 and avg_bytes > 0:
-                size_for_avg = data_size if data_size > 0 else len(wem_bytes)
-                return (float(size_for_avg) / float(avg_bytes)) * 1000.0
-        except Exception:
-            return None
-        return None
 
     @staticmethod
     def _scan_bank_offsets(content, track_ids):

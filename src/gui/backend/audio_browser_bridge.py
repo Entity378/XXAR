@@ -38,6 +38,7 @@ from src.mod_package_manager import ModPackageManager
 from src.config_manager import (
     get_config_dir,
     get_game_fingerprint_database_file,
+    get_game_mod_tracker_file,
     get_game_sound_database_file,
     get_settings_file,
 )
@@ -420,7 +421,11 @@ class AudioBrowserBridge(QObject):
         self.fingerprint_db = FingerprintDatabase(
             db_path=get_game_fingerprint_database_file(normalized)
         )
+        self.mod_manager = PersistentModManager(
+            tracker_path=get_game_mod_tracker_file(normalized)
+        )
         self._active_db_game_id = normalized
+        self._emit_changes_count()
 
     @staticmethod
     def _detect_game_mode_from_path(path, default=DEFAULT_GAME_ID):
@@ -1745,6 +1750,11 @@ class AudioBrowserBridge(QObject):
 
                 wem_path = info.get('wem_path', '')
                 source_file = Path(wem_path).name if wem_path else ''
+                handler = self._active_browser_handler
+                loop_supported = bool(
+                    getattr(handler, "_loop_point_supported", lambda: False)()
+                ) if handler else False
+
                 change_entry = {
                     "fileId": display_file_id,
                     "trackerKey": tracker_key,
@@ -1757,6 +1767,7 @@ class AudioBrowserBridge(QObject):
                     "taggedName": tagged_name,
                     "sourceFile": source_file,
                     "wemPath": wem_path,
+                    "loopPointSupported": loop_supported,
                     "loopPointEditable": False,
                     "loopPointMode": "auto",
                     "loopPointManualMs": 0,

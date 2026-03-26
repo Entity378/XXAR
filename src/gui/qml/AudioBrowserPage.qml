@@ -1573,12 +1573,14 @@ Item {
                 "taggedName": changes[i].taggedName || "",
                 "sourceFile": changes[i].sourceFile || "",
                 "wemPath": changes[i].wemPath || "",
+                "loopPointSupported": changes[i].loopPointSupported || false,
                 "loopPointEditable": changes[i].loopPointEditable || false,
                 "loopPointMode": changes[i].loopPointMode || "auto",
                 "loopPointManualMs": changes[i].loopPointManualMs || 0,
                 "loopPointSuggestedMs": changes[i].loopPointSuggestedMs || 0
             })
         }
+        changesOverlay.loopColumnVisible = changes.length > 0 && (changes[0].loopPointSupported || false)
         changesTitle.text = qsTranslate("Application", "Current Changes") + " (" + changes.length + " " + (changes.length !== 1 ? qsTranslate("Application", "replacements") : qsTranslate("Application", "replacement")) + ")"
         changesOverlay.visible = true
         changesOverlay.closing = false
@@ -2490,6 +2492,7 @@ Item {
         anchors.fill: parent
         z: 2000
         property bool closing: false
+        property bool loopColumnVisible: false
 
         Timer {
             id: changesHideTimer
@@ -2596,7 +2599,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 132
+                            Layout.preferredWidth: changesOverlay.loopColumnVisible ? 132 : 182
                         }
                         Text {
                             text: qsTranslate("Application", "Loop")
@@ -2604,7 +2607,8 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 260
+                            visible: changesOverlay.loopColumnVisible
+                            Layout.preferredWidth: changesOverlay.loopColumnVisible ? 260 : 0
                         }
                         Text {
                             text: qsTranslate("Application", "Modified")
@@ -2681,11 +2685,12 @@ Item {
                                 color: Theme.secondaryAccent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 132
+                                Layout.preferredWidth: changesOverlay.loopColumnVisible ? 132 : 182
                             }
 
                             Item {
-                                Layout.preferredWidth: 260
+                                visible: changesOverlay.loopColumnVisible
+                                Layout.preferredWidth: changesOverlay.loopColumnVisible ? 260 : 0
                                 Layout.fillHeight: true
 
                                 Row {
