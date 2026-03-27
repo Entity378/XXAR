@@ -180,7 +180,7 @@ class ImportWorker(QThread):
                                         lang_id = bnk_info['lang_id']
                                         if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                             file_id_to_pck[file_id] = (game_pck_name, bnk_id, lang_id, priority)
-                            except:
+                            except Exception:
                                 pass
 
                         for wem_info in indexer.index_data['sounds'] + indexer.index_data['externals']:
@@ -192,7 +192,7 @@ class ImportWorker(QThread):
                                     modded_wem = extracted_wem_ids[file_id].read_bytes()
                                     if original_wem == modded_wem:
                                         continue
-                                except:
+                                except Exception:
                                     pass
                                 if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                     file_id_to_pck[file_id] = (game_pck_name, None, lang_id, priority)
@@ -312,7 +312,7 @@ class ImportWorker(QThread):
                                         if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                             file_id_to_pck[file_id] = (pck_name, bnk_id, lang_id, priority)
                                         bnk_wems += 1
-                            except:
+                            except Exception:
                                 pass
 
                         standalone_wems = 0

@@ -90,7 +90,7 @@ class PCKPacker:
                             break
                         try:
                             lang_name += char_bytes.decode('utf-16-le')
-                        except:
+                        except Exception:
                             break
 
                     if lang_name:

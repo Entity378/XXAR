@@ -1,9 +1,7 @@
 
 
 import os
-import sys
 import numpy as np
-import platform
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -11,23 +9,7 @@ from scipy import signal
 from scipy.fft import dct
 import subprocess
 import tempfile
-
-_is_windows = platform.system() == "Windows"
-
-if _is_windows:
-    _si = subprocess.STARTUPINFO()
-    _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    _subprocess_kwargs = {"startupinfo": _si}
-    if hasattr(sys, '_MEIPASS'):
-        _clean_env = os.environ.copy()
-        _meipass = sys._MEIPASS
-        _clean_env["PATH"] = os.pathsep.join(
-            p for p in _clean_env.get("PATH", "").split(os.pathsep)
-            if not p.startswith(_meipass)
-        )
-        _subprocess_kwargs["env"] = _clean_env
-else:
-    _subprocess_kwargs = {}
+from src.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
 def _hz_to_mel(hz):
     return 2595.0 * np.log10(1.0 + hz / 700.0)
@@ -85,7 +67,7 @@ class AudioMatcher:
                     **_subprocess_kwargs
                 )
                 input_file = intermediate_wav
-            except:
+            except Exception:
 
                 input_file = audio_path
         else:
@@ -114,7 +96,7 @@ class AudioMatcher:
             if intermediate_wav and intermediate_wav.exists():
                 try:
                     intermediate_wav.unlink()
-                except:
+                except Exception:
                     pass
             raise Exception(f"Failed to process audio: {e.stderr.decode()}")
         except subprocess.TimeoutExpired:
@@ -122,7 +104,7 @@ class AudioMatcher:
             if intermediate_wav and intermediate_wav.exists():
                 try:
                     intermediate_wav.unlink()
-                except:
+                except Exception:
                     pass
             raise Exception(f"Audio processing timed out")
 
@@ -132,7 +114,7 @@ class AudioMatcher:
         if intermediate_wav and intermediate_wav.exists():
             try:
                 intermediate_wav.unlink()
-            except:
+            except Exception:
                 pass
 
         if audio_data is None or len(audio_data) == 0:
@@ -202,7 +184,7 @@ class AudioMatcher:
             audio_data = audio_data.astype(np.float32) / 32768.0
 
             return audio_data
-        except:
+        except Exception:
             return None
 
     def _extract_mfcc(self, power_spectrogram, sample_rate, n_fft, n_mfcc=13, n_mels=40):

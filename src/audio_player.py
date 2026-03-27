@@ -1,39 +1,12 @@
 
 
-import os
-import sys
 import tempfile
-from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-import platform
 import subprocess
 import shutil
 import time
 from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer
-
-if os.environ.get(FLATPAK_ENV_VAR):
-    _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-elif hasattr(sys, '_MEIPASS'):
-    _BASE_DIR = Path(sys.executable).parent.resolve()
-else:
-    _BASE_DIR = Path(__file__).resolve().parent.parent
-
-_is_windows = platform.system() == "Windows"
-
-if _is_windows:
-    _si = subprocess.STARTUPINFO()
-    _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    _subprocess_kwargs = {"startupinfo": _si}
-    if hasattr(sys, '_MEIPASS'):
-        _clean_env = os.environ.copy()
-        _meipass = sys._MEIPASS
-        _clean_env["PATH"] = os.pathsep.join(
-            p for p in _clean_env.get("PATH", "").split(os.pathsep)
-            if not p.startswith(_meipass)
-        )
-        _subprocess_kwargs["env"] = _clean_env
-else:
-    _subprocess_kwargs = {}
+from src.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 if not _is_windows:
     from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
@@ -351,6 +324,6 @@ class AudioPlayer(QObject):
             if temp_file.exists():
                 try:
                     temp_file.unlink()
-                except:
+                except Exception:
                     pass
         self.temp_files.clear()

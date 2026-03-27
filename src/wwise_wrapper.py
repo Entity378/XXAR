@@ -2,36 +2,12 @@
 
 import subprocess
 import shutil
-import tempfile
 import os
 import sys
 import platform
 from pathlib import Path
 from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-
-_is_windows = platform.system() == "Windows"
-
-if _is_windows:
-    _si = subprocess.STARTUPINFO()
-    _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    _subprocess_kwargs = {"startupinfo": _si}
-    if hasattr(sys, '_MEIPASS'):
-        _clean_env = os.environ.copy()
-        _meipass = sys._MEIPASS
-        _clean_env["PATH"] = os.pathsep.join(
-            p for p in _clean_env.get("PATH", "").split(os.pathsep)
-            if not p.startswith(_meipass)
-        )
-        _subprocess_kwargs["env"] = _clean_env
-else:
-    _subprocess_kwargs = {}
-
-if os.environ.get(FLATPAK_ENV_VAR):
-    _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-elif hasattr(sys, '_MEIPASS'):
-    _BASE_DIR = Path(sys.executable).parent.resolve()
-else:
-    _BASE_DIR = Path(__file__).resolve().parent.parent
+from src.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 # Resources: the bundled template lives inside _MEIPASS (read-only in PyInstaller).
 # For writable operations (mkdir, cache), copy to a persistent writable location.
