@@ -1,6 +1,8 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTranslator, QCoreApplication
 from pathlib import Path
 
+from src.app_config import APP_NAME
+
 
 class TranslationManager(QObject):
 
@@ -57,4 +59,4 @@ class TranslationManager(QObject):
             self.languageChanged.emit()
             self._engine.retranslate()
         else:
-            print(f"[ZZAR] Failed to load translation: {qm_file}")
+            print(f"[{APP_NAME}] Failed to load translation: {qm_file}")

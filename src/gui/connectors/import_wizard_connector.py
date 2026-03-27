@@ -3,6 +3,8 @@ from pathlib import Path
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
+from src.app_config import APP_NAME
+
 from gui.backend.native_dialogs import NativeDialogs
 from src.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
 
@@ -21,7 +23,7 @@ class ImportWizardConnector:
         )
         self.import_wizard.createModClicked.connect(self.on_wizard_create_mod)
         self.import_wizard.wizardCancelled.connect(self.on_wizard_cancelled)
-        print("[ZZAR] Import wizard connected")
+        print(f"[{APP_NAME}] Import wizard connected")
 
     def on_wizard_browse_files(self, mode):
         print(f"[Import Wizard] Browsing for files, mode: {mode}")

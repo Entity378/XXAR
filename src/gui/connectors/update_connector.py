@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication
 
 from src.config_manager import get_cache_dir
-from src.app_config import FLATPAK_ENV_VAR
+from src.app_config import APP_NAME, FLATPAK_ENV_VAR
 
 
 class UpdateConnector:
@@ -39,7 +39,7 @@ class UpdateConnector:
         self.update_manager_bridge.updateError.connect(self._on_update_error)
         self.update_manager_bridge.updateApplied.connect(self._on_update_applied)
 
-        print("[ZZAR] Settings page connected")
+        print(f"[{APP_NAME}]Settings page connected")
 
     def _on_check_for_updates(self):
         if self.settings_page:
@@ -49,7 +49,7 @@ class UpdateConnector:
         self.update_manager_bridge.checkForUpdates()
 
     def _on_update_available(self, version, release_notes):
-        print(f"[ZZAR] Update available: {version}")
+        print(f"[{APP_NAME}]Update available: {version}")
         if self.settings_page:
             self.settings_page.setProperty("isCheckingUpdates", False)
             self.settings_page.setProperty("updateAvailable", True)
@@ -80,7 +80,7 @@ class UpdateConnector:
         self._startup_update_check = False
 
     def _on_update_not_available(self):
-        print("[ZZAR] Already up to date")
+        print(f"[{APP_NAME}]Already up to date")
         was_startup = self._startup_update_check
         self._startup_update_check = False
         if self.settings_page:
@@ -101,7 +101,7 @@ class UpdateConnector:
             self.update_dialog.setProperty("downloadPercent", percent)
 
     def _on_update_downloaded(self):
-        print("[ZZAR] Update downloaded, ready to install")
+        print(f"[{APP_NAME}]Update downloaded, ready to install")
         if self.settings_page:
             self.settings_page.setProperty("isDownloadingUpdate", False)
             self.settings_page.setProperty("updateDownloaded", True)
@@ -111,7 +111,7 @@ class UpdateConnector:
             self._on_restart_for_update()
 
     def _on_update_error(self, message):
-        print(f"[ZZAR] Update error: {message}")
+        print(f"[{APP_NAME}]Update error: {message}")
         was_startup = self._startup_update_check
         self._startup_update_check = False
         if self.settings_page:
@@ -138,7 +138,7 @@ class UpdateConnector:
         )
 
     def _on_test_update_dialog(self):
-        print("[ZZAR] Test update dialog triggered")
+        print(f"[{APP_NAME}]Test update dialog triggered")
         if self.update_dialog:
             QMetaObject.invokeMethod(
                 self.root,
@@ -149,7 +149,7 @@ class UpdateConnector:
             )
 
     def _on_test_language_dialog(self):
-        print("[ZZAR] Test language dialog triggered")
+        print(f"[{APP_NAME}]Test language dialog triggered")
         QMetaObject.invokeMethod(
             self.root,
             "showMultipleLanguagesWarning",
@@ -160,31 +160,31 @@ class UpdateConnector:
         )
 
     def _on_update_dialog_accepted(self):
-        print("[ZZAR] User accepted update from dialog")
+        print(f"[{APP_NAME}]User accepted update from dialog")
         self.update_manager_bridge.downloadAndInstall()
 
     def _on_update_dialog_dismissed(self):
-        print("[ZZAR] User dismissed update dialog")
+        print(f"[{APP_NAME}]User dismissed update dialog")
 
     def _on_restart_for_update(self):
-        print("[ZZAR] Applying update and restarting...")
+        print(f"[{APP_NAME}]Applying update and restarting...")
         self.update_manager_bridge.applyUpdate()
 
     def _on_update_applied(self):
-        print("[ZZAR] Update applied successfully, restarting application...")
+        print(f"[{APP_NAME}]Update applied successfully, restarting application...")
         try:
             flag_file = get_cache_dir() / "update_success"
             flag_file.parent.mkdir(parents=True, exist_ok=True)
             flag_file.write_text(QCoreApplication.applicationVersion())
-            print(f"[ZZAR] Update success flag written: {flag_file}")
+            print(f"[{APP_NAME}]Update success flag written: {flag_file}")
         except Exception as e:
-            print(f"[ZZAR] Failed to write update success flag: {e}")
+            print(f"[{APP_NAME}]Failed to write update success flag: {e}")
 
         if sys.platform.startswith("win"):
             QApplication.quit()
         else:
             exe = self.update_manager_bridge._get_real_exe_path()
-            print(f"[ZZAR] Launching updated binary: {exe}")
+            print(f"[{APP_NAME}]Launching updated binary: {exe}")
             import subprocess
             subprocess.Popen(
                 [exe],
@@ -199,7 +199,7 @@ class UpdateConnector:
                 old_version = flag_file.read_text().strip()
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
-                print(f"[ZZAR] Update success! {old_version} -> {new_version}")
+                print(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
@@ -209,4 +209,4 @@ class UpdateConnector:
                     Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/VivianHappy.png"),
                 )
         except Exception as e:
-            print(f"[ZZAR] Error checking update success flag: {e}")
+            print(f"[{APP_NAME}]Error checking update success flag: {e}")

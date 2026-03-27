@@ -58,7 +58,7 @@ class ModManagerConnector:
         from ZZAR import DEV_MODE
         mod_page.setProperty("devMode", DEV_MODE)
 
-        print("[ZZAR] Mod manager page connected")
+        print(f"[{APP_NAME}] Mod manager page connected")
 
     def _on_test_permission_dialog(self):
         self.on_alert_dialog_requested(

@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from gui.backend.native_dialogs import NativeDialogs
+from src.app_config import APP_NAME
 from src.config_manager import get_game_sound_database_file
 from src.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
 
@@ -198,7 +199,7 @@ class AudioBrowserConnector:
 
         ab.loadFromSettings()
         ab.checkForNewTagDb()
-        print("[ZZAR] Audio browser page connected")
+        print(f"[{APP_NAME}] Audio browser page connected")
 
 
     def _on_new_tag_db_available(self, count):

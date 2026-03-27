@@ -182,26 +182,26 @@ class Application(
             if QFontDatabase.addApplicationFont(str(audiowide_font)) == -1:
                 print(f"[{APP_NAME}] WARNING: Failed to load Audiowide font")
         else:
-            print(f"[ZZAR] WARNING: Audiowide font not found at {audiowide_font}")
+            print(f"[{APP_NAME}] WARNING: Audiowide font not found at {audiowide_font}")
 
         if alatsi_font.exists():
             if QFontDatabase.addApplicationFont(str(alatsi_font)) == -1:
                 print(f"[{APP_NAME}] WARNING: Failed to load Alatsi font")
         else:
-            print(f"[ZZAR] WARNING: Alatsi font not found at {alatsi_font}")
+            print(f"[{APP_NAME}] WARNING: Alatsi font not found at {alatsi_font}")
 
         if stretch_pro_font.exists():
             if QFontDatabase.addApplicationFont(str(stretch_pro_font)) == -1:
                 print(f"[{APP_NAME}] WARNING: Failed to load Stretch Pro font")
         else:
-            print(f"[ZZAR] WARNING: Stretch Pro font not found at {stretch_pro_font}")
+            print(f"[{APP_NAME}] WARNING: Stretch Pro font not found at {stretch_pro_font}")
 
         zzz_font = fonts_dir / "ZZZ-Font" / "ZZZ-Font.ttf"
         if zzz_font.exists():
             if QFontDatabase.addApplicationFont(str(zzz_font)) == -1:
                 print(f"[{APP_NAME}] WARNING: Failed to load ZZZ font")
         else:
-            print(f"[ZZAR] WARNING: ZZZ font not found at {zzz_font}")
+            print(f"[{APP_NAME}] WARNING: ZZZ font not found at {zzz_font}")
 
         self.engine = QQmlApplicationEngine()
         self.mod_manager_bridge = ModManagerBridge()
@@ -257,7 +257,7 @@ class Application(
             qml_base = Path(sys._MEIPASS) / 'PyQt5' / 'Qt5' / 'qml'
             if qml_base.exists():
                 self.engine.addImportPath(str(qml_base))
-                print(f"[ZZAR] Added PyInstaller QML path: {qml_base}")
+                print(f"[{APP_NAME}] Added PyInstaller QML path: {qml_base}")
 
         qml_file = ui_path / "qml" / "MainWindow.qml"
         print(f"Loading QML from: {qml_file}")
@@ -292,7 +292,7 @@ class Application(
         root.setProperty("height", win_h)
         root.setProperty("x", win_x)
         root.setProperty("y", win_y)
-        print(f"[ZZAR] Window positioned: {win_w}x{win_h} at ({win_x},{win_y}), available: {avail_w}x{avail_h}")
+        print(f"[{APP_NAME}] Window positioned: {win_w}x{win_h} at ({win_x},{win_y}), available: {avail_w}x{avail_h}")
 
 
         self._connect_mod_manager()

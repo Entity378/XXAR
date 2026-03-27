@@ -4,6 +4,8 @@ import os
 import subprocess
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
+from src.app_config import APP_NAME
+
 class GameBananaConnector:
     
 
@@ -11,7 +13,7 @@ class GameBananaConnector:
         
         self.gamebanana_page = self.root.findChild(QObject, "gameBananaPage")
         if not self.gamebanana_page:
-            print("[ZZAR] GameBanana page not found")
+            print(f"[{APP_NAME}] GameBanana page not found")
             return
 
         gb = self.gamebanana_bridge
@@ -108,7 +110,7 @@ class GameBananaConnector:
 
         self._nonzzar_saved_path = ""
 
-        print("[ZZAR] GameBanana page connected")
+        print(f"[{APP_NAME}] GameBanana page connected")
 
     def on_nonzzar_download_complete(self, file_path):
         self._nonzzar_saved_path = file_path
@@ -131,7 +133,7 @@ class GameBananaConnector:
             self._nonzzar_saved_path = ""
 
     def on_gamebanana_download_complete(self, file_path):
-        print(f"[ZZAR] Mod downloaded to: {file_path}")
+        print(f"[{APP_NAME}] Mod downloaded to: {file_path}")
 
     def on_gamebanana_install_complete(self, message):
         QMetaObject.invokeMethod(
@@ -141,7 +143,7 @@ class GameBananaConnector:
             Q_ARG("QVariant", message)
         )
         self.mod_manager_bridge.refreshMods()
-        print(f"[ZZAR] {message}")
+        print(f"[{APP_NAME}] {message}")
 
     def on_gamebanana_multiple_zzar(self, zzar_names, zip_path):
         QMetaObject.invokeMethod(
