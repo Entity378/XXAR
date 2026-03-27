@@ -59,7 +59,6 @@ class ImportWorker(QThread):
 
     def _convert_mod(self):
 
-        from src.pck_extractor import PCKExtractor
         from src.pck_indexer import PCKIndexer
         from src.bnk_indexer import BNKIndexer
         from PIL import Image
@@ -87,8 +86,8 @@ class ImportWorker(QThread):
                 for pck_idx, (pck_name, pck_info) in enumerate(files.items()):
                     pck_path = pck_info['path']
 
-                    extractor = PCKExtractor(str(pck_path))
-                    extract_result = extractor.extract_all(str(temp_dir / 'extracted'), extract_bnk=True)
+                    indexer = PCKIndexer(str(pck_path))
+                    indexer.extract_all(str(temp_dir / 'extracted'), extract_bnk=True)
 
                     extracted_path = temp_dir / 'extracted'
 

@@ -43,25 +43,27 @@ class PCKPacker:
 
         print(f"Creating minimal PCK (replacements only): {self.output_pck_path.name}")
 
+    @staticmethod
+    def _read_uint32(f):
+        return struct.unpack('<I', f.read(4))[0]
+
     def load_original_pck(self):
 
-        from src.pck_extractor import PCKExtractor
-
-        extractor = PCKExtractor(self.original_pck_path)
-
         with open(self.original_pck_path, 'rb') as f:
-            extractor.file_handle = f
 
-            extractor.validate_header()
-            header_size = extractor._read_uint32()
-            version = extractor._read_uint32()
-            sec1_size = extractor._read_uint32()
-            sec2_size = extractor._read_uint32()
-            sec3_size = extractor._read_uint32()
+            magic = f.read(4)
+            if magic != self.MAGIC:
+                raise ValueError(f"Invalid PCK file: expected {self.MAGIC}, got {magic}")
+
+            header_size = self._read_uint32(f)
+            version = self._read_uint32(f)
+            sec1_size = self._read_uint32(f)
+            sec2_size = self._read_uint32(f)
+            sec3_size = self._read_uint32(f)
 
             sec_sum = sec1_size + sec2_size + sec3_size + 0x10
             if sec_sum < header_size:
-                sec4_size = extractor._read_uint32()
+                sec4_size = self._read_uint32(f)
             else:
                 sec4_size = 0
 
@@ -70,11 +72,11 @@ class PCKPacker:
 
             strings_offset = f.tell()
             if sec1_size > 0:
-                lang_count = extractor._read_uint32()
+                lang_count = self._read_uint32(f)
                 lang_defs = []
                 for i in range(lang_count):
-                    lang_offset = extractor._read_uint32()
-                    lang_id = extractor._read_uint32()
+                    lang_offset = self._read_uint32(f)
+                    lang_id = self._read_uint32(f)
                     lang_defs.append((lang_id, strings_offset + lang_offset))
 
                 for lang_id, lang_offset in lang_defs:

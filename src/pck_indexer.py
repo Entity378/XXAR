@@ -1,5 +1,3 @@
-
-
 import struct
 from pathlib import Path
 
@@ -189,8 +187,38 @@ class PCKIndexer:
 
         return data
 
-    def get_file_count(self):
+    def extract_all(self, output_dir, extract_bnk=False):
 
-        return (len(self.index_data['banks']) +
-                len(self.index_data['sounds']) +
-                len(self.index_data['externals']))
+        output_dir = Path(output_dir)
+
+        if not self.index_data['sounds'] and not self.index_data['banks']:
+            self.build_index()
+
+        wem_files = self.index_data['sounds'] + self.index_data['externals']
+
+        with open(self.pck_path, 'rb') as f:
+            if wem_files:
+                for file_info in wem_files:
+                    try:
+                        lang_dir = output_dir / file_info['lang_name']
+                        lang_dir.mkdir(parents=True, exist_ok=True)
+                        f.seek(file_info['offset'])
+                        file_data = f.read(file_info['size'])
+                        out_file = lang_dir / f"{file_info['id']}.wem"
+                        with open(out_file, 'wb') as wf:
+                            wf.write(file_data)
+                    except Exception as e:
+                        print(f"Error extracting WEM {file_info['id']}: {e}")
+
+            if extract_bnk and self.index_data['banks']:
+                for bank_info in self.index_data['banks']:
+                    try:
+                        lang_dir = output_dir / bank_info['lang_name']
+                        lang_dir.mkdir(parents=True, exist_ok=True)
+                        f.seek(bank_info['offset'])
+                        file_data = f.read(bank_info['size'])
+                        out_file = lang_dir / f"{bank_info['id']}.bnk"
+                        with open(out_file, 'wb') as wf:
+                            wf.write(file_data)
+                    except Exception as e:
+                        print(f"Error extracting BNK {bank_info['id']}: {e}")
