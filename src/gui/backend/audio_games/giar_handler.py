@@ -1,22 +1,10 @@
-import re
 import shutil
 import struct
 from pathlib import Path
 
 from PyQt5.QtCore import QCoreApplication
 
-from .base_handler import BaseBrowserHandler
-
-
-def _natural_sort_key(value):
-    text = str(value or "")
-    parts = re.split(r"(\d+)", text.lower())
-    return [int(part) if part.isdigit() else part for part in parts]
-
-
-def _natural_sorted(values, key=None):
-    key_func = key or (lambda x: x)
-    return sorted(values, key=lambda item: _natural_sort_key(key_func(item)))
+from .base_handler import BaseBrowserHandler, _natural_sort_key
 
 
 class GIARBrowserHandler(BaseBrowserHandler):
@@ -26,174 +14,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
     def __init__(self, bridge, status_callback=None):
         super().__init__(bridge, game_id=self.game_id)
         self._status_callback = status_callback
-        self._tab_order = []
-        self._music_re = re.compile(self.game.music_pck_regex, re.IGNORECASE)
-        self._streamed_re = re.compile(self.game.streamed_pck_regex, re.IGNORECASE)
-        self._bank_re = re.compile(self.game.bank_pck_regex, re.IGNORECASE)
-
-    def scan_language_folders(self, data_folder):
-        b = self.bridge
-        self._reset_bridge_state(data_folder)
-
-        audio_assets = data_folder.joinpath(*self.game.game_audio_subpath)
-        if not audio_assets.exists():
-            self._emit_missing_audio_folder_error(audio_assets)
-            return
-
-        b._audio_root = audio_assets
-        all_pcks = _natural_sorted(
-            audio_assets.rglob("*.pck"),
-            key=lambda p: str(p.relative_to(audio_assets)).replace("\\", "/"),
-        )
-        if not all_pcks:
-            self._emit_no_pck_error(audio_assets)
-            return
-
-        self._tab_order = []
-        b.language_folders = {}
-
-        self._add_tab(
-            key="music",
-            label=QCoreApplication.translate("Application", "Music PCK"),
-            audio_assets=audio_assets,
-            all_pcks=all_pcks,
-            predicate=self._is_music_pck,
-        )
-        self._add_tab(
-            key="streamed",
-            label=QCoreApplication.translate("Application", "Streamed PCK"),
-            audio_assets=audio_assets,
-            all_pcks=all_pcks,
-            predicate=self._is_streamed_pck,
-        )
-        self._add_tab(
-            key="banks",
-            label=QCoreApplication.translate("Application", "Bank PCK"),
-            audio_assets=audio_assets,
-            all_pcks=all_pcks,
-            predicate=self._is_bank_pck,
-        )
-
-        top_dirs = self._collect_top_level_dirs(audio_assets, all_pcks)
-        top_dirs_lower = {d.lower(): d for d in top_dirs}
-        special_dirs = self.game.special_audio_dirs or ()
-
-        for special_dir in special_dirs:
-            actual_dir = top_dirs_lower.get(special_dir.lower())
-            if not actual_dir:
-                continue
-            self._add_tab(
-                key=f"dir:{actual_dir.lower()}",
-                label=actual_dir,
-                audio_assets=audio_assets,
-                all_pcks=all_pcks,
-                predicate=lambda p, d=actual_dir: self._is_under_top_dir(
-                    audio_assets, p, d
-                ),
-            )
-
-        special_names = {name.lower() for name in special_dirs}
-        language_dirs = [d for d in top_dirs if d.lower() not in special_names]
-        for lang_dir in _natural_sorted(language_dirs, key=lambda d: d):
-            self._add_tab(
-                key=f"lang:{lang_dir.lower()}",
-                label=QCoreApplication.translate("Application", "Lang: %1").replace(
-                    "%1", lang_dir
-                ),
-                audio_assets=audio_assets,
-                all_pcks=all_pcks,
-                predicate=lambda p, d=lang_dir: self._is_under_top_dir(
-                    audio_assets, p, d
-                ),
-            )
-
-        if not b.language_folders:
-            self._emit_no_pck_error(audio_assets)
-            return
-
-        tabs = []
-        for key in self._ordered_folder_keys():
-            info = b.language_folders[key]
-            tabs.append(f"{info['friendly_name']} ({info['pck_count']})")
-
-        b.languageTabsReady.emit(tabs)
-        self.load_language_tab(0)
-
-    def load_language_tab(self, index):
-        b = self.bridge
-        ordered = self._ordered_folder_keys()
-        if index < 0 or index >= len(ordered):
-            return
-
-        key = ordered[index]
-        folder_info = b.language_folders[key]
-        b.current_language_folder = key
-        predicate = folder_info.get("filter_predicate")
-        filter_tag = folder_info.get("filter_tag", key)
-
-        b._set_active_pck_filter(predicate, filter_tag)
-        b._load_pck_files(
-            folder_info["path"],
-            file_filter=predicate,
-            filter_tag=filter_tag,
-        )
-
-    def _ordered_folder_keys(self):
-        return [key for key in self._tab_order if key in self.bridge.language_folders]
-
-    def _is_music_pck(self, path):
-        return self._music_re.match(path.name) is not None
-
-    def _is_streamed_pck(self, path):
-        return self._streamed_re.match(path.name) is not None
-
-    def _is_bank_pck(self, path):
-        return self._bank_re.match(path.name) is not None
-
-    @staticmethod
-    def _collect_top_level_dirs(audio_assets, all_pcks):
-        dirs = []
-        seen = set()
-        for p in all_pcks:
-            try:
-                rel = p.relative_to(audio_assets)
-            except Exception:
-                continue
-            if len(rel.parts) <= 1:
-                continue
-            top = rel.parts[0]
-            key = top.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            dirs.append(top)
-        return dirs
-
-    @staticmethod
-    def _is_under_top_dir(audio_assets, pck_path, top_dir):
-        try:
-            rel = pck_path.relative_to(audio_assets)
-        except Exception:
-            return False
-        return len(rel.parts) > 1 and rel.parts[0].lower() == top_dir.lower()
-
-    def _add_tab(self, key, label, audio_assets, all_pcks, predicate):
-        matches = [p for p in all_pcks if predicate(p)]
-        if not matches:
-            return
-
-        self.bridge.language_folders[key] = {
-            "path": audio_assets,
-            "friendly_name": label,
-            "pck_count": len(matches),
-            "filter_predicate": predicate,
-            "filter_tag": key,
-        }
-        self._tab_order.append(key)
-
-    @staticmethod
-    def collect_pck_files(directory):
-        return _natural_sorted(Path(directory).rglob("*.pck"), key=lambda p: p.as_posix())
 
     @staticmethod
     def include_pck_file(
@@ -233,7 +53,7 @@ class GIARBrowserHandler(BaseBrowserHandler):
 
         bank_files = [
             pck_file
-            for pck_file in _natural_sorted(streaming_root.rglob("*.pck"), key=lambda p: p.as_posix())
+            for pck_file in sorted(streaming_root.glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
             if self._is_bank_pck(pck_file)
         ]
 
@@ -335,7 +155,7 @@ class GIARBrowserHandler(BaseBrowserHandler):
 
         bank_files = [
             pck_file
-            for pck_file in _natural_sorted(streaming_root.rglob("*.pck"), key=lambda p: p.as_posix())
+            for pck_file in sorted(streaming_root.glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
             if handler._is_bank_pck(pck_file)
         ]
 
@@ -404,10 +224,15 @@ class GIARBrowserHandler(BaseBrowserHandler):
 
     @classmethod
     def is_loop_entry_applicable(cls, pck_filename, repl_info):
-        if not re.match(r"^[a-z]*music\d+\.pck$", str(pck_filename or ""), re.IGNORECASE):
+        name = str(pck_filename or "").lower()
+        if not name.startswith("music"):
             return False
         file_type = str((repl_info or {}).get("file_type", "")).lower()
         return file_type == "wem"
+
+    def _is_bank_pck(self, path):
+        name = path.name.lower()
+        return name.startswith("bank")
 
     @staticmethod
     def tracker_display_file_id(tracker_key):

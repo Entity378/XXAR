@@ -29,9 +29,6 @@ class GameDefinition:
     loop_point_patching_supported: bool = False
     loop_point_modes: tuple[str, ...] = ("auto", "manual", "disabled")
     special_audio_dirs: tuple[str, ...] = ()
-    music_pck_regex: Optional[str] = None
-    streamed_pck_regex: Optional[str] = None
-    bank_pck_regex: Optional[str] = None
 
 
 _ALL_GAMES: tuple[GameDefinition, ...] = (
@@ -79,18 +76,20 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed",
         soundbank_pck_prefix="Bank",
         soundbank_pck_filter_prefix="Bank",
-        language_folders=(),
-        audio_root_friendly_name="AudioAssets",
-        subfolder_sort_priority=(),
+        language_folders=(
+            ("English(US)", "English"),
+            ("Japanese", "Japanese"),
+            ("Korean", "Korean"),
+            ("Chinese", "Chinese"),
+        ),
+        audio_root_friendly_name="SFX/Music",
+        subfolder_sort_priority=(("BeyondUGC", 1), ("MusicGame", 2)),
         non_language_tabs=("Full", "Common"),
         merge_wem_default=True,
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
         special_audio_dirs=("BeyondUGC", "MusicGame"),
-        music_pck_regex=r"^[a-z]*music\d+\.pck$",
-        streamed_pck_regex=r"^[a-z]*streamed\d+\.pck$",
-        bank_pck_regex=r"^[a-z]*banks?\d*\.pck$",
     ),
     GameDefinition(
         id="hsr",
@@ -114,7 +113,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
             ("Chinese(PRC)", "Chinese"),
             ("SFX", "SFX"),
         ),
-        audio_root_friendly_name="Music",
+        audio_root_friendly_name="SFX/Music",
         subfolder_sort_priority=(("SFX", 0),),
         non_language_tabs=("Full", "Common", "SFX"),
         merge_wem_default=False,

@@ -1,9 +1,16 @@
+import re
 import struct
 from pathlib import Path
 
 from PyQt5.QtCore import QCoreApplication
 
 from src.game_registry import get_game
+
+
+def _natural_sort_key(value):
+    text = str(value or "")
+    parts = re.split(r"(\d+)", text.lower())
+    return [int(part) if part.isdigit() else part for part in parts]
 
 
 class BaseBrowserHandler:
@@ -56,7 +63,9 @@ class BaseBrowserHandler:
         b._audio_root = audio_root
         b.language_folders = {}
         language_mapping = dict(self.game.language_folders)
-        include_all_subdirs = not language_mapping
+        special_dirs = set(self.game.special_audio_dirs or ())
+        known_dirs = set(language_mapping) | special_dirs
+        include_all_subdirs = not known_dirs
 
         pck_files = list(audio_root.glob("*.pck"))
         if pck_files:
@@ -69,7 +78,7 @@ class BaseBrowserHandler:
         for subfolder in audio_root.iterdir():
             if not subfolder.is_dir():
                 continue
-            if not include_all_subdirs and subfolder.name not in language_mapping:
+            if not include_all_subdirs and subfolder.name not in known_dirs:
                 continue
             pck_files = list(subfolder.glob("*.pck"))
             if not pck_files:
@@ -85,7 +94,7 @@ class BaseBrowserHandler:
             for subfolder in persistent_root.iterdir():
                 if not subfolder.is_dir():
                     continue
-                if not include_all_subdirs and subfolder.name not in language_mapping:
+                if not include_all_subdirs and subfolder.name not in known_dirs:
                     continue
                 if subfolder.name in b.language_folders:
                     continue
@@ -137,7 +146,7 @@ class BaseBrowserHandler:
 
     @staticmethod
     def collect_pck_files(directory):
-        return sorted(Path(directory).glob("*.pck"), key=lambda p: p.name.lower())
+        return sorted(Path(directory).glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
 
     def include_pck_file(
         self,
