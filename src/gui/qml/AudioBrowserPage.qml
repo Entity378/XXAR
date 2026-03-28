@@ -887,8 +887,20 @@ Item {
                         height: 28
                         spacing: 0
 
+                        property real colAvail: parent.width - 40
+
                         Text {
-                            width: parent.width * 0.42
+                            width: 40
+                            text: "#"
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                        Text {
+                            width: treeHeader.colAvail * 0.42
                             text: qsTranslate("Application", "File")
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
@@ -897,7 +909,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                         }
                         Text {
-                            width: parent.width * 0.13
+                            width: treeHeader.colAvail * 0.13
                             text: qsTranslate("Application", "ID")
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
@@ -906,7 +918,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                         }
                         Rectangle {
-                            width: parent.width * 0.15
+                            width: treeHeader.colAvail * 0.15
                             height: parent.height
                             color: sizeHeaderMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
 
@@ -932,7 +944,7 @@ Item {
                             }
                         }
                         Rectangle {
-                            width: parent.width * 0.13
+                            width: treeHeader.colAvail * 0.13
                             height: parent.height
                             color: durationHeaderMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
 
@@ -958,7 +970,7 @@ Item {
                             }
                         }
                         Text {
-                            width: parent.width * 0.17
+                            width: treeHeader.colAvail * 0.17
                             text: qsTranslate("Application", "Type")
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
@@ -1015,84 +1027,113 @@ Item {
                             height: 30
                             property bool isHighlighted: highlightItemId !== "" && model.itemId === highlightItemId && model.pckPath === highlightPckPath
                             color: isHighlighted ? Qt.rgba(Theme.primaryAccent.r, Theme.primaryAccent.g, Theme.primaryAccent.b, 0.25)
-                                 : itemMouse.containsMouse ? Qt.lighter(Theme.surfaceDark, 1.4) : "transparent"
+                                 : itemMouse.containsMouse ? Qt.lighter(Theme.surfaceDark, 1.8) : "transparent"
                             radius: 4
                             Behavior on color { ColorAnimation { duration: 80 } }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: (index % 2 === 1) ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(1, 1, 1, 0.015)
+                                visible: !isHighlighted && !itemMouse.containsMouse
+                            }
 
                             property bool expanded: model.expanded || false
                             property int depth: model.depth || 0
 
                             Row {
                                 anchors.fill: parent
-                                anchors.leftMargin: Theme.spacingSmall + (depth * 20)
+                                anchors.leftMargin: Theme.spacingSmall
                                 spacing: 0
 
                                 Text {
-                                    width: 20
+                                    width: 40
                                     height: parent.height
-                                    text: model.hasChildren ? (treeItem.expanded ? "\u25BC" : "\u25B6") : ""
+                                    text: (index + 1)
                                     color: Theme.textSecondary
-                                    font.pixelSize: 10
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
                                     verticalAlignment: Text.AlignVCenter
                                     horizontalAlignment: Text.AlignHCenter
+                                    opacity: 0.6
                                 }
 
-                                Text {
-                                    width: (treeList.width - 20 - depth * 20) * 0.42
+                                Item {
+                                    width: parent.width - 40
                                     height: parent.height
-                                    text: {
 
-                                        if (model.itemType && model.itemType.indexOf("WEM") !== -1 && model.tags && model.tags !== "") {
-                                            return model.tags
+                                    Row {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: depth * 20
+                                        spacing: 0
+
+                                        Text {
+                                            width: 20
+                                            height: parent.height
+                                            text: model.hasChildren ? (treeItem.expanded ? "\u25BC" : "\u25B6") : ""
+                                            color: Theme.textSecondary
+                                            font.pixelSize: 10
+                                            verticalAlignment: Text.AlignVCenter
+                                            horizontalAlignment: Text.AlignHCenter
                                         }
-                                        return model.fileName || ""
+
+                                        Text {
+                                            width: (treeList.width - 40 - 20 - depth * 20) * 0.42
+                                            height: parent.height
+                                            text: {
+                                                if (model.itemType && model.itemType.indexOf("WEM") !== -1 && model.tags && model.tags !== "") {
+                                                    return model.tags
+                                                }
+                                                return model.fileName || ""
+                                            }
+                                            color: model.isModified ? Theme.primaryAccent : Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            width: (treeList.width - 40 - 20 - depth * 20) * 0.13
+                                            height: parent.height
+                                            text: model.itemId || ""
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            width: (treeList.width - 40 - 20 - depth * 20) * 0.15
+                                            height: parent.height
+                                            text: model.fileSize || ""
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        Text {
+                                            width: (treeList.width - 40 - 20 - depth * 20) * 0.13
+                                            height: parent.height
+                                            text: model.duration || ""
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        Text {
+                                            width: (treeList.width - 40 - 20 - depth * 20) * 0.17
+                                            height: parent.height
+                                            text: model.itemType || ""
+                                            color: Theme.textSecondary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
                                     }
-                                    color: model.isModified ? Theme.primaryAccent : Theme.textPrimary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    width: (treeList.width - 20 - depth * 20) * 0.13
-                                    height: parent.height
-                                    text: model.itemId || ""
-                                    color: Theme.textPrimary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    width: (treeList.width - 20 - depth * 20) * 0.15
-                                    height: parent.height
-                                    text: model.fileSize || ""
-                                    color: Theme.textPrimary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    width: (treeList.width - 20 - depth * 20) * 0.13
-                                    height: parent.height
-                                    text: model.duration || ""
-                                    color: Theme.textPrimary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    width: (treeList.width - 20 - depth * 20) * 0.17
-                                    height: parent.height
-                                    text: model.itemType || ""
-                                    color: Theme.textSecondary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    verticalAlignment: Text.AlignVCenter
                                 }
                             }
 
