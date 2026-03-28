@@ -25,13 +25,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
         return True
 
     @staticmethod
-    def format_pck_display_name(pck_file, directory):
-        try:
-            return str(pck_file.relative_to(directory)).replace("\\", "/")
-        except Exception:
-            return pck_file.name
-
-    @staticmethod
     def should_list_direct_wem(merge_wem_enabled):
         return True
 
