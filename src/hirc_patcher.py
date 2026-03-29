@@ -20,6 +20,7 @@ _SOURCE_ID_OFFSET_IN_SOURCE = 5  # after pluginID(4) + streamType(1)
 class TrackPatchInfo:
     source_id: int
     fSrcDuration_offset: int
+    clear_region_offset: int  # start of eventID+fPlayAt+fBeginTrim+fEndTrim (28 bytes to zero)
 
 
 @dataclass
@@ -126,17 +127,20 @@ def apply_duration_patches(file_path, targets, duration_ms_by_source):
     patched_source_ids = set()
 
     with open(file_path, "r+b") as f:
+        _zero_28 = b"\x00" * 28
         for track in targets.tracks:
             dur = duration_ms_by_source.get(track.source_id)
             if dur is None:
                 continue
             dur_bytes = struct.pack("<d", float(dur))
 
-            f.seek(track.fSrcDuration_offset)
-            if f.read(8) == dur_bytes:
+            f.seek(track.clear_region_offset)
+            existing = f.read(36)
+            if existing[:28] == _zero_28 and existing[28:] == dur_bytes:
                 continue
 
-            f.seek(track.fSrcDuration_offset)
+            f.seek(track.clear_region_offset)
+            f.write(_zero_28)
             f.write(dur_bytes)
             patched_offsets += 1
             patched_source_ids.add(track.source_id)
@@ -252,6 +256,7 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
                 TrackPatchInfo(
                     source_id=pl_source_id,
                     fSrcDuration_offset=p + _TRACK_SRC_DURATION_OFFSET_IN_ITEM,
+                    clear_region_offset=p + 8,  # eventID(4)+fPlayAt(8)+fBeginTrim(8)+fEndTrim(8) = 28 bytes
                 )
             )
         p += _TRACK_SRC_INFO_SIZE
