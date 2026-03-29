@@ -1731,7 +1731,7 @@ class AudioBrowserBridge(QObject):
                 display_file_id = self._tracker_display_file_id(tracker_key)
 
                 if info['file_type'] == 'bnk' and info.get('bnk_id'):
-                    display_type = f"WEM (in BNK {info['bnk_id']})"
+                    display_type = "WEM (in BNK)"
                     item_type = "wem_embedded"
                     bnk_id = str(info['bnk_id'])
                 else:

@@ -220,7 +220,7 @@ class BaseBrowserHandler:
     @classmethod
     def is_loop_entry_applicable(cls, pck_filename, repl_info):
         file_type = str((repl_info or {}).get("file_type", "")).lower()
-        return file_type == "wem"
+        return file_type in ("wem", "bnk")
 
     @classmethod
     def normalize_loop_mode(cls, mode):

@@ -28,7 +28,7 @@ class GIARBrowserHandler(BaseBrowserHandler):
         if not name.startswith("music"):
             return False
         file_type = str((repl_info or {}).get("file_type", "")).lower()
-        return file_type == "wem"
+        return file_type in ("wem", "bnk")
 
     @staticmethod
     def tracker_display_file_id(tracker_key):
