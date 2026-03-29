@@ -1809,41 +1809,23 @@ class AudioBrowserBridge(QObject):
             return
 
         try:
-            import shutil
             game = self._active_game()
             streaming_base = (
                 Path(self._audio_root)
                 if self._audio_root
                 else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
             )
-            persistent_base = Path(self.game_root_dir).joinpath(
+            persistent_path = Path(self.game_root_dir).joinpath(
                 *game.persistent_audio_subpath
             )
 
             # Always rebuild from a clean Persistent state when applying changes.
-            if persistent_base.exists():
+            if persistent_path.exists():
                 self.statusUpdate.emit(
                     QCoreApplication.translate(
                         "Application", "Cleaning up Persistent folder..."
                     )
                 )
-
-                # Restore any backed-up originals before cleaning
-                backup_dir = persistent_base / ".xxar_backups"
-                restored_files = set()
-                if backup_dir.exists():
-                    for bak in backup_dir.rglob("*.pck"):
-                        try:
-                            rel = bak.relative_to(backup_dir)
-                            target = persistent_base / rel
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(str(bak), str(target))
-                            restored_files.add(target.resolve())
-                        except Exception as e:
-                            print(f"[Audio Browser] Failed to restore backup {bak}: {e}")
-                    shutil.rmtree(str(backup_dir), ignore_errors=True)
-                    if restored_files:
-                        print(f"[Audio Browser] Restored {len(restored_files)} original file(s) from backup")
 
                 should_skip_cleanup_folder = getattr(
                     self._active_browser_handler,
@@ -1851,7 +1833,7 @@ class AudioBrowserBridge(QObject):
                     lambda folder, count: False,
                 )
                 lang_folders_to_skip = set()
-                for lang_folder in persistent_base.iterdir():
+                for lang_folder in persistent_path.iterdir():
                     if not lang_folder.is_dir():
                         continue
                     pck_count = len(list(lang_folder.glob("*.pck")))
@@ -1863,9 +1845,7 @@ class AudioBrowserBridge(QObject):
                         )
 
                 cleaned_files = 0
-                for pck_file in persistent_base.rglob("*.pck"):
-                    if pck_file.resolve() in restored_files:
-                        continue
+                for pck_file in persistent_path.rglob("*.pck"):
                     if any(
                         lang_folder in pck_file.parents
                         for lang_folder in lang_folders_to_skip
@@ -1919,51 +1899,12 @@ class AudioBrowserBridge(QObject):
                                 pck_file_path = candidate
                                 break
 
-                # Also search persistent path (e.g. HSR language folders)
-                if not pck_file_path.exists() and persistent_base.exists():
-                    candidate = persistent_base / pck_filename
-                    if candidate.exists():
-                        pck_file_path = candidate
-                    else:
-                        for subfolder in persistent_base.iterdir():
-                            if subfolder.is_dir() and subfolder.name != ".xxar_backups":
-                                candidate = subfolder / pck_filename
-                                if candidate.exists():
-                                    pck_file_path = candidate
-                                    break
-
                 if not pck_file_path.exists():
                     self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", pck_filename))
                     continue
 
-                # Check if source file lives in Persistent (not StreamingAssets)
-                is_persistent_source = False
-                try:
-                    pck_file_path.relative_to(persistent_base)
-                    is_persistent_source = True
-                except ValueError:
-                    pass
-
-                pck_source_for_packer = pck_file_path
-
-                if is_persistent_source:
-                    # Back up the original before overwriting
-                    backup_dir = persistent_base / ".xxar_backups"
-                    try:
-                        rel = pck_file_path.relative_to(persistent_base)
-                    except ValueError:
-                        rel = Path(pck_file_path.parent.name) / pck_file_path.name
-                    backup_path = backup_dir / rel
-                    if not backup_path.exists():
-                        backup_path.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(str(pck_file_path), str(backup_path))
-                        print(f"[Apply] Backed up original: {pck_file_path.name}")
-                    pck_source_for_packer = backup_path
-                    persistent_path = pck_file_path.parent
-                else:
-                    streaming_path = pck_file_path.parent
-                    persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
-
+                streaming_path = pck_file_path.parent
+                persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
                 persistent_path.mkdir(parents=True, exist_ok=True)
                 self.mod_manager.set_persistent_path(str(persistent_path))
 
@@ -1975,7 +1916,7 @@ class AudioBrowserBridge(QObject):
                     import os, stat
                     os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
 
-                packer = PCKPacker(str(pck_source_for_packer), str(output_pck))
+                packer = PCKPacker(str(pck_file_path), str(output_pck))
                 packer.load_original_pck()
 
                 print(f"[Apply] Packing {pck_filename}")
@@ -2241,7 +2182,6 @@ class AudioBrowserBridge(QObject):
         stats = self.mod_manager.get_stats()
 
         try:
-            import shutil
             cleaned_files = 0
 
             if self.game_root_dir:
@@ -2250,23 +2190,6 @@ class AudioBrowserBridge(QObject):
                     *game.persistent_audio_subpath
                 )
                 if persistent_path.exists():
-                    # Restore any backed-up originals before cleaning
-                    backup_dir = persistent_path / ".xxar_backups"
-                    restored_files = set()
-                    if backup_dir.exists():
-                        for bak in backup_dir.rglob("*.pck"):
-                            try:
-                                rel = bak.relative_to(backup_dir)
-                                target = persistent_path / rel
-                                target.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copy2(str(bak), str(target))
-                                restored_files.add(target.resolve())
-                            except Exception as e:
-                                print(f"[Audio Browser] Failed to restore backup {bak}: {e}")
-                        shutil.rmtree(str(backup_dir), ignore_errors=True)
-                        if restored_files:
-                            print(f"[Audio Browser] Restored {len(restored_files)} original file(s) from backup")
-
                     should_skip_cleanup_folder = getattr(
                         self._active_browser_handler,
                         "should_skip_persistent_cleanup_folder",
@@ -2285,8 +2208,6 @@ class AudioBrowserBridge(QObject):
                             )
 
                     for pck_file in persistent_path.rglob("*.pck"):
-                        if pck_file.resolve() in restored_files:
-                            continue
                         if any(
                             lang_folder in pck_file.parents
                             for lang_folder in lang_folders_to_skip
