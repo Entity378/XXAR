@@ -1,10 +1,12 @@
 import re
+import shutil
 import struct
 from pathlib import Path
 
 from PyQt5.QtCore import QCoreApplication
 
 from src.game_registry import get_game
+from src.hirc_patcher import apply_duration_patches, scan_bank_for_patch_targets
 
 
 def _natural_sort_key(value):
@@ -335,7 +337,79 @@ class BaseBrowserHandler:
         return None
 
     def apply_post_pack_steps(self, replacements):
-        return {"patched_files": 0, "patched_ids": 0}
+        if not self.game.loop_point_patching_supported:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        duration_ms_by_track = self._collect_loop_patch_targets(replacements)
+        if not duration_ms_by_track:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        streaming_root = (
+            Path(self.bridge._audio_root)
+            if self.bridge and self.bridge._audio_root
+            else None
+        )
+        if not streaming_root or not streaming_root.exists():
+            raise FileNotFoundError(
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not locate Streaming AudioAssets folder.",
+                )
+            )
+
+        bank_files = self._find_bank_pck_files(streaming_root)
+        if not bank_files:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        source_ids = set(duration_ms_by_track.keys())
+        patched_file_count = 0
+        patched_track_ids = set()
+
+        for bank_source in bank_files:
+            bank_target_dir = Path(
+                str(bank_source.parent).replace("StreamingAssets", "Persistent")
+            )
+            bank_target_dir.mkdir(parents=True, exist_ok=True)
+            bank_target = bank_target_dir / bank_source.name
+
+            scan_source = bank_target if bank_target.exists() else bank_source
+            try:
+                content = scan_source.read_bytes()
+            except Exception:
+                continue
+
+            targets = scan_bank_for_patch_targets(content, source_ids)
+            if not targets.tracks and not targets.segments:
+                continue
+
+            if not bank_target.exists():
+                shutil.copy2(bank_source, bank_target)
+
+            result = apply_duration_patches(
+                bank_target, targets, duration_ms_by_track
+            )
+            if result["patched_offsets"] <= 0:
+                continue
+
+            patched_file_count += 1
+            patched_track_ids.update(result["patched_source_ids"])
+
+        result = {
+            "patched_files": patched_file_count,
+            "patched_ids": len(patched_track_ids),
+        }
+        if result["patched_files"] > 0:
+            label = self.game.short_label
+            self._emit_status(
+                QCoreApplication.translate(
+                    "Application",
+                    "%3 loop points patched in %1 bank file(s) for %2 track ID(s).",
+                )
+                .replace("%1", str(result["patched_files"]))
+                .replace("%2", str(result["patched_ids"]))
+                .replace("%3", label)
+            )
+        return result
 
     @classmethod
     def apply_post_mod_manager_steps(
@@ -346,4 +420,167 @@ class BaseBrowserHandler:
         resolved_pck_names=None,
         status_callback=None,
     ):
-        return {"patched_files": 0, "patched_ids": 0}
+        handler = cls(bridge=None, status_callback=status_callback)
+        if not handler.game.loop_point_patching_supported:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        duration_ms_by_track = handler._collect_loop_patch_targets(replacements)
+        if not duration_ms_by_track:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        streaming_root = Path(streaming_root) if streaming_root else None
+        persistent_root = Path(persistent_root) if persistent_root else None
+        if not streaming_root or not streaming_root.exists():
+            raise FileNotFoundError(
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not locate Streaming AudioAssets folder.",
+                )
+            )
+        if not persistent_root:
+            raise FileNotFoundError(
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not locate Persistent AudioAssets folder.",
+                )
+            )
+
+        resolved_names = {
+            str(Path(name).name).lower()
+            for name in (resolved_pck_names or [])
+            if str(name).strip()
+        }
+
+        bank_files = handler._find_bank_pck_files(streaming_root)
+        if not bank_files:
+            return {"patched_files": 0, "patched_ids": 0}
+
+        source_ids = set(duration_ms_by_track.keys())
+        patched_file_count = 0
+        patched_track_ids = set()
+
+        for bank_source in bank_files:
+            try:
+                rel_parent = bank_source.parent.relative_to(streaming_root)
+            except Exception:
+                rel_parent = Path()
+
+            bank_target_dir = persistent_root / rel_parent
+            bank_target_dir.mkdir(parents=True, exist_ok=True)
+            bank_target = bank_target_dir / bank_source.name
+
+            if bank_target.exists() and bank_source.name.lower() in resolved_names:
+                base_file = bank_target
+            else:
+                base_file = bank_source
+
+            try:
+                content = base_file.read_bytes()
+            except Exception:
+                continue
+
+            targets = scan_bank_for_patch_targets(content, source_ids)
+            if not targets.tracks and not targets.segments:
+                continue
+
+            if base_file != bank_target:
+                shutil.copy2(base_file, bank_target)
+
+            result = apply_duration_patches(
+                bank_target, targets, duration_ms_by_track
+            )
+            if result["patched_offsets"] <= 0:
+                continue
+
+            patched_file_count += 1
+            patched_track_ids.update(result["patched_source_ids"])
+
+        result = {
+            "patched_files": patched_file_count,
+            "patched_ids": len(patched_track_ids),
+        }
+        if result["patched_files"] > 0:
+            label = handler.game.short_label
+            handler._emit_status(
+                QCoreApplication.translate(
+                    "Application",
+                    "%3 loop points patched in %1 bank file(s) for %2 track ID(s).",
+                )
+                .replace("%1", str(result["patched_files"]))
+                .replace("%2", str(result["patched_ids"]))
+                .replace("%3", label)
+            )
+        return result
+
+    def _find_bank_pck_files(self, audio_root):
+        prefix = self.game.soundbank_pck_prefix.lower()
+        return [
+            p
+            for p in sorted(
+                audio_root.glob("*.pck"), key=lambda p: _natural_sort_key(p.name)
+            )
+            if p.name.lower().startswith(prefix)
+        ]
+
+    def _collect_loop_patch_targets(self, replacements):
+        duration_ms_by_track = {}
+        missing_durations = []
+        invalid_manual = []
+
+        for pck_filename, files in (replacements or {}).items():
+            for tracker_key, repl_info in (files or {}).items():
+                if not self.is_loop_entry_applicable(pck_filename, repl_info):
+                    continue
+
+                track_id = self._extract_tracker_file_id(tracker_key)
+                if track_id is None:
+                    continue
+
+                loop_mode = self.normalize_loop_mode(
+                    repl_info.get("loop_point_mode", "auto")
+                )
+                if loop_mode == "disabled":
+                    continue
+
+                if loop_mode == "manual":
+                    manual_ms = self.normalize_loop_manual_ms(
+                        repl_info.get("loop_point_manual_ms", 0)
+                    )
+                    if manual_ms <= 0:
+                        manual_ms = self._get_suggested_manual_ms(repl_info)
+                        if manual_ms <= 0:
+                            invalid_manual.append(str(track_id))
+                            continue
+                    duration_ms_by_track[track_id] = float(manual_ms)
+                    continue
+
+                wem_path = Path(str(repl_info.get("wem_path", "")))
+                if not wem_path.exists():
+                    missing_durations.append(str(track_id))
+                    continue
+
+                duration_ms = self._get_wem_duration_ms(wem_path)
+                if duration_ms is None:
+                    missing_durations.append(str(track_id))
+                    continue
+                duration_ms_by_track[track_id] = float(duration_ms)
+
+        if invalid_manual:
+            self._emit_status(
+                QCoreApplication.translate(
+                    "Application",
+                    "Loop point Manual mode ignored for %1 track(s) with invalid manual duration.",
+                ).replace("%1", str(len(invalid_manual)))
+            )
+
+        if missing_durations:
+            unique_missing = list(dict.fromkeys(missing_durations))
+            self._emit_status(
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not determine duration for %1 track(s): %2",
+                )
+                .replace("%1", str(len(unique_missing)))
+                .replace("%2", ", ".join(unique_missing[:8]))
+            )
+        return duration_ms_by_track

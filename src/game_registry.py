@@ -60,6 +60,8 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         check_streaming_pairing=True,
         merge_wem_default=True,
         hide_useless_pck_default=True,
+        loop_point_patching_supported=True,
+        loop_point_modes=("auto", "manual", "disabled"),
     ),
     GameDefinition(
         id="genshin",
@@ -118,6 +120,8 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         non_language_tabs=("Full", "Common", "SFX"),
         merge_wem_default=False,
         hide_useless_pck_default=False,
+        loop_point_patching_supported=True,
+        loop_point_modes=("auto", "manual", "disabled"),
     ),
 )
 
