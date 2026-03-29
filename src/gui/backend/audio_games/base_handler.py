@@ -517,7 +517,7 @@ class BaseBrowserHandler:
         return [
             p
             for p in sorted(
-                audio_root.glob("*.pck"), key=lambda p: _natural_sort_key(p.name)
+                audio_root.rglob("*.pck"), key=lambda p: _natural_sort_key(p.name)
             )
             if p.name.lower().startswith(prefix)
         ]
