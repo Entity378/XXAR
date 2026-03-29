@@ -501,8 +501,17 @@ class SettingsConnector:
         if self.settings_page:
             self.settings_page.setProperty("isAutoDetecting", True)
 
+        game_id = self._get_selected_or_detected_game_id(
+            self.settings_page.property("gameDirectory") if self.settings_page else ""
+        )
+        game = get_game(game_id)
+
         from gui.main_qml import AutoDetectWorker
-        self.auto_detect_worker = AutoDetectWorker(platform.system())
+        self.auto_detect_worker = AutoDetectWorker(
+            platform.system(),
+            install_dir_name=game.install_dir_name,
+            data_dir_name=game.data_dir_name,
+        )
         self.auto_detect_worker.found.connect(self.on_auto_detect_found_settings)
         self.auto_detect_worker.notFound.connect(self.on_auto_detect_not_found_settings)
         self.auto_detect_worker.start()
@@ -1012,8 +1021,17 @@ class SettingsConnector:
         if self.welcome_dialog:
             self.welcome_dialog.setProperty("isAutoDetecting", True)
 
+        game_id = self._get_selected_or_detected_game_id(
+            self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
+        )
+        game = get_game(game_id)
+
         from gui.main_qml import AutoDetectWorker
-        self.auto_detect_worker = AutoDetectWorker(platform.system())
+        self.auto_detect_worker = AutoDetectWorker(
+            platform.system(),
+            install_dir_name=game.install_dir_name,
+            data_dir_name=game.data_dir_name,
+        )
         self.auto_detect_worker.found.connect(self.on_auto_detect_found_welcome)
         self.auto_detect_worker.notFound.connect(self.on_auto_detect_not_found_welcome)
         self.auto_detect_worker.start()

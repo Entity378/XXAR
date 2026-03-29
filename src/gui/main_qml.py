@@ -54,30 +54,45 @@ class AutoDetectWorker(QThread):
     found = pyqtSignal(str)
     notFound = pyqtSignal()
 
-    def __init__(self, system_type):
+    def __init__(self, system_type, install_dir_name=None, data_dir_name=None):
         super().__init__()
         self.system_type = system_type
+        self._install_dir = install_dir_name
+        self._data_dir = data_dir_name
 
     def run(self):
+        install_dir = self._install_dir
+        data_dir = self._data_dir
+
+        if install_dir and data_dir:
+            install_subdirs = [
+                f"Program Files/HoYoPlay/games/{install_dir}",
+                f"Program Files (x86)/HoYoPlay/games/{install_dir}",
+            ]
+            home_subdir = f"Games/{install_dir}"
+        else:
+            install_subdirs = GAME_INSTALL_SUBDIRS
+            home_subdir = GAME_INSTALL_HOME_SUBDIR
+            data_dir = GAME_DATA_FOLDER
 
         if self.system_type == "Windows":
 
             search_paths = (
-                [Path(f"{drive}:/{sub}") for drive in "CDEFGH" for sub in GAME_INSTALL_SUBDIRS]
-                + [Path.home() / GAME_INSTALL_HOME_SUBDIR]
+                [Path(f"{drive}:/{sub}") for drive in "CDEFGH" for sub in install_subdirs]
+                + [Path.home() / home_subdir]
             )
 
             for base_path in search_paths:
-                game_data_dir = base_path / GAME_DATA_FOLDER
+                game_data_dir = base_path / data_dir
                 if game_data_dir.exists() and (game_data_dir / "StreamingAssets").exists():
                     self.found.emit(str(game_data_dir))
                     return
         else:
 
-            print(f"[{APP_NAME}] Searching for {GAME_DATA_FOLDER_SEARCH} from root directory...")
+            print(f"[{APP_NAME}] Searching for {data_dir} from root directory...")
             try:
                 result = subprocess.run(
-                    ["find", "/", "-name", GAME_DATA_FOLDER_SEARCH, "-type", "d"],
+                    ["find", "/", "-name", data_dir, "-type", "d"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                     text=True,
