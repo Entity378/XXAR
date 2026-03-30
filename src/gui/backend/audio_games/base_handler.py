@@ -181,6 +181,11 @@ class BaseBrowserHandler:
     def should_skip_persistent_cleanup_folder(lang_folder, pck_count):
         return False
 
+    @staticmethod
+    def restore_persistent_originals(persistent_path):
+        # This in for games like HSR (VOs handling)
+        return False
+
     def _emit_status(self, message):
         if not message:
             return

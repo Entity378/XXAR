@@ -771,6 +771,14 @@ class ModManagerBridge(QObject):
                 except Exception as e:
                     print(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
 
+            # Restore backed-up originals into Persistent (e.g. HSR VO).
+            if self.persistent_dir:
+                try:
+                    handler_cls = get_browser_handler_class(self.active_game_id)
+                    handler_cls.restore_persistent_originals(Path(self.persistent_dir))
+                except Exception as e:
+                    print(f"[Mod Manager] Warning: Failed to restore persistent originals: {e}")
+
             self.progressUpdate.emit("Applying mods...")
 
             def progress_callback(message, current, total):
@@ -783,6 +791,17 @@ class ModManagerBridge(QObject):
                 progress_callback,
                 conflict_preferences=self.conflict_preferences
             )
+
+            # Save patched hashes so the next game-update backup can
+            # distinguish our patches from real game updates (HSR VO).
+            if self.persistent_dir:
+                handler_cls = get_browser_handler_class(self.active_game_id)
+                save_fn = getattr(handler_cls, "save_patched_hashes", None)
+                if save_fn:
+                    try:
+                        save_fn(Path(self.persistent_dir))
+                    except Exception as e:
+                        print(f"[Mod Manager] Warning: Failed to save patched hashes: {e}")
 
             print("[Mod Manager] Mods applied successfully!")
             self.progressUpdate.emit("Mods applied successfully!")
