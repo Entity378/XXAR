@@ -106,16 +106,28 @@ class SettingsConnector:
         # Heavy work — background thread (glob, scan, refresh).
         threading.Thread(
             target=self._switch_active_game_heavy,
-            args=(target_game_id,),
+            args=(target_game_id, game_data_dir),
             daemon=True,
         ).start()
 
         return target_game_id, game_data_dir
 
-    def _switch_active_game_heavy(self, target_game_id):
+    def _switch_active_game_heavy(self, target_game_id, game_data_dir):
         try:
             if self.audio_browser_bridge:
-                self.audio_browser_bridge.loadFromSettings()
+                if game_data_dir:
+                    self.audio_browser_bridge.loadFromSettings()
+                else:
+                    # No directory configured — clear the browser.
+                    self.audio_browser_bridge._index_cancel.set()
+                    self.audio_browser_bridge.treeCleared.emit()
+                    self.audio_browser_bridge.languageTabsReady.emit([])
+                    self.audio_browser_bridge.statusUpdate.emit(
+                        QCoreApplication.translate(
+                            "Application",
+                            "No game directory configured. Set it in Settings.",
+                        )
+                    )
             if self.mod_manager_bridge:
                 self.mod_manager_bridge.load_settings()
                 self.mod_manager_bridge.refreshMods()
