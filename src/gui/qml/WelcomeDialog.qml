@@ -19,8 +19,14 @@ Item {
     property bool audioToolsInstalled: false
     property bool isInstallingAudioTools: false
     property bool isAutoDetecting: false
+    property string selectedGame: ""
+    property var selectedGames: []
+    property int gameSetupIndex: 0
+    property var gameDirectories: ({})
+    property string currentGameDisplayName: ""
 
     signal modeSelected(string mode)
+    signal gameSelected(string gameId)
     signal welcomeLanguageChanged(string langCode)
     signal browseGameDirClicked()
     signal autoDetectClicked()
@@ -91,10 +97,11 @@ Item {
             }
 
             Text {
-                text: currentPage === 1 ? qsTranslate("Application", "Choose how you want to use %1").replace("%1", appName) :
-                        currentPage === 2 ? qsTranslate("Application", "Let's set up your game directory") :
-                        currentPage === 3 ? qsTranslate("Application", "Set up Wwise for mod creation") :
-                        currentPage === 4 ? qsTranslate("Application", "Install audio conversion tools") :
+                text: currentPage === 1 ? qsTranslate("Application", "Which game do you want to mod?") :
+                        currentPage === 2 ? qsTranslate("Application", "Choose how you want to use %1").replace("%1", appName) :
+                        currentPage === 3 ? qsTranslate("Application", "Let's set up your game directory") + (selectedGames.length > 1 ? " — " + currentGameDisplayName : "") :
+                        currentPage === 4 ? qsTranslate("Application", "Set up Wwise for mod creation") :
+                        currentPage === 5 ? qsTranslate("Application", "Install audio conversion tools") :
                         qsTranslate("Application", "Everything looks good!")
 
                 color: "#aaaaaa"
@@ -109,9 +116,9 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 Repeater {
-                    model: (selectedMode === "maker" && Qt.platform.os === "windows") ? 5 : (selectedMode === "maker" ? 4 : 3)
+                    model: (selectedMode === "maker" && Qt.platform.os === "windows") ? 6 : (selectedMode === "maker" ? 5 : 4)
                     Rectangle {
-                        width: (selectedMode === "maker" && Qt.platform.os === "windows") ? 104 : (selectedMode === "maker" ? 130 : 180)
+                        width: (selectedMode === "maker" && Qt.platform.os === "windows") ? 86 : (selectedMode === "maker" ? 108 : 140)
                         height: 6
                         radius: 3
                         color: index < currentPage ? Theme.primaryAccent : "#3c3d3f"
@@ -131,6 +138,182 @@ Item {
                 height: parent.height - 220
                 currentIndex: currentPage - 1
 
+                // Page 1: Game selection (multi-select)
+                Item {
+                    function toggleGame(gameId) {
+                        var games = selectedGames.slice()
+                        var idx = games.indexOf(gameId)
+                        if (idx === -1) {
+                            games.push(gameId)
+                        } else {
+                            games.splice(idx, 1)
+                        }
+                        selectedGames = games
+                    }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 20
+
+                        Rectangle {
+                            id: zzzCard
+                            property bool isSelected: selectedGames.indexOf("zzz") !== -1
+                            width: 180
+                            height: Math.max(220, zzzColumn.implicitHeight + 40)
+                            color: zzzMouseArea.containsMouse || isSelected ? "#2a2a2a" : "#1a1a1a"
+                            radius: 15
+                            border.color: isSelected ? "#d8fa00" : (zzzMouseArea.containsMouse ? "#d8fa00" : "#3c3d3f")
+                            border.width: isSelected ? 3 : 2
+                            scale: zzzMouseArea.pressed ? 0.97 : (zzzMouseArea.containsMouse ? 1.03 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+                            Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.animationDuration } }
+
+                            Rectangle {
+                                width: 24; height: 24; radius: 12
+                                color: "#d8fa00"
+                                visible: zzzCard.isSelected
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.margins: 10
+                                Text { anchors.centerIn: parent; text: "\u2713"; color: "#000000"; font.pixelSize: 14; font.bold: true }
+                            }
+
+                            Column {
+                                id: zzzColumn
+                                anchors.centerIn: parent
+                                spacing: 15
+
+                                Rectangle {
+                                    width: 80; height: 80; radius: 40
+                                    color: "#d8fa00"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    Text { anchors.centerIn: parent; text: "ZZZ"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22 }
+                                }
+
+                                Text {
+                                    text: "Zenless Zone Zero"
+                                    color: "#ffffff"; font.family: "Audiowide"; font.pixelSize: 16
+                                    width: 160; wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: zzzMouseArea
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: parent.parent.parent.toggleGame("zzz")
+                            }
+                        }
+
+                        Rectangle {
+                            id: genshinCard
+                            property bool isSelected: selectedGames.indexOf("genshin") !== -1
+                            width: 180
+                            height: Math.max(220, genshinColumn.implicitHeight + 40)
+                            color: genshinMouseArea.containsMouse || isSelected ? "#2a2a2a" : "#1a1a1a"
+                            radius: 15
+                            border.color: isSelected ? "#34c27a" : (genshinMouseArea.containsMouse ? "#34c27a" : "#3c3d3f")
+                            border.width: isSelected ? 3 : 2
+                            scale: genshinMouseArea.pressed ? 0.97 : (genshinMouseArea.containsMouse ? 1.03 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+                            Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.animationDuration } }
+
+                            Rectangle {
+                                width: 24; height: 24; radius: 12
+                                color: "#34c27a"
+                                visible: genshinCard.isSelected
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.margins: 10
+                                Text { anchors.centerIn: parent; text: "\u2713"; color: "#000000"; font.pixelSize: 14; font.bold: true }
+                            }
+
+                            Column {
+                                id: genshinColumn
+                                anchors.centerIn: parent
+                                spacing: 15
+
+                                Rectangle {
+                                    width: 80; height: 80; radius: 40
+                                    color: "#34c27a"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    Text { anchors.centerIn: parent; text: "GI"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 26 }
+                                }
+
+                                Text {
+                                    text: "Genshin Impact"
+                                    color: "#ffffff"; font.family: "Audiowide"; font.pixelSize: 16
+                                    width: 160; wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: genshinMouseArea
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: parent.parent.parent.toggleGame("genshin")
+                            }
+                        }
+
+                        Rectangle {
+                            id: hsrCard
+                            property bool isSelected: selectedGames.indexOf("hsr") !== -1
+                            width: 180
+                            height: Math.max(220, hsrColumn.implicitHeight + 40)
+                            color: hsrMouseArea.containsMouse || isSelected ? "#2a2a2a" : "#1a1a1a"
+                            radius: 15
+                            border.color: isSelected ? "#3f9ec3" : (hsrMouseArea.containsMouse ? "#3f9ec3" : "#3c3d3f")
+                            border.width: isSelected ? 3 : 2
+                            scale: hsrMouseArea.pressed ? 0.97 : (hsrMouseArea.containsMouse ? 1.03 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+                            Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.animationDuration } }
+
+                            Rectangle {
+                                width: 24; height: 24; radius: 12
+                                color: "#3f9ec3"
+                                visible: hsrCard.isSelected
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.margins: 10
+                                Text { anchors.centerIn: parent; text: "\u2713"; color: "#000000"; font.pixelSize: 14; font.bold: true }
+                            }
+
+                            Column {
+                                id: hsrColumn
+                                anchors.centerIn: parent
+                                spacing: 15
+
+                                Rectangle {
+                                    width: 80; height: 80; radius: 40
+                                    color: "#3f9ec3"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    Text { anchors.centerIn: parent; text: "HSR"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22 }
+                                }
+
+                                Text {
+                                    text: "Honkai Star Rail"
+                                    color: "#ffffff"; font.family: "Audiowide"; font.pixelSize: 16
+                                    width: 160; wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: hsrMouseArea
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: parent.parent.parent.toggleGame("hsr")
+                            }
+                        }
+                    }
+                }
+
+                // Page 2: Mode selection
                 Item {
                     Row {
                         anchors.centerIn: parent
@@ -192,7 +375,7 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     selectedMode = "install"
-                                    currentPage = 2
+                                    currentPage = 3
                                 }
                             }
                         }
@@ -253,7 +436,7 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     selectedMode = "maker"
-                                    currentPage = 2
+                                    currentPage = 3
                                 }
                             }
                         }
@@ -283,7 +466,9 @@ Item {
                                 spacing: 15
 
                                 Text {
-                                    text: qsTranslate("Application", "Game Directory")
+                                    text: selectedGames.length > 1 ?
+                                        (currentGameDisplayName || qsTranslate("Application", "Game Directory")) + "  (" + (gameSetupIndex + 1) + "/" + selectedGames.length + ")" :
+                                        qsTranslate("Application", "Game Directory")
                                     color: Theme.primaryAccent
                                     font.family: "Audiowide"
                                     font.pixelSize: 20
@@ -848,11 +1033,11 @@ Item {
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 15
-                visible: currentPage > 1
 
                 Rectangle {
+                    visible: currentPage > 1
                     width: 120
-                    height: 50
+                    height: visible ? 50 : 0
                     radius: Theme.radiusMedium
                     color: backMouse.containsMouse ? "#333333" : Theme.surfaceColor
                     scale: backMouse.pressed ? 0.97 : (backMouse.containsMouse ? 1.03 : 1.0)
@@ -873,11 +1058,31 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            // Page 3 with multi-game: go back to previous game or to mode page
+                            if (currentPage === 3) {
+                                var dirs = gameDirectories
+                                dirs[selectedGames[gameSetupIndex]] = gameDirectory
+                                gameDirectories = dirs
 
-                            if (selectedMode === "install" && currentPage === 5) {
+                                if (gameSetupIndex > 0) {
+                                    gameSetupIndex--
+                                    var prevGame = selectedGames[gameSetupIndex]
+                                    selectedGame = prevGame
+                                    gameSelected(prevGame)
+                                    setGameDirectory(gameDirectories[prevGame] || "")
+                                    return
+                                }
                                 currentPage = 2
-                            } else if (selectedMode === "maker" && currentPage === 5 && Qt.platform.os !== "windows") {
+                            } else if (selectedMode === "install" && currentPage === 6) {
+                                // Back to last game's directory page
+                                gameSetupIndex = selectedGames.length - 1
+                                var lastGame = selectedGames[gameSetupIndex]
+                                selectedGame = lastGame
+                                gameSelected(lastGame)
+                                setGameDirectory(gameDirectories[lastGame] || "")
                                 currentPage = 3
+                            } else if (selectedMode === "maker" && currentPage === 6 && Qt.platform.os !== "windows") {
+                                currentPage = 4
                             } else {
                                 currentPage = currentPage - 1
                             }
@@ -886,19 +1091,25 @@ Item {
                 }
 
                 Rectangle {
+                    property bool canContinue: {
+                        if (currentPage === 1) return selectedGames.length > 0
+                        if (currentPage === 2) return selectedMode !== ""
+                        return true
+                    }
                     width: 150
                     height: 50
                     radius: Theme.radiusMedium
-                    color: continueMouse.pressed ? Theme.accentDark : (continueMouse.containsMouse ? Theme.accentLight : Theme.primaryAccent)
-                    scale: continueMouse.pressed ? 0.97 : (continueMouse.containsMouse ? 1.03 : 1.0)
+                    opacity: canContinue ? 1.0 : 0.4
+                    color: !canContinue ? "#555555" : continueMouse.pressed ? Theme.accentDark : (continueMouse.containsMouse ? Theme.accentLight : Theme.primaryAccent)
+                    scale: continueMouse.pressed && canContinue ? 0.97 : (continueMouse.containsMouse && canContinue ? 1.03 : 1.0)
                     Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
                     Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.animationDuration } }
 
                     Text {
                         anchors.centerIn: parent
-
-                        text: currentPage === 5 ? qsTranslate("Application", "Start Tutorial") : qsTranslate("Application", "Continue >")
-                        color: Theme.textOnAccent
+                        text: currentPage === 6 ? qsTranslate("Application", "Start Tutorial") : qsTranslate("Application", "Continue >")
+                        color: parent.canContinue ? Theme.textOnAccent : "#999999"
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeMedium
                     }
@@ -906,32 +1117,65 @@ Item {
                     MouseArea {
                         id: continueMouse
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: parent.canContinue
+                        cursorShape: parent.canContinue ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: {
+                            if (!parent.canContinue) return
+
+                            // Page 1: Game selection → Mode selection
+                            if (currentPage === 1) {
+                                selectedGame = selectedGames[0]
+                                gameSelected(selectedGames[0])
+                                gameSetupIndex = 0
+                                currentPage = 2
+                                return
+                            }
+
+                            // Page 3: Game directory — cycle through selected games
+                            if (currentPage === 3) {
+                                // Save current game's directory
+                                var dirs = gameDirectories
+                                var curGame = selectedGames[gameSetupIndex]
+                                dirs[curGame] = gameDirectory
+                                gameDirectories = dirs
+
+                                if (gameSetupIndex < selectedGames.length - 1) {
+                                    // Next game
+                                    gameSetupIndex++
+                                    var nextGame = selectedGames[gameSetupIndex]
+                                    selectedGame = nextGame
+                                    gameSelected(nextGame)
+                                    setGameDirectory(gameDirectories[nextGame] || "")
+                                    return
+                                }
+
+                                // All games done — advance
+                                if (selectedMode === "install") {
+                                    currentPage = 6
+                                } else {
+                                    currentPage = 4
+                                    checkWwiseClicked()
+                                }
+                                return
+                            }
+
                             if (selectedMode === "install") {
-                                if (currentPage === 2) {
-                                    currentPage = 5
-                                } else if (currentPage === 5) {
+                                if (currentPage === 6) {
                                     startTutorialClicked()
                                     modeSelected(selectedMode)
                                     hide()
                                 }
                             } else if (selectedMode === "maker") {
-                                if (currentPage === 2) {
-                                    currentPage = 3
-                                    checkWwiseClicked()
-                                } else if (currentPage === 3) {
-
+                                if (currentPage === 4) {
                                     if (Qt.platform.os === "windows") {
-                                        currentPage = 4
+                                        currentPage = 5
                                         checkAudioToolsClicked()
                                     } else {
-                                        currentPage = 5
+                                        currentPage = 6
                                     }
-                                } else if (currentPage === 4) {
-                                    currentPage = 5
                                 } else if (currentPage === 5) {
+                                    currentPage = 6
+                                } else if (currentPage === 6) {
                                     startTutorialClicked()
                                     modeSelected(selectedMode)
                                     hide()
@@ -1095,7 +1339,12 @@ Item {
         visible = true
         currentPage = 1
         selectedMode = ""
+        selectedGame = ""
+        selectedGames = []
+        gameSetupIndex = 0
+        gameDirectories = ({})
         gameDirectory = ""
+        currentGameDisplayName = ""
     }
 
     function hide() {

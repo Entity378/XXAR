@@ -1,9 +1,10 @@
 from PyQt5.QtCore import QCoreApplication
 import json
 import platform
+import threading
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 
 from gui.backend.native_dialogs import NativeDialogs
@@ -30,6 +31,8 @@ from src.game_registry import (
 
 
 class SettingsConnector:
+    _swap_in_progress = False
+
     def _set_root_active_game_props(self, game_id):
         if not self.root:
             return
@@ -82,6 +85,7 @@ class SettingsConnector:
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=2)
 
+        # Light UI updates — instant, main thread.
         if self.settings_page:
             self.settings_page.setProperty(
                 "defaultModsDirectory", str(get_game_mod_library_dir(target_game_id))
@@ -97,29 +101,51 @@ class SettingsConnector:
                 Q_ARG("QVariant", game_data_dir),
             )
 
-        if self.audio_browser_bridge:
-            self.audio_browser_bridge.loadFromSettings()
-        if self.mod_manager_bridge:
-            self.mod_manager_bridge.load_settings()
-            self.mod_manager_bridge.refreshMods()
-        if self.gamebanana_bridge:
-            self.gamebanana_bridge.set_active_game(target_game_id, reload=False)
-            if self.gamebanana_page:
-                QMetaObject.invokeMethod(
-                    self.gamebanana_page,
-                    "reloadForActiveGame",
-                    Qt.QueuedConnection,
-                )
-            else:
-                self.gamebanana_bridge.refresh()
-
         self._set_root_active_game_props(target_game_id)
+
+        # Heavy work — background thread (glob, scan, refresh).
+        threading.Thread(
+            target=self._switch_active_game_heavy,
+            args=(target_game_id,),
+            daemon=True,
+        ).start()
+
         return target_game_id, game_data_dir
 
-    def on_swap_game_requested(self):
+    def _switch_active_game_heavy(self, target_game_id):
         try:
+            if self.audio_browser_bridge:
+                self.audio_browser_bridge.loadFromSettings()
+            if self.mod_manager_bridge:
+                self.mod_manager_bridge.load_settings()
+                self.mod_manager_bridge.refreshMods()
+            if self.gamebanana_bridge:
+                self.gamebanana_bridge.set_active_game(target_game_id, reload=False)
+                if self.gamebanana_page:
+                    QMetaObject.invokeMethod(
+                        self.gamebanana_page,
+                        "reloadForActiveGame",
+                        Qt.QueuedConnection,
+                    )
+                else:
+                    self.gamebanana_bridge.refresh()
+        except Exception as e:
+            print(f"[Settings] Background game switch error: {e}")
+
+    def on_swap_game_requested(self):
+        if self._swap_in_progress:
+            return
+
+        self._swap_in_progress = True
+        try:
+            # Cancel any running indexing immediately.
+            if self.audio_browser_bridge:
+                self.audio_browser_bridge._index_cancel.set()
+
             settings = self.load_settings()
-            current = normalize_game_id(settings.get("selected_game", DEFAULT_GAME_ID))
+            current = normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
             next_game = self._cycle_game_id(current)
             active_game_id, game_data_dir = self._switch_active_game(next_game)
             active_game = get_game(active_game_id)
@@ -150,6 +176,12 @@ class SettingsConnector:
                     QCoreApplication.translate("Application", "Failed to swap game: %1").replace("%1", str(e)),
                 ),
             )
+        finally:
+            # Unlock after 1 second cooldown.
+            QTimer.singleShot(1000, self._unlock_swap)
+
+    def _unlock_swap(self):
+        self._swap_in_progress = False
 
     def _store_game_data_dir_settings(self, settings, game_data_dir, set_active=False):
         if not game_data_dir:
@@ -258,6 +290,7 @@ class SettingsConnector:
             return
 
         self.welcome_dialog.modeSelected.connect(self.on_welcome_mode_selected)
+        self.welcome_dialog.gameSelected.connect(self.on_welcome_game_selected)
         self.welcome_dialog.browseGameDirClicked.connect(self.on_welcome_browse_game_dir)
         self.welcome_dialog.autoDetectClicked.connect(self.on_welcome_auto_detect)
         self.welcome_dialog.checkWwiseClicked.connect(
@@ -579,7 +612,8 @@ class SettingsConnector:
         # Propagate thumbnailsEnabled to the GameBanana page immediately
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
-            gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))        saved_game = self._store_game_data_dir_settings(
+            gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))
+        saved_game = self._store_game_data_dir_settings(
             settings, game_path, set_active=True
         )
         if saved_game:
@@ -893,6 +927,16 @@ class SettingsConnector:
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", pck_name).replace("%2", str(e))),
             )
 
+    def on_welcome_game_selected(self, game_id):
+        game_id = normalize_game_id(game_id)
+        print(f"[{APP_NAME}] User selected game: {game_id}")
+        self._set_root_active_game_props(game_id)
+        if self.welcome_dialog:
+            game = get_game(game_id)
+            self.welcome_dialog.setProperty(
+                "currentGameDisplayName", game.display_name
+            )
+
     def on_welcome_mode_selected(self, mode):
         print(f"[{APP_NAME}] User selected mode: {mode}")
 
@@ -905,17 +949,39 @@ class SettingsConnector:
             settings["mod_creation_mode"] = (mode == "maker")
             settings["first_launch_complete"] = True
 
-            game_dir = self.welcome_dialog.property("gameDirectory")
-            active_game_id = None
-            if game_dir:
-                active_game_id = self._store_game_data_dir_settings(
-                    settings, game_dir, set_active=True
-                )
-            if not active_game_id:
-                active_game_id = normalize_game_id(
-                    settings.get("selected_game", DEFAULT_GAME_ID)
-                )
-                game_dir = self._get_saved_game_data_dir(settings, active_game_id)
+            # Read multi-game selections from the welcome dialog
+            # QML var properties arrive as QJSValue; call toVariant() first.
+            selected_games = []
+            game_dirs_map = {}
+            if self.welcome_dialog:
+                sg = self.welcome_dialog.property("selectedGames")
+                if hasattr(sg, "toVariant"):
+                    sg = sg.toVariant()
+                selected_games = list(sg) if sg else []
+                gd = self.welcome_dialog.property("gameDirectories")
+                if hasattr(gd, "toVariant"):
+                    gd = gd.toVariant()
+                game_dirs_map = dict(gd) if gd else {}
+
+            # Primary game = first selected game
+            primary_game = normalize_game_id(selected_games[0]) if selected_games else None
+            if primary_game:
+                settings["selected_game"] = primary_game
+
+            # Store directories for every selected game
+            for gid in selected_games:
+                gid = normalize_game_id(gid)
+                gdir = game_dirs_map.get(gid, "")
+                if gdir:
+                    is_primary = (gid == primary_game)
+                    self._store_game_data_dir_settings(
+                        settings, gdir, set_active=is_primary
+                    )
+
+            active_game_id = primary_game or normalize_game_id(
+                settings.get("selected_game", DEFAULT_GAME_ID)
+            )
+            game_dir = self._get_saved_game_data_dir(settings, active_game_id)
             self._set_root_active_game_props(active_game_id)
 
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)
@@ -974,7 +1040,11 @@ class SettingsConnector:
         print(f"[{APP_NAME}] Welcome browse button clicked!")
         current = self.welcome_dialog.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
-        game_id = self._get_selected_or_detected_game_id(current or "")
+        welcome_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
+        if welcome_game:
+            game_id = normalize_game_id(welcome_game)
+        else:
+            game_id = self._get_selected_or_detected_game_id(current or "")
         game_data_folder = get_game(game_id).data_dir_name
 
         was_visible = self.welcome_dialog.property("visible")
@@ -1021,9 +1091,13 @@ class SettingsConnector:
         if self.welcome_dialog:
             self.welcome_dialog.setProperty("isAutoDetecting", True)
 
-        game_id = self._get_selected_or_detected_game_id(
-            self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
-        )
+        welcome_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
+        if welcome_game:
+            game_id = normalize_game_id(welcome_game)
+        else:
+            game_id = self._get_selected_or_detected_game_id(
+                self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
+            )
         game = get_game(game_id)
 
         from gui.main_qml import AutoDetectWorker
@@ -1056,9 +1130,13 @@ class SettingsConnector:
     def on_auto_detect_not_found_welcome(self):
         if self.welcome_dialog:
             self.welcome_dialog.setProperty("isAutoDetecting", False)
-        game_id = self._get_selected_or_detected_game_id(
-            self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
-        )
+        welcome_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
+        if welcome_game:
+            game_id = normalize_game_id(welcome_game)
+        else:
+            game_id = self._get_selected_or_detected_game_id(
+                self.welcome_dialog.property("gameDirectory") if self.welcome_dialog else ""
+            )
         game_data_folder = get_game(game_id).data_dir_name
 
         QMetaObject.invokeMethod(
