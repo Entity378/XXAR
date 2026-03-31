@@ -66,8 +66,10 @@ class SRARBrowserHandler(BaseBrowserHandler):
 
         app_game_dir = get_game_data_dir("hsr")
 
-        # Clean up cache from older versions before restoring.
-        vo_download.cleanup_stale_cache(app_game_dir, version)
+        # Check if cache is stale (returns old version for hdiff patching)
+        cached_version = vo_download.cleanup_stale_cache(
+            app_game_dir, version
+        )
 
         restored = 0
         for lang in sorted(needed_languages):
@@ -76,6 +78,7 @@ class SRARBrowserHandler(BaseBrowserHandler):
                 persistent_path=persistent_path,
                 folder_name=lang,
                 version=version,
+                cached_version=cached_version,
                 progress_cb=progress_callback,
             )
             if ok:

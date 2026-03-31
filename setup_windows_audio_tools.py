@@ -17,6 +17,7 @@ import socket
 # Download URLs for latest versions
 FFMPEG_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
 VGMSTREAM_URL = "https://github.com/vgmstream/vgmstream/releases/latest/download/vgmstream-win64.zip"
+HPATCHZ_URL = "https://github.com/sisong/HDiffPatch/releases/download/v4.8.2/hpatchz_v4.8.2_windows_x64.zip"
 
 # Installation directories
 # When running from PyInstaller, use the exe's directory (not _MEIPASS temp dir)
@@ -28,6 +29,7 @@ else:
 TOOLS_DIR = _BASE_DIR / "tools" / "audio"
 FFMPEG_DIR = TOOLS_DIR / "ffmpeg"
 VGMSTREAM_DIR = TOOLS_DIR / "vgmstream"
+HPATCHZ_DIR = TOOLS_DIR / "hpatchz"
 
 
 class WindowsAudioToolsSetup:
@@ -37,8 +39,10 @@ class WindowsAudioToolsSetup:
         self.tools_dir = TOOLS_DIR
         self.ffmpeg_dir = FFMPEG_DIR
         self.vgmstream_dir = VGMSTREAM_DIR
+        self.hpatchz_dir = HPATCHZ_DIR
         self.ffmpeg_exe = None  # Will be found after extraction
         self.vgmstream_exe = VGMSTREAM_DIR / "vgmstream-cli.exe"
+        self.hpatchz_exe = HPATCHZ_DIR / "hpatchz.exe"
 
     def check_platform(self):
         """Check if running on Windows"""
@@ -105,6 +109,60 @@ class WindowsAudioToolsSetup:
         except Exception as e:
             print(f"vgmstream test failed: {e}")
         return False
+
+    def is_hpatchz_installed(self):
+        """Check if hpatchz is already installed locally"""
+        return self.hpatchz_exe.exists()
+
+    def test_hpatchz(self):
+        """Test if hpatchz works"""
+        if not self.hpatchz_exe.exists():
+            return False
+        try:
+            result = subprocess.run(
+                [str(self.hpatchz_exe)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            # hpatchz with no args prints usage and returns non-zero
+            if "hpatchz" in result.stdout.lower() or "hpatchz" in result.stderr.lower():
+                print(f"[OK] hpatchz is working: {self.hpatchz_exe}")
+                return True
+        except Exception as e:
+            print(f"hpatchz test failed: {e}")
+        return False
+
+    def install_hpatchz(self):
+        """Download and install hpatchz"""
+        print("\n" + "=" * 60)
+        print("Installing hpatchz...")
+        print("=" * 60)
+
+        if self.is_hpatchz_installed():
+            if self.test_hpatchz():
+                print("[OK] hpatchz is already installed and working!")
+                return True
+            print("hpatchz exists but test failed. Re-installing...")
+
+        # Download
+        zip_path = self.tools_dir / "hpatchz_temp.zip"
+        if not self.download_file(HPATCHZ_URL, zip_path, "hpatchz"):
+            return False
+
+        # Extract
+        if not self.extract_zip(zip_path, self.hpatchz_dir, "hpatchz"):
+            return False
+
+        # Verify the binary exists
+        if not self.is_hpatchz_installed():
+            print("[ERROR] hpatchz.exe not found after extraction!")
+            return False
+
+        if not self.test_hpatchz():
+            print("[WARNING] hpatchz test run failed, but binary exists on disk")
+
+        return True
 
     def download_file(self, url, destination, tool_name):
         """Download a file (simplified - no progress reporting to avoid pipe issues)"""
@@ -223,10 +281,10 @@ class WindowsAudioToolsSetup:
         return True
 
     def setup_all(self):
-        """Install both ffmpeg and vgmstream"""
+        """Install ffmpeg, vgmstream, and hpatchz"""
         print("=" * 60)
         print("Windows Audio Tools Setup")
-        print("Installing ffmpeg and vgmstream for Windows")
+        print("Installing ffmpeg, vgmstream, and hpatchz for Windows")
         print("=" * 60)
 
         if not self.check_platform():
@@ -238,12 +296,16 @@ class WindowsAudioToolsSetup:
         # Install vgmstream
         vgmstream_ok = self.install_vgmstream()
 
+        # Install hpatchz
+        hpatchz_ok = self.install_hpatchz()
+
         print("\n" + "=" * 60)
-        if ffmpeg_ok and vgmstream_ok:
+        if ffmpeg_ok and vgmstream_ok and hpatchz_ok:
             print("[SUCCESS] Setup complete! All tools installed successfully.")
             print("\nInstalled tools:")
             print(f"  - ffmpeg: {self.ffmpeg_exe}")
             print(f"  - vgmstream-cli: {self.vgmstream_exe}")
+            print(f"  - hpatchz: {self.hpatchz_exe}")
             return True
         else:
             print("[WARNING]  Setup incomplete:")
@@ -251,6 +313,8 @@ class WindowsAudioToolsSetup:
                 print("  [ERROR] ffmpeg installation failed")
             if not vgmstream_ok:
                 print("  [ERROR] vgmstream installation failed")
+            if not hpatchz_ok:
+                print("  [ERROR] hpatchz installation failed")
             return False
 
     def get_ffmpeg_path(self):
@@ -262,6 +326,10 @@ class WindowsAudioToolsSetup:
     def get_vgmstream_path(self):
         """Get path to vgmstream-cli.exe if installed"""
         return self.vgmstream_exe if self.vgmstream_exe.exists() else None
+
+    def get_hpatchz_path(self):
+        """Get path to hpatchz.exe if installed"""
+        return self.hpatchz_exe if self.hpatchz_exe.exists() else None
 
 
 def main():
@@ -295,6 +363,7 @@ Note:
     parser.add_argument('--check', action='store_true', help='Check installation status')
     parser.add_argument('--ffmpeg-only', action='store_true', help='Install only ffmpeg')
     parser.add_argument('--vgmstream-only', action='store_true', help='Install only vgmstream')
+    parser.add_argument('--hpatchz-only', action='store_true', help='Install only hpatchz')
 
     args = parser.parse_args()
 
@@ -306,6 +375,7 @@ Note:
 
         ffmpeg_ok = setup.is_ffmpeg_installed() and setup.test_ffmpeg()
         vgmstream_ok = setup.is_vgmstream_installed() and setup.test_vgmstream()
+        hpatchz_ok = setup.is_hpatchz_installed() and setup.test_hpatchz()
 
         if ffmpeg_ok:
             print(f"[OK] ffmpeg: {setup.ffmpeg_exe}")
@@ -317,13 +387,20 @@ Note:
         else:
             print("[ERROR] vgmstream: Not installed")
 
-        sys.exit(0 if (ffmpeg_ok and vgmstream_ok) else 1)
+        if hpatchz_ok:
+            print(f"[OK] hpatchz: {setup.hpatchz_exe}")
+        else:
+            print("[ERROR] hpatchz: Not installed")
+
+        sys.exit(0 if (ffmpeg_ok and vgmstream_ok and hpatchz_ok) else 1)
 
     # Install
     if args.ffmpeg_only:
         success = setup.install_ffmpeg()
     elif args.vgmstream_only:
         success = setup.install_vgmstream()
+    elif args.hpatchz_only:
+        success = setup.install_hpatchz()
     else:
         success = setup.setup_all()
 

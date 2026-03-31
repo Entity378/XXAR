@@ -7,6 +7,7 @@
 import hashlib
 import json
 import shutil
+import subprocess
 import tempfile
 import urllib.request
 import urllib.error
@@ -14,6 +15,8 @@ import ssl
 import py7zr
 from datetime import datetime, timezone
 from pathlib import Path
+
+from src.subprocess_utils import BASE_DIR, IS_WINDOWS, SUBPROCESS_KWARGS
 
 # Constants
 API_URL = (
@@ -102,6 +105,201 @@ def get_api_version(api_response: dict) -> str | None:
         ]
     except (KeyError, IndexError, TypeError):
         return None
+
+
+def get_hdiff_audio_pkg(
+    api_response: dict, from_version: str, folder_name: str
+) -> dict | None:
+    # Find an hdiff audio patch for transitioning from "from_version" to
+    # the current API version, for the given language folder
+    api_lang = _FOLDER_TO_API_LANG.get(folder_name)
+    if not api_lang:
+        return None
+    try:
+        patches = (
+            api_response["data"]["game_packages"][0]["main"]["major"][
+                "patches"
+            ]
+        )
+    except (KeyError, IndexError, TypeError):
+        return None
+    for patch in patches:
+        if patch.get("version") != from_version:
+            continue
+        for audio_pkg in patch.get("audio_pkgs", []):
+            if audio_pkg.get("language") == api_lang:
+                return audio_pkg
+    return None
+
+
+# HDiff patching utilities
+
+def _find_hpatchz() -> str | None:
+    # Locate the hpatchz binary: bundled tool dir first, then PATH
+    exe_name = "hpatchz.exe" if IS_WINDOWS else "hpatchz"
+    local_path = BASE_DIR / "tools" / "audio" / "hpatchz" / exe_name
+    if local_path.is_file():
+        return str(local_path.resolve())
+    return shutil.which("hpatchz")
+
+
+def _download_hdiff_archive(
+    url: str,
+    expected_md5: str,
+    folder_name: str,
+    progress_cb=None,
+) -> Path | None:
+    # Download an hdiff 7z archive to a temp file.
+    # Returns the Path on success; caller is responsible for cleanup.
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".7z")
+    tmp_path = Path(tmp_path)
+    try:
+        req = urllib.request.Request(url)
+        with _urlopen(req, timeout=60) as resp:
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            md5 = hashlib.md5()
+
+            with open(tmp_fd, "wb") as f:
+                while True:
+                    chunk = resp.read(_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    md5.update(chunk)
+                    downloaded += len(chunk)
+
+                    if progress_cb and total > 0:
+                        pct = int(downloaded * 100 / total)
+                        progress_cb(
+                            f"Downloading {folder_name} VO patch "
+                            f"({_format_size(downloaded)} / "
+                            f"{_format_size(total)} — {pct}%)"
+                        )
+
+        if progress_cb:
+            progress_cb(f"Verifying {folder_name} patch integrity...")
+
+        actual_md5 = md5.hexdigest()
+        if expected_md5 and actual_md5.lower() != expected_md5.lower():
+            print(
+                f"[VO Download] HDiff MD5 mismatch for {folder_name}: "
+                f"expected {expected_md5}, got {actual_md5}"
+            )
+            tmp_path.unlink(missing_ok=True)
+            return None
+        return tmp_path
+
+    except Exception as e:
+        print(f"[VO Download] Error downloading hdiff for {folder_name}: {e}")
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return None
+
+
+def _extract_hdiff_archive(archive_path: Path, dest_dir: Path) -> bool:
+    # Extract all files from an hdiff 7z (.hdiff files + deletefiles.txt)
+    # into dest_dir, flattening directory structure
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with py7zr.SevenZipFile(str(archive_path), mode="r") as z:
+            with tempfile.TemporaryDirectory() as tmp_extract:
+                z.extractall(path=tmp_extract)
+                tmp_path = Path(tmp_extract)
+                for f in tmp_path.rglob("*"):
+                    if f.is_file():
+                        shutil.move(str(f), str(dest_dir / f.name))
+        return True
+    except Exception as e:
+        print(f"[VO Download] Failed to extract hdiff archive: {e}")
+        return False
+
+
+def _apply_hdiff_patches(
+    working_dir: Path,
+    hdiff_dir: Path,
+    folder_name: str,
+    progress_cb=None,
+) -> bool:
+    # Apply hdiff patches to PCK files in working_dir.
+    # working_dir contains copies of the old cached PCKs.
+    # hdiff_dir contains .hdiff files and optionally deletefiles.txt.
+    # Returns True if all patches applied successfully.
+    hpatchz = _find_hpatchz()
+    if not hpatchz:
+        print("[VO Download] hpatchz binary not found, cannot apply hdiff")
+        return False
+
+    # 1. Handle deletefiles.txt
+    delete_list = hdiff_dir / "deletefiles.txt"
+    if delete_list.is_file():
+        for line in delete_list.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # Flatten: take only the filename from possible path
+            target = working_dir / Path(line).name
+            if target.is_file():
+                target.unlink()
+                print(f"[VO Download] Deleted obsolete file: {target.name}")
+
+    # 2. Apply .hdiff patches
+    hdiff_files = sorted(hdiff_dir.glob("*.hdiff"))
+    if not hdiff_files:
+        print("[VO Download] No .hdiff files found in patch archive")
+        return False
+
+    total = len(hdiff_files)
+    for i, hdiff_file in enumerate(hdiff_files, 1):
+        # e.g. "SomeFile.pck.hdiff" patches "SomeFile.pck"
+        target_name = hdiff_file.stem  # removes .hdiff
+        old_file = working_dir / target_name
+        new_file = working_dir / (target_name + ".patched")
+
+        if progress_cb:
+            progress_cb(
+                f"Applying {folder_name} VO patch ({i}/{total})..."
+            )
+
+        cmd = [hpatchz]
+        if old_file.is_file():
+            cmd.append(str(old_file))
+        else:
+            # New file that didn't exist in the old version
+            cmd.append("")
+        cmd.extend([str(hdiff_file), str(new_file)])
+
+        try:
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                **SUBPROCESS_KWARGS,
+            )
+        except subprocess.CalledProcessError as e:
+            stderr = (
+                e.stderr.decode("utf-8", errors="replace")
+                if e.stderr
+                else ""
+            )
+            print(
+                f"[VO Download] hpatchz failed for {target_name}: "
+                f"exit {e.returncode} — {stderr}"
+            )
+            new_file.unlink(missing_ok=True)
+            return False
+        except FileNotFoundError:
+            print(f"[VO Download] hpatchz binary not executable: {hpatchz}")
+            return False
+
+        # Replace old file with patched file
+        if old_file.is_file():
+            old_file.unlink()
+        new_file.rename(working_dir / target_name)
+
+    return True
 
 
 # Cache metadata
@@ -247,10 +445,12 @@ def restore_language_from_api(
     persistent_path: Path,
     folder_name: str,
     version: str,
+    cached_version: str | None = None,
     progress_cb=None,
 ) -> bool:
-    # Ensure *persistent_path/folder_name* contains original PCK files
-    # Uses the local cache when available; otherwise downloads from the API
+    # Ensure *persistent_path/folder_name* contains original PCK files.
+    # Uses the local cache when available; attempts hdiff patching when
+    # cached_version is provided; otherwise downloads from the API.
     cache_root = _cache_dir(app_game_dir)
     cache_lang_dir = cache_root / folder_name
 
@@ -270,6 +470,47 @@ def restore_language_from_api(
     if api_data is None:
         print(f"[VO Download] Cannot restore {folder_name}: API unavailable")
         return False
+
+    # 2.5. Try hdiff patching if we have a stale cache
+    if (
+        cached_version is not None
+        and cache_lang_dir.is_dir()
+        and any(cache_lang_dir.glob("*.pck"))
+        and _find_hpatchz() is not None
+    ):
+        hdiff_pkg = get_hdiff_audio_pkg(
+            api_data, cached_version, folder_name
+        )
+        if hdiff_pkg is not None:
+            patched = _try_hdiff_patch(
+                app_game_dir=app_game_dir,
+                cache_lang_dir=cache_lang_dir,
+                hdiff_pkg=hdiff_pkg,
+                folder_name=folder_name,
+                version=version,
+                progress_cb=progress_cb,
+            )
+            if patched:
+                if progress_cb:
+                    progress_cb(
+                        f"Restoring {folder_name} VO originals..."
+                    )
+                _copy_to_persistent(
+                    cache_lang_dir, persistent_path / folder_name
+                )
+                print(
+                    f"[VO Download] Restored {folder_name} from "
+                    f"hdiff patch ({cached_version} → {version})"
+                )
+                return True
+            # hdiff failed — clean up stale cache before full download
+            print(
+                f"[VO Download] HDiff patch failed for {folder_name}, "
+                f"falling back to full download"
+            )
+
+    # Clean up stale cache before full download
+    _purge_language_cache(app_game_dir, folder_name)
 
     pkg = get_audio_pkg_for_language(api_data, folder_name)
     if pkg is None:
@@ -329,6 +570,86 @@ def restore_language_from_api(
     return True
 
 
+def _try_hdiff_patch(
+    app_game_dir: Path,
+    cache_lang_dir: Path,
+    hdiff_pkg: dict,
+    folder_name: str,
+    version: str,
+    progress_cb=None,
+) -> bool:
+    # Attempt to apply an hdiff patch to update cached PCK files in-place.
+    # Works on a copy of the cache so that failure is safe.
+    # Returns True on success (cache_lang_dir is updated + meta written).
+    archive_size = int(hdiff_pkg.get("size", 0))
+    decompressed = int(hdiff_pkg.get("decompressed_size", 0))
+    needed = archive_size + decompressed
+    if needed > 0:
+        free = shutil.disk_usage(str(app_game_dir)).free
+        if free < needed:
+            print(
+                f"[VO Download] Not enough space for hdiff "
+                f"({_format_size(needed)} needed, "
+                f"{_format_size(free)} free)"
+            )
+            return False
+
+    # Download the hdiff archive
+    archive_path = _download_hdiff_archive(
+        url=hdiff_pkg["url"],
+        expected_md5=hdiff_pkg.get("md5", ""),
+        folder_name=folder_name,
+        progress_cb=progress_cb,
+    )
+    if archive_path is None:
+        return False
+
+    try:
+        # Extract hdiff files to a temp dir
+        with tempfile.TemporaryDirectory() as hdiff_tmp:
+            hdiff_dir = Path(hdiff_tmp)
+            if not _extract_hdiff_archive(archive_path, hdiff_dir):
+                return False
+
+            # Copy current cache to a working directory
+            with tempfile.TemporaryDirectory() as work_tmp:
+                working_dir = Path(work_tmp) / folder_name
+                shutil.copytree(cache_lang_dir, working_dir)
+
+                if progress_cb:
+                    progress_cb(
+                        f"Applying {folder_name} VO patches..."
+                    )
+
+                ok = _apply_hdiff_patches(
+                    working_dir, hdiff_dir, folder_name, progress_cb
+                )
+                if not ok:
+                    return False
+
+                # Success — replace cache with patched copy
+                shutil.rmtree(cache_lang_dir)
+                shutil.copytree(working_dir, cache_lang_dir)
+
+        # Update cache metadata
+        meta = _load_cache_meta(app_game_dir)
+        meta["version"] = version
+        langs = meta.setdefault("languages", {})
+        langs[folder_name] = {
+            "md5": "",
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "patched_from": hdiff_pkg.get("version", ""),
+        }
+        _save_cache_meta(app_game_dir, meta)
+        return True
+
+    finally:
+        try:
+            archive_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _copy_to_persistent(src_dir: Path, dest_dir: Path):
     # Replace "dest_dir" with a copy of "src_dir"
     if dest_dir.exists():
@@ -336,21 +657,27 @@ def _copy_to_persistent(src_dir: Path, dest_dir: Path):
     shutil.copytree(src_dir, dest_dir)
 
 
-def cleanup_stale_cache(app_game_dir: Path, current_version: str):
-    # Remove cached languages whose version differs from "current_version"
+def cleanup_stale_cache(
+    app_game_dir: Path, current_version: str
+) -> str | None:
+    # Check if the cache version differs from "current_version".
+    # Returns the old cached version string if stale (for hdiff patching),
+    # or None if the cache is already current or empty.
+    # Does NOT delete old cache — the caller decides whether to hdiff-patch
+    # or fall back to full download.
     meta = _load_cache_meta(app_game_dir)
     if not meta:
-        return
-    if meta.get("version") == current_version:
-        return
+        return None
+    cached_version = meta.get("version")
+    if cached_version == current_version:
+        return None
+    return cached_version
 
+
+def _purge_language_cache(app_game_dir: Path, folder_name: str):
+    # Delete the cached language directory and remove it from metadata
     cache_root = _cache_dir(app_game_dir)
-    old_langs = list(meta.get("languages", {}).keys())
-    for lang in old_langs:
-        lang_dir = cache_root / lang
-        if lang_dir.is_dir():
-            shutil.rmtree(lang_dir, ignore_errors=True)
-            print(f"[VO Download] Cleaned stale cache: {lang}")
-
-    # Reset metadata for new version
-    _save_cache_meta(app_game_dir, {"version": current_version, "languages": {}})
+    lang_dir = cache_root / folder_name
+    if lang_dir.is_dir():
+        shutil.rmtree(lang_dir, ignore_errors=True)
+        print(f"[VO Download] Cleaned stale cache: {folder_name}")
