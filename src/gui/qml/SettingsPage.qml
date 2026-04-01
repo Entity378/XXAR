@@ -41,6 +41,7 @@ Item {
     property bool isAutoDetecting: false
     property bool enableGbThumbnails: false
     property bool hideGbThumbnailWarning: false
+    property bool hsrVoLocalBackup: true
 
     property bool isCheckingUpdates: false
     property bool isDownloadingUpdate: false
@@ -993,6 +994,81 @@ Item {
                                 color: modsDirectory.length > 0 ? Theme.accentDark : "#888888"
                                 font.family: "Alatsi"
                                 font.pixelSize: 12
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: hsrVoBackupContent.height + 40
+                        color: "#333333"
+                        radius: 20
+                        visible: currentCategory === 0 && mainWindow.activeGameShort === "HSR"
+
+                        Column {
+                            id: hsrVoBackupContent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 20
+                            spacing: 15
+
+                            RowLayout {
+                                width: parent.width
+                                spacing: 20
+
+                                Column {
+                                    Layout.fillWidth: true
+                                    spacing: 5
+
+                                    Text {
+                                        text: qsTranslate("Application", "Local VO Backup")
+                                        color: Theme.primaryAccent
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 24
+                                        font.weight: Font.Normal
+                                    }
+
+                                    Text {
+                                        text: qsTranslate("Application", "Use local hash-based backup instead of downloading original VO files from the API. Works without downloading VOs from hoyo endpoint but requires the game's .hash files to be present.")
+                                        color: "#888888"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 14
+                                        wrapMode: Text.WordWrap
+                                        width: parent.width
+                                    }
+                                }
+
+                                Item {
+                                    width: 60
+                                    height: 30
+
+                                    Rectangle {
+                                        id: hsrVoBackupSwitchBg
+                                        anchors.fill: parent
+                                        radius: 15
+                                        color: settingsPage.hsrVoLocalBackup ? Theme.primaryAccent : "#555555"
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+
+                                        Rectangle {
+                                            width: 26
+                                            height: 26
+                                            radius: 13
+                                            color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: settingsPage.hsrVoLocalBackup ? parent.width - width - 2 : 2
+                                            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            settingsPage.hsrVoLocalBackup = !settingsPage.hsrVoLocalBackup
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

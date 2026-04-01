@@ -182,7 +182,7 @@ class BaseBrowserHandler:
         return False
 
     @staticmethod
-    def restore_persistent_originals(persistent_path, progress_callback=None):
+    def restore_persistent_originals(persistent_path, progress_callback=None, vo_backup_mode="local"):
         # This in for games like HSR (VOs handling)
         return False
 

@@ -154,6 +154,7 @@ class ModManagerBridge(QObject):
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
+        self.hsr_vo_backup_mode = "local"
 
         self.persistent_mod_manager = PersistentModManager()
         self.mod_package_manager = ModPackageManager(
@@ -205,6 +206,7 @@ class ModManagerBridge(QObject):
                     )
                     self.mod_creation_mode = settings.get("mod_creation_mode", False)
                     self.conflict_preferences = settings.get("conflict_preferences", {})
+                    self.hsr_vo_backup_mode = settings.get("hsr_vo_backup_mode", "local")
 
                     from src.config_manager import (
                         get_custom_mod_library_settings_key,
@@ -775,9 +777,11 @@ class ModManagerBridge(QObject):
             if self.persistent_dir:
                 try:
                     handler_cls = get_browser_handler_class(self.active_game_id)
+                    vo_mode = self.hsr_vo_backup_mode if self.active_game_id == "hsr" else "api"
                     handler_cls.restore_persistent_originals(
                         Path(self.persistent_dir),
                         progress_callback=lambda msg: self.progressUpdate.emit(msg),
+                        vo_backup_mode=vo_mode,
                     )
                 except Exception as e:
                     print(f"[Mod Manager] Warning: Failed to restore persistent originals: {e}")

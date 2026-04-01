@@ -34,8 +34,9 @@ class SRARBrowserHandler(BaseBrowserHandler):
         return True
 
     @staticmethod
-    def restore_persistent_originals(persistent_path, progress_callback=None):
-        # Restore original VO PCK files
+    def restore_persistent_originals(
+        persistent_path, progress_callback=None, vo_backup_mode="local"
+    ):
         game = get_game("hsr")
         vo_names = _vo_folder_names(game)
         persistent_path = Path(persistent_path)
@@ -43,7 +44,7 @@ class SRARBrowserHandler(BaseBrowserHandler):
         if not persistent_path.is_dir():
             return
 
-        # Find installed language folders (those with existing PCK files)
+        # Find installed language folders (those with existing PCK files).
         needed_languages = set()
         for folder in persistent_path.iterdir():
             if folder.is_dir() and folder.name in vo_names:
@@ -53,41 +54,65 @@ class SRARBrowserHandler(BaseBrowserHandler):
         if not needed_languages:
             return
 
-        # Read current game version from config.ini
-        # Walk up from persistent_path to find the data folder
-        data_folder = persistent_path
-        for _ in range(len(game.persistent_audio_subpath)):
-            data_folder = data_folder.parent
-
-        version = _read_game_version(data_folder)
-        if not version:
-            print("[HSR VO Restore] Could not read game version")
-            return
-
         app_game_dir = get_game_data_dir("hsr")
 
-        # Check if cache is stale (returns old version for hdiff patching)
-        cached_version = vo_download.cleanup_stale_cache(
-            app_game_dir, version
-        )
-
-        restored = 0
-        for lang in sorted(needed_languages):
-            ok = vo_download.restore_language_from_api(
-                app_game_dir=app_game_dir,
-                persistent_path=persistent_path,
-                folder_name=lang,
-                version=version,
-                cached_version=cached_version,
-                progress_cb=progress_callback,
+        if vo_backup_mode == "local":
+            _restore_via_local_hashes(
+                app_game_dir, persistent_path, needed_languages, progress_callback
             )
-            if ok:
-                restored += 1
-            else:
-                if progress_callback:
-                    progress_callback(
-                        f"Warning: could not restore {lang} originals"
-                    )
+        else:
+            _restore_via_api(
+                app_game_dir, persistent_path, needed_languages,
+                game, progress_callback,
+            )
 
-        if restored:
-            print(f"[HSR VO Restore] Restored {restored} language(s)")
+
+def _restore_via_local_hashes(app_game_dir, persistent_path, languages, progress_cb):
+    from . import vo_local_backup
+
+    restored = 0
+    for lang in sorted(languages):
+        ok = vo_local_backup.restore_language_from_hashes(
+            app_game_dir=app_game_dir,
+            persistent_path=persistent_path,
+            folder_name=lang,
+            progress_cb=progress_cb,
+        )
+        if ok:
+            restored += 1
+        elif progress_cb:
+            progress_cb(f"Warning: could not restore {lang} originals (local backup)")
+
+    if restored:
+        print(f"[HSR VO Restore] Restored {restored} language(s) via local backup")
+
+
+def _restore_via_api(app_game_dir, persistent_path, languages, game, progress_cb):
+    data_folder = persistent_path
+    for _ in range(len(game.persistent_audio_subpath)):
+        data_folder = data_folder.parent
+
+    version = _read_game_version(data_folder)
+    if not version:
+        print("[HSR VO Restore] Could not read game version")
+        return
+
+    cached_version = vo_download.cleanup_stale_cache(app_game_dir, version)
+
+    restored = 0
+    for lang in sorted(languages):
+        ok = vo_download.restore_language_from_api(
+            app_game_dir=app_game_dir,
+            persistent_path=persistent_path,
+            folder_name=lang,
+            version=version,
+            cached_version=cached_version,
+            progress_cb=progress_cb,
+        )
+        if ok:
+            restored += 1
+        elif progress_cb:
+            progress_cb(f"Warning: could not restore {lang} originals")
+
+    if restored:
+        print(f"[HSR VO Restore] Restored {restored} language(s) via API")
