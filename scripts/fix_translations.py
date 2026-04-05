@@ -234,7 +234,7 @@ def remove_obsolete_python(ts_path: Path, python_source_strings: set[str], pytho
     return removed
 
 def remove_vanished(ts_path: Path) -> int:
-    """Remove all entries marked as vanished or obsolete."""
+    # Remove all entries marked as vanished or obsolete.
     tree = ET.parse(ts_path)
     root = tree.getroot()
 

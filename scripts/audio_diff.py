@@ -1,33 +1,24 @@
 #!/usr/bin/env python3
-"""
-audio_diff.py — Extract WEMs from ZZZ PCK archives and diff two versions.
-
-Usage:
-  python audio_diff.py extract <pck_dir> <out_dir>
-      Extract all WEMs from SoundBank_*.pck files in <pck_dir> into <out_dir>.
-      Files are named <wem_id>.wem.
-
-  python audio_diff.py diff <new_dir> <old_dir> <diff_dir>
-      Copy WEMs from <new_dir> that are absent or changed in <old_dir>
-      into <diff_dir>.  Comparison is by WEM ID + SHA-256 content hash.
-
-  python audio_diff.py auto <new_pck_dir> <old_pck_dir> <diff_dir>
-      Convenience: extract both versions to temp folders, then diff.
-      Temp folders are kept alongside <diff_dir> for reuse.
-
-Examples:
-  # Extract 2.2 audio
-  python audio_diff.py extract ~/Downloads/audio_zip_En/.../En audio_en_2.2
-
-  # Extract 2.1 audio
-  python audio_diff.py extract ~/Downloads/audio_zip_En_21/.../En audio_en_2.1
-
-  # Get only the new/changed WEMs
-  python audio_diff.py diff audio_en_2.2 audio_en_2.1 diff_audio_en_2.2
-
-  # Or do it all in one shot
-  python audio_diff.py auto .../En_22 .../En_21 diff_audio_en_2.2
-"""
+# audio_diff.py — Extract WEMs from ZZZ PCK archives and diff two versions.
+# Usage:
+# python audio_diff.py extract <pck_dir> <out_dir>
+# Extract all WEMs from SoundBank_*.pck files in <pck_dir> into <out_dir>.
+# Files are named <wem_id>.wem.
+# python audio_diff.py diff <new_dir> <old_dir> <diff_dir>
+# Copy WEMs from <new_dir> that are absent or changed in <old_dir>
+# into <diff_dir>.  Comparison is by WEM ID + SHA-256 content hash.
+# python audio_diff.py auto <new_pck_dir> <old_pck_dir> <diff_dir>
+# Convenience: extract both versions to temp folders, then diff.
+# Temp folders are kept alongside <diff_dir> for reuse.
+# Examples:
+# # Extract 2.2 audio
+# python audio_diff.py extract ~/Downloads/audio_zip_En/.../En audio_en_2.2
+# # Extract 2.1 audio
+# python audio_diff.py extract ~/Downloads/audio_zip_En_21/.../En audio_en_2.1
+# # Get only the new/changed WEMs
+# python audio_diff.py diff audio_en_2.2 audio_en_2.1 diff_audio_en_2.2
+# # Or do it all in one shot
+# python audio_diff.py auto .../En_22 .../En_21 diff_audio_en_2.2
 
 import hashlib
 import json
@@ -37,9 +28,7 @@ import sys
 from pathlib import Path
 
 
-# ---------------------------------------------------------------------------
 # Minimal PCK + BNK readers (standalone, no project imports needed)
-# ---------------------------------------------------------------------------
 
 def _read_u32(f):
     return struct.unpack("<I", f.read(4))[0]
@@ -60,7 +49,7 @@ def _parse_pck_table(f, section_size, use_8byte_id=False):
     return entries
 
 def _index_pck_banks(pck_path):
-    """Return list of (bnk_id, offset, size) for BNK entries in a PCK."""
+    # Return list of (bnk_id, offset, size) for BNK entries in a PCK.
     banks = []
     with open(pck_path, "rb") as f:
         if f.read(4) != b"AKPK":
@@ -79,7 +68,7 @@ def _index_pck_banks(pck_path):
     return banks
 
 def _extract_wems_from_bnk(bnk_bytes):
-    """Parse a BNK blob and return list of (wem_id, wem_bytes)."""
+    # Parse a BNK blob and return list of (wem_id, wem_bytes).
     from io import BytesIO
     results = []
     stream = BytesIO(bnk_bytes)
@@ -119,7 +108,7 @@ def _extract_wems_from_bnk(bnk_bytes):
 
 
 def extract_soundbank_pck(pck_path, out_dir):
-    """Extract all WEMs from BNKs inside a SoundBank PCK. Returns (bnk_count, wem_count)."""
+    # Extract all WEMs from BNKs inside a SoundBank PCK. Returns (bnk_count, wem_count).
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -147,9 +136,7 @@ def extract_soundbank_pck(pck_path, out_dir):
     return bnk_count, wem_count
 
 
-# ---------------------------------------------------------------------------
 # Main commands
-# ---------------------------------------------------------------------------
 
 def cmd_extract(pck_dir, out_dir):
     pck_dir = Path(pck_dir)
@@ -250,9 +237,7 @@ def cmd_auto(new_pck_dir, old_pck_dir, diff_dir):
     cmd_diff(new_extracted, old_extracted, diff_dir)
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
 
 USAGE = __doc__
 

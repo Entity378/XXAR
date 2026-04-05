@@ -1,32 +1,24 @@
 #!/usr/bin/env python3
-"""
-transcribe_tag.py — Transcribe audio for all DB entries matching a tag,
-then rename each matching tag to '<Character> "transcribed text"' and add
-an 'autogen' tag.
-
-Usage:
-  python scripts/transcribe_tag.py <tag> [--model tiny|base|small|medium|large]
-
-Examples:
-  python scripts/transcribe_tag.py seed
-  python scripts/transcribe_tag.py seed --model small
-
-Requirements:
-  pip install openai-whisper   (or: pipx install openai-whisper)
-  vgmstream-cli  (for WEM decoding)
-  ffmpeg
-
-The script reads WEM bytes directly from the DB by hash — it does NOT need
-the original PCK files.  WEM bytes are stored in the DB via add_sound().
-
-Wait — actually the DB only stores hashes + metadata, not the raw bytes.
-So we need the original audio source.  The script will look up file_ids
-from the DB entry, then search for matching .wem files in a provided folder.
-
-Usage (with WEM folder):
-  python scripts/transcribe_tag.py seed /path/to/wem/folder
-  python scripts/transcribe_tag.py seed /path/to/wem/folder --model small
-"""
+# transcribe_tag.py — Transcribe audio for all DB entries matching a tag,
+# then rename each matching tag to '<Character> "transcribed text"' and add
+# an 'autogen' tag.
+# Usage:
+# python scripts/transcribe_tag.py <tag> [--model tiny|base|small|medium|large]
+# Examples:
+# python scripts/transcribe_tag.py seed
+# python scripts/transcribe_tag.py seed --model small
+# Requirements:
+# pip install openai-whisper   (or: pipx install openai-whisper)
+# vgmstream-cli  (for WEM decoding)
+# ffmpeg
+# The script reads WEM bytes directly from the DB by hash — it does NOT need
+# the original PCK files.  WEM bytes are stored in the DB via add_sound().
+# Wait — actually the DB only stores hashes + metadata, not the raw bytes.
+# So we need the original audio source.  The script will look up file_ids
+# from the DB entry, then search for matching .wem files in a provided folder.
+# Usage (with WEM folder):
+# python scripts/transcribe_tag.py seed /path/to/wem/folder
+# python scripts/transcribe_tag.py seed /path/to/wem/folder --model small
 
 import argparse
 import json
@@ -37,10 +29,9 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from sound_database import SoundDatabase
+from src.data.sound_database import SoundDatabase
 
 
 def find_ffmpeg():
@@ -54,7 +45,7 @@ def find_vgmstream():
 
 
 def wem_to_wav(wem_path, vgmstream_path, ffmpeg_path, tmp_dir):
-    """Convert a WEM file to a 16kHz mono WAV. Returns Path to WAV or None."""
+    # Convert a WEM file to a 16kHz mono WAV. Returns Path to WAV or None.
     tmp_wav = Path(tmp_dir) / "audio.wav"
     tmp_pcm = Path(tmp_dir) / "audio_raw.wav"
 
@@ -81,7 +72,7 @@ def wem_to_wav(wem_path, vgmstream_path, ffmpeg_path, tmp_dir):
 
 
 def transcribe(wav_path, model):
-    """Run Whisper on a wav file, return transcript string."""
+    # Run Whisper on a wav file, return transcript string.
     result = model.transcribe(str(wav_path), language="en", fp16=False)
     text = result.get("text", "").strip()
     # Clean up common Whisper artifacts
