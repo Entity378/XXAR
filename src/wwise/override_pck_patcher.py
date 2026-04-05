@@ -1,15 +1,6 @@
-"""
-Patches Patch.pck / Hotfix.pck files that contain BNK or WEM entries which
-override the user's mod replacements.
-
-These override PCKs are placed by game updates in the Persistent folder and
-take priority over individual SoundBank PCKs, causing modded audio to be
-silently ignored.  This module detects conflicting entries and patches them
-so the user's replacements are also applied inside the override PCKs.
-
-The original override PCK is backed up (.xxar_backup) before modification
-and can be restored on mod removal via restore_override_pck_backups().
-"""
+# Patches Patch.pck / Hotfix.pck when they contain BNK/WEM entries
+# that would override the user's mod replacements.
+# Originals are backed up as .xxar_backup and restored on mod removal.
 
 import shutil
 import tempfile
@@ -21,27 +12,16 @@ BACKUP_SUFFIX = ".xxar_backup"
 
 
 def patch_override_pcks(persistent_root, replacements, progress_callback=None):
-    """Patch Patch.pck / Hotfix.pck so modded BNK/WEM entries override them.
-
-    Args:
-        persistent_root: Path to the Persistent audio folder.
-        replacements: resolved replacements dict –
-            {pck_name: {tracker_key: {wem_path, bnk_id, file_type, …}}}
-        progress_callback: optional callable(str) for status messages.
-
-    Returns:
-        dict: {patched_pcks: int, patched_bnk_ids: set, patched_wem_ids: set}
-    """
-    from src.pck_packer import PCKPacker
-    from src.pck_indexer import PCKIndexer
+    from src.wwise.pck_packer import PCKPacker
+    from src.wwise.pck_indexer import PCKIndexer
 
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
 
-    # ── 1. Collect every BNK→WEM and direct-WEM replacement ──────────────
-    bnk_replacements = defaultdict(dict)   # bnk_id → {wem_id: wem_path}
-    direct_replacements = {}               # wem_id → wem_path
+    # Collect all BNK and direct WEM replacements
+    bnk_replacements = defaultdict(dict)
+    direct_replacements = {}
 
     for _pck_name, files in (replacements or {}).items():
         for tracker_key, repl_info in files.items():
@@ -68,7 +48,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
     if not bnk_replacements and not direct_replacements:
         return _empty_result()
 
-    # ── 2. Find override PCKs in the persistent tree ─────────────────────
     override_pcks = [
         p
         for p in persistent_root.rglob("*.pck")
@@ -84,7 +63,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
     all_patched_wem_ids = set()
 
     for override_pck in override_pcks:
-        # ── 3. Index the override PCK ───────��────────────────────────────
         try:
             indexer = PCKIndexer(str(override_pck))
             index = indexer.build_index()
@@ -118,7 +96,7 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
         if progress_callback:
             progress_callback(f"Patching {override_pck.name} ({conflict_desc})...")
 
-        # ��─ 4. Back up the unmodified original ───────────��───────────────
+        # Back up the original before patching
         backup_path = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
         if not backup_path.exists():
             try:
@@ -134,10 +112,8 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
                 )
                 continue
 
-        # Always rebuild from the backup (the clean original).
         source_pck = backup_path
 
-        # ── 5. Patch the override PCK ───────────────────���────────────────
         temp_dir = None
         try:
             try:
@@ -156,7 +132,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
             packer = PCKPacker(str(source_pck), str(override_pck))
             packer.load_original_pck()
 
-            # BNK-level replacements
             for bnk_id in conflicting_bnks:
                 wem_map = bnk_replacements[bnk_id]
                 bnk_dir = temp_dir / str(bnk_id)
@@ -174,7 +149,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
                 packer.replace_bnk_wems(bnk_id, str(bnk_dir), lang_id=lang_id)
                 all_patched_bnk_ids.add(bnk_id)
 
-            # Direct WEM replacements
             for wem_id in conflicting_wems:
                 packer.replace_file(wem_id, direct_replacements[wem_id])
                 all_patched_wem_ids.add(wem_id)
@@ -187,7 +161,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
 
         except Exception as e:
             print(f"[Override Patcher] Failed to patch {override_pck.name}: {e}")
-            # Restore backup on failure so the file isn't left corrupt.
             if backup_path.exists():
                 try:
                     shutil.copy2(backup_path, override_pck)
@@ -215,14 +188,6 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
 
 
 def restore_override_pck_backups(persistent_root):
-    """Restore original Patch.pck / Hotfix.pck from .xxar_backup files.
-
-    Called during mod cleanup / removal so the game's original override
-    PCKs are put back in place.
-
-    Returns:
-        int: number of files restored.
-    """
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return 0

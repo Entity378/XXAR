@@ -13,10 +13,10 @@ from PyQt5.QtCore import (
     QObject, pyqtSlot, pyqtSignal, QMetaObject, Qt, Q_ARG, QThread, QCoreApplication
 )
 
-from src.app_config import (
+from src.core.app_config import (
     MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR, APP_NAME, DATA_SUBDIR,
 )
-from src.game_registry import (
+from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
     extract_game_data_dir_from_audio_path,
@@ -25,17 +25,17 @@ from src.game_registry import (
     get_game,
     normalize_game_mode,
 )
-from src.pck_indexer import PCKIndexer
-from src.bnk_indexer import BNKIndexer
-from src.temp_cache_manager import TempCacheManager
-from src.audio_player import AudioPlayer
-from src.audio_converter import AudioConverter
-from src.sound_database import SoundDatabase
-from src.fingerprint_database import FingerprintDatabase
-from src.persistent_mod_manager import PersistentModManager
-from src.pck_packer import PCKPacker
-from src.mod_package_manager import ModPackageManager
-from src.config_manager import (
+from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.bnk_indexer import BNKIndexer
+from src.core.temp_cache_manager import TempCacheManager
+from src.audio.player import AudioPlayer
+from src.audio.converter import AudioConverter
+from src.data.sound_database import SoundDatabase
+from src.data.fingerprint_database import FingerprintDatabase
+from src.mods.persistent_manager import PersistentModManager
+from src.wwise.pck_packer import PCKPacker
+from src.mods.package_manager import ModPackageManager
+from src.core.config_manager import (
     get_config_dir,
     get_game_fingerprint_database_file,
     get_game_mod_tracker_file,
@@ -84,7 +84,7 @@ class _WorkerThread(QThread):
             self.finished.emit(False, f"{e}\n{traceback.format_exc()}")
 
 def _pck_rel_key(pck_file_path, audio_root):
-    """Return relative path like 'English/Banks0.pck' from audio_root, falling back to filename."""
+    # Return relative path like 'English/Banks0.pck' from audio_root, falling back to filename.
     try:
         norm_pck = Path(str(pck_file_path).replace("Persistent", "StreamingAssets"))
         norm_root = Path(str(audio_root).replace("Persistent", "StreamingAssets"))
@@ -1530,7 +1530,7 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Could not find item data"))
             return
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Custom Audio",
             str(Path.home()),
@@ -1579,7 +1579,7 @@ class AudioBrowserBridge(QObject):
 
         file_id = meta.get("file_id", meta.get("wem_id"))
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Export as WAV", str(Path.home() / f"{file_id}.wav"), "WAV Files (*.wav)"
         )
@@ -1844,6 +1844,8 @@ class AudioBrowserBridge(QObject):
                             f"{lang_folder.name} (has {pck_count} PCK files)"
                         )
 
+                PROTECTED_PCKS = {'Patch.pck', 'Hotfix.pck'}
+
                 cleaned_files = 0
                 for pck_file in persistent_path.rglob("*.pck"):
                     if any(
@@ -1852,12 +1854,24 @@ class AudioBrowserBridge(QObject):
                     ):
                         continue
 
+                    if pck_file.name in PROTECTED_PCKS:
+                        print(f"[Audio Browser] Skipping protected file: {pck_file.name}")
+                        continue
+
                     try:
                         pck_file.chmod(0o644)
                         pck_file.unlink()
                         cleaned_files += 1
                     except Exception as e:
                         print(f"[Audio Browser] Failed to delete {pck_file}: {e}")
+
+                try:
+                    from src.wwise.override_pck_patcher import restore_override_pck_backups
+                    restored = restore_override_pck_backups(persistent_path)
+                    if restored > 0:
+                        print(f"[Audio Browser] Restored {restored} override PCK backup(s)")
+                except Exception as e:
+                    print(f"[Audio Browser] Warning: Failed to restore override PCK backups: {e}")
 
                 if cleaned_files > 0:
                     self.statusUpdate.emit(
@@ -1955,6 +1969,17 @@ class AudioBrowserBridge(QObject):
                 import os, stat
                 os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
+            try:
+                from src.wwise.override_pck_patcher import patch_override_pcks
+                persistent_base = Path(str(streaming_base).replace("StreamingAssets", "Persistent"))
+                patch_override_pcks(
+                    persistent_base,
+                    replacements,
+                    progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
+                )
+            except Exception as e:
+                print(f"[Audio Browser] Warning: Override PCK patching failed: {e}")
+
             post_pack_steps = getattr(
                 self._active_browser_handler, "apply_post_pack_steps", None
             )
@@ -1983,7 +2008,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseThumbnail(self):
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
             str(Path.home()),
@@ -2002,7 +2027,7 @@ class AudioBrowserBridge(QObject):
 
         default_name = f"{name.replace(' ', '_')}_v{version}{MOD_FILE_EXT}"
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Save Mod Package",
             str(Path.home() / default_name),
@@ -2351,7 +2376,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             str(Path.home()),
@@ -2381,7 +2406,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def selectRecordingFile(self):
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             str(Path.home()),
@@ -2426,7 +2451,7 @@ class AudioBrowserBridge(QObject):
     def _run_matching_threaded(self, recording_path, cancel_event):
 
         try:
-            from src.audio_matcher import AudioMatcher
+            from src.audio.matcher import AudioMatcher
 
             ffmpeg_path = AudioConverter()._find_ffmpeg() or 'ffmpeg'
             matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=self.fingerprint_db)
@@ -2694,7 +2719,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseAndImportZzar(self):
 
-        from .native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         zzar_path = NativeDialogs.get_open_file(
             f"Select {MOD_FILE_EXT} Mod to Import for Editing",
             str(Path.home()),

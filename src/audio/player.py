@@ -6,7 +6,7 @@ import shutil
 import time
 from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer
-from src.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
+from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 if not _is_windows:
     from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent

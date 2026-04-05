@@ -10,21 +10,17 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .vo_download import _cache_dir, _load_cache_meta, _save_cache_meta
+from src.audio.vo_download import _cache_dir, _load_cache_meta, _save_cache_meta
 
 _CHUNK_SIZE = 1 << 20  # 1 MB
 
 
-# ---------------------------------------------------------------------------
 # .hash file parsing
-# ---------------------------------------------------------------------------
 
 def _parse_hash_filename(name: str) -> tuple[str, str] | None:
-    """Parse ``External0_826a01d1af49b7fac662ed39219be7da.hash``.
-
-    Returns ``("External0.pck", "826a…")`` or ``None`` if the pattern
-    does not match.
-    """
+    # Parse ``External0_826a01d1af49b7fac662ed39219be7da.hash``.
+    # Returns ``("External0.pck", "826a…")`` or ``None`` if the pattern
+    # does not match.
     if not name.endswith(".hash"):
         return None
     stem = name[:-5]  # strip ".hash"
@@ -51,7 +47,7 @@ def _compute_file_md5(filepath: Path) -> str:
 
 
 def _scan_hash_files(lang_dir: Path) -> dict[str, str]:
-    """Return ``{pck_filename: expected_md5}`` for all ``.hash`` files."""
+    # Return ``{pck_filename: expected_md5}`` for all ``.hash`` files.
     result = {}
     for hash_file in lang_dir.glob("*.hash"):
         parsed = _parse_hash_filename(hash_file.name)
@@ -60,9 +56,7 @@ def _scan_hash_files(lang_dir: Path) -> dict[str, str]:
     return result
 
 
-# ---------------------------------------------------------------------------
 # High-level restore
-# ---------------------------------------------------------------------------
 
 def restore_language_from_hashes(
     app_game_dir: Path,
@@ -70,16 +64,12 @@ def restore_language_from_hashes(
     folder_name: str,
     progress_cb=None,
 ) -> bool:
-    """Ensure ``persistent_path/folder_name`` contains original PCK files.
-
-    Compares each PCK's actual MD5 against the expected value from its
-    companion ``.hash`` file:
-
-    * **Match** — file is original → copy to backup cache.
-    * **Mismatch** — file was modded → overwrite with cached backup.
-
-    Returns ``True`` if at least one file was processed successfully.
-    """
+    # Ensure ``persistent_path/folder_name`` contains original PCK files.
+    # Compares each PCK's actual MD5 against the expected value from its
+    # companion ``.hash`` file:
+    # * **Match** — file is original → copy to backup cache.
+    # * **Mismatch** — file was modded → overwrite with cached backup.
+    # Returns ``True`` if at least one file was processed successfully.
     lang_dir = persistent_path / folder_name
     if not lang_dir.is_dir():
         return False

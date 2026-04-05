@@ -11,9 +11,9 @@ class NativeDialogs:
 
     @staticmethod
     def _get_clean_env():
-        """Get environment for running system commands like zenity.
-        PyInstaller sets LD_LIBRARY_PATH to its bundled libs, which crashes
-        system GTK apps. Restore the original value so they find their own libs."""
+        # Get environment for running system commands like zenity.
+        # PyInstaller sets LD_LIBRARY_PATH to its bundled libs, which crashes
+        # system GTK apps. Restore the original value so they find their own libs.
         env = os.environ.copy()
         if hasattr(sys, '_MEIPASS'):
             orig = env.get('LD_LIBRARY_PATH_ORIG')

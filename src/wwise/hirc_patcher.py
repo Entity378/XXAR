@@ -37,12 +37,10 @@ class BankPatchTargets:
 
 
 def scan_bank_for_patch_targets(content, source_ids):
-    """Scan a PCK/BNK file for MusicTrack and MusicSegment HIRC objects
-    referencing the given WEM source IDs.
-
-    Returns a BankPatchTargets with precise absolute file offsets for all
-    duration fields that need patching.
-    """
+    # Scan a PCK/BNK file for MusicTrack and MusicSegment HIRC objects
+    # referencing the given WEM source IDs.
+    # Returns a BankPatchTargets with precise absolute file offsets for all
+    # duration fields that need patching.
     if not source_ids:
         return BankPatchTargets()
 
@@ -116,13 +114,10 @@ def scan_bank_for_patch_targets(content, source_ids):
 
 
 def apply_duration_patches(file_path, targets, duration_ms_by_source):
-    """Write new duration values to the bank file at the offsets found by
-    scan_bank_for_patch_targets.
-
-    duration_ms_by_source: dict mapping source_id (int) -> duration in ms (float).
-
-    Returns {"patched_offsets": int, "patched_source_ids": set}.
-    """
+    # Write new duration values to the bank file at the offsets found by
+    # scan_bank_for_patch_targets.
+    # duration_ms_by_source: dict mapping source_id (int) -> duration in ms (float).
+    # Returns {"patched_offsets": int, "patched_source_ids": set}.
     patched_offsets = 0
     patched_source_ids = set()
 
@@ -179,17 +174,13 @@ def apply_duration_patches(file_path, targets, duration_ms_by_source):
     }
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _find_hirc_sections(content):
-    """Yield (data_start, data_size) for each HIRC section in raw bytes.
-
-    data_start points to the first byte after the 8-byte header (HIRC + u32 size),
-    i.e. the numItems u32.  data_size is the section payload size.
-    """
+    # Yield (data_start, data_size) for each HIRC section in raw bytes.
+    # data_start points to the first byte after the 8-byte header (HIRC + u32 size),
+    # i.e. the numItems u32.  data_size is the section payload size.
     results = []
     flen = len(content)
     pos = -1
@@ -207,11 +198,9 @@ def _find_hirc_sections(content):
 
 
 def _parse_music_track(content, data_start, obj_size, source_ids):
-    """Parse a MusicTrack (0x0B) HIRC object.
-
-    Returns (obj_id, [TrackPatchInfo, ...]) if the track references any source
-    in *source_ids*, otherwise None.
-    """
+    # Parse a MusicTrack (0x0B) HIRC object.
+    # Returns (obj_id, [TrackPatchInfo, ...]) if the track references any source
+    # in *source_ids*, otherwise None.
     d = data_start
     end = d + obj_size
     if d + 9 > end:
@@ -267,11 +256,9 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
 
 
 def _parse_music_segment(content, data_start, obj_size):
-    """Parse a MusicSegment (0x0A) HIRC object.
-
-    Uses marker-scanning heuristic to locate fDuration and the end marker's
-    fPosition.  Returns SegmentPatchInfo or None.
-    """
+    # Parse a MusicSegment (0x0A) HIRC object.
+    # Uses marker-scanning heuristic to locate fDuration and the end marker's
+    # fPosition.  Returns SegmentPatchInfo or None.
     data = content[data_start : data_start + obj_size]
 
     for try_off in range(40, obj_size - 15):

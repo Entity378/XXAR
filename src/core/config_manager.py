@@ -3,8 +3,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from src.app_config import CONFIG_DIR_NAME
-from src.game_registry import (
+from src.core.app_config import CONFIG_DIR_NAME
+from src.core.game_registry import (
     DEFAULT_GAME_ID,
     get_supported_game_ids,
     normalize_game_id as normalize_game_id_from_registry,

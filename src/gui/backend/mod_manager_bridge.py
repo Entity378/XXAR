@@ -15,14 +15,14 @@ import os
 import sys
 import shutil
 import subprocess
-from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, APP_NAME
+from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, APP_NAME
 
-from src.mod_package_manager import ModPackageManager, InvalidModPackageError
-from src.persistent_mod_manager import PersistentModManager
-from src.config_manager import get_settings_file
-from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, normalize_game_id
+from src.mods.package_manager import ModPackageManager, InvalidModPackageError
+from src.mods.persistent_manager import PersistentModManager
+from src.core.config_manager import get_settings_file
+from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
-from .native_dialogs import NativeDialogs
+from gui.utils.native_dialogs import NativeDialogs
 
 class WwiseSetupWorker(QThread):
     progress = pyqtSignal(str)
@@ -208,7 +208,7 @@ class ModManagerBridge(QObject):
                     self.conflict_preferences = settings.get("conflict_preferences", {})
                     self.hsr_vo_backup_mode = settings.get("hsr_vo_backup_mode", "local")
 
-                    from src.config_manager import (
+                    from src.core.config_manager import (
                         get_custom_mod_library_settings_key,
                         get_game_mod_library_dir,
                         get_mod_library_dir,
@@ -770,6 +770,15 @@ class ModManagerBridge(QObject):
 
                         if cleaned_files > 0:
                             print(f"[Mod Manager] Cleaned up {cleaned_files} old PCK file(s) from Persistent folder")
+
+                        try:
+                            from src.wwise.override_pck_patcher import restore_override_pck_backups
+                            restored = restore_override_pck_backups(persistent_path)
+                            if restored > 0:
+                                print(f"[Mod Manager] Restored {restored} override PCK backup(s)")
+                        except Exception as e:
+                            print(f"[Mod Manager] Warning: Failed to restore override PCK backups: {e}")
+
                 except Exception as e:
                     print(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
 

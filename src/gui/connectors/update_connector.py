@@ -5,8 +5,8 @@ import sys
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication
 
-from src.config_manager import get_cache_dir
-from src.app_config import APP_NAME, FLATPAK_ENV_VAR
+from src.core.config_manager import get_cache_dir
+from src.core.app_config import APP_NAME, FLATPAK_ENV_VAR
 
 
 class UpdateConnector:

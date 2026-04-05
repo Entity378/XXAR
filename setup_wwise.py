@@ -35,9 +35,9 @@ WWISE_CONSOLE = WWISE_DIR / "WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
 
 
 class WwiseSetup:
-    """Handles automated Wwise installation"""
+    # Handles automated Wwise installation
     def setup(self, skip_input=True):
-        """Run complete setup process - NO PROMPTS"""
+        # Run complete setup process - NO PROMPTS
         print("=" * 60)
         print("ZZZ Audio Mod Tool - Automated Wwise Setup")
         print("=" * 60)
@@ -72,7 +72,7 @@ class WwiseSetup:
         self.wwise_console = WWISE_CONSOLE
 
     def check_wine(self):
-        """Check if Wine is installed"""
+        # Check if Wine is installed
         if os.environ.get(FLATPAK_ENV_VAR):
             # In Flatpak, check host system's Wine via flatpak-spawn
             for name in ('wine64', 'wine'):
@@ -104,14 +104,14 @@ class WwiseSetup:
         return True
 
     def check_existing(self):
-        """Check if Wwise is already installed"""
+        # Check if Wwise is already installed
         if self.wwise_console.exists():
             print(f"✓ Wwise already installed at: {self.wwise_dir}")
             return True
         return False
 
     def download_wwise(self):
-        """Download minimal Wwise package"""
+        # Download minimal Wwise package
         print(f"\nDownloading Wwise from: {self.download_url}")
 
         zip_path = self.wwise_dir / "wwise_temp.zip"
@@ -149,7 +149,7 @@ class WwiseSetup:
             return None
 
     def extract_wwise(self, zip_path):
-        """Extract Wwise package"""
+        # Extract Wwise package
         print(f"\nExtracting Wwise...")
 
         try:
@@ -168,7 +168,7 @@ class WwiseSetup:
             return False
 
     def test_wwise(self):
-        """Test if WwiseConsole works (via Wine on Linux, natively on Windows)"""
+        # Test if WwiseConsole works (via Wine on Linux, natively on Windows)
         print(f"\nTesting WwiseConsole...")
 
         if not self.wwise_console.exists():

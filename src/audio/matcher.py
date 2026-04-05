@@ -9,7 +9,7 @@ from scipy import signal
 from scipy.fft import dct
 import subprocess
 import tempfile
-from src.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
 def _hz_to_mel(hz):
     return 2595.0 * np.log10(1.0 + hz / 700.0)

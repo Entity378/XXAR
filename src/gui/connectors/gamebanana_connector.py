@@ -4,7 +4,7 @@ import os
 import subprocess
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
-from src.app_config import APP_NAME
+from src.core.app_config import APP_NAME
 
 class GameBananaConnector:
     

@@ -4,7 +4,7 @@ import struct
 import os
 from pathlib import Path
 from io import BytesIO
-from src.bnk_handler import BNKFile
+from src.wwise.bnk_handler import BNKFile
 
 class PCKPacker:
 
@@ -330,7 +330,7 @@ class PCKPacker:
 
         print(f"  Applying {len(patches)} replacement(s)...")
 
-        from src.pck_indexer import PCKIndexer
+        from src.wwise.pck_indexer import PCKIndexer
         indexer = PCKIndexer(self.original_pck_path)
         index = indexer.build_index()
 

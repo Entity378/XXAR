@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from src.config_manager import get_mod_library_dir, get_mod_config_file
+from src.core.config_manager import get_mod_library_dir, get_mod_config_file
 
 
 class InvalidModPackageError(Exception):
@@ -81,11 +81,10 @@ class ModPackageManager:
             print(f"Warning: Failed to save mod config: {e}")
 
     def _normalize_metadata_replacements(self, metadata):
-        """Convert v1.0 or v2.0 replacements to flat internal format:
-        {pck_name: {file_id_str: {wem_file, sound_name, lang_id, bnk_id, file_type}}}
-        v1.0: {pck: {file_id: {bnk_id, ...}}}   (already flat)
-        v2.0: {pck: {"bnk_id.bnk" | "direct": {file_id: {...}}}}
-        """
+        # Convert v1.0 or v2.0 replacements to flat internal format:
+        # {pck_name: {file_id_str: {wem_file, sound_name, lang_id, bnk_id, file_type}}}
+        # v1.0: {pck: {file_id: {bnk_id, ...}}}   (already flat)
+        # v2.0: {pck: {"bnk_id.bnk" | "direct": {file_id: {...}}}}
         format_version = metadata.get('format_version', '1.0')
         replacements = metadata.get('replacements', {})
 
@@ -490,8 +489,8 @@ class ModPackageManager:
         try:
 
             try:
-                from src.pck_packer import PCKPacker
-                from src.bnk_mod_helper import prepare_bnk_structure
+                from src.wwise.pck_packer import PCKPacker
+                from src.wwise.bnk_mod_helper import prepare_bnk_structure
             except ImportError:
                 from pck_packer import PCKPacker
                 from bnk_mod_helper import prepare_bnk_structure
@@ -588,7 +587,7 @@ class ModPackageManager:
 
                     chosen_subdir, chosen_candidate = candidates[0]
                     if target_int_ids and len(candidates) > 1:
-                        from src.pck_indexer import PCKIndexer
+                        from src.wwise.pck_indexer import PCKIndexer
                         for subdir, candidate in candidates:
                             try:
                                 idx = PCKIndexer(str(candidate))
@@ -684,7 +683,21 @@ class ModPackageManager:
                     shutil.rmtree(temp_dir)
 
         try:
-            from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path
+            from src.wwise.override_pck_patcher import patch_override_pcks
+
+            override_cb = None
+            if progress_callback:
+                override_cb = lambda msg: progress_callback(
+                    str(msg), total_pcks, max(total_pcks, 1)
+                )
+            patch_override_pcks(
+                persistent_audio_dir, resolved, progress_callback=override_cb
+            )
+        except Exception as e:
+            print(f"[Mod Manager] Warning: Override PCK patching failed: {e}")
+
+        try:
+            from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path
             from src.gui.backend.audio_games import get_browser_handler_class
 
             active_game_id = detect_game_id_from_path(

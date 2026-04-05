@@ -2,8 +2,13 @@
 
 import sys
 from pathlib import Path
-from pck_packer import PCKPacker
-from src.app_config import GAME_DATA_FOLDER
+
+try:
+    from src.wwise.pck_packer import PCKPacker
+except ImportError:
+    from pck_packer import PCKPacker
+
+from src.core.app_config import GAME_DATA_FOLDER
 
 def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
 

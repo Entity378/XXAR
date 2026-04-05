@@ -4,7 +4,7 @@ import platform
 import subprocess
 from pathlib import Path
 
-from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
 
 IS_WINDOWS = platform.system() == "Windows"
 

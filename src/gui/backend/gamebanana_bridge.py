@@ -8,8 +8,8 @@ import urllib.error
 import urllib.parse
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
-from src.app_config import FLATPAK_ENV_VAR, GAMEBANANA_GAME_ID, CONFIG_DIR_NAME, MOD_FILE_EXT
-from src.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
+from src.core.app_config import FLATPAK_ENV_VAR, GAMEBANANA_GAME_ID, CONFIG_DIR_NAME, MOD_FILE_EXT
+from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
 
 if os.environ.get(FLATPAK_ENV_VAR):
     _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
@@ -19,7 +19,7 @@ else:
     _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 def _find_bundled_unrar():
-    """Find the bundled unrar.exe (Windows only)."""
+    # Find the bundled unrar.exe (Windows only).
     if sys.platform != 'win32':
         return None
     candidates = [
@@ -55,7 +55,7 @@ def _cache_path():
 
 def _thumb_dir():
     try:
-        from src.config_manager import ConfigManager
+        from src.core.config_manager import ConfigManager
         d = ConfigManager().data_dir / "gamebanana_thumbs"
     except Exception:
         d = Path(__file__).parent / "gamebanana_thumbs"
@@ -986,7 +986,7 @@ class InstallModWorker(QThread):
 
         try:
             from ZZAR import get_temp_dir
-            from src.mod_package_manager import ModPackageManager, InvalidModPackageError
+            from src.mods.package_manager import ModPackageManager, InvalidModPackageError
         except ImportError:
             self.finished.emit(False, "Could not import ZZAR modules")
             return
@@ -1186,7 +1186,7 @@ class GameBananaBridge(QObject):
     def fetchThumbnail(self, mod_id):
 
         try:
-            from src.config_manager import get_settings_file
+            from src.core.config_manager import get_settings_file
             import json
             settings_file = get_settings_file()
             if settings_file.exists():
@@ -1368,7 +1368,7 @@ class GameBananaBridge(QObject):
     @pyqtSlot(str, str)
     def downloadModToPath(self, download_url, filename):
 
-        from gui.backend.native_dialogs import NativeDialogs
+        from gui.utils.native_dialogs import NativeDialogs
         save_path = NativeDialogs.get_save_file(
             title="Save Mod File",
             start_dir=str(Path.home() / filename),
@@ -1448,7 +1448,7 @@ class GameBananaBridge(QObject):
     @pyqtSlot(result='QVariantList')
     def getInstalledModNames(self):
         try:
-            from src.mod_package_manager import ModPackageManager
+            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager()
             return [
                 mod['metadata'].get('name', '')
@@ -1467,7 +1467,7 @@ class GameBananaBridge(QObject):
     def getInstalledModIds(self):
 
         try:
-            from src.mod_package_manager import ModPackageManager
+            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager()
             mod_ids = []
             for mod in manager.get_installed_mods():
@@ -1482,7 +1482,7 @@ class GameBananaBridge(QObject):
     def getInstalledDownloadUrls(self):
 
         try:
-            from src.mod_package_manager import ModPackageManager
+            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager()
             totals = dict(_cache.get("zzar_totals_by_url", {}))
             zzars_by_url = {}
@@ -1514,7 +1514,7 @@ class GameBananaBridge(QObject):
     def getInstalledZZARsByUrl(self):
 
         try:
-            from src.mod_package_manager import ModPackageManager
+            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager()
             result = {}
             for mod in manager.get_installed_mods():
@@ -1533,7 +1533,7 @@ class GameBananaBridge(QObject):
     def getZZARTotalsByUrl(self):
 
         try:
-            from src.mod_package_manager import ModPackageManager
+            from src.mods.package_manager import ModPackageManager
             totals = dict(_cache.get("zzar_totals_by_url", {}))
             for mod in ModPackageManager().get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')

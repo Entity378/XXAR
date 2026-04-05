@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PyQt5.QtCore import QCoreApplication
 
-from src.game_registry import get_game
-from src.hirc_patcher import apply_duration_patches, scan_bank_for_patch_targets
+from src.core.game_registry import get_game
+from src.wwise.hirc_patcher import apply_duration_patches, scan_bank_for_patch_targets
 
 
 def _natural_sort_key(value):
@@ -150,6 +150,8 @@ class BaseBrowserHandler:
     def collect_pck_files(directory):
         return sorted(Path(directory).glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
 
+    _OVERRIDE_PCKS = {"Patch.pck", "Hotfix.pck"}
+
     def include_pck_file(
         self,
         pck_file,
@@ -157,6 +159,9 @@ class BaseBrowserHandler:
         merge_wem_enabled,
         hide_useless_pck_enabled,
     ):
+        if pck_file.name in self._OVERRIDE_PCKS:
+            return False
+
         if merge_wem_enabled and str(pck_file.name).startswith(
             self.game.streamed_pck_prefix
         ):
@@ -399,6 +404,25 @@ class BaseBrowserHandler:
             patched_file_count += 1
             patched_track_ids.update(result["patched_source_ids"])
 
+        # Scan override PCKs for HIRC duration patching too
+        persistent_root = Path(
+            str(streaming_root).replace("StreamingAssets", "Persistent")
+        )
+        for override_pck in self._find_override_pcks(persistent_root):
+            try:
+                content = override_pck.read_bytes()
+            except Exception:
+                continue
+            targets = scan_bank_for_patch_targets(content, source_ids)
+            if not targets.tracks and not targets.segments:
+                continue
+            result = apply_duration_patches(
+                override_pck, targets, duration_ms_by_track
+            )
+            if result["patched_offsets"] > 0:
+                patched_file_count += 1
+                patched_track_ids.update(result["patched_source_ids"])
+
         result = {
             "patched_files": patched_file_count,
             "patched_ids": len(patched_track_ids),
@@ -500,6 +524,22 @@ class BaseBrowserHandler:
             patched_file_count += 1
             patched_track_ids.update(result["patched_source_ids"])
 
+        # Scan override PCKs for HIRC duration patching too
+        for override_pck in cls._find_override_pcks(persistent_root):
+            try:
+                content = override_pck.read_bytes()
+            except Exception:
+                continue
+            targets = scan_bank_for_patch_targets(content, source_ids)
+            if not targets.tracks and not targets.segments:
+                continue
+            result = apply_duration_patches(
+                override_pck, targets, duration_ms_by_track
+            )
+            if result["patched_offsets"] > 0:
+                patched_file_count += 1
+                patched_track_ids.update(result["patched_source_ids"])
+
         result = {
             "patched_files": patched_file_count,
             "patched_ids": len(patched_track_ids),
@@ -525,6 +565,18 @@ class BaseBrowserHandler:
                 audio_root.rglob("*.pck"), key=lambda p: _natural_sort_key(p.name)
             )
             if p.name.lower().startswith(prefix)
+        ]
+
+    @staticmethod
+    def _find_override_pcks(persistent_root):
+        from src.wwise.override_pck_patcher import OVERRIDE_PCK_NAMES
+
+        if not persistent_root or not Path(persistent_root).exists():
+            return []
+        return [
+            p
+            for p in Path(persistent_root).rglob("*.pck")
+            if p.name in OVERRIDE_PCK_NAMES
         ]
 
     def _collect_loop_patch_targets(self, replacements):

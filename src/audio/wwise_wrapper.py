@@ -6,8 +6,8 @@ import os
 import sys
 import platform
 from pathlib import Path
-from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-from src.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
+from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 # Resources: the bundled template lives inside _MEIPASS (read-only in PyInstaller).
 # For writable operations (mkdir, cache), copy to a persistent writable location.

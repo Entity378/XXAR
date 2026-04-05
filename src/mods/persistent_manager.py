@@ -4,7 +4,7 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
-from src.config_manager import get_mod_tracker_file
+from src.core.config_manager import get_mod_tracker_file
 
 class PersistentModManager:
 

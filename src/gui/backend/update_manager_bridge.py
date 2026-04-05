@@ -13,8 +13,8 @@ from pathlib import Path
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 
-from src.config_manager import get_cache_dir, get_settings_file
-from src.app_config import APP_NAME
+from src.core.config_manager import get_cache_dir, get_settings_file
+from src.core.app_config import APP_NAME
 
 GITHUB_API_URL = f"https://api.github.com/repos/Pucas01/{APP_NAME}/releases/latest"
 

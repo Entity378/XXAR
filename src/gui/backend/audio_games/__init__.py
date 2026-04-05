@@ -2,7 +2,7 @@ from .base_handler import BaseBrowserHandler
 from .giar_handler import GIARBrowserHandler
 from .srar_handler import SRARBrowserHandler
 from .zzar_handler import ZZARBrowserHandler
-from src.game_registry import (
+from src.core.game_registry import (
     DEFAULT_GAME_ID,
     get_supported_game_ids,
     normalize_game_mode,

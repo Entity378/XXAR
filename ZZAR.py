@@ -46,7 +46,7 @@ _load_ui_scale()
 
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db=false;qt.network.ssl=false'
 
-from src.app_config import APP_VERSION
+from src.core.app_config import APP_VERSION
 __version__ = APP_VERSION
 DEV_MODE = True
 
@@ -58,7 +58,7 @@ def get_base_path():
     return Path(__file__).parent
 
 def get_temp_dir():
-    from src.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+    from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
     if os.environ.get(FLATPAK_ENV_VAR):
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
     elif hasattr(sys, '_MEIPASS'):

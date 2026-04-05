@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from src.config_manager import get_game_data_dir
-from src.game_registry import get_game
+from src.core.config_manager import get_game_data_dir
+from src.core.game_registry import get_game
 
-from . import vo_download
+from src.audio import vo_download
 from .base_handler import BaseBrowserHandler
 
 
@@ -68,7 +68,7 @@ class SRARBrowserHandler(BaseBrowserHandler):
 
 
 def _restore_via_local_hashes(app_game_dir, persistent_path, languages, progress_cb):
-    from . import vo_local_backup
+    from src.audio import vo_local_backup
 
     restored = 0
     for lang in sorted(languages):

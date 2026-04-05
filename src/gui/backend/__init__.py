@@ -1,3 +1,1 @@
-"""
-Backend bridges for QML UI
-"""
+# Backend bridges for QML UI

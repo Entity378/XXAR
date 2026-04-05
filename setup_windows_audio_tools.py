@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""
-Windows Audio Tools Setup - ffmpeg and vgmstream
-Downloads and installs ffmpeg and vgmstream-cli for Windows
-"""
+# Windows Audio Tools Setup - ffmpeg and vgmstream
+# Downloads and installs ffmpeg and vgmstream-cli for Windows
 
 import os
 import sys
@@ -33,7 +31,7 @@ HPATCHZ_DIR = TOOLS_DIR / "hpatchz"
 
 
 class WindowsAudioToolsSetup:
-    """Handles automated installation of ffmpeg and vgmstream for Windows"""
+    # Handles automated installation of ffmpeg and vgmstream for Windows
 
     def __init__(self):
         self.tools_dir = TOOLS_DIR
@@ -45,7 +43,7 @@ class WindowsAudioToolsSetup:
         self.hpatchz_exe = HPATCHZ_DIR / "hpatchz.exe"
 
     def check_platform(self):
-        """Check if running on Windows"""
+        # Check if running on Windows
         if platform.system() != "Windows":
             print("[WARNING]  This setup is for Windows only!")
             print("On Linux, install via package manager:")
@@ -55,7 +53,7 @@ class WindowsAudioToolsSetup:
         return True
 
     def is_ffmpeg_installed(self):
-        """Check if ffmpeg is already installed locally"""
+        # Check if ffmpeg is already installed locally
         if not self.ffmpeg_dir.exists():
             return False
 
@@ -67,11 +65,11 @@ class WindowsAudioToolsSetup:
         return False
 
     def is_vgmstream_installed(self):
-        """Check if vgmstream is already installed locally"""
+        # Check if vgmstream is already installed locally
         return self.vgmstream_exe.exists()
 
     def test_ffmpeg(self):
-        """Test if ffmpeg works"""
+        # Test if ffmpeg works
         if not self.ffmpeg_exe:
             if not self.is_ffmpeg_installed():
                 return False
@@ -91,7 +89,7 @@ class WindowsAudioToolsSetup:
         return False
 
     def test_vgmstream(self):
-        """Test if vgmstream-cli works"""
+        # Test if vgmstream-cli works
         if not self.vgmstream_exe.exists():
             return False
 
@@ -111,11 +109,11 @@ class WindowsAudioToolsSetup:
         return False
 
     def is_hpatchz_installed(self):
-        """Check if hpatchz is already installed locally"""
+        # Check if hpatchz is already installed locally
         return self.hpatchz_exe.exists()
 
     def test_hpatchz(self):
-        """Test if hpatchz works"""
+        # Test if hpatchz works
         if not self.hpatchz_exe.exists():
             return False
         try:
@@ -134,7 +132,7 @@ class WindowsAudioToolsSetup:
         return False
 
     def install_hpatchz(self):
-        """Download and install hpatchz"""
+        # Download and install hpatchz
         print("\n" + "=" * 60)
         print("Installing hpatchz...")
         print("=" * 60)
@@ -165,7 +163,7 @@ class WindowsAudioToolsSetup:
         return True
 
     def download_file(self, url, destination, tool_name):
-        """Download a file (simplified - no progress reporting to avoid pipe issues)"""
+        # Download a file (simplified - no progress reporting to avoid pipe issues)
         print(f"\nDownloading {tool_name}...")
         print(f"  Source: {url}")
         print(f"  Please wait, this may take a few minutes...")
@@ -200,7 +198,7 @@ class WindowsAudioToolsSetup:
             return False
 
     def extract_zip(self, zip_path, extract_dir, tool_name):
-        """Extract a ZIP file"""
+        # Extract a ZIP file
         print(f"\nExtracting {tool_name}...")
 
         try:
@@ -217,7 +215,7 @@ class WindowsAudioToolsSetup:
             return False
 
     def install_ffmpeg(self):
-        """Download and install ffmpeg"""
+        # Download and install ffmpeg
         print("\n" + "=" * 60)
         print("Installing ffmpeg...")
         print("=" * 60)
@@ -249,7 +247,7 @@ class WindowsAudioToolsSetup:
         return True
 
     def install_vgmstream(self):
-        """Download and install vgmstream"""
+        # Download and install vgmstream
         print("\n" + "=" * 60)
         print("Installing vgmstream-cli...")
         print("=" * 60)
@@ -281,7 +279,7 @@ class WindowsAudioToolsSetup:
         return True
 
     def setup_all(self):
-        """Install ffmpeg, vgmstream, and hpatchz"""
+        # Install ffmpeg, vgmstream, and hpatchz
         print("=" * 60)
         print("Windows Audio Tools Setup")
         print("Installing ffmpeg, vgmstream, and hpatchz for Windows")
@@ -318,22 +316,22 @@ class WindowsAudioToolsSetup:
             return False
 
     def get_ffmpeg_path(self):
-        """Get path to ffmpeg.exe if installed"""
+        # Get path to ffmpeg.exe if installed
         if not self.ffmpeg_exe:
             self.is_ffmpeg_installed()
         return self.ffmpeg_exe
 
     def get_vgmstream_path(self):
-        """Get path to vgmstream-cli.exe if installed"""
+        # Get path to vgmstream-cli.exe if installed
         return self.vgmstream_exe if self.vgmstream_exe.exists() else None
 
     def get_hpatchz_path(self):
-        """Get path to hpatchz.exe if installed"""
+        # Get path to hpatchz.exe if installed
         return self.hpatchz_exe if self.hpatchz_exe.exists() else None
 
 
 def main():
-    """Command-line interface"""
+    # Command-line interface
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -417,7 +415,7 @@ Note:
 
 
 def run_setup_from_gui():
-    """Entry point for GUI integration"""
+    # Entry point for GUI integration
     setup = WindowsAudioToolsSetup()
     return setup.setup_all()
 

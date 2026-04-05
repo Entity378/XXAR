@@ -9,13 +9,18 @@ class GIARBrowserHandler(BaseBrowserHandler):
         super().__init__(bridge, game_id=self.game_id)
         self._status_callback = status_callback
 
-    @staticmethod
+    _OVERRIDE_PCKS = {"Patch.pck", "Hotfix.pck"}
+
+    @classmethod
     def include_pck_file(
+        cls,
         pck_file,
         current_language_folder,
         merge_wem_enabled,
         hide_useless_pck_enabled,
     ):
+        if pck_file.name in cls._OVERRIDE_PCKS:
+            return False
         return True
 
     @staticmethod

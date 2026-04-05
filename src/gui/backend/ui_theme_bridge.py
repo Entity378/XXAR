@@ -1,7 +1,7 @@
 from PyQt5.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
-from src.app_config import ACCENT_COLOR, ACCENT_COLOR_DARK, ACCENT_COLOR_LIGHT, GAME_THEME_PALETTES
-from src.game_registry import DEFAULT_GAME_ID, normalize_game_id
+from src.core.app_config import ACCENT_COLOR, ACCENT_COLOR_DARK, ACCENT_COLOR_LIGHT, GAME_THEME_PALETTES
+from src.core.game_registry import DEFAULT_GAME_ID, normalize_game_id
 
 
 class UIThemeBridge(QObject):

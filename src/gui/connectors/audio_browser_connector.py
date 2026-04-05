@@ -5,10 +5,10 @@ from pathlib import Path
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
-from gui.backend.native_dialogs import NativeDialogs
-from src.app_config import APP_NAME
-from src.config_manager import get_game_sound_database_file
-from src.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
+from gui.utils.native_dialogs import NativeDialogs
+from src.core.app_config import APP_NAME
+from src.core.config_manager import get_game_sound_database_file
+from src.core.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
 
 
 class AudioBrowserConnector:

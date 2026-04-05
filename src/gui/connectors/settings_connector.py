@@ -7,17 +7,17 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 
-from gui.backend.native_dialogs import NativeDialogs
-from src.app_config import (
+from gui.utils.native_dialogs import NativeDialogs
+from src.core.app_config import (
     APP_NAME,
     ASSETS_DIR,
 )
-from src.config_manager import (
+from src.core.config_manager import (
     get_custom_mod_library_settings_key,
     get_game_mod_library_dir,
     normalize_game_id,
 )
-from src.game_registry import (
+from src.core.game_registry import (
     DEFAULT_GAME_ID,
     build_audio_paths,
     detect_game_id_from_path,
@@ -720,8 +720,8 @@ class SettingsConnector:
             return False
 
     def _can_move_language_folder(self, folder_name, persistent_path, streaming_path):
-        """Check if a persistent language folder can be moved to streaming.
-        Moveable only if the streaming folder does NOT already have this language folder."""
+        # Check if a persistent language folder can be moved to streaming.
+        # Moveable only if the streaming folder does NOT already have this language folder.
         streaming_folder = streaming_path / folder_name
 
         streaming_exists = streaming_folder.exists()
@@ -815,7 +815,7 @@ class SettingsConnector:
             print(f"[{APP_NAME}] Error checking multiple languages: {e}")
 
     def on_move_language_to_streaming(self, folder_name):
-        """Move a language folder from Persistent to StreamingAssets."""
+        # Move a language folder from Persistent to StreamingAssets.
         import shutil
 
         try:
@@ -889,7 +889,7 @@ class SettingsConnector:
             )
 
     def on_move_hash_pck_to_streaming(self, pck_name):
-        """Move a game-pushed PCK file (identified by a .hash file) from Persistent to StreamingAssets."""
+        # Move a game-pushed PCK file (identified by a .hash file) from Persistent to StreamingAssets.
         import shutil
 
         try:

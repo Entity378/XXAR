@@ -3,12 +3,12 @@ import json
 import platform
 import subprocess
 from pathlib import Path
-from src.app_config import APP_NAME
+from src.core.app_config import APP_NAME
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
-from gui.backend.native_dialogs import NativeDialogs
-from src.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+from gui.utils.native_dialogs import NativeDialogs
+from src.core.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
 
 
 class ModManagerConnector:

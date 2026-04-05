@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
-from src.config_manager import get_sound_database_file
+from src.core.config_manager import get_sound_database_file
 
 class SoundDatabase:
 

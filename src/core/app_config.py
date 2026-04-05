@@ -1,4 +1,4 @@
-from src.game_registry import (
+from src.core.game_registry import (
     get_game_for_build_target,
     get_game_id_for_build_target,
     get_game_language_folders,

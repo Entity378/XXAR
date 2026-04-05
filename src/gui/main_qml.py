@@ -31,10 +31,10 @@ from gui.backend.audio_conversion_bridge import AudioConversionBridge
 from gui.backend.update_manager_bridge import UpdateManagerBridge
 from gui.backend.gamebanana_bridge import GameBananaBridge
 from gui.backend.ui_theme_bridge import UIThemeBridge
-from gui.backend.native_dialogs import NativeDialogs
-from src.config_manager import get_settings_file, get_cache_dir, normalize_game_id
-from src.game_registry import DEFAULT_GAME_ID
-from src.app_config import (
+from gui.utils.native_dialogs import NativeDialogs
+from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
+from src.core.game_registry import DEFAULT_GAME_ID
+from src.core.app_config import (
     APP_NAME, APP_FULL_NAME, APP_VERSION, GAME_NAME, GAME_SHORT, GAME_DATA_FOLDER,
     GAME_DATA_FOLDER_SEARCH, GAME_INSTALL_SUBDIRS, GAME_INSTALL_HOME_SUBDIR,
     LOGO_PNG, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR,

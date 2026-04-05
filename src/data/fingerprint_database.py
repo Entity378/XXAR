@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from datetime import datetime
 
-from src.config_manager import get_fingerprint_database_file
+from src.core.config_manager import get_fingerprint_database_file
 
 class FingerprintDatabase:
     

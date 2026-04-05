@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-from src.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
-from src.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+from src.core.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 
 class ImportWorker(QThread):
 
@@ -59,8 +59,8 @@ class ImportWorker(QThread):
 
     def _convert_mod(self):
 
-        from src.pck_indexer import PCKIndexer
-        from src.bnk_indexer import BNKIndexer
+        from src.wwise.pck_indexer import PCKIndexer
+        from src.wwise.bnk_indexer import BNKIndexer
         from PIL import Image
 
         temp_dir = None
