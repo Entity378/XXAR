@@ -698,7 +698,9 @@ class ModPackageManager:
                     str(msg), total_pcks, max(total_pcks, 1)
                 )
             patch_override_pcks(
-                persistent_audio_dir, resolved, progress_callback=override_cb
+                persistent_audio_dir, resolved,
+                streaming_root=game_audio_dir,
+                progress_callback=override_cb,
             )
         except Exception as e:
             print(f"[Mod Manager] Warning: Override PCK patching failed: {e}")

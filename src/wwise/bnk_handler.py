@@ -220,6 +220,12 @@ class BNKFile:
 
         print(f"  Replaced WEM {wem_id} in BNK ({len(wem_bytes)} bytes)")
 
+    def add_wem(self, wem_id, wem_bytes):
+        if 'DATA' not in self.data:
+            return
+        self.data['DATA'].wem_data[wem_id] = WEM(wem_bytes)
+        self._correct_offsets()
+
     def remove_wem(self, wem_id):
         if 'DATA' not in self.data:
             return False

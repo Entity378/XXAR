@@ -1973,6 +1973,7 @@ class AudioBrowserBridge(QObject):
                 patch_override_pcks(
                     persistent_base,
                     replacements,
+                    streaming_root=streaming_base,
                     progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
                 )
             except Exception as e:
