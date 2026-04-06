@@ -1,10 +1,6 @@
 # ZZZ Audio Mod Tool Dependencies
 
-# Core dependencies
-requests>=2.31.0
-
 # Audio processing
-pydub>=0.25.1
 numpy>=1.24.0
 scipy>=1.10.0
 
@@ -17,4 +13,3 @@ PyQt5>=5.15.0
 # Archive support
 rarfile>=4.0
 py7zr>=0.20.0
-

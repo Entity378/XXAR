@@ -1,9 +1,9 @@
-# Patches Patch.pck / Hotfix.pck when they contain BNK/WEM entries
-# that would override the user's mod replacements.
+# Strips conflicting WEM entries from Patch.pck / Hotfix.pck so the game
+# falls back to the modded copies in the regular SoundBank PCKs.
+# Uses patching mode to keep the file size unchanged (avoids game validation nuke).
 # Originals are backed up as .xxar_backup and restored on mod removal.
 
 import shutil
-import tempfile
 from pathlib import Path
 from collections import defaultdict
 
@@ -19,17 +19,14 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
 
-    # Collect all BNK and direct WEM replacements
-    bnk_replacements = defaultdict(dict)
-    direct_replacements = {}
-
+    # Collect all BNK WEM IDs that the user is modding
+    bnk_wem_ids = defaultdict(set)
     for _pck_name, files in (replacements or {}).items():
         for tracker_key, repl_info in files.items():
-            wem_path = repl_info.get("wem_path", "")
-            if not wem_path or not Path(wem_path).exists():
+            bnk_id = repl_info.get("bnk_id")
+            if not bnk_id:
                 continue
 
-            bnk_id = repl_info.get("bnk_id")
             raw_id = repl_info.get("file_id") or (
                 str(tracker_key).split("|")[-1]
                 if "|" in str(tracker_key)
@@ -40,27 +37,22 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
             except (ValueError, TypeError):
                 continue
 
-            if bnk_id:
-                bnk_replacements[int(bnk_id)][wem_id] = wem_path
-            else:
-                direct_replacements[wem_id] = wem_path
+            bnk_wem_ids[int(bnk_id)].add(wem_id)
 
-    if not bnk_replacements and not direct_replacements:
+    if not bnk_wem_ids:
         return _empty_result()
 
     override_pcks = [
-        p
-        for p in persistent_root.rglob("*.pck")
+        p for p in persistent_root.rglob("*.pck")
         if p.name in OVERRIDE_PCK_NAMES
     ]
     if not override_pcks:
         return _empty_result()
 
-    target_bnk_ids = set(bnk_replacements.keys())
-    target_wem_ids = set(direct_replacements.keys())
+    target_bnk_ids = set(bnk_wem_ids.keys())
     patched_pcks = 0
-    all_patched_bnk_ids = set()
-    all_patched_wem_ids = set()
+    all_stripped_bnk_ids = set()
+    total_stripped_wems = 0
 
     for override_pck in override_pcks:
         try:
@@ -71,74 +63,40 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
             continue
 
         pck_bnk_ids = {entry["id"] for entry in index["banks"]}
-        pck_wem_ids = {
-            entry["id"]
-            for entry in index["sounds"] + index["externals"]
-        }
-
         conflicting_bnks = pck_bnk_ids & target_bnk_ids
-        conflicting_wems = pck_wem_ids & target_wem_ids
 
-        if not conflicting_bnks and not conflicting_wems:
+        if not conflicting_bnks:
             continue
-
-        parts = []
-        if conflicting_bnks:
-            parts.append(f"{len(conflicting_bnks)} BNK(s)")
-        if conflicting_wems:
-            parts.append(f"{len(conflicting_wems)} WEM(s)")
-        conflict_desc = " + ".join(parts)
 
         print(
             f"[Override Patcher] {override_pck.parent.name}/{override_pck.name}: "
-            f"{conflict_desc} conflicting with mods"
+            f"{len(conflicting_bnks)} BNK(s) conflicting with mods"
         )
         if progress_callback:
-            progress_callback(f"Patching {override_pck.name} ({conflict_desc})...")
+            progress_callback(f"Stripping conflicts from {override_pck.name}...")
 
-        # Back up the original before patching
         backup_path = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
         if not backup_path.exists():
             try:
                 shutil.copy2(override_pck, backup_path)
-                print(
-                    f"[Override Patcher] Backed up {override_pck.name} "
-                    f"-> {backup_path.name}"
-                )
+                print(f"[Override Patcher] Backed up {override_pck.name}")
             except Exception as e:
-                print(
-                    f"[Override Patcher] Failed to back up "
-                    f"{override_pck.name}: {e}"
-                )
+                print(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
                 continue
 
+        # Always rebuild from the clean backup
         source_pck = backup_path
 
-        temp_dir = None
         try:
-            try:
-                from ZZAR import get_temp_dir
-                temp_dir = Path(
-                    tempfile.mkdtemp(
-                        prefix="xxar_override_", dir=str(get_temp_dir())
-                    )
-                )
-            except Exception:
-                temp_dir = Path(tempfile.mkdtemp(prefix="xxar_override_"))
-
             if override_pck.exists():
                 override_pck.chmod(0o644)
 
             packer = PCKPacker(str(source_pck), str(override_pck))
             packer.load_original_pck()
 
+            stripped_in_pck = 0
             for bnk_id in conflicting_bnks:
-                wem_map = bnk_replacements[bnk_id]
-                bnk_dir = temp_dir / str(bnk_id)
-                bnk_dir.mkdir(parents=True, exist_ok=True)
-
-                for wem_id, wem_path in wem_map.items():
-                    shutil.copy2(wem_path, bnk_dir / f"{wem_id}.wem")
+                wem_ids = bnk_wem_ids[bnk_id]
 
                 lang_id = 0
                 for search_lang, bnks in packer.soundbank_titles.items():
@@ -146,18 +104,22 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
                         lang_id = search_lang
                         break
 
-                packer.replace_bnk_wems(bnk_id, str(bnk_dir), lang_id=lang_id)
-                all_patched_bnk_ids.add(bnk_id)
+                removed = packer.remove_wems_from_bnk(bnk_id, wem_ids, lang_id=lang_id)
+                if removed > 0:
+                    all_stripped_bnk_ids.add(bnk_id)
+                    stripped_in_pck += removed
 
-            for wem_id in conflicting_wems:
-                packer.replace_file(wem_id, direct_replacements[wem_id])
-                all_patched_wem_ids.add(wem_id)
+            if stripped_in_pck == 0:
+                packer.close()
+                continue
 
-            packer.pack(use_patching=False)
+            # Patching mode keeps the file size unchanged
+            packer.pack(use_patching=True)
             packer.close()
 
             patched_pcks += 1
-            print(f"[Override Patcher] Patched {override_pck.name}")
+            total_stripped_wems += stripped_in_pck
+            print(f"[Override Patcher] Stripped {stripped_in_pck} WEM(s) from {override_pck.name}")
 
         except Exception as e:
             print(f"[Override Patcher] Failed to patch {override_pck.name}: {e}")
@@ -166,15 +128,11 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
                     shutil.copy2(backup_path, override_pck)
                 except Exception:
                     pass
-        finally:
-            if temp_dir and temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
 
     if patched_pcks > 0:
         summary = (
-            f"Patched {patched_pcks} override PCK(s) "
-            f"({len(all_patched_bnk_ids)} BNK + "
-            f"{len(all_patched_wem_ids)} WEM conflicts resolved)"
+            f"Stripped {total_stripped_wems} conflicting WEM(s) from "
+            f"{patched_pcks} override PCK(s)"
         )
         print(f"[Override Patcher] {summary}")
         if progress_callback:
@@ -182,8 +140,8 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
 
     return {
         "patched_pcks": patched_pcks,
-        "patched_bnk_ids": all_patched_bnk_ids,
-        "patched_wem_ids": all_patched_wem_ids,
+        "patched_bnk_ids": all_stripped_bnk_ids,
+        "stripped_wems": total_stripped_wems,
     }
 
 
@@ -213,4 +171,4 @@ def restore_override_pck_backups(persistent_root):
 
 
 def _empty_result():
-    return {"patched_pcks": 0, "patched_bnk_ids": set(), "patched_wem_ids": set()}
+    return {"patched_pcks": 0, "patched_bnk_ids": set(), "stripped_wems": 0}

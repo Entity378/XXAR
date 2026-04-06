@@ -220,14 +220,30 @@ class BNKFile:
 
         print(f"  Replaced WEM {wem_id} in BNK ({len(wem_bytes)} bytes)")
 
+    def remove_wem(self, wem_id):
+        if 'DATA' not in self.data:
+            return False
+
+        if wem_id not in self.data['DATA'].wem_data:
+            return False
+
+        del self.data['DATA'].wem_data[wem_id]
+        self._correct_offsets()
+        print(f"  Removed WEM {wem_id} from BNK")
+        return True
+
     def _correct_offsets(self):
 
         if self.data is None:
             return
 
+        # Use actual WEM count for DIDX size (12 bytes per entry)
+        # len(DIDX) would return the old buffer size before setdata() updates it
+        didx_size = len(self.data['DATA'].wem_data) * 0xC
+
         self.data['DATA'].start_pos = (
             8 + len(self.data['BKHD']) +
-            8 + len(self.data['DIDX']) +
+            8 + didx_size +
             8
         )
 

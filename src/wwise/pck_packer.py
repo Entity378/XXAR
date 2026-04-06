@@ -256,6 +256,46 @@ class PCKPacker:
 
         print(f"    ✓ Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
+    def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
+        # Remove specific WEM IDs from a BNK inside the PCK
+        lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
+
+        if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
+            print(f" Warning: BNK {bnk_id} not found in PCK (lang_id={lang_id})")
+            return 0
+
+        file_index, size, offset = self.soundbank_titles[lang_id][bnk_id][0]
+        original_file = self.file_list[file_index]
+        original_file.seek(offset)
+        bnk_bytes = original_file.read(size)
+
+        try:
+            bnk = BNKFile(bnk_bytes=bnk_bytes)
+        except Exception as e:
+            print(f" Error loading BNK {bnk_id}: {e}")
+            return 0
+
+        removed = 0
+        for wem_id in wem_ids:
+            if bnk.remove_wem(wem_id):
+                removed += 1
+
+        if removed == 0:
+            return 0
+
+        modified_bnk_bytes = bnk.get_bytes()
+
+        new_file_index = len(self.file_list)
+        temp_bnk = BytesIO(modified_bnk_bytes)
+        temp_bnk.seek(0)
+        self.file_list.append(temp_bnk)
+
+        self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(modified_bnk_bytes), 0)]
+
+        print(f"    Stripped {removed} WEM(s) from BNK {bnk_id} ({lang_name}), "
+              f"size: {size} -> {len(modified_bnk_bytes)} bytes")
+        return removed
+
     def replace_files_from_directory(self, replacements_dir, lang_id=0):
 
         replacements_dir = Path(replacements_dir)
