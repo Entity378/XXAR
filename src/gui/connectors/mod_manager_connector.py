@@ -63,7 +63,7 @@ class ModManagerConnector:
     def _on_test_permission_dialog(self):
         self.on_alert_dialog_requested(
             QCoreApplication.translate("Application", "Permission Denied"),
-            QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
+            QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
             ""
         )
 

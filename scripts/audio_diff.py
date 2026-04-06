@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# audio_diff.py — Extract WEMs from ZZZ PCK archives and diff two versions.
+# audio_diff.py -- Extract WEMs from ZZZ PCK archives and diff two versions.
 # Usage:
 # python audio_diff.py extract <pck_dir> <out_dir>
 # Extract all WEMs from SoundBank_*.pck files in <pck_dir> into <out_dir>.
@@ -147,11 +147,11 @@ def cmd_extract(pck_dir, out_dir):
         print(f"No SoundBank_*.pck files found in {pck_dir}")
         sys.exit(1)
 
-    print(f"Extracting WEMs from {len(pck_files)} SoundBank PCK(s) → {out_dir}/")
+    print(f"Extracting WEMs from {len(pck_files)} SoundBank PCK(s) -> {out_dir}/")
     total_wems = 0
     for pck in pck_files:
         bnks, wems = extract_soundbank_pck(pck, out_dir)
-        print(f"  {pck.name:40s}  {bnks} BNKs  →  {wems} WEMs")
+        print(f"  {pck.name:40s}  {bnks} BNKs  ->  {wems} WEMs")
         total_wems += wems
 
     all_wems = list(out_dir.glob("*.wem"))
@@ -227,13 +227,13 @@ def cmd_auto(new_pck_dir, old_pck_dir, diff_dir):
     new_extracted = diff_dir.parent / (diff_dir.name.replace("diff_", "extracted_new_", 1) or "extracted_new")
     old_extracted = diff_dir.parent / (diff_dir.name.replace("diff_", "extracted_old_", 1) or "extracted_old")
 
-    print(f"=== Step 1/3: Extract new version → {new_extracted}/")
+    print(f"=== Step 1/3: Extract new version -> {new_extracted}/")
     cmd_extract(new_pck_dir, new_extracted)
 
-    print(f"\n=== Step 2/3: Extract old version → {old_extracted}/")
+    print(f"\n=== Step 2/3: Extract old version -> {old_extracted}/")
     cmd_extract(old_pck_dir, old_extracted)
 
-    print(f"\n=== Step 3/3: Diff → {diff_dir}/")
+    print(f"\n=== Step 3/3: Diff -> {diff_dir}/")
     cmd_diff(new_extracted, old_extracted, diff_dir)
 
 

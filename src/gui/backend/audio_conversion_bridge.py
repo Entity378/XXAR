@@ -136,7 +136,7 @@ class AudioConversionBridge(QObject):
         self.conversionStarted.emit()
         self.logMessage.emit(f"Input: {input_path}")
         self.logMessage.emit(f"Output: {output_path if output_path else 'Auto (same as input)'}")
-        self.logMessage.emit(f"Mode: {['WEM → WAV', 'Audio → WAV', 'WAV → WEM'][mode]}")
+        self.logMessage.emit(f"Mode: {['WEM -> WAV', 'Audio -> WAV', 'WAV -> WEM'][mode]}")
         self.logMessage.emit(f"Normalize: {'On (' + str(lufs) + ' LUFS)' if normalize else 'Off'}")
         self.logMessage.emit("Starting conversion...\n")
 

@@ -62,7 +62,7 @@ class UpdateConnector:
                     self.root,
                     "showAlertDialog",
                     Qt.QueuedConnection,
-                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available — v%1").replace("%1", version)),
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of ZZAR is available!\n\n"
                            "Update your Flatpak to the latest version:\n\n"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# transcribe_tag.py — Transcribe audio for all DB entries matching a tag,
+# transcribe_tag.py -- Transcribe audio for all DB entries matching a tag,
 # then rename each matching tag to '<Character> "transcribed text"' and add
 # an 'autogen' tag.
 # Usage:
@@ -11,9 +11,9 @@
 # pip install openai-whisper   (or: pipx install openai-whisper)
 # vgmstream-cli  (for WEM decoding)
 # ffmpeg
-# The script reads WEM bytes directly from the DB by hash — it does NOT need
+# The script reads WEM bytes directly from the DB by hash -- it does NOT need
 # the original PCK files.  WEM bytes are stored in the DB via add_sound().
-# Wait — actually the DB only stores hashes + metadata, not the raw bytes.
+# Wait -- actually the DB only stores hashes + metadata, not the raw bytes.
 # So we need the original audio source.  The script will look up file_ids
 # from the DB entry, then search for matching .wem files in a provided folder.
 # Usage (with WEM folder):
@@ -49,7 +49,7 @@ def wem_to_wav(wem_path, vgmstream_path, ffmpeg_path, tmp_dir):
     tmp_wav = Path(tmp_dir) / "audio.wav"
     tmp_pcm = Path(tmp_dir) / "audio_raw.wav"
 
-    # Step 1: vgmstream WEM → wav
+    # Step 1: vgmstream WEM -> wav
     if vgmstream_path:
         result = subprocess.run(
             [vgmstream_path, "-o", str(tmp_pcm), str(wem_path)],
@@ -60,7 +60,7 @@ def wem_to_wav(wem_path, vgmstream_path, ffmpeg_path, tmp_dir):
     else:
         tmp_pcm = wem_path
 
-    # Step 2: ffmpeg → 16kHz mono wav (Whisper expects this)
+    # Step 2: ffmpeg -> 16kHz mono wav (Whisper expects this)
     result = subprocess.run(
         [ffmpeg_path, "-y", "-i", str(tmp_pcm),
          "-ar", "16000", "-ac", "1", str(tmp_wav)],
@@ -113,7 +113,7 @@ def main():
 
     vgmstream_path = find_vgmstream()
     if not vgmstream_path:
-        print("Warning: vgmstream-cli not found — WEM decoding may fail for some files")
+        print("Warning: vgmstream-cli not found -- WEM decoding may fail for some files")
 
     # Load Whisper
     try:
@@ -138,7 +138,7 @@ def main():
     print(f"Found {len(matches)} entries tagged '{tag}'")
     print()
 
-    # Build a lookup: wem_id (int) → wem file path
+    # Build a lookup: wem_id (int) -> wem file path
     wem_files = {int(p.stem): p for p in wem_dir.glob("*.wem") if p.stem.isdigit()}
     print(f"WEM folder has {len(wem_files)} files")
     print()
@@ -172,7 +172,7 @@ def main():
                 break
 
         if wem_path is None:
-            print(f"  [skip] No WEM file found for file_ids={info.get('file_ids')} — {info.get('name','')}")
+            print(f"  [skip] No WEM file found for file_ids={info.get('file_ids')} -- {info.get('name','')}")
             skipped += 1
             continue
 
@@ -204,7 +204,7 @@ def main():
         if "autogen" not in new_tags:
             new_tags.append("autogen")
 
-        print(f"  {wem_path.name}  →  {new_name}")
+        print(f"  {wem_path.name}  ->  {new_name}")
 
         if not args.dry_run:
             db.database[sound_hash]["name"] = new_name
@@ -221,7 +221,7 @@ def main():
     print(f"  Skipped:     {skipped}")
     print(f"  Errors:      {errors}")
     if args.dry_run:
-        print("  (dry run — no changes written)")
+        print("  (dry run -- no changes written)")
 
 
 if __name__ == "__main__":

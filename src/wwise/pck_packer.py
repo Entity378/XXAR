@@ -254,7 +254,7 @@ class PCKPacker:
 
         self.soundbank_titles[lang_id][bnk_id] = [(file_index, len(modified_bnk_bytes), 0)]
 
-        print(f"    ✓ Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
+        print(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
     def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
         # Remove specific WEM IDs from a BNK inside the PCK
@@ -340,6 +340,7 @@ class PCKPacker:
 
         import shutil
         shutil.copy2(self.original_pck_path, self.output_pck_path)
+        self.output_pck_path.chmod(0o644)
         print(f"  Copied original PCK: {self.output_pck_path.stat().st_size:,} bytes")
 
         patches = []
@@ -407,7 +408,7 @@ class PCKPacker:
 
                     f.seek(original_offset)
                     f.write(new_data)
-                    print(f"    ✓ Patched ID {file_id} at offset {original_offset} ({new_size} bytes)")
+                    print(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes)")
 
                 elif new_size < original_size:
 
@@ -415,16 +416,16 @@ class PCKPacker:
                     f.write(new_data)
                     padding = original_size - new_size
                     f.write(b'\x00' * padding)
-                    print(f"    ✓ Patched ID {file_id} at offset {original_offset} ({new_size} bytes, padded {padding} bytes)")
+                    print(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes, padded {padding} bytes)")
 
                 else:
 
-                    print(f"    ⚠ Warning: ID {file_id} is larger than original ({new_size} > {original_size})")
-                    print(f"       Truncating to fit original size. Audio may be incomplete!")
+                    print(f"[!] Warning: ID {file_id} is larger than original ({new_size} > {original_size})")
+                    print(f"Truncating to fit original size. Audio may be incomplete!")
                     f.seek(original_offset)
                     f.write(new_data[:original_size])
 
-        print(f"✓ PCK file patched: {self.output_pck_path}")
+        print(f"[OK] PCK file patched: {self.output_pck_path}")
         print(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
 
     def pack_with_rebuild(self):
@@ -462,7 +463,7 @@ class PCKPacker:
             self._write_audio_data(f, bf_write_info)
             self._write_audio_data(f, sf_write_info)
 
-        print(f"✓ PCK file created: {self.output_pck_path}")
+        print(f"[OK] PCK file created: {self.output_pck_path}")
         print(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
 
     def _precalculate_section(self, section_map, base_count):

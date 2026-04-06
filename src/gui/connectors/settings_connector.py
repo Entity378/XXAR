@@ -85,7 +85,7 @@ class SettingsConnector:
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=2)
 
-        # Light UI updates — instant, main thread.
+        # Light UI updates -- instant, main thread.
         if self.settings_page:
             self.settings_page.setProperty(
                 "defaultModsDirectory", str(get_game_mod_library_dir(target_game_id))
@@ -103,7 +103,7 @@ class SettingsConnector:
 
         self._set_root_active_game_props(target_game_id)
 
-        # Heavy work — background thread (glob, scan, refresh).
+        # Heavy work -- background thread (glob, scan, refresh).
         threading.Thread(
             target=self._switch_active_game_heavy,
             args=(target_game_id, game_data_dir),
@@ -118,7 +118,7 @@ class SettingsConnector:
                 if game_data_dir:
                     self.audio_browser_bridge.loadFromSettings()
                 else:
-                    # No directory configured — clear the browser.
+                    # No directory configured -- clear the browser.
                     self.audio_browser_bridge._index_cancel.set()
                     self.audio_browser_bridge.treeCleared.emit()
                     self.audio_browser_bridge.languageTabsReady.emit([])
@@ -440,10 +440,10 @@ class SettingsConnector:
         title = QCoreApplication.translate("Application", "Wwise Setup Warning")
         message = QCoreApplication.translate("Application", "You are about to download licensed software from Audiokinetic.\n\n"
             "By proceeding, you acknowledge that:\n"
-            "• You are downloading software directly from Audiokinetic\n"
-            "• This software is subject to Audiokinetic's licensing terms\n"
-            "• You use this software at your own risk\n"
-            "• Pucas01 and other ZZAR contributors are not responsible for any issues\n\n"
+            "* You are downloading software directly from Audiokinetic\n"
+            "* This software is subject to Audiokinetic's licensing terms\n"
+            "* You use this software at your own risk\n"
+            "* Pucas01 and other ZZAR contributors are not responsible for any issues\n\n"
             "Do you want to continue?")
         QMetaObject.invokeMethod(
             self.root,
@@ -853,14 +853,13 @@ class SettingsConnector:
                 )
                 return
 
-            PROTECTED_PCKS = {'Patch.pck', 'Hotfix.pck'}
 
             print(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
             destination.mkdir(parents=True, exist_ok=True)
 
             skipped = []
             for item in source.iterdir():
-                if item.is_file() and item.name in PROTECTED_PCKS:
+                if item.is_file() and item.name in get_game(selected_game).protected_pcks:
                     skipped.append(item.name)
                     print(f"[{APP_NAME}] Leaving protected file in Persistent: {item.name}")
                     continue

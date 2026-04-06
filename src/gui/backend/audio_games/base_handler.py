@@ -150,8 +150,6 @@ class BaseBrowserHandler:
     def collect_pck_files(directory):
         return sorted(Path(directory).glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
 
-    _OVERRIDE_PCKS = {"Patch.pck", "Hotfix.pck"}
-
     def include_pck_file(
         self,
         pck_file,
@@ -159,7 +157,7 @@ class BaseBrowserHandler:
         merge_wem_enabled,
         hide_useless_pck_enabled,
     ):
-        if pck_file.name in self._OVERRIDE_PCKS:
+        if pck_file.name in self.game.protected_pcks:
             return False
 
         if merge_wem_enabled and str(pck_file.name).startswith(
@@ -410,6 +408,7 @@ class BaseBrowserHandler:
         )
         for override_pck in self._find_override_pcks(persistent_root):
             try:
+                override_pck.chmod(0o644)
                 content = override_pck.read_bytes()
             except Exception:
                 continue
@@ -525,8 +524,9 @@ class BaseBrowserHandler:
             patched_track_ids.update(result["patched_source_ids"])
 
         # Scan override PCKs for HIRC duration patching too
-        for override_pck in cls._find_override_pcks(persistent_root):
+        for override_pck in handler._find_override_pcks(persistent_root):
             try:
+                override_pck.chmod(0o644)
                 content = override_pck.read_bytes()
             except Exception:
                 continue
@@ -567,16 +567,13 @@ class BaseBrowserHandler:
             if p.name.lower().startswith(prefix)
         ]
 
-    @staticmethod
-    def _find_override_pcks(persistent_root):
-        from src.wwise.override_pck_patcher import OVERRIDE_PCK_NAMES
-
+    def _find_override_pcks(self, persistent_root):
         if not persistent_root or not Path(persistent_root).exists():
             return []
         return [
             p
             for p in Path(persistent_root).rglob("*.pck")
-            if p.name in OVERRIDE_PCK_NAMES
+            if p.name in self.game.protected_pcks
         ]
 
     def _collect_loop_patch_targets(self, replacements):

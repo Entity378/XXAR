@@ -174,7 +174,7 @@ def _download_hdiff_archive(
                         progress_cb(
                             f"Downloading {folder_name} VO patch "
                             f"({_format_size(downloaded)} / "
-                            f"{_format_size(total)} — {pct}%)"
+                            f"{_format_size(total)} -- {pct}%)"
                         )
 
         if progress_cb:
@@ -286,7 +286,7 @@ def _apply_hdiff_patches(
             )
             print(
                 f"[VO Download] hpatchz failed for {target_name}: "
-                f"exit {e.returncode} — {stderr}"
+                f"exit {e.returncode} -- {stderr}"
             )
             new_file.unlink(missing_ok=True)
             return False
@@ -382,7 +382,7 @@ def download_and_extract(
                         progress_cb(
                             f"Downloading {folder_name} VO "
                             f"({_format_size(downloaded)} / "
-                            f"{_format_size(total)} — {pct}%)"
+                            f"{_format_size(total)} -- {pct}%)"
                         )
 
         # Verify MD5
@@ -500,10 +500,10 @@ def restore_language_from_api(
                 )
                 print(
                     f"[VO Download] Restored {folder_name} from "
-                    f"hdiff patch ({cached_version} → {version})"
+                    f"hdiff patch ({cached_version} -> {version})"
                 )
                 return True
-            # hdiff failed — clean up stale cache before full download
+            # hdiff failed -- clean up stale cache before full download
             print(
                 f"[VO Download] HDiff patch failed for {folder_name}, "
                 f"falling back to full download"
@@ -627,7 +627,7 @@ def _try_hdiff_patch(
                 if not ok:
                     return False
 
-                # Success — replace cache with patched copy
+                # Success -- replace cache with patched copy
                 shutil.rmtree(cache_lang_dir)
                 shutil.copytree(working_dir, cache_lang_dir)
 
@@ -663,7 +663,7 @@ def cleanup_stale_cache(
     # Check if the cache version differs from "current_version".
     # Returns the old cached version string if stale (for hdiff patching),
     # or None if the cache is already current or empty.
-    # Does NOT delete old cache — the caller decides whether to hdiff-patch
+    # Does NOT delete old cache -- the caller decides whether to hdiff-patch
     # or fall back to full download.
     meta = _load_cache_meta(app_game_dir)
     if not meta:

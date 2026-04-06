@@ -33,13 +33,13 @@ def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
         shutil.copy2(wem_file, dest)
         print(f"    Copied: {wem_file.name}")
 
-    print(f"\n✓ Structure created: {output_structure_dir}")
+    print(f"\n[OK] Structure created: {output_structure_dir}")
     return output_structure_dir
 
 def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0):
 
     print("=" * 60)
-    print("BNK Modding Workflow: WEM → BNK → PCK")
+    print("BNK Modding Workflow: WEM -> BNK -> PCK")
     print("=" * 60)
 
     temp_dir = Path("./temp_bnk_structure")
@@ -58,7 +58,7 @@ def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0
     shutil.rmtree(temp_dir)
 
     print("\n" + "=" * 60)
-    print("✓ BNK Modding Complete!")
+    print("[OK] BNK Modding Complete!")
     print("=" * 60)
     print(f"\nModded PCK: {output_pck}")
     print(f"BNK ID: {bnk_id}")

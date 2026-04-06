@@ -1844,8 +1844,6 @@ class AudioBrowserBridge(QObject):
                             f"{lang_folder.name} (has {pck_count} PCK files)"
                         )
 
-                PROTECTED_PCKS = {'Patch.pck', 'Hotfix.pck'}
-
                 cleaned_files = 0
                 for pck_file in persistent_path.rglob("*.pck"):
                     if any(
@@ -1854,7 +1852,7 @@ class AudioBrowserBridge(QObject):
                     ):
                         continue
 
-                    if pck_file.name in PROTECTED_PCKS:
+                    if pck_file.name in self._active_game().protected_pcks:
                         print(f"[Audio Browser] Skipping protected file: {pck_file.name}")
                         continue
 
@@ -2145,7 +2143,7 @@ class AudioBrowserBridge(QObject):
             meta = self._match_metadata.get(meta_key)
 
         if not meta:
-            # Build minimal meta — must include bnk_id for wem_embedded playback
+            # Build minimal meta -- must include bnk_id for wem_embedded playback
             if not pck_path or not Path(pck_path).exists():
                 return
             meta = {
@@ -2233,6 +2231,8 @@ class AudioBrowserBridge(QObject):
                             )
 
                     for pck_file in persistent_path.rglob("*.pck"):
+                        if pck_file.name in self._active_game().protected_pcks:
+                            continue
                         if any(
                             lang_folder in pck_file.parents
                             for lang_folder in lang_folders_to_skip
@@ -2245,8 +2245,16 @@ class AudioBrowserBridge(QObject):
                         except Exception as e:
                             print(f"[Audio Browser] Failed to delete {pck_file}: {e}")
 
+                    try:
+                        from src.wwise.override_pck_patcher import restore_override_pck_backups
+                        restore_override_pck_backups(persistent_path)
+                    except Exception:
+                        pass
+
             if cleaned_files == 0 and self.mod_manager.persistent_base_path:
                 for pck_name in stats["pcks"]:
+                    if pck_name in self._active_game().protected_pcks:
+                        continue
                     pck_path = self.mod_manager.get_persistent_pck_path(pck_name)
                     if not pck_path.exists():
                         continue
@@ -2681,7 +2689,7 @@ class AudioBrowserBridge(QObject):
         self.matchResultsReady.emit(results)
         count = len(results)
         if count > 0:
-            status_msg = QCoreApplication.translate("Application", "Found %1 match(es) — best score: %2%").replace("%1", str(count)).replace("%2", str(results[0]['score']))
+            status_msg = QCoreApplication.translate("Application", "Found %1 match(es) -- best score: %2%").replace("%1", str(count)).replace("%2", str(results[0]['score']))
             self.statusUpdate.emit(status_msg)
         else:
             status_msg = QCoreApplication.translate("Application", "No matches found")
@@ -3138,7 +3146,7 @@ class AudioBrowserBridge(QObject):
             count = self.sound_db.import_from_file(self._tag_db_temp_path, merge=merge)
             mode = QCoreApplication.translate("Application", "Merged") if merge else QCoreApplication.translate("Application", "Replaced")
             self.tagDbImportComplete.emit(count)
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "%1 tag database — %2 entries imported").replace("%1", mode).replace("%2", str(count)))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "%1 tag database -- %2 entries imported").replace("%1", mode).replace("%2", str(count)))
 
             if hasattr(self, "_tag_db_latest_hash"):
                 try:
@@ -3257,7 +3265,7 @@ class AudioBrowserBridge(QObject):
 
             mode = QCoreApplication.translate("Application", "Merged") if merge else QCoreApplication.translate("Application", "Replaced")
             self.fingerprintDbImportComplete.emit(count)
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "%1 fingerprint database — %2 entries imported").replace("%1", mode).replace("%2", str(count)))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "%1 fingerprint database -- %2 entries imported").replace("%1", mode).replace("%2", str(count)))
 
             if self._pending_match_path:
                 QMetaObject.invokeMethod(

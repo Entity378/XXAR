@@ -20,7 +20,7 @@ from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, 
 from src.mods.package_manager import ModPackageManager, InvalidModPackageError
 from src.mods.persistent_manager import PersistentModManager
 from src.core.config_manager import get_settings_file
-from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, normalize_game_id
+from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
 from gui.utils.native_dialogs import NativeDialogs
 
@@ -721,7 +721,7 @@ class ModManagerBridge(QObject):
             if is_permission_error:
                 self.alertDialogRequested.emit(
                     QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
+                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
                     ""
                 )
             else:
@@ -749,7 +749,6 @@ class ModManagerBridge(QObject):
                                         f"{lang_folder.name} (has {pck_count} PCK files)"
                                     )
 
-                        PROTECTED_PCKS = {'Patch.pck', 'Hotfix.pck'}
 
                         cleaned_files = 0
                         for pck_file in persistent_path.rglob("*.pck"):
@@ -757,7 +756,7 @@ class ModManagerBridge(QObject):
                             if any(lang_folder in pck_file.parents for lang_folder in lang_folders_to_skip):
                                 continue
 
-                            if pck_file.name in PROTECTED_PCKS:
+                            if pck_file.name in get_game(self.active_game_id).protected_pcks:
                                 print(f"[Mod Manager] Skipping protected file: {pck_file.name}")
                                 continue
 
@@ -819,7 +818,7 @@ class ModManagerBridge(QObject):
             if is_permission_error:
                 self.alertDialogRequested.emit(
                     QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n• Run %1 as Administrator\n• Repair your game files in the launcher").replace("%1", APP_NAME),
+                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
                     ""
                 )
             else:

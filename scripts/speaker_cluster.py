@@ -47,9 +47,9 @@ def _patch_speechbrain(site_packages):
     manually edit files after `pipx install speechbrain`.
 
     Patches applied:
-      1. torch_audio_backend.py — torchaudio 2.x removed list_audio_backends();
+      1. torch_audio_backend.py -- torchaudio 2.x removed list_audio_backends();
          wrap the call in hasattr() guard.
-      2. speechbrain/utils/fetching.py — huggingface_hub ≥1.0 renamed
+      2. speechbrain/utils/fetching.py -- huggingface_hub >=1.0 renamed
          use_auth_token= to token=.
     """
     patched = []
@@ -88,7 +88,7 @@ def _patch_speechbrain(site_packages):
                 tab_path.write_text(text, encoding="utf-8")
                 patched.append("torch_audio_backend.py")
 
-    # --- Patch 2: fetching.py (use_auth_token → token) ---
+    # --- Patch 2: fetching.py (use_auth_token -> token) ---
     fetching_path = site_packages / "speechbrain" / "utils" / "fetching.py"
     if fetching_path.exists():
         text = fetching_path.read_text(encoding="utf-8")
@@ -266,7 +266,7 @@ def progress_bar(current, total, width=40, label=""):
         return ""
     pct = current / total
     filled = int(width * pct)
-    bar = colored("█" * filled, C.GREEN) + colored("░" * (width - filled), C.DIM)
+    bar = colored("#" * filled, C.GREEN) + colored("." * (width - filled), C.DIM)
     pct_str = f"{pct * 100:5.1f}%"
     count_str = f"{current}/{total}"
     parts = [f"  {bar} {pct_str}  {count_str}"]
@@ -656,9 +656,9 @@ class FeatureCache:
     def load(self):
         if self.features_path.exists() and self.metadata_path.exists():
             loaded = np.load(self.features_path)
-            # Invalidate cache if feature dimension changed (e.g. handcrafted→neural)
+            # Invalidate cache if feature dimension changed (e.g. handcrafted->neural)
             if len(loaded) > 0 and loaded.shape[1] != FEATURE_DIM:
-                print(colored(f"\n  Cache feature dim mismatch ({loaded.shape[1]} vs {FEATURE_DIM}) — clearing cache.", C.YELLOW))
+                print(colored(f"\n  Cache feature dim mismatch ({loaded.shape[1]} vs {FEATURE_DIM}) -- clearing cache.", C.YELLOW))
                 self.features_path.unlink(missing_ok=True)
                 self.metadata_path.unlink(missing_ok=True)
                 return False
@@ -693,7 +693,7 @@ def find_elbow_threshold(Z):
 
     merge_distances = Z[:, 2]
     if len(merge_distances) < 10:
-        # Too few clips for elbow detection — use a generous default for ECAPA embeddings
+        # Too few clips for elbow detection -- use a generous default for ECAPA embeddings
         return 0.85
 
     diffs = np.diff(merge_distances)
@@ -705,7 +705,7 @@ def find_elbow_threshold(Z):
     sensitivity = 2.0 + (n / 500.0)  # 2.0 at ~0 clips, ~4.3 at 1170 clips
     sensitivity = min(sensitivity, 5.0)
 
-    MIN_THRESHOLD = 0.55  # never split below this — ECAPA same-speaker pairs cluster below 0.5
+    MIN_THRESHOLD = 0.55  # never split below this -- ECAPA same-speaker pairs cluster below 0.5
 
     for i in range(window, len(diffs)):
         if merge_distances[i] < MIN_THRESHOLD:
@@ -723,7 +723,7 @@ def cluster_speakers(features, threshold=None, min_cluster_size=3):
     if n < 2:
         return [0] * n, 1
 
-    # L2-normalize each row so cosine distance is well-defined (range 0–2, same-speaker ~0–0.5)
+    # L2-normalize each row so cosine distance is well-defined (range 0-2, same-speaker ~0-0.5)
     norms = np.linalg.norm(features, axis=1, keepdims=True)
     norms[norms < 1e-8] = 1.0
     normed = features / norms
@@ -886,7 +886,7 @@ def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
     sample = random.sample(clips, min(n, len(clips)))
     ffplay = shutil.which("ffplay") or (str(Path(ffmpeg_path).parent / "ffplay") if ffmpeg_path else None)
     if not ffplay or not Path(ffplay).exists():
-        print(colored("  ffplay not found — cannot preview audio", C.RED))
+        print(colored("  ffplay not found -- cannot preview audio", C.RED))
         time.sleep(1.5)
         return
 
@@ -943,9 +943,9 @@ def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
 def screen_welcome(ffmpeg_ok, vgmstream_ok):
     clear_screen()
     print()
-    print(colored("  ╔══════════════════════════════════════════╗", C.CYAN))
-    print(colored("  ║     ZZAR Speaker Clustering Tool         ║", C.CYAN, C.BOLD))
-    print(colored("  ╚══════════════════════════════════════════╝", C.CYAN))
+    print(colored("  +==========================================+", C.CYAN))
+    print(colored("  |     ZZAR Speaker Clustering Tool         |", C.CYAN, C.BOLD))
+    print(colored("  +==========================================+", C.CYAN))
     print()
     print(colored("  Identify voice characters in ZZZ audio banks", C.DIM))
     print()
@@ -956,7 +956,7 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
 
     print(f"  ffmpeg:       {status_ok if ffmpeg_ok else status_missing}")
     print(f"  vgmstream:    {status_ok if vgmstream_ok else status_warn}")
-    print(f"  speechbrain:  {status_ok if _SPEECHBRAIN_AVAILABLE else colored('not found — using fallback', C.YELLOW)}")
+    print(f"  speechbrain:  {status_ok if _SPEECHBRAIN_AVAILABLE else colored('not found -- using fallback', C.YELLOW)}")
     print()
 
     if not ffmpeg_ok:
@@ -1062,7 +1062,7 @@ def screen_extract_wem_folder(wem_dir, cache_dir, ffmpeg_path, vgmstream_path):
                 _print_extract_progress(processed, total, new_clips, skipped_filter, errors, start_time)
                 continue
 
-            # No voice filter in loose WEM mode — process everything that decoded
+            # No voice filter in loose WEM mode -- process everything that decoded
             features = extract_speaker_features(audio, SAMPLE_RATE)
             meta["hash"] = wem_hash
             cache.add(features, meta)
@@ -1221,8 +1221,8 @@ def screen_cluster(cache, min_cluster_size=3):
         for i in range(len(features)):
             for j in range(i + 1, len(features)):
                 d = distances[idx]
-                bar = colored("█" * int(d * 20), C.GREEN if d < 0.5 else C.YELLOW if d < 0.75 else C.RED)
-                print(f"    {names[i][:20]:20s} ↔ {names[j][:20]:20s}  {d:.3f}  {bar}")
+                bar = colored("#" * int(d * 20), C.GREEN if d < 0.5 else C.YELLOW if d < 0.75 else C.RED)
+                print(f"    {names[i][:20]:20s} <-> {names[j][:20]:20s}  {d:.3f}  {bar}")
                 idx += 1
         print()
 
@@ -1282,7 +1282,7 @@ def screen_rename(clusters_data, audio_dir=None, vgmstream_path=None, ffmpeg_pat
 
             # Show up to 2 sample WEM IDs for identification
             sample_ids = [str(c.get("wem_id", "?")) for c in clips[:2]]
-            ids_str = colored("  ids: " + ", ".join(sample_ids) + ("…" if clip_count > 2 else ""), C.DIM)
+            ids_str = colored("  ids: " + ", ".join(sample_ids) + ("..." if clip_count > 2 else ""), C.DIM)
 
             prefix = "  > " if i == selected else "    "
             count_str = colored(f"({clip_count} clips)", C.DIM)
@@ -1416,7 +1416,7 @@ def main():
         if not screen_welcome(ffmpeg_path is not None, vgmstream_path is not None):
             return
 
-        mode = menu_select("Select Mode", ["ZZZ game directory", "Loose WEM folder", "Import clusters JSON → DB"])
+        mode = menu_select("Select Mode", ["ZZZ game directory", "Loose WEM folder", "Import clusters JSON -> DB"])
         if mode < 0:
             return
 
@@ -1513,7 +1513,7 @@ def main():
                     actions[0] = "Extract & Cluster (will update cache)"
 
                 choice = menu_select(
-                    f"Speaker Clustering — {wem_count} WEM files ({wem_dir})",
+                    f"Speaker Clustering -- {wem_count} WEM files ({wem_dir})",
                     actions,
                     allow_quit=False,
                 )
@@ -1600,7 +1600,7 @@ def main():
                     actions[0] = "Extract & Cluster (will update cache)"
 
                 choice = menu_select(
-                    f"Speaker Clustering — {VOICE_LANGUAGES[lang_code]} ({audio_dir})",
+                    f"Speaker Clustering -- {VOICE_LANGUAGES[lang_code]} ({audio_dir})",
                     actions,
                     allow_quit=False,
                 )

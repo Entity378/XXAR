@@ -238,13 +238,13 @@ class WwiseConsole:
         wav_dir = wav_files_paths[0].parent
 
         if not all(f.parent == wav_dir for f in wav_files_paths):
-            print("⚠️  Warning: WAV files are in different directories. Converting individually...")
+            print("[!]  Warning: WAV files are in different directories. Converting individually...")
             for wav in wav_files:
                 try:
                     out = self.convert_to_wem(wav, output_dir)
                     converted.append(out)
                 except Exception as e:
-                    print(f"❌ Failed {Path(wav).name}: {e}")
+                    print(f"[X] Failed {Path(wav).name}: {e}")
                     failed.append(wav)
             return converted
 
@@ -277,14 +277,14 @@ class WwiseConsole:
         process = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
 
         if process.returncode != 0:
-            print(f"❌ Batch conversion failed: {process.stdout + process.stderr}")
+            print(f"[X] Batch conversion failed: {process.stdout + process.stderr}")
 
             for wav in wav_files:
                 try:
                     out = self.convert_to_wem(wav, output_dir)
                     converted.append(out)
                 except Exception as e:
-                    print(f"❌ Failed {Path(wav).name}: {e}")
+                    print(f"[X] Failed {Path(wav).name}: {e}")
                     failed.append(wav)
         else:
 

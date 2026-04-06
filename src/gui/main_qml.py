@@ -242,7 +242,7 @@ class Application(
         self.clipboard_helper = ClipboardHelper()
         context.setContextProperty("clipboardHelper", self.clipboard_helper)
 
-        # App/game branding — consumed by QML via these context properties
+        # App/game branding -- consumed by QML via these context properties
         context.setContextProperty("appName", APP_NAME)
         context.setContextProperty("appFullName", APP_FULL_NAME)
         context.setContextProperty("gameName", GAME_NAME)

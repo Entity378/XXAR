@@ -257,7 +257,7 @@ class ImportWorker(QThread):
                     raise Exception("Game audio directory not set. Please set it in Settings first.")
 
                 target_wem_ids = set(files.keys())
-                # Build int→key mapping to match both decimal and hex string IDs
+                # Build int->key mapping to match both decimal and hex string IDs
                 target_id_to_key = {}
                 for fid in files.keys():
                     try:

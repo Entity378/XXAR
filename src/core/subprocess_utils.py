@@ -30,4 +30,4 @@ if os.environ.get(FLATPAK_ENV_VAR):
 elif hasattr(sys, '_MEIPASS'):
     BASE_DIR = Path(sys.executable).parent.resolve()
 else:
-    BASE_DIR = Path(__file__).resolve().parent.parent
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent

@@ -19,7 +19,7 @@ _CHUNK_SIZE = 1 << 20  # 1 MB
 
 def _parse_hash_filename(name: str) -> tuple[str, str] | None:
     # Parse ``External0_826a01d1af49b7fac662ed39219be7da.hash``.
-    # Returns ``("External0.pck", "826a…")`` or ``None`` if the pattern
+    # Returns ``("External0.pck", "826a...")`` or ``None`` if the pattern
     # does not match.
     if not name.endswith(".hash"):
         return None
@@ -67,8 +67,8 @@ def restore_language_from_hashes(
     # Ensure ``persistent_path/folder_name`` contains original PCK files.
     # Compares each PCK's actual MD5 against the expected value from its
     # companion ``.hash`` file:
-    # * **Match** — file is original → copy to backup cache.
-    # * **Mismatch** — file was modded → overwrite with cached backup.
+    # * **Match** -- file is original -> copy to backup cache.
+    # * **Mismatch** -- file was modded -> overwrite with cached backup.
     # Returns ``True`` if at least one file was processed successfully.
     lang_dir = persistent_path / folder_name
     if not lang_dir.is_dir():
@@ -102,12 +102,12 @@ def restore_language_from_hashes(
         actual_md5 = _compute_file_md5(pck_path)
 
         if actual_md5 == expected_md5:
-            # File is original — back it up if not already cached.
+            # File is original -- back it up if not already cached.
             if not cached_pck.is_file() or _compute_file_md5(cached_pck) != expected_md5:
                 shutil.copy2(pck_path, cached_pck)
                 backed_up += 1
         else:
-            # File is modded — restore from cache.
+            # File is modded -- restore from cache.
             if cached_pck.is_file():
                 shutil.copy2(cached_pck, pck_path)
                 restored += 1

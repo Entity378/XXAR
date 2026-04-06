@@ -1,80 +1,46 @@
-# Strips conflicting WEM entries from Patch.pck / Hotfix.pck so the game
-# falls back to the modded copies in the regular SoundBank PCKs.
-# Uses patching mode to keep the file size unchanged (avoids game validation nuke).
+# Nulls conflicting BNK file_ids in the Patch.pck / Hotfix.pck file table
+# so Wwise skips them and falls back to the modded SoundBank PCKs.
+# Only 4 bytes per BNK are changed, file size stays identical.
 # Originals are backed up as .xxar_backup and restored on mod removal.
 
+import struct
 import shutil
 from pathlib import Path
 from collections import defaultdict
 
-OVERRIDE_PCK_NAMES = {"Patch.pck", "Hotfix.pck"}
+from src.core.game_registry import get_game, DEFAULT_GAME_ID
+
 BACKUP_SUFFIX = ".xxar_backup"
 
 
 def patch_override_pcks(persistent_root, replacements, progress_callback=None):
-    from src.wwise.pck_packer import PCKPacker
-    from src.wwise.pck_indexer import PCKIndexer
-
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
 
-    # Collect all BNK WEM IDs that the user is modding
-    bnk_wem_ids = defaultdict(set)
+    # Collect all BNK IDs that the user is modding
+    target_bnk_ids = set()
     for _pck_name, files in (replacements or {}).items():
         for tracker_key, repl_info in files.items():
             bnk_id = repl_info.get("bnk_id")
-            if not bnk_id:
-                continue
+            if bnk_id:
+                target_bnk_ids.add(int(bnk_id))
 
-            raw_id = repl_info.get("file_id") or (
-                str(tracker_key).split("|")[-1]
-                if "|" in str(tracker_key)
-                else tracker_key
-            )
-            try:
-                wem_id = int(raw_id)
-            except (ValueError, TypeError):
-                continue
-
-            bnk_wem_ids[int(bnk_id)].add(wem_id)
-
-    if not bnk_wem_ids:
+    if not target_bnk_ids:
         return _empty_result()
 
+    protected = get_game(DEFAULT_GAME_ID).protected_pcks
     override_pcks = [
         p for p in persistent_root.rglob("*.pck")
-        if p.name in OVERRIDE_PCK_NAMES
+        if p.name in protected
     ]
     if not override_pcks:
         return _empty_result()
 
-    target_bnk_ids = set(bnk_wem_ids.keys())
     patched_pcks = 0
-    all_stripped_bnk_ids = set()
-    total_stripped_wems = 0
+    all_nulled_bnk_ids = set()
 
     for override_pck in override_pcks:
-        try:
-            indexer = PCKIndexer(str(override_pck))
-            index = indexer.build_index()
-        except Exception as e:
-            print(f"[Override Patcher] Failed to index {override_pck}: {e}")
-            continue
-
-        pck_bnk_ids = {entry["id"] for entry in index["banks"]}
-        conflicting_bnks = pck_bnk_ids & target_bnk_ids
-
-        if not conflicting_bnks:
-            continue
-
-        print(
-            f"[Override Patcher] {override_pck.parent.name}/{override_pck.name}: "
-            f"{len(conflicting_bnks)} BNK(s) conflicting with mods"
-        )
-        if progress_callback:
-            progress_callback(f"Stripping conflicts from {override_pck.name}...")
-
         backup_path = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
         if not backup_path.exists():
             try:
@@ -84,65 +50,78 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
                 print(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
                 continue
 
-        # Always rebuild from the clean backup
-        source_pck = backup_path
+        # Always start from the clean backup
+        try:
+            shutil.copy2(backup_path, override_pck)
+            override_pck.chmod(0o644)
+        except Exception as e:
+            print(f"[Override Patcher] Failed to restore from backup: {e}")
+            continue
 
         try:
-            if override_pck.exists():
-                override_pck.chmod(0o644)
-
-            packer = PCKPacker(str(source_pck), str(override_pck))
-            packer.load_original_pck()
-
-            stripped_in_pck = 0
-            for bnk_id in conflicting_bnks:
-                wem_ids = bnk_wem_ids[bnk_id]
-
-                lang_id = 0
-                for search_lang, bnks in packer.soundbank_titles.items():
-                    if bnk_id in bnks:
-                        lang_id = search_lang
-                        break
-
-                removed = packer.remove_wems_from_bnk(bnk_id, wem_ids, lang_id=lang_id)
-                if removed > 0:
-                    all_stripped_bnk_ids.add(bnk_id)
-                    stripped_in_pck += removed
-
-            if stripped_in_pck == 0:
-                packer.close()
-                continue
-
-            # Patching mode keeps the file size unchanged
-            packer.pack(use_patching=True)
-            packer.close()
-
-            patched_pcks += 1
-            total_stripped_wems += stripped_in_pck
-            print(f"[Override Patcher] Stripped {stripped_in_pck} WEM(s) from {override_pck.name}")
-
+            nulled = _null_bnk_ids_in_file_table(override_pck, target_bnk_ids)
         except Exception as e:
             print(f"[Override Patcher] Failed to patch {override_pck.name}: {e}")
-            if backup_path.exists():
-                try:
-                    shutil.copy2(backup_path, override_pck)
-                except Exception:
-                    pass
+            try:
+                shutil.copy2(backup_path, override_pck)
+            except Exception:
+                pass
+            continue
 
-    if patched_pcks > 0:
-        summary = (
-            f"Stripped {total_stripped_wems} conflicting WEM(s) from "
-            f"{patched_pcks} override PCK(s)"
-        )
-        print(f"[Override Patcher] {summary}")
-        if progress_callback:
-            progress_callback(summary)
+        if nulled:
+            patched_pcks += 1
+            all_nulled_bnk_ids.update(nulled)
+            print(f"[Override Patcher] Nulled {len(nulled)} BNK ID(s) in {override_pck.name}: {nulled}")
+            if progress_callback:
+                progress_callback(f"Patched {override_pck.name} ({len(nulled)} BNK conflicts)")
 
     return {
         "patched_pcks": patched_pcks,
-        "patched_bnk_ids": all_stripped_bnk_ids,
-        "stripped_wems": total_stripped_wems,
+        "patched_bnk_ids": all_nulled_bnk_ids,
     }
+
+
+def _null_bnk_ids_in_file_table(pck_path, target_bnk_ids):
+    # Parse the PCK header to find the banks file table, then null matching file_ids
+    nulled = set()
+
+    with open(pck_path, 'r+b') as f:
+        magic = f.read(4)
+        if magic != b'AKPK':
+            return nulled
+
+        header_size = struct.unpack('<I', f.read(4))[0]
+        _version = struct.unpack('<I', f.read(4))[0]
+        sec1_size = struct.unpack('<I', f.read(4))[0]
+        sec2_size = struct.unpack('<I', f.read(4))[0]
+        sec3_size = struct.unpack('<I', f.read(4))[0]
+
+        sec_sum = sec1_size + sec2_size + sec3_size + 0x10
+        if sec_sum < header_size:
+            f.read(4)  # sec4_size
+
+        strings_start = f.tell()
+        banks_start = strings_start + sec1_size
+
+        f.seek(banks_start)
+        if sec2_size == 0:
+            return nulled
+
+        file_count = struct.unpack('<I', f.read(4))[0]
+
+        # Each entry: file_id(4) + blocksize(4) + size(4) + offset_block(4) + lang_id(4) = 20 bytes
+        for _ in range(file_count):
+            entry_pos = f.tell()
+            file_id = struct.unpack('<I', f.read(4))[0]
+            f.read(16)
+
+            if file_id in target_bnk_ids:
+                f.seek(entry_pos)
+                f.write(struct.pack('<I', 0))
+                f.seek(entry_pos + 20)
+                nulled.add(file_id)
+
+    return nulled
 
 
 def restore_override_pck_backups(persistent_root):
@@ -150,10 +129,11 @@ def restore_override_pck_backups(persistent_root):
     if not persistent_root or not persistent_root.exists():
         return 0
 
+    protected = get_game(DEFAULT_GAME_ID).protected_pcks
     restored = 0
     for backup_file in persistent_root.rglob(f"*{BACKUP_SUFFIX}"):
         original_name = backup_file.name.replace(BACKUP_SUFFIX, "")
-        if original_name not in OVERRIDE_PCK_NAMES:
+        if original_name not in protected:
             continue
 
         target = backup_file.with_name(original_name)
@@ -171,4 +151,4 @@ def restore_override_pck_backups(persistent_root):
 
 
 def _empty_result():
-    return {"patched_pcks": 0, "patched_bnk_ids": set(), "stripped_wems": 0}
+    return {"patched_pcks": 0, "patched_bnk_ids": set()}

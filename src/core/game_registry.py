@@ -29,6 +29,7 @@ class GameDefinition:
     loop_point_patching_supported: bool = False
     loop_point_modes: tuple[str, ...] = ("auto", "manual", "disabled")
     special_audio_dirs: tuple[str, ...] = ()
+    protected_pcks: frozenset = frozenset({"Patch.pck", "Hotfix.pck"})
 
 
 _ALL_GAMES: tuple[GameDefinition, ...] = (

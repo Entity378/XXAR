@@ -282,7 +282,7 @@ def extract_bnk_wems(bnk_path, output_dir):
         bnk.extract_wem(wem_id, output_file)
         print(f"  Extracted: {wem_id}.wem")
 
-    print(f"\n✓ Extracted {len(wem_ids)} WEM files to {output_dir}")
+    print(f"\n[OK] Extracted {len(wem_ids)} WEM files to {output_dir}")
 
 def main():
 
@@ -326,7 +326,7 @@ def main():
         bnk = BNKFile(bnk_file)
         bnk.replace_wem(wem_id, wem_file)
         bnk.save(output_bnk)
-        print(f"\n✓ Created modified BNK: {output_bnk}")
+        print(f"\n[OK] Created modified BNK: {output_bnk}")
 
     else:
         print(f"Unknown command: {command}")

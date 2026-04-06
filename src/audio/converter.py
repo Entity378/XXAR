@@ -249,7 +249,7 @@ class AudioConverter:
                 try:
                     self.any_to_wav(wav_file, tmp_path, normalize=True, normalize_lufs=normalize_lufs)
                     result_wem = wwise.convert_to_wem(tmp_path, output_dir)
-                    # Wwise names output after the input stem — rename to match original
+                    # Wwise names output after the input stem -- rename to match original
                     expected = output_dir / (tmp_path.stem + '.wem')
                     target = output_dir / (wav_file.stem + '.wem')
                     if expected.exists() and expected != target:
@@ -408,7 +408,7 @@ def main():
             else:
                 converter.any_to_wav(input_path, output_path)
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[X] Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

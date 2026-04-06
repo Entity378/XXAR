@@ -82,7 +82,7 @@ class WwiseSetup:
                         capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
-                        print(f"✓ Wine found on host: {result.stdout.strip()}")
+                        print(f"[OK] Wine found on host: {result.stdout.strip()}")
                         return True
                 except Exception:
                     continue
@@ -100,13 +100,13 @@ class WwiseSetup:
             print("  Debian/Ubuntu: sudo apt install wine")
             return False
 
-        print(f"✓ Wine found: {wine}")
+        print(f"[OK] Wine found: {wine}")
         return True
 
     def check_existing(self):
         # Check if Wwise is already installed
         if self.wwise_console.exists():
-            print(f"✓ Wwise already installed at: {self.wwise_dir}")
+            print(f"[OK] Wwise already installed at: {self.wwise_dir}")
             return True
         return False
 
@@ -141,7 +141,7 @@ class WwiseSetup:
                 zip_path,
                 reporthook=report_progress
             )
-            print("\n✓ Download complete!")
+            print("\n[OK] Download complete!")
             return zip_path
 
         except Exception as e:
@@ -156,10 +156,10 @@ class WwiseSetup:
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(self.wwise_dir)
 
-            print("✓ Extraction complete!")
+            print("[OK] Extraction complete!")
 
             zip_path.unlink()
-            print("✓ Cleaned up temporary files")
+            print("[OK] Cleaned up temporary files")
 
             return True
 
@@ -254,7 +254,7 @@ Notes:
                 print("Wwise is installed and working!")
                 sys.exit(0)
             else:
-                print("⚠️  Wwise is installed but test failed")
+                print("[!]  Wwise is installed but test failed")
                 sys.exit(1)
         else:
             print("Wwise is not installed")

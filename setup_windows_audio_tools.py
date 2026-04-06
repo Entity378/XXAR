@@ -240,7 +240,7 @@ class WindowsAudioToolsSetup:
             print("[ERROR] ffmpeg.exe not found after extraction!")
             return False
 
-        # Test is best-effort — files are on disk, so consider it installed
+        # Test is best-effort -- files are on disk, so consider it installed
         if not self.test_ffmpeg():
             print("[WARNING] ffmpeg test run failed, but binary exists on disk")
 
@@ -272,7 +272,7 @@ class WindowsAudioToolsSetup:
             print("[ERROR] vgmstream-cli.exe not found after extraction!")
             return False
 
-        # Test is best-effort — files are on disk, so consider it installed
+        # Test is best-effort -- files are on disk, so consider it installed
         if not self.test_vgmstream():
             print("[WARNING] vgmstream test run failed, but binary exists on disk")
 

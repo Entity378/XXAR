@@ -497,8 +497,11 @@ class ModPackageManager:
         except ImportError as e:
             raise ModApplicationError(f"Failed to import required modules: {e}")
 
+        from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+
         game_audio_dir = Path(game_audio_dir)
         persistent_audio_dir = Path(persistent_audio_dir)
+        game = get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
 
         if not game_audio_dir.exists():
             raise ModApplicationError(f"Game audio directory not found: {game_audio_dir}")
@@ -522,6 +525,8 @@ class ModPackageManager:
 
             deleted_count = 0
             for pck_name in old_replacements.keys():
+                if pck_name in game.protected_pcks:
+                    continue
                 pck_path = persistent_audio_dir / pck_name
                 if pck_path.exists():
                     try:
@@ -544,6 +549,8 @@ class ModPackageManager:
                 progress_callback(f"Removing {len(pcks_to_remove)} PCK file(s) from disabled mods...", 0, 1)
 
             for pck_name in pcks_to_remove:
+                if pck_name in game.protected_pcks:
+                    continue
                 pck_path = persistent_audio_dir / pck_name
                 if pck_path.exists():
                     try:
