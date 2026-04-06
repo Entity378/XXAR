@@ -52,6 +52,9 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
 
         # Always start from the clean backup
         try:
+            if override_pck.exists():
+                override_pck.chmod(0o644)
+            backup_path.chmod(0o644)
             shutil.copy2(backup_path, override_pck)
             override_pck.chmod(0o644)
         except Exception as e:
@@ -72,6 +75,14 @@ def patch_override_pcks(persistent_root, replacements, progress_callback=None):
             patched_pcks += 1
             all_nulled_bnk_ids.update(nulled)
             print(f"[Override Patcher] Nulled {len(nulled)} BNK ID(s) in {override_pck.name}: {nulled}")
+
+            # Verify the null actually stuck
+            verify = _verify_bnk_ids_nulled(override_pck, nulled)
+            if verify:
+                print(f"[Override Patcher] VERIFY FAILED - these BNK IDs are still present: {verify}")
+            else:
+                print(f"[Override Patcher] Verified: all nulled BNK IDs confirmed as 0")
+
             if progress_callback:
                 progress_callback(f"Patched {override_pck.name} ({len(nulled)} BNK conflicts)")
 
@@ -138,6 +149,7 @@ def restore_override_pck_backups(persistent_root):
 
         target = backup_file.with_name(original_name)
         try:
+            backup_file.chmod(0o644)
             if target.exists():
                 target.chmod(0o644)
             shutil.copy2(backup_file, target)
@@ -148,6 +160,38 @@ def restore_override_pck_backups(persistent_root):
             print(f"[Override Patcher] Failed to restore {original_name}: {e}")
 
     return restored
+
+
+def _verify_bnk_ids_nulled(pck_path, expected_nulled):
+    # Re-read the file table and check that the nulled IDs are actually 0
+    still_present = set()
+    with open(pck_path, 'rb') as f:
+        magic = f.read(4)
+        if magic != b'AKPK':
+            return expected_nulled
+
+        header_size = struct.unpack('<I', f.read(4))[0]
+        f.read(4)  # version
+        sec1_size = struct.unpack('<I', f.read(4))[0]
+        sec2_size = struct.unpack('<I', f.read(4))[0]
+        sec3_size = struct.unpack('<I', f.read(4))[0]
+        sec_sum = sec1_size + sec2_size + sec3_size + 0x10
+        if sec_sum < header_size:
+            f.read(4)
+
+        banks_start = f.tell() + sec1_size
+        f.seek(banks_start)
+        if sec2_size == 0:
+            return expected_nulled
+
+        file_count = struct.unpack('<I', f.read(4))[0]
+        for _ in range(file_count):
+            file_id = struct.unpack('<I', f.read(4))[0]
+            f.read(16)
+            if file_id in expected_nulled:
+                still_present.add(file_id)
+
+    return still_present
 
 
 def _empty_result():
