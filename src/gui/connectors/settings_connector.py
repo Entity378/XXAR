@@ -77,7 +77,16 @@ class SettingsConnector:
             return DEFAULT_GAME_ID
         if current_game_id not in supported:
             return supported[0]
-        return supported[(supported.index(current_game_id) + 1) % len(supported)]
+        settings = self.load_settings()
+        start_idx = supported.index(current_game_id)
+        for offset in range(1, len(supported) + 1):
+            candidate = supported[(start_idx + offset) % len(supported)]
+            if candidate == current_game_id:
+                return current_game_id
+            game_dir = self._get_saved_game_data_dir(settings, candidate)
+            if game_dir and is_valid_game_data_dir(game_dir):
+                return candidate
+        return current_game_id
 
     def _switch_active_game(self, target_game_id):
         settings = self.load_settings()
