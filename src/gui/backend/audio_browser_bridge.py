@@ -46,8 +46,8 @@ from src.gui.backend.audio_games import (
 )
 from src.gui.backend.update_manager_bridge import _urlopen
 
-OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
-OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_fingerprint_database.json"
+OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
+OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_fingerprint_database.json"
 
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 

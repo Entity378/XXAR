@@ -66,7 +66,7 @@ class UpdateConnector:
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "Update your Flatpak to the latest version:\n\n"
-                           "new .flatpak file can be downloaded from https://github.com/Pucas01/XXAR/releases")),
+                           "new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases")),
                     Q_ARG("QVariant", ""),
                 )
         elif self._startup_update_check and self.update_dialog:

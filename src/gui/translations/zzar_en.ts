@@ -2286,7 +2286,7 @@ By proceeding, you acknowledge that:
 • You are downloading software directly from Audiokinetic
 • This software is subject to Audiokinetic's licensing terms
 • You use this software at your own risk
-• Pucas01 and other ZZAR contributors are not responsible for any issues
+• Pucas01 and other XXAR contributors are not responsible for any issues
 
 Do you want to continue?</source>
             <translation type="unfinished"></translation>
@@ -2414,7 +2414,7 @@ This folder should contain 'StreamingAssets' and other game data folders.</sourc
 
 Update your Flatpak to the latest version:
 
-new .flatpak file can be downloaded from https://github.com/Pucas01/ZZAR/releases</source>
+new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases</source>
             <translation type="unfinished"></translation>
         </message>
         <message>

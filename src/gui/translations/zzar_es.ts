@@ -2320,7 +2320,7 @@ By proceeding, you acknowledge that:
 • You are downloading software directly from Audiokinetic
 • This software is subject to Audiokinetic's licensing terms
 • You use this software at your own risk
-• Pucas01 and other ZZAR contributors are not responsible for any issues
+• Pucas01 and other XXAR contributors are not responsible for any issues
 
 Do you want to continue?</source>
             <translation>Estás apunto de instalar software licenciado de Audiokinetic.
@@ -2463,12 +2463,12 @@ Esta carpeta debe contener 'StreamingAssets' y otras carpetas de datos del juego
 
 Update your Flatpak to the latest version:
 
-new .flatpak file can be downloaded from https://github.com/Pucas01/ZZAR/releases</source>
+new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases</source>
             <translation>Una nueva versión de ZZAR esta disponible!
     
 Actualización tu Flatpak a la última versión:
     
-el nuevo archivo puede descargarse de https://github.com/Pucas01/ZZAR/releases</translation>
+el nuevo archivo puede descargarse de https://github.com/Entity378/XXAR/releases</translation>
         </message>
         <message>
             <location filename="../connectors/update_connector.py" line="207" />

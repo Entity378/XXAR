@@ -28,8 +28,8 @@
 
   <launchable type="desktop-id">io.github.pucas01.SRAR.desktop</launchable>
 
-  <url type="homepage">https://github.com/Pucas01/SRAR</url>
-  <url type="bugtracker">https://github.com/Pucas01/SRAR/issues</url>
+  <url type="homepage">https://github.com/Entity378/XXAR</url>
+  <url type="bugtracker">https://github.com/Entity378/XXAR/issues</url>
 
   <branding>
     <color type="primary" scheme_preference="dark">#1a1a2e</color>

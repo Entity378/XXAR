@@ -853,7 +853,7 @@ Item {
                                                     onExited: {
                                                         tagInfoHideTimer.restart()
                                                     }
-                                                    onClicked: Qt.openUrlExternally("https://github.com/Pucas01/ZZAR/blob/main/data/CONTRIBUTING_TAGS.md")
+                                                    onClicked: Qt.openUrlExternally("https://github.com/Entity378/XXAR/blob/main/data/CONTRIBUTING_TAGS.md")
                                                 }
                                             }
                                         }

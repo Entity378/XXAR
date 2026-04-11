@@ -1,36 +1,39 @@
-# Planned features
+# Planned Features
 
-This file shows of all the planned features for ZZAR.
+This file shows all the planned features for XXAR.
+
 ---
 
-##  Currently planned: Version 1.X
+## Completed
 
-[/] = Implemented but not released
-
-- [X] **Sound match implementation** 
+- [X] **Sound match implementation**
     - [X] Enabled feature in UI
-    - [/] Improve alogrithm
-- [X] **Translation system implementation** 
-    - [x] Implement translation backend
-    - [X] Spanish
-    - [ ] Japanese
-- [X] **Official tag repo (download verified sounds tags)** 
+    - [X] Improve algorithm
+- [X] **Translation system implementation**
+    - [X] Implement translation backend
+- [X] **Official tag repo (download verified sound tags)**
     - [X] Add file to repo
     - [X] Add the ability to download them in app
     - [X] Allow users to open pull requests to add tags
-- [X] **Gamebanana mod browser**: Download and install mods from gamebanana.
+- [X] **GameBanana mod browser**: Download and install mods from GameBanana
+- [X] **Multi-game support**: Switch between Zenless Zone Zero, Genshin Impact, and Honkai Star Rail
+    - [X] Game-specific themes and branding
+    - [X] Per-game mod libraries and audio browsers
+    - [X] Per-game GameBanana integration
+- [X] **Audio normalization**: LUFS-based normalization for audio conversion
+- [X] **UI scaling**: Adjustable UI scale setting
+
 ---
 
-## Future stuff (none of this stuff is confirmed to be coming)
+## Currently Planned
 
-- [ ] **Voice recognition for voice audio**: Integration with the tag repo to use voice recognition to auto tag voice sounds.
-- [ ] **ZZMI Integration**: Install and manage ZZMI mods, link ZZAR and ZZMI mods together.
-
+- [ ] **Expand game sound databases**: Add official sound databases for Genshin Impact and Honkai Star Rail
 
 ---
 
 ## Feature Requests
+
 Have an idea for a feature?
-Please open an issue
+Please open an issue.
 
 ---
