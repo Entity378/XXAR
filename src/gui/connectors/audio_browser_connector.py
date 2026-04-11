@@ -33,7 +33,7 @@ class AudioBrowserConnector:
         self.audio_page.treeItemDoubleClicked.connect(ab.onTreeItemDoubleClicked)
         self.audio_page.treeItemRightClicked.connect(self.on_audio_context_menu)
         self.audio_page.tagSoundRequested.connect(ab.tagSound)
-        self.audio_page.importZzarForEditingClicked.connect(ab.browseAndImportZzar)
+        self.audio_page.importModForEditingClicked.connect(ab.browseAndImportMod)
         self.audio_page.showChangesClicked.connect(ab.showChanges)
         self.audio_page.removeChangeRequested.connect(ab.removeChange)
         self.audio_page.navigateToChangeClicked.connect(ab.navigateToChange)
@@ -53,6 +53,8 @@ class AudioBrowserConnector:
         self.audio_page.normalizeTargetLufsSet.connect(ab.setNormalizeTargetLufs)
         self.audio_page.changeLoopPointModeSet.connect(ab.setChangeLoopPointMode)
         self.audio_page.changeLoopPointManualMsSet.connect(ab.setChangeLoopPointManualMs)
+        self.audio_page.changeVolumeEnabledSet.connect(ab.setChangeVolumeEnabled)
+        self.audio_page.changeVolumeDbSet.connect(ab.setChangeVolumeDb)
 
         ab.statusUpdate.connect(
             lambda msg: self.audio_page.setProperty("statusText", msg)

@@ -10,6 +10,7 @@ Item {
     id: audioBrowser
     objectName: "audioBrowserPage"
     clip: true
+    property bool changesDialogOpen: changesOverlay.visible && !changesOverlay.closing
 
     function getMainWindow() {
         var item = audioBrowser
@@ -30,12 +31,14 @@ Item {
     signal normalizeTargetLufsSet(int lufs)
     signal changeLoopPointModeSet(string pckFile, string trackerKey, string mode)
     signal changeLoopPointManualMsSet(string pckFile, string trackerKey, string durationText)
+    signal changeVolumeEnabledSet(string pckFile, string trackerKey, bool enabled)
+    signal changeVolumeDbSet(string pckFile, string trackerKey, string volumeDb)
     signal treeItemExpanded(string itemId, string itemType)
 
     signal treeItemDoubleClicked(string itemId, string itemType, string pckPath)
     signal treeItemRightClicked(string itemId, string itemType, string pckPath, real x, real y)
     signal tagSoundRequested(string itemId, string itemType, string pckPath)
-    signal importZzarForEditingClicked()
+    signal importModForEditingClicked()
     signal showChangesClicked()
     signal applyChangesClicked()
     signal exportModClicked()
@@ -366,18 +369,18 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Search")
                         onClicked: searchRequested(searchInput.text)
                     }
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Clear")
                         onClicked: {
                             searchInput.text = ""
                             clearSearchClicked()
                         }
                     }
-                    ZZARButton {
+                    XXARButton {
                         id: findMatchingSoundBtn
                         text: qsTranslate("Application", "Find Matching Sound")
                         buttonColor: Theme.primaryAccent
@@ -728,7 +731,7 @@ Item {
                             Row {
                                 spacing: 8
 
-                                ZZARButton {
+                                XXARButton {
                                     text: tagDbDownloading
                                         ? qsTranslate("Application", "Downloading...")
                                         : qsTranslate("Application", "Download Official Tags")
@@ -858,7 +861,7 @@ Item {
                                 }
                             }
 
-                            ZZARButton {
+                            XXARButton {
                                 text: qsTranslate("Application", "Open Tag Database Folder")
                                 buttonColor: Theme.disabledAccent
                                 z: 10
@@ -1208,23 +1211,23 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.spacingSmall
 
-                    ZZARButton {
-                        objectName: "tutorialImportZzarBtn"
+                    XXARButton {
+                        objectName: "tutorialImportModBtn"
                         text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
                         buttonColor: Theme.primaryAccent
-                        onClicked: importZzarForEditingClicked()
+                        onClicked: importModForEditingClicked()
                     }
-                    ZZARButton {
+                    XXARButton {
                         objectName: "tutorialShowChangesBtn"
                         text: changesCount > 0 ? qsTranslate("Application", "Show Changes (%1)").arg(changesCount) : qsTranslate("Application", "Show Changes")
                         onClicked: showChangesClicked()
                     }
-                    ZZARButton {
+                    XXARButton {
                         objectName: "tutorialExportBtn"
                         text: qsTranslate("Application", "Export as Mod Package")
                         onClicked: exportModClicked()
                     }
-                    ZZARButton {
+                    XXARButton {
                         objectName: "tutorialResetBtn"
                         text: qsTranslate("Application", "Reset All Changes")
                         buttonColor: Theme.disabledAccent
@@ -1260,19 +1263,19 @@ Item {
                                 Layout.fillWidth: true
                             }
 
-                            ZZARButton {
+                            XXARButton {
                                 text: "\u25B6 Play"
                                 enabled: playbackEnabled
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
                                 onClicked: playClicked()
                             }
-                            ZZARButton {
+                            XXARButton {
                                 text: "\u23F8 Pause"
                                 enabled: isPlaying
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
                                 onClicked: pauseClicked()
                             }
-                            ZZARButton {
+                            XXARButton {
                                 text: "\u23F9 Stop"
                                 enabled: isPlaying || isPaused
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
@@ -1618,10 +1621,14 @@ Item {
                 "loopPointEditable": changes[i].loopPointEditable || false,
                 "loopPointMode": changes[i].loopPointMode || "auto",
                 "loopPointManualMs": changes[i].loopPointManualMs || 0,
-                "loopPointSuggestedMs": changes[i].loopPointSuggestedMs || 0
+                "loopPointSuggestedMs": changes[i].loopPointSuggestedMs || 0,
+                "volumeEditable": changes[i].volumeEditable || false,
+                "volumeEnabled": changes[i].volumeEnabled !== false,
+                "volumeDb": changes[i].volumeDb || 0.0
             })
         }
         changesOverlay.loopColumnVisible = changes.length > 0 && (changes[0].loopPointSupported || false)
+        changesOverlay.volumeColumnVisible = changes.length > 0 && (changes[0].volumeEditable || false)
         changesTitle.text = qsTranslate("Application", "Current Changes") + " (" + changes.length + " " + (changes.length !== 1 ? qsTranslate("Application", "replacements") : qsTranslate("Application", "replacement")) + ")"
         changesOverlay.visible = true
         changesOverlay.closing = false
@@ -2279,7 +2286,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             searchResultsOverlay.closing = true
@@ -2418,7 +2425,7 @@ Item {
                             anchors.rightMargin: 12
                             spacing: 10
 
-                            ZZARButton {
+                            XXARButton {
                                 text: "▶"
                                 Layout.preferredWidth: 45
                                 Layout.preferredHeight: 28
@@ -2515,7 +2522,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             matchResultsOverlay.closing = true
@@ -2534,6 +2541,7 @@ Item {
         z: 2000
         property bool closing: false
         property bool loopColumnVisible: false
+        property bool volumeColumnVisible: false
 
         Timer {
             id: changesHideTimer
@@ -2571,7 +2579,9 @@ Item {
 
         Rectangle {
             id: changesDialog
-            width: Math.min(1180, parent.width - 40)
+            width: Math.min(parent.width - 40, 900
+                + (changesOverlay.loopColumnVisible ? 270 : 0)
+                + (changesOverlay.volumeColumnVisible ? 100 : 0))
             height: Math.min(620, parent.height - 60)
             anchors.centerIn: parent
             color: Theme.surfaceColor
@@ -2583,10 +2593,36 @@ Item {
             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
+            // Block mouse events from reaching the backdrop/page behind the dialog.
+            // z: -1 keeps it below all child controls so buttons/combos still work.
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+            }
+
             ColumnLayout {
+                id: changesColumns
                 anchors.fill: parent
                 anchors.margins: 20
                 spacing: 12
+
+                // ── Column width definitions (single source of truth) ──
+                // Fixed columns
+                property int colFileId:   86
+                property int colTagged:  150
+                property int colType:    100
+                property int colModified: 80
+                property int colActions: 190
+                // Optional columns (0 when hidden)
+                property int colLoop: changesOverlay.loopColumnVisible ? 260 : 0
+                property int colVol:  changesOverlay.volumeColumnVisible ? 90  : 0
+                // Flexible "Replaced By" gets whatever is left
+                property int _fixedTotal: colFileId + colTagged + colType + colModified + colActions + colLoop + colVol
+                property int _rowSpacing: 8
+                property int _rowPadding: 24  // 12 left + 12 right
+                property int _gaps: 7 * _rowSpacing  // 8 columns → 7 gaps
+                property int _availableWidth: changesDialog.width - 40 - _rowPadding - _gaps
+                property int colReplaced: Math.max(80, _availableWidth - _fixedTotal)
 
                 Text {
                     id: changesTitle
@@ -2604,69 +2640,35 @@ Item {
                     color: Theme.surfaceDark
                     radius: 6
 
-                    RowLayout {
-                        anchors.fill: parent
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.right: parent.right
                         anchors.leftMargin: 12
                         anchors.rightMargin: 12
-                        spacing: 10
+                        spacing: changesColumns._rowSpacing
 
-                        Text {
-                            text: qsTranslate("Application", "File ID")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            Layout.preferredWidth: 86
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Tagged Name")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            Layout.preferredWidth: 170
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Replaced By")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            Layout.fillWidth: true
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Type")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            Layout.preferredWidth: changesOverlay.loopColumnVisible ? 132 : 182
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Loop")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            visible: changesOverlay.loopColumnVisible
-                            Layout.preferredWidth: changesOverlay.loopColumnVisible ? 260 : 0
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Modified")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            Layout.preferredWidth: 84
-                        }
-                        Text {
-                            text: qsTranslate("Application", "Actions")
-                            color: Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            Layout.preferredWidth: 204
+                        Repeater {
+                            model: [
+                                { label: qsTranslate("Application", "File ID"),     w: changesColumns.colFileId },
+                                { label: qsTranslate("Application", "Tagged Name"),  w: changesColumns.colTagged },
+                                { label: qsTranslate("Application", "Replaced By"),  w: changesColumns.colReplaced },
+                                { label: qsTranslate("Application", "Type"),         w: changesColumns.colType },
+                                { label: qsTranslate("Application", "Loop"),         w: changesColumns.colLoop },
+                                { label: qsTranslate("Application", "Vol (dB)"),          w: changesColumns.colVol },
+                                { label: qsTranslate("Application", "Modified"),     w: changesColumns.colModified },
+                                { label: qsTranslate("Application", "Actions"),      w: changesColumns.colActions }
+                            ]
+                            Text {
+                                text: modelData.label
+                                width: modelData.w
+                                visible: modelData.w > 0
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                horizontalAlignment: modelData.label === qsTranslate("Application", "Actions") ? Text.AlignHCenter : Text.AlignLeft
+                            }
                         }
                     }
                 }
@@ -2692,47 +2694,58 @@ Item {
                         radius: 6
                         Behavior on color { ColorAnimation { duration: 80 } }
 
-                        RowLayout {
+                        Row {
                             anchors.fill: parent
                             anchors.leftMargin: 12
                             anchors.rightMargin: 12
-                            spacing: 10
+                            spacing: changesColumns._rowSpacing
 
                             Text {
                                 text: model.fileId
+                                width: changesColumns.colFileId
+                                height: parent.height
+                                verticalAlignment: Text.AlignVCenter
                                 color: Theme.textPrimary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 86
+                                clip: true
                             }
                             Text {
                                 text: model.taggedName || "-"
+                                width: changesColumns.colTagged
+                                height: parent.height
+                                verticalAlignment: Text.AlignVCenter
                                 color: model.taggedName ? Theme.primaryAccent : Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
                                 elide: Text.ElideRight
-                                Layout.preferredWidth: 170
+                                clip: true
                             }
                             Text {
                                 text: model.sourceFile || "-"
+                                width: changesColumns.colReplaced
+                                height: parent.height
+                                verticalAlignment: Text.AlignVCenter
                                 color: Theme.textPrimary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
                                 elide: Text.ElideMiddle
-                                Layout.fillWidth: true
+                                clip: true
                             }
                             Text {
                                 text: model.fileType
+                                width: changesColumns.colType
+                                height: parent.height
+                                verticalAlignment: Text.AlignVCenter
                                 color: Theme.secondaryAccent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: changesOverlay.loopColumnVisible ? 132 : 182
                             }
 
                             Item {
-                                visible: changesOverlay.loopColumnVisible
-                                Layout.preferredWidth: changesOverlay.loopColumnVisible ? 260 : 0
-                                Layout.fillHeight: true
+                                visible: changesColumns.colLoop > 0
+                                width: changesColumns.colLoop
+                                height: 36
 
                                 Row {
                                     anchors.verticalCenter: parent.verticalCenter
@@ -2968,9 +2981,110 @@ Item {
                                     font.pixelSize: Theme.fontSizeSmall
                                 }
                             }
+
+                            // Volume column
+                            Item {
+                                visible: changesColumns.colVol > 0
+                                width: changesColumns.colVol
+                                height: 36
+
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    visible: volumeEditable
+
+                                    CheckBox {
+                                        id: volEnableCheck
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        checked: volumeEnabled !== false
+                                        width: 20; height: 20
+                                        indicator: Rectangle {
+                                            width: 16; height: 16
+                                            radius: 3
+                                            anchors.centerIn: parent
+                                            color: volEnableCheck.checked ? Theme.primaryAccent : "transparent"
+                                            border.color: volEnableCheck.checked ? Theme.primaryAccent : Theme.textSecondary
+                                            border.width: 1
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "\u2713"
+                                                color: Theme.textOnAccent
+                                                font.pixelSize: 11
+                                                font.bold: true
+                                                visible: volEnableCheck.checked
+                                            }
+                                        }
+                                        onCheckedChanged: {
+                                            if (checked !== (volumeEnabled || false)) {
+                                                changesModel.setProperty(rowIndex, "volumeEnabled", checked)
+                                                changeVolumeEnabledSet(pckFile, trackerKey, checked)
+                                            }
+                                        }
+                                    }
+
+                                    SpinBox {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: volEnableCheck.checked
+                                        width: 62
+                                        height: 28
+                                        from: -960
+                                        to: 240
+                                        stepSize: 5
+                                        value: Math.round((volumeDb || 0.0) * 10)
+                                        editable: true
+
+                                        textFromValue: function(value, locale) {
+                                            return (value / 10.0).toFixed(1)
+                                        }
+                                        valueFromText: function(text, locale) {
+                                            var v = parseFloat(text)
+                                            if (isNaN(v)) return 0
+                                            return Math.round(v * 10)
+                                        }
+
+                                        onValueModified: {
+                                            var dbVal = value / 10.0
+                                            changesModel.setProperty(rowIndex, "volumeDb", dbVal)
+                                            changeVolumeDbSet(pckFile, trackerKey, dbVal.toFixed(1))
+                                        }
+
+                                        background: Rectangle {
+                                            color: Theme.inputBackground || "#2a2a2a"
+                                            border.color: Theme.cardBackground
+                                            border.width: 1
+                                            radius: Theme.radiusSmall
+                                        }
+                                        contentItem: TextInput {
+                                            text: parent.textFromValue(parent.value, parent.locale)
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 11
+                                            color: Theme.textPrimary
+                                            horizontalAlignment: Qt.AlignHCenter
+                                            verticalAlignment: Qt.AlignVCenter
+                                            readOnly: !parent.editable
+                                            validator: DoubleValidator {
+                                                bottom: -96.0
+                                                top: 24.0
+                                                decimals: 1
+                                            }
+                                        }
+                                        up.indicator: Item { width: 0 }
+                                        down.indicator: Item { width: 0 }
+                                    }
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !volumeEditable
+                                    text: "-"
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
+                            }
+
                             Text {
                                 text: {
-
                                     var date = new Date(model.dateModified)
                                     if (isNaN(date.getTime())) return qsTranslate("Application", "Unknown")
                                     var now = new Date()
@@ -2978,7 +3092,6 @@ Item {
                                     var diffMins = Math.floor(diffMs / 60000)
                                     var diffHours = Math.floor(diffMins / 60)
                                     var diffDays = Math.floor(diffHours / 24)
-
                                     if (diffMins < 1) return qsTranslate("Application", "Just now")
                                     if (diffMins < 60) return qsTranslate("Application", "%1m ago").arg(diffMins)
                                     if (diffHours < 24) return qsTranslate("Application", "%1h ago").arg(diffHours)
@@ -2988,18 +3101,20 @@ Item {
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
-                                Layout.preferredWidth: 84
+                                width: changesColumns.colModified
+                                height: parent.height
+                                verticalAlignment: Text.AlignVCenter
                             }
 
                             Item {
-                                Layout.preferredWidth: 204
-                                Layout.fillHeight: true
+                                width: changesColumns.colActions
+                                height: 36
 
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 10
 
-                                    ZZARButton {
+                                    XXARButton {
                                         text: qsTranslate("Application", "Play")
                                         width: 52
                                         height: 28
@@ -3011,7 +3126,7 @@ Item {
                                         }
                                     }
 
-                                    ZZARButton {
+                                    XXARButton {
                                         text: qsTranslate("Application", "Orig")
                                         width: 60
                                         height: 28
@@ -3023,7 +3138,7 @@ Item {
                                         }
                                     }
 
-                                    ZZARButton {
+                                    XXARButton {
                                         text: qsTranslate("Application", "Remove")
                                         width: 72
                                         height: 28
@@ -3043,7 +3158,7 @@ Item {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
-                            anchors.rightMargin: 530
+                            anchors.rightMargin: changesColumns.colLoop + changesColumns.colVol + changesColumns.colModified + changesColumns.colActions + 60
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -3072,7 +3187,7 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Apply Changes")
                         buttonColor: Theme.primaryAccent
                         visible: changesModel.count > 0
@@ -3083,7 +3198,7 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             changesOverlay.closing = true
@@ -3281,7 +3396,7 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Cancel")
                         buttonColor: Theme.disabledAccent
                         onClicked: {
@@ -3290,7 +3405,7 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Save")
                         buttonColor: Theme.primaryAccent
                         onClicked: {
@@ -3573,7 +3688,7 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Browse")
                         onClicked: audioBrowserBackend.browseThumbnail()
                     }
@@ -3587,7 +3702,7 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Cancel")
                         buttonColor: Theme.disabledAccent
                         onClicked: {
@@ -3596,7 +3711,7 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Create Package")
                         buttonColor: Theme.primaryAccent
                         onClicked: {

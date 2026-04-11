@@ -1,4 +1,4 @@
-# ZZAR - Zenless Zone Zero Audio Replacer
+# XXAR - Cross-game Audio Replacer
 # Copyright (C) 2026  Pucas01
 #
 # This program is free software: you can redistribute it and/or modify
@@ -30,10 +30,10 @@ def _load_ui_scale():
     try:
         if sys.platform == 'win32':
             appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
-            settings_file = appdata / 'ZZAR' / 'settings.json'
+            settings_file = appdata / 'XXAR' / 'settings.json'
         else:
             xdg_config = os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')
-            settings_file = Path(xdg_config) / 'ZZAR' / 'settings.json'
+            settings_file = Path(xdg_config) / 'XXAR' / 'settings.json'
         if settings_file.exists():
             with open(settings_file, 'r') as f:
                 scale = json.load(f).get('ui_scale', 1.0)

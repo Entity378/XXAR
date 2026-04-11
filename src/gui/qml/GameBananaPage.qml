@@ -12,8 +12,8 @@ Item {
     property var modsList: []
     property var installedModIds: []
     property var installedDownloadUrls: []
-    property var installedZZARsByUrl: ({})
-    property var zzarTotalsByUrl: ({})
+    property var installedModsByUrl: ({})
+    property var modTotalsByUrl: ({})
     property int sortIndex: 0
     property string searchText: ""
     property bool thumbnailsEnabled: false
@@ -44,8 +44,8 @@ Item {
             ? modsList.filter(function(m) { return (m.name || "").toLowerCase().indexOf(query) !== -1 })
             : modsList.slice()
         if (sortIndex === 0) list.sort(function(a, b) {
-            var zzarDiff = (b.zzar_supported ? 1 : 0) - (a.zzar_supported ? 1 : 0)
-            if (zzarDiff !== 0) return zzarDiff
+            var modDiff = (b.mod_supported ? 1 : 0) - (a.mod_supported ? 1 : 0)
+            if (modDiff !== 0) return modDiff
             return (b.date_added || 0) - (a.date_added || 0)
         })
         else if (sortIndex === 1) list.sort(function(a, b) { return (b.downloads || 0) - (a.downloads || 0) })
@@ -68,7 +68,7 @@ Item {
         }
     }
     signal downloadModRequested(string downloadUrl, string filename, string modName, int modId)
-    signal installChosenZZARRequested(string zipPath, string zzarName)
+    signal installChosenModRequested(string zipPath, string modName)
 
     function reloadForActiveGame() {
         currentPage = 1
@@ -82,13 +82,13 @@ Item {
     function _refreshInstallState() {
         installedModIds = gameBananaBackend.getInstalledModIds()
         installedDownloadUrls = gameBananaBackend.getInstalledDownloadUrls()
-        installedZZARsByUrl = gameBananaBackend.getInstalledZZARsByUrl()
-        zzarTotalsByUrl = gameBananaBackend.getZZARTotalsByUrl()
+        installedModsByUrl = gameBananaBackend.getInstalledModsByUrl()
+        modTotalsByUrl = gameBananaBackend.getModTotalsByUrl()
         modDialog.installedModNames = gameBananaBackend.getInstalledModNames()
         modDialog.installedUrlMap = gameBananaBackend.getInstalledUrlMap()
         modDialog.installedDownloadUrls = installedDownloadUrls
-        modDialog.installedZZARsByUrl = installedZZARsByUrl
-        modDialog.zzarTotalsByUrl = zzarTotalsByUrl
+        modDialog.installedModsByUrl = installedModsByUrl
+        modDialog.modTotalsByUrl = modTotalsByUrl
         modDialog.installedVersion += 1
     }
 
@@ -135,8 +135,8 @@ Item {
         modDialog.setInstallState(installing)
     }
 
-    function showZZARChooser(names, zipPath) {
-        modDialog.showZZARChooser(names, zipPath)
+    function showModChooser(names, zipPath) {
+        modDialog.showModChooser(names, zipPath)
     }
 
     function onThumbnailUpdated(modId, thumbnailUrl) {
@@ -161,11 +161,11 @@ Item {
         }
     }
 
-    function onZZARSupportUpdated(modId, supported) {
+    function onModSupportUpdated(modId, supported) {
         var newList = modsList.slice()
         for (var i = 0; i < newList.length; i++) {
             if (newList[i].id === modId) {
-                newList[i] = Object.assign({}, newList[i], { zzar_supported: supported })
+                newList[i] = Object.assign({}, newList[i], { mod_supported: supported })
                 modsList = newList
                 return
             }
@@ -714,13 +714,13 @@ Item {
                                                     anchors.left: parent.left
                                                     anchors.margins: 8
                                                     height: 22
-                                                    width: zzarBadgeLabel.implicitWidth + 14
+                                                    width: modBadgeLabel.implicitWidth + 14
                                                     radius: Theme.radiusMedium
                                                     color: Theme.primaryAccent
-                                                    visible: modelData.zzar_supported === true
+                                                    visible: modelData.mod_supported === true
 
                                                     Text {
-                                                        id: zzarBadgeLabel
+                                                        id: modBadgeLabel
                                                         anchors.centerIn: parent
                                                         text: appName + " Native"
                                                         color: Theme.textOnAccent
@@ -844,8 +844,8 @@ Item {
         onDownloadRequested: {
             downloadModRequested(downloadUrl, filename, modName, modId)
         }
-        onInstallChosenZZAR: {
-            installChosenZZARRequested(zipPath, zzarName)
+        onInstallChosenMod: {
+            installChosenModRequested(zipPath, modName)
         }
     }
 }

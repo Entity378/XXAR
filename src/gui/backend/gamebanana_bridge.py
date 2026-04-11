@@ -8,7 +8,8 @@ import urllib.error
 import urllib.parse
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
-from src.core.app_config import FLATPAK_ENV_VAR, GAMEBANANA_GAME_ID, CONFIG_DIR_NAME, MOD_FILE_EXT
+import src.core.app_config as app_config
+from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
 from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
 
 if os.environ.get(FLATPAK_ENV_VAR):
@@ -48,7 +49,7 @@ AUDIO_EXTENSIONS = ('.mp3', '.ogg', '.wav', '.flac', '.aac', '.m4a')
 
 def _cache_path():
     try:
-        from ZZAR import get_temp_dir
+        from XXAR import get_temp_dir
         return get_temp_dir() / "gamebanana_cache.json"
     except Exception:
         return Path(__file__).parent / "gamebanana_cache.json"
@@ -163,13 +164,13 @@ class FetchModsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
-    def __init__(self, page=1, per_page=50, sort="default", category=None, gamebanana_game_id=GAMEBANANA_GAME_ID):
+    def __init__(self, page=1, per_page=50, sort="default", category=None, gamebanana_game_id=app_config.GAMEBANANA_GAME_ID):
         super().__init__()
         self.page = page
         self.per_page = per_page
         self.sort = sort
         self.category = category
-        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else GAMEBANANA_GAME_ID
+        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
     def run(self):
         try:
@@ -193,7 +194,7 @@ class FetchModsWorker(QThread):
             print(f"[GameBanana] Fetching sound mods: {url}")
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'ZZAR/1.1.0')
+            req.add_header('User-Agent', 'XXAR/1.1.0')
 
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
@@ -280,19 +281,19 @@ class FetchModsWorker(QThread):
             'item_type': 'Sound',
         }
 
-class FetchMiscZZARModsWorker(QThread):
+class FetchMiscModsWorker(QThread):
 
 
     finished = pyqtSignal(bool, object)
 
     CONCURRENT_CHECKS = 5
 
-    def __init__(self, page=1, per_page=50, sort="default", gamebanana_game_id=GAMEBANANA_GAME_ID):
+    def __init__(self, page=1, per_page=50, sort="default", gamebanana_game_id=app_config.GAMEBANANA_GAME_ID):
         super().__init__()
         self.page = page
         self.per_page = per_page
         self.sort = sort
-        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else GAMEBANANA_GAME_ID
+        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
     def run(self):
         try:
@@ -306,7 +307,7 @@ class FetchMiscZZARModsWorker(QThread):
             print(f"[GameBanana] Fetching misc mods: {url}")
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'ZZAR/1.1.0')
+            req.add_header('User-Agent', 'XXAR/1.1.0')
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -325,24 +326,24 @@ class FetchMiscZZARModsWorker(QThread):
                     print(f"[GameBanana] Error parsing misc mod: {e}")
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
-            zzar_mods = []
+            native_mods = []
             with ThreadPoolExecutor(max_workers=self.CONCURRENT_CHECKS) as pool:
-                futures = {pool.submit(self._check_zzar, mod['id']): mod for mod in candidates}
+                futures = {pool.submit(self._check_mod, mod['id']): mod for mod in candidates}
                 for future in as_completed(futures):
                     mod = futures[future]
                     try:
-                        is_zzar, thumbnail = future.result()
-                        if is_zzar:
-                            mod['zzar_supported'] = True
+                        is_supported, thumbnail = future.result()
+                        if is_supported:
+                            mod['mod_supported'] = True
 
                             if not mod.get('thumbnail') and thumbnail:
                                 mod['thumbnail'] = thumbnail
-                            zzar_mods.append(mod)
+                            native_mods.append(mod)
                     except Exception:
                         pass
 
-            print(f"[GameBanana] Found {len(zzar_mods)} ZZAR-native misc mods")
-            self.finished.emit(True, zzar_mods)
+            print(f"[GameBanana] Found {len(native_mods)} {APP_NAME}-native misc mods")
+            self.finished.emit(True, native_mods)
 
         except urllib.error.HTTPError as e:
             self.finished.emit(False, f"HTTP Error {e.code}: {e.reason}")
@@ -404,18 +405,18 @@ class FetchMiscZZARModsWorker(QThread):
             'profile_url': data.get('_sProfileUrl', ''),
             'category': category_name,
             'item_type': 'Mod',
-            'zzar_supported': False,
+            'mod_supported': False,
         }
 
-    def _check_zzar(self, mod_id):
+    def _check_mod(self, mod_id):
 
-        cached_zzar = _cache_get("zzar_support_mod", mod_id)
+        cached_support = _cache_get("mod_support_misc", mod_id)
         cached_thumb = _cache_get("mod_thumbnail", mod_id) or ''
-        if cached_zzar is not None:
-            return (cached_zzar, cached_thumb)
+        if cached_support is not None:
+            return (cached_support, cached_thumb)
         try:
             url = f"{GAMEBANANA_API_BASE}/Mod/{mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
             if isinstance(data, dict):
@@ -423,20 +424,20 @@ class FetchMiscZZARModsWorker(QThread):
 
                 for req_item in data.get('_aRequirements', []):
                     if isinstance(req_item, list) and len(req_item) > 0:
-                        if req_item[0].lower() == 'zzar':
-                            _cache_set("zzar_support_mod", mod_id, True)
+                        if req_item[0].lower() == APP_NAME.lower():
+                            _cache_set("mod_support_misc", mod_id, True)
                             _cache_set("mod_thumbnail", mod_id, thumbnail)
                             return (True, thumbnail)
                 for f in data.get('_aFiles', []):
                     if isinstance(f, dict):
                         file_id = f.get('_idRow', 0)
-                        if file_id and self._file_has_zzar(file_id):
-                            _cache_set("zzar_support_mod", mod_id, True)
+                        if file_id and self._file_has_mod(file_id):
+                            _cache_set("mod_support_misc", mod_id, True)
                             _cache_set("mod_thumbnail", mod_id, thumbnail)
                             return (True, thumbnail)
         except Exception as e:
             print(f"[GameBanana] Error checking misc mod {mod_id}: {e}")
-        _cache_set("zzar_support_mod", mod_id, False)
+        _cache_set("mod_support_misc", mod_id, False)
         return (False, '')
 
     def _extract_thumbnail(self, data):
@@ -460,30 +461,30 @@ class FetchMiscZZARModsWorker(QThread):
                     return f"{base}/{file_name}"
         return ''
 
-    def _file_has_zzar(self, file_id):
+    def _file_has_mod(self, file_id):
         try:
             url = f"{GAMEBANANA_API_BASE}/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
             tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-            return self._tree_has_zzar(tree)
+            return self._tree_has_mod(tree)
         except Exception:
             return False
 
-    def _tree_has_zzar(self, tree):
+    def _tree_has_mod(self, tree):
         if isinstance(tree, list):
             for item in tree:
-                if isinstance(item, str) and item.lower().endswith(MOD_FILE_EXT):
+                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
                 elif isinstance(item, (dict, list)):
-                    if self._tree_has_zzar(item):
+                    if self._tree_has_mod(item):
                         return True
         elif isinstance(tree, dict):
             for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(MOD_FILE_EXT):
+                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
-                if self._tree_has_zzar(value):
+                if self._tree_has_mod(value):
                     return True
         return False
 
@@ -518,14 +519,14 @@ class FetchModDetailsWorker(QThread):
         print(f"[GameBanana] Fetching Sound details: {url}")
 
         req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'ZZAR/1.1.0')
+        req.add_header('User-Agent', 'XXAR/1.1.0')
         with _urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
 
         mod_details = self._parse_mod_details(data)
-        zzar_supported = self._check_zzar_support(mod_details)
+        mod_supported = self._check_mod_support(mod_details)
         if mod_details:
-            mod_details['zzar_supported'] = zzar_supported
+            mod_details['mod_supported'] = mod_supported
         self.finished.emit(True, mod_details)
 
     def _run_mod_type(self):
@@ -534,15 +535,15 @@ class FetchModDetailsWorker(QThread):
         print(f"[GameBanana] Fetching Mod details (ProfilePage): {url}")
 
         req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'ZZAR/1.1.0')
+        req.add_header('User-Agent', 'XXAR/1.1.0')
         with _urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
 
         mod_details = self._parse_mod_profile_page(data)
 
-        zzar_supported = self._check_zzar_support(mod_details)
+        mod_supported = self._check_mod_support(mod_details)
         if mod_details:
-            mod_details['zzar_supported'] = zzar_supported or True
+            mod_details['mod_supported'] = mod_supported or True
         self.finished.emit(True, mod_details)
 
     def _parse_mod_profile_page(self, data):
@@ -583,7 +584,7 @@ class FetchModDetailsWorker(QThread):
                     'size': f.get('_nFilesize', 0),
                     'download_url': f.get('_sDownloadUrl', ''),
                     'downloads': f.get('_nDownloadCount', 0),
-                    'has_zzar': False,
+                    'has_mod_file': False,
                 })
 
         return {
@@ -605,7 +606,7 @@ class FetchModDetailsWorker(QThread):
             'profile_url': f"https://gamebanana.com/mods/{self.mod_id}",
             'category': data.get('_aRootCategory', {}).get('_sName', 'Mod') if isinstance(data.get('_aRootCategory'), dict) else 'Mod',
             'files': files,
-            'zzar_supported': False,
+            'mod_supported': False,
         }
 
     def _parse_mod_details(self, data):
@@ -639,7 +640,7 @@ class FetchModDetailsWorker(QThread):
                         'size': file_info.get('_nFilesize', 0),
                         'download_url': file_info.get('_sDownloadUrl', ''),
                         'downloads': file_info.get('_nDownloadCount', 0),
-                        'has_zzar': False,
+                        'has_mod_file': False,
                     })
 
         raw_text = text if text else description
@@ -670,43 +671,43 @@ class FetchModDetailsWorker(QThread):
             'profile_url': f"https://gamebanana.com/{'sounds' if self.item_type == 'Sound' else 'mods'}/{self.mod_id}",
             'category': self.item_type,
             'files': files,
-            'zzar_supported': False,
+            'mod_supported': False,
         }
 
-    def _check_zzar_support(self, mod_details):
+    def _check_mod_support(self, mod_details):
         if not mod_details:
             return False
 
-        any_zzar = False
+        any_supported = False
 
         files = mod_details.get('files', [])
         for f in files:
             file_id = f.get('id', '')
             if file_id:
-                cached = _cache_get("file_has_zzar", int(file_id)) if str(file_id).isdigit() else None
+                cached = _cache_get("file_has_mod", int(file_id)) if str(file_id).isdigit() else None
                 if cached is not None:
-                    f['has_zzar'] = cached
+                    f['has_mod_file'] = cached
                     if cached:
-                        any_zzar = True
+                        any_supported = True
                     continue
                 try:
                     url = f"https://gamebanana.com/apiv11/File/{file_id}"
-                    req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+                    req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
                     with _urlopen(req, timeout=8) as response:
                         data = json.loads(response.read().decode('utf-8'))
                     tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-                    result = self._tree_has_zzar(tree)
-                    f['has_zzar'] = result
+                    result = self._tree_has_mod(tree)
+                    f['has_mod_file'] = result
                     if str(file_id).isdigit():
-                        _cache_set("file_has_zzar", int(file_id), result)
+                        _cache_set("file_has_mod", int(file_id), result)
                     if result:
-                        any_zzar = True
+                        any_supported = True
                 except Exception:
-                    f['has_zzar'] = False
+                    f['has_mod_file'] = False
 
         try:
             url = f"https://gamebanana.com/apiv11/{self.item_type}/{self.mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
             if isinstance(data, dict):
@@ -718,27 +719,27 @@ class FetchModDetailsWorker(QThread):
                 requirements = data.get('_aRequirements', [])
                 for req_item in requirements:
                     if isinstance(req_item, list) and len(req_item) > 0:
-                        if req_item[0].lower() == 'zzar':
-                            any_zzar = True
+                        if req_item[0].lower() == APP_NAME.lower():
+                            any_supported = True
                             break
         except Exception:
             pass
 
-        return any_zzar
+        return any_supported
 
-    def _tree_has_zzar(self, tree):
+    def _tree_has_mod(self, tree):
         if isinstance(tree, list):
             for item in tree:
-                if isinstance(item, str) and item.lower().endswith(MOD_FILE_EXT):
+                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
                 elif isinstance(item, (dict, list)):
-                    if self._tree_has_zzar(item):
+                    if self._tree_has_mod(item):
                         return True
         elif isinstance(tree, dict):
             for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(MOD_FILE_EXT):
+                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
-                if self._tree_has_zzar(value):
+                if self._tree_has_mod(value):
                     return True
         return False
 
@@ -767,7 +768,7 @@ class FetchThumbnailsWorker(QThread):
 
         try:
             url = f"https://api.gamebanana.com/Core/Item/Data?itemtype=Sound&itemid={mod_id}&fields=text"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -781,7 +782,7 @@ class FetchThumbnailsWorker(QThread):
             img_url = images[0]
             ext = Path(urllib.parse.urlparse(img_url).path).suffix or ".jpg"
             dest = _thumb_dir() / f"{mod_id}{ext}"
-            img_req = urllib.request.Request(img_url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            img_req = urllib.request.Request(img_url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(img_req, timeout=10) as img_response:
                 dest.write_bytes(img_response.read())
 
@@ -819,7 +820,7 @@ class FetchDownloadCountsWorker(QThread):
             return (mod_id, cached)
         try:
             url = f"https://api.gamebanana.com/Core/Item/Data?itemtype=Sound&itemid={mod_id}&fields=downloads"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -841,9 +842,9 @@ class FetchDownloadCountsWorker(QThread):
                     self.downloadCountReady.emit(result[0], result[1])
         _save_cache()
 
-class FetchZZARSupportWorker(QThread):
+class FetchModSupportWorker(QThread):
 
-    zzarSupportReady = pyqtSignal(int, bool)
+    modSupportReady = pyqtSignal(int, bool)
 
     CONCURRENT_REQUESTS = 5
 
@@ -852,21 +853,21 @@ class FetchZZARSupportWorker(QThread):
         self.mod_ids = mod_ids
 
     def _check_one(self, mod_id):
-        cached = _cache_get("zzar_support", mod_id)
+        cached = _cache_get("mod_support", mod_id)
         if cached is not None:
             return (mod_id, cached)
         try:
 
             url = f"https://gamebanana.com/apiv11/Sound/{mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
             requirements = data.get('_aRequirements', []) if isinstance(data, dict) else []
             for req_item in requirements:
                 if isinstance(req_item, list) and len(req_item) > 0:
-                    if req_item[0].lower() == 'zzar':
-                        _cache_set("zzar_support", mod_id, True)
+                    if req_item[0].lower() == APP_NAME.lower():
+                        _cache_set("mod_support", mod_id, True)
                         return (mod_id, True)
 
             files_data = data.get('_aFiles', []) if isinstance(data, dict) else []
@@ -876,38 +877,38 @@ class FetchZZARSupportWorker(QThread):
                         file_id = file_entry.get('_idRow', 0)
                         if file_id:
                             if self._check_file_contents(file_id):
-                                _cache_set("zzar_support", mod_id, True)
+                                _cache_set("mod_support", mod_id, True)
                                 return (mod_id, True)
         except Exception as e:
-            print(f"[GameBanana] Error checking ZZAR support for {mod_id}: {e}")
-        _cache_set("zzar_support", mod_id, False)
+            print(f"[GameBanana] Error checking mod support for {mod_id}: {e}")
+        _cache_set("mod_support", mod_id, False)
         return (mod_id, False)
 
     def _check_file_contents(self, file_id):
         try:
             url = f"https://gamebanana.com/apiv11/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ZZAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
             tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-            return self._tree_has_zzar(tree)
+            return self._tree_has_mod(tree)
         except Exception:
             return False
 
-    def _tree_has_zzar(self, tree):
+    def _tree_has_mod(self, tree):
         if isinstance(tree, list):
             for item in tree:
-                if isinstance(item, str) and item.lower().endswith(MOD_FILE_EXT):
+                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
                 elif isinstance(item, (dict, list)):
-                    if self._tree_has_zzar(item):
+                    if self._tree_has_mod(item):
                         return True
         elif isinstance(tree, dict):
             for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(MOD_FILE_EXT):
+                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
                     return True
-                if self._tree_has_zzar(value):
+                if self._tree_has_mod(value):
                     return True
         return False
 
@@ -919,7 +920,7 @@ class FetchZZARSupportWorker(QThread):
             for future in as_completed(futures):
                 result = future.result()
                 if result:
-                    self.zzarSupportReady.emit(result[0], result[1])
+                    self.modSupportReady.emit(result[0], result[1])
         _save_cache()
 
 def _open_archive(path):
@@ -945,7 +946,7 @@ def _open_archive(path):
             if 'RarCannotExec' in type(e).__name__ or 'Cannot find working tool' in str(e):
                 raise RuntimeError(
                     "Cannot extract .rar files: UnRAR not found.\n"
-                    "Please reinstall ZZAR, or ask the mod author to provide a .zip."
+                    "Please reinstall XXAR, or ask the mod author to provide a .zip."
                 )
             raise
         return rf, lambda: rf.namelist(), lambda name: rf.read(name)
@@ -973,10 +974,10 @@ class InstallModWorker(QThread):
     finished = pyqtSignal(bool, str)
     multipleFound = pyqtSignal(list)
 
-    def __init__(self, archive_path, chosen_zzar=None, gamebanana_id=0, download_url="", item_type="Sound"):
+    def __init__(self, archive_path, chosen_mod=None, gamebanana_id=0, download_url="", item_type="Sound"):
         super().__init__()
         self.archive_path = Path(archive_path)
-        self.chosen_zzar = chosen_zzar
+        self.chosen_mod = chosen_mod
         self.gamebanana_id = gamebanana_id
         self.download_url = download_url
         self.item_type = item_type
@@ -985,27 +986,27 @@ class InstallModWorker(QThread):
         import traceback
 
         try:
-            from ZZAR import get_temp_dir
+            from XXAR import get_temp_dir
             from src.mods.package_manager import ModPackageManager, InvalidModPackageError
         except ImportError:
-            self.finished.emit(False, "Could not import ZZAR modules")
+            self.finished.emit(False, "Could not import XXAR modules")
             return
 
         try:
             archive, namelist_fn, read_fn = _open_archive(self.archive_path)
             with archive:
                 all_names = namelist_fn()
-                zzar_entries = [n for n in all_names if n.lower().endswith(MOD_FILE_EXT)]
+                mod_entries = [n for n in all_names if n.lower().endswith(app_config.MOD_FILE_EXT)]
 
-            if not zzar_entries:
-                self.finished.emit(False, f"No {MOD_FILE_EXT} files found in the downloaded archive")
+            if not mod_entries:
+                self.finished.emit(False, f"No {app_config.MOD_FILE_EXT} files found in the downloaded archive")
                 return
 
-            if self.chosen_zzar is None and len(zzar_entries) > 1:
-                self.multipleFound.emit(zzar_entries)
+            if self.chosen_mod is None and len(mod_entries) > 1:
+                self.multipleFound.emit(mod_entries)
                 return
 
-            target = self.chosen_zzar if self.chosen_zzar else zzar_entries[0]
+            target = self.chosen_mod if self.chosen_mod else mod_entries[0]
 
             temp_dir = get_temp_dir() / "gamebanana_install"
             temp_dir.mkdir(parents=True, exist_ok=True)
@@ -1030,10 +1031,10 @@ class InstallModWorker(QThread):
                         manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_item_type'] = self.item_type
                     if self.download_url:
                         manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_download_url'] = self.download_url
-                        manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_chosen_zzar'] = Path(target).name
-                        total = _cache.get("zzar_totals_by_url", {}).get(self.download_url)
+                        manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_chosen_mod'] = Path(target).name
+                        total = _cache.get("mod_totals_by_url", {}).get(self.download_url)
                         if total and total > 1:
-                            manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_zzar_total'] = total
+                            manager.mod_config['installed_mods'][mod_uuid]['metadata']['gamebanana_mod_total'] = total
                     manager.save_config()
                 action = "Updated" if result['replaced'] else "Installed"
                 self.finished.emit(True, f"{action}: {result['mod_name']} v{result['version']}")
@@ -1057,7 +1058,7 @@ class DownloadModWorker(QThread):
             print(f"[GameBanana] Downloading: {self.download_url}")
 
             req = urllib.request.Request(self.download_url)
-            req.add_header('User-Agent', 'ZZAR/1.1.0')
+            req.add_header('User-Agent', 'XXAR/1.1.0')
 
             with _urlopen(req, timeout=30) as response:
                 total_size = int(response.headers.get('Content-Length', 0))
@@ -1093,14 +1094,14 @@ class GameBananaBridge(QObject):
     modDetailsLoaded = pyqtSignal('QVariant')
     downloadProgress = pyqtSignal(int)
     downloadComplete = pyqtSignal(str)
-    nonZzarDownloadComplete = pyqtSignal(str)
+    nonNativeDownloadComplete = pyqtSignal(str)
     errorOccurred = pyqtSignal(str, str)
     loadingStateChanged = pyqtSignal(bool)
     thumbnailUpdated = pyqtSignal(int, str)
     downloadCountUpdated = pyqtSignal(int, int)
-    zzarSupportUpdated = pyqtSignal(int, bool)
+    modSupportUpdated = pyqtSignal(int, bool)
     installComplete = pyqtSignal(str)
-    multipleZZARFound = pyqtSignal('QVariantList', str)
+    multipleModsFound = pyqtSignal('QVariantList', str)
     installStateChanged = pyqtSignal(bool)
     installedModsChanged = pyqtSignal('QVariantList')
 
@@ -1113,7 +1114,7 @@ class GameBananaBridge(QObject):
         self.install_worker = None
         self.thumbnail_worker = None
         self.download_counts_worker = None
-        self.zzar_support_worker = None
+        self.mod_support_worker = None
         self._thumb_worker = None
         self._thumb_queue = []
         self._thumb_inflight = set()
@@ -1130,7 +1131,7 @@ class GameBananaBridge(QObject):
         self._total_sound_mods = 0
         self._active_game_id = DEFAULT_GAME_ID
         self._active_gamebanana_game_id = get_gamebanana_game_id(
-            DEFAULT_GAME_ID, default=GAMEBANANA_GAME_ID
+            DEFAULT_GAME_ID, default=app_config.GAMEBANANA_GAME_ID
         )
 
     def _stop_worker(self, worker_attr):
@@ -1142,7 +1143,7 @@ class GameBananaBridge(QObject):
     def _cancel_fetch_pipeline(self):
         self._stop_worker("fetch_worker")
         self._stop_worker("misc_fetch_worker")
-        self._stop_worker("zzar_support_worker")
+        self._stop_worker("mod_support_worker")
         self._pending_fetch_count = 0
         self._combined_mods = []
         self._sound_mod_ids = []
@@ -1156,7 +1157,7 @@ class GameBananaBridge(QObject):
     def set_active_game(self, game_id, reload=False):
         normalized = normalize_game_id(game_id)
         resolved_gb_id = get_gamebanana_game_id(
-            normalized, default=GAMEBANANA_GAME_ID
+            normalized, default=app_config.GAMEBANANA_GAME_ID
         )
         if (
             normalized == self._active_game_id
@@ -1252,7 +1253,7 @@ class GameBananaBridge(QObject):
         self.fetch_worker.finished.connect(self._on_sound_mods_partial)
         self.fetch_worker.start()
 
-        self.misc_fetch_worker = FetchMiscZZARModsWorker(
+        self.misc_fetch_worker = FetchMiscModsWorker(
             page,
             per_page=50,
             sort=sort,
@@ -1295,14 +1296,14 @@ class GameBananaBridge(QObject):
             self.cached_mods = data
             self.modsLoaded.emit(data)
             self.totalModsCount.emit(self._total_sound_mods)
-            print(f"[GameBanana] Loaded {len(data)} mods ({len(self._sound_mod_ids)} Sound + {len(data) - len(self._sound_mod_ids)} Misc ZZAR), total Sound: {self._total_sound_mods}")
+            print(f"[GameBanana] Loaded {len(data)} mods ({len(self._sound_mod_ids)} Sound + {len(data) - len(self._sound_mod_ids)} Misc {APP_NAME}), total Sound: {self._total_sound_mods}")
 
             if self._sound_mod_ids:
-                if self.zzar_support_worker and self.zzar_support_worker.isRunning():
-                    self.zzar_support_worker.terminate()
-                self.zzar_support_worker = FetchZZARSupportWorker(self._sound_mod_ids)
-                self.zzar_support_worker.zzarSupportReady.connect(self.zzarSupportUpdated.emit)
-                self.zzar_support_worker.start()
+                if self.mod_support_worker and self.mod_support_worker.isRunning():
+                    self.mod_support_worker.terminate()
+                self.mod_support_worker = FetchModSupportWorker(self._sound_mod_ids)
+                self.mod_support_worker.modSupportReady.connect(self.modSupportUpdated.emit)
+                self.mod_support_worker.start()
         else:
             self.errorOccurred.emit("Failed to Load Mods", str(data))
             print(f"[GameBanana] Error: {data}")
@@ -1352,7 +1353,7 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
             return
 
-        from ZZAR import get_temp_dir
+        from XXAR import get_temp_dir
         temp_dir = get_temp_dir() / "gamebanana_downloads"
         save_path = temp_dir / filename
 
@@ -1381,15 +1382,15 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
             return
 
-        self._nonzzar_save_path = save_path
+        self._non_native_save_path = save_path
         self.download_worker = DownloadModWorker(download_url, save_path)
         self.download_worker.progress.connect(self.downloadProgress.emit)
-        self.download_worker.finished.connect(self._on_nonzzar_download_finished)
+        self.download_worker.finished.connect(self._on_non_native_download_finished)
         self.download_worker.start()
 
-    def _on_nonzzar_download_finished(self, success, result):
+    def _on_non_native_download_finished(self, success, result):
         if success:
-            self.nonZzarDownloadComplete.emit(result)
+            self.nonNativeDownloadComplete.emit(result)
         else:
             self.errorOccurred.emit("Download Failed", result)
 
@@ -1399,31 +1400,31 @@ class GameBananaBridge(QObject):
             self.downloadComplete.emit(result)
             print(f"[GameBanana] Download complete: {result}")
             item_type = self._mod_item_types.get(self._current_download_mod_id, 'Sound')
-            self._run_install(result, chosen_zzar=None, gamebanana_id=self._current_download_mod_id, download_url=self._current_download_url, item_type=item_type)
+            self._run_install(result, chosen_mod=None, gamebanana_id=self._current_download_mod_id, download_url=self._current_download_url, item_type=item_type)
         else:
             self.errorOccurred.emit("Download Failed", result)
             print(f"[GameBanana] Download error: {result}")
 
-    def _run_install(self, archive_path, chosen_zzar, gamebanana_id=0, download_url="", item_type="Sound"):
+    def _run_install(self, archive_path, chosen_mod, gamebanana_id=0, download_url="", item_type="Sound"):
         if self.install_worker and self.install_worker.isRunning():
-            self._install_queue.append((archive_path, chosen_zzar, gamebanana_id, download_url, item_type))
+            self._install_queue.append((archive_path, chosen_mod, gamebanana_id, download_url, item_type))
             return
         self.installStateChanged.emit(True)
-        self.install_worker = InstallModWorker(archive_path, chosen_zzar, gamebanana_id, download_url, item_type)
+        self.install_worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type)
         self.install_worker.finished.connect(self._on_install_finished)
         captured_url = download_url
         def _on_multiple_found(names):
             if captured_url:
-                _cache_set("zzar_totals_by_url", captured_url, len(names))
+                _cache_set("mod_totals_by_url", captured_url, len(names))
                 _save_cache()
-            self.multipleZZARFound.emit(names, archive_path)
+            self.multipleModsFound.emit(names, archive_path)
         self.install_worker.multipleFound.connect(_on_multiple_found)
         self.install_worker.start()
 
     @pyqtSlot(str, str)
-    def installChosenZZAR(self, zip_path, zzar_name):
+    def installChosenMod(self, zip_path, mod_name):
         item_type = self._mod_item_types.get(self._current_download_mod_id, 'Sound')
-        self._run_install(zip_path, zzar_name, self._current_download_mod_id, self._current_download_url, item_type)
+        self._run_install(zip_path, mod_name, self._current_download_mod_id, self._current_download_url, item_type)
 
     def _on_install_finished(self, success, message):
         if success:
@@ -1435,11 +1436,11 @@ class GameBananaBridge(QObject):
             print(f"[GameBanana] Install error: {message}")
 
         if self._install_queue:
-            next_path, next_zzar, next_gid, next_url, next_type = self._install_queue.pop(0)
-            self.install_worker = InstallModWorker(next_path, next_zzar, next_gid, next_url, next_type)
+            next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)
+            self.install_worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type)
             self.install_worker.finished.connect(self._on_install_finished)
             self.install_worker.multipleFound.connect(
-                lambda names: self.multipleZZARFound.emit(names, next_path)
+                lambda names: self.multipleModsFound.emit(names, next_path)
             )
             self.install_worker.start()
         else:
@@ -1484,25 +1485,25 @@ class GameBananaBridge(QObject):
         try:
             from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager()
-            totals = dict(_cache.get("zzar_totals_by_url", {}))
-            zzars_by_url = {}
+            totals = dict(_cache.get("mod_totals_by_url", {}))
+            mods_by_url = {}
             for mod in manager.get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')
-                zzar = mod['metadata'].get('gamebanana_chosen_zzar')
+                chosen = mod['metadata'].get('gamebanana_chosen_mod')
 
-                meta_total = mod['metadata'].get('gamebanana_zzar_total')
+                meta_total = mod['metadata'].get('gamebanana_mod_total')
                 if url and meta_total and url not in totals:
                     totals[url] = meta_total
                 if url:
-                    if url not in zzars_by_url:
-                        zzars_by_url[url] = []
-                    if zzar and zzar not in zzars_by_url[url]:
-                        zzars_by_url[url].append(zzar)
+                    if url not in mods_by_url:
+                        mods_by_url[url] = []
+                    if chosen and chosen not in mods_by_url[url]:
+                        mods_by_url[url].append(chosen)
             fully_installed = []
-            for url, zzars in zzars_by_url.items():
+            for url, installed in mods_by_url.items():
                 total = totals.get(url)
                 if total and total > 1:
-                    if len(zzars) >= total:
+                    if len(installed) >= total:
                         fully_installed.append(url)
                 else:
                     fully_installed.append(url)
@@ -1511,7 +1512,7 @@ class GameBananaBridge(QObject):
             return []
 
     @pyqtSlot(result='QVariant')
-    def getInstalledZZARsByUrl(self):
+    def getInstalledModsByUrl(self):
 
         try:
             from src.mods.package_manager import ModPackageManager
@@ -1519,30 +1520,30 @@ class GameBananaBridge(QObject):
             result = {}
             for mod in manager.get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')
-                zzar = mod['metadata'].get('gamebanana_chosen_zzar')
-                if url and zzar:
+                chosen = mod['metadata'].get('gamebanana_chosen_mod')
+                if url and chosen:
                     if url not in result:
                         result[url] = []
-                    if zzar not in result[url]:
-                        result[url].append(zzar)
+                    if chosen not in result[url]:
+                        result[url].append(chosen)
             return result
         except Exception:
             return {}
 
     @pyqtSlot(result='QVariant')
-    def getZZARTotalsByUrl(self):
+    def getModTotalsByUrl(self):
 
         try:
             from src.mods.package_manager import ModPackageManager
-            totals = dict(_cache.get("zzar_totals_by_url", {}))
+            totals = dict(_cache.get("mod_totals_by_url", {}))
             for mod in ModPackageManager().get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')
-                t = mod['metadata'].get('gamebanana_zzar_total')
+                t = mod['metadata'].get('gamebanana_mod_total')
                 if url and t and url not in totals:
                     totals[url] = t
             return totals
         except Exception:
-            return dict(_cache.get("zzar_totals_by_url", {}))
+            return dict(_cache.get("mod_totals_by_url", {}))
 
     @pyqtSlot()
     def refresh(self):

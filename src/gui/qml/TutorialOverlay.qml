@@ -59,7 +59,7 @@ Item {
                 { text: qsTranslate("Application", "Right-click a file to replace it or mute it."), highlight: "tutorialTreeList" },
                 { text: qsTranslate("Application", "You can also rename and tag a sound by right-clicking."), highlight: "tutorialTreeList" },
                 { text: qsTranslate("Application", "Audio player. play, pause, stop. you've seen one before."), highlight: "tutorialAudioPlayer" },
-                { text: qsTranslate("Application", "Got a %1 mod already? import it here if you want to keep editing it.").replace("%1", modFileExt), highlight: "tutorialImportZzarBtn" },
+                { text: qsTranslate("Application", "Got a %1 mod already? import it here if you want to keep editing it.").replace("%1", modFileExt), highlight: "tutorialImportModBtn" },
                 { text: qsTranslate("Application", "Shows your changes. also where you apply them for in-game testing."), highlight: "tutorialShowChangesBtn" },
                 { text: qsTranslate("Application", "Export. packages everything into a %1 mod.").replace("%1", modFileExt), highlight: "tutorialExportBtn" },
                 { text: qsTranslate("Application", "Reset. wipes all changes. also required if you have mods enabled in the mod manager."), highlight: "tutorialResetBtn" }

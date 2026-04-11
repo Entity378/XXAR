@@ -8,10 +8,8 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 
 from gui.utils.native_dialogs import NativeDialogs
-from src.core.app_config import (
-    APP_NAME,
-    ASSETS_DIR,
-)
+import src.core.app_config as app_config
+from src.core.app_config import APP_NAME, switch_active_game
 from src.core.config_manager import (
     get_custom_mod_library_settings_key,
     get_game_mod_library_dir,
@@ -36,9 +34,29 @@ class SettingsConnector:
     def _set_root_active_game_props(self, game_id):
         if not self.root:
             return
+        switch_active_game(game_id)
         game = get_game(game_id)
+
+        # Update context properties so ALL QML bindings refresh globally.
+        ctx = self.engine.rootContext()
+        ctx.setContextProperty("gameName", game.display_name)
+        ctx.setContextProperty("gameShort", game.short_label)
+        ctx.setContextProperty("gameDataFolder", game.data_dir_name)
+        ctx.setContextProperty("modFileExt", app_config.MOD_FILE_EXT)
+        ctx.setContextProperty("modFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
+        ctx.setContextProperty("assetsDir", app_config.ASSETS_DIR)
+        ctx.setContextProperty("logoPng", app_config.LOGO_PNG)
+        ctx.setContextProperty("appFullName", app_config.APP_FULL_NAME)
+
+        # Also update the root properties for MainWindow bindings.
         self.root.setProperty("activeGameShort", game.short_label)
         self.root.setProperty("activeGameName", game.display_name)
+        self.root.setProperty("activeModFileExt", app_config.MOD_FILE_EXT)
+        self.root.setProperty("activeModFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
+        self.root.setProperty("activeAssetsDir", app_config.ASSETS_DIR)
+        self.root.setProperty("activeLogoPng", app_config.LOGO_PNG)
+        self.root.setProperty("activeAppFullName", app_config.APP_FULL_NAME)
+
         if getattr(self, "settings_page", None):
             self.settings_page.setProperty("gameDataFolderName", game.data_dir_name)
         if getattr(self, "welcome_dialog", None):
@@ -330,6 +348,13 @@ class SettingsConnector:
         if hasattr(self.welcome_dialog, 'startTutorialClicked'):
             self.welcome_dialog.startTutorialClicked.connect(self.on_start_tutorial)
 
+        from src.core.game_registry import get_supported_games
+        logo_map = {}
+        for g in get_supported_games():
+            if g.assets_dir and g.logo_256:
+                logo_map[g.id] = f"../assets/{g.assets_dir}/{g.logo_256}"
+        self.welcome_dialog.setProperty("gameLogos", logo_map)
+
         settings = self.load_settings()
         selected_game = normalize_game_id(
             settings.get("selected_game", DEFAULT_GAME_ID)
@@ -443,7 +468,7 @@ class SettingsConnector:
             "* You are downloading software directly from Audiokinetic\n"
             "* This software is subject to Audiokinetic's licensing terms\n"
             "* You use this software at your own risk\n"
-            "* Pucas01 and other ZZAR contributors are not responsible for any issues\n\n"
+            "* Pucas01 and other XXAR contributors are not responsible for any issues\n\n"
             "Do you want to continue?")
         QMetaObject.invokeMethod(
             self.root,
@@ -452,7 +477,7 @@ class SettingsConnector:
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", "wwise_setup"),
-            Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/BellNervous.png")
+            Q_ARG("QVariant", f"../assets/{app_config.ASSETS_DIR}/BellNervous.png")
         )
 
     def on_wwise_setup_success(self, title, message):

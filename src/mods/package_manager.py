@@ -116,18 +116,18 @@ class ModPackageManager:
                     }
         return normalized
 
-    def validate_mod_package(self, zzar_path):
+    def validate_mod_package(self, mod_path):
 
-        zzar_path = Path(zzar_path)
+        mod_path = Path(mod_path)
 
-        if not zzar_path.exists():
-            raise InvalidModPackageError(f"File not found: {zzar_path}")
+        if not mod_path.exists():
+            raise InvalidModPackageError(f"File not found: {mod_path}")
 
-        if not zipfile.is_zipfile(zzar_path):
-            raise InvalidModPackageError(f"Not a valid ZIP file: {zzar_path}")
+        if not zipfile.is_zipfile(mod_path):
+            raise InvalidModPackageError(f"Not a valid ZIP file: {mod_path}")
 
         try:
-            with zipfile.ZipFile(zzar_path, 'r') as zf:
+            with zipfile.ZipFile(mod_path, 'r') as zf:
 
                 if 'metadata.json' not in zf.namelist():
                     raise InvalidModPackageError("Missing metadata.json at root of archive")
@@ -193,10 +193,10 @@ class ModPackageManager:
 
             return 0
 
-    def install_mod(self, zzar_path):
+    def install_mod(self, mod_path):
 
 
-        metadata = self.validate_mod_package(zzar_path)
+        metadata = self.validate_mod_package(mod_path)
 
         mod_name = metadata.get('name', '')
         new_version = metadata.get('version', '1.0.0')
@@ -236,7 +236,7 @@ class ModPackageManager:
         mod_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            with zipfile.ZipFile(zzar_path, 'r') as zf:
+            with zipfile.ZipFile(mod_path, 'r') as zf:
                 zf.extractall(mod_dir)
         except Exception as e:
 
@@ -621,8 +621,8 @@ class ModPackageManager:
                 except Exception as e:
                     print(f"Warning: Failed to remove read-only from {output_pck}: {e}")
 
-            from ZZAR import get_temp_dir
-            temp_dir = Path(tempfile.mkdtemp(prefix='zzar_apply_', dir=str(get_temp_dir())))
+            from XXAR import get_temp_dir
+            temp_dir = Path(tempfile.mkdtemp(prefix='mod_apply_', dir=str(get_temp_dir())))
 
             try:
 
@@ -760,8 +760,8 @@ class ModPackageManager:
 
         output_path = Path(output_path)
 
-        from ZZAR import get_temp_dir, __version__ as zzar_version
-        temp_dir = Path(tempfile.mkdtemp(prefix='zzar_mod_', dir=str(get_temp_dir())))
+        from XXAR import get_temp_dir, __version__ as app_version
+        temp_dir = Path(tempfile.mkdtemp(prefix='mod_export_', dir=str(get_temp_dir())))
 
         try:
             wem_dir = temp_dir / 'wem_files'
@@ -823,7 +823,7 @@ class ModPackageManager:
                 'description': metadata.get('description', ''),
                 'created_date': datetime.now().isoformat(),
                 'replacements': replacements_data,
-                'zzar_version': zzar_version
+                'app_version': app_version
             }
 
             if thumbnail_filename:

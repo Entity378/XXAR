@@ -15,7 +15,7 @@ class UpdateConnector:
         if not self.settings_page:
             return
 
-        from ZZAR import DEV_MODE
+        from XXAR import DEV_MODE
         self.settings_page.setProperty("devMode", DEV_MODE)
 
         settings = self.load_settings()
@@ -64,9 +64,9 @@ class UpdateConnector:
                     Qt.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
                     Q_ARG("QVariant",
-                           QCoreApplication.translate("Application", "A new version of ZZAR is available!\n\n"
+                           QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "Update your Flatpak to the latest version:\n\n"
-                           "new .flatpak file can be downloaded from https://github.com/Pucas01/ZZAR/releases")),
+                           "new .flatpak file can be downloaded from https://github.com/Pucas01/XXAR/releases")),
                     Q_ARG("QVariant", ""),
                 )
         elif self._startup_update_check and self.update_dialog:
@@ -205,7 +205,7 @@ class UpdateConnector:
                     "showSuccessDialog",
                     Qt.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Successful!")),
-                    Q_ARG("QVariant", QCoreApplication.translate("Application", "ZZAR has been updated to version %1.").replace("%1", new_version)),
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "XXAR has been updated to version %1.").replace("%1", new_version)),
                     Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/VivianHappy.png"),
                 )
         except Exception as e:

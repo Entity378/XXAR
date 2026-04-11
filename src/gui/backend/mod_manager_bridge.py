@@ -15,7 +15,8 @@ import os
 import sys
 import shutil
 import subprocess
-from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, APP_NAME
+import src.core.app_config as app_config
+from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
 
 from src.mods.package_manager import ModPackageManager, InvalidModPackageError
 from src.mods.persistent_manager import PersistentModManager
@@ -992,11 +993,11 @@ class ModManagerBridge(QObject):
     def askSavePath(self, mod_name):
 
 
-        default_name = mod_name.replace(" ", "_") + MOD_FILE_EXT
+        default_name = mod_name.replace(" ", "_") + app_config.MOD_FILE_EXT
         save_path = NativeDialogs.get_save_file(
-            f"Save {MOD_FILE_EXT} Mod Package",
+            f"Save {app_config.MOD_FILE_EXT} Mod Package",
             str(Path.home() / default_name),
-            f"{MOD_FILE_EXT_UPPER} Mod Packages (*{MOD_FILE_EXT});;All Files (*)",
+            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
         )
 
         return save_path if save_path else ""
@@ -1023,11 +1024,11 @@ class ModManagerBridge(QObject):
             mod_name = metadata.get('name', 'Unknown')
             mod_version = metadata.get('version', '1.0.0')
 
-            default_name = mod_name.replace(" ", "_") + "_v" + mod_version + MOD_FILE_EXT
+            default_name = mod_name.replace(" ", "_") + "_v" + mod_version + app_config.MOD_FILE_EXT
             save_path = NativeDialogs.get_save_file(
-                f"Export Mod as {MOD_FILE_EXT}",
+                f"Export Mod as {app_config.MOD_FILE_EXT}",
                 str(Path.home() / default_name),
-                f"{MOD_FILE_EXT_UPPER} Mod Packages (*{MOD_FILE_EXT});;All Files (*)",
+                f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
             )
 
             if not save_path:

@@ -24,6 +24,7 @@ Item {
     property int gameSetupIndex: 0
     property var gameDirectories: ({})
     property string currentGameDisplayName: ""
+    property var gameLogos: ({})
 
     signal modeSelected(string mode)
     signal gameSelected(string gameId)
@@ -188,7 +189,16 @@ Item {
                                     width: 80; height: 80; radius: 40
                                     color: "#d8fa00"
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    Text { anchors.centerIn: parent; text: "ZZZ"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22 }
+                                    clip: true
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 64; height: 64
+                                        source: root.gameLogos["zzz"] || ""
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                        visible: source !== ""
+                                    }
+                                    Text { anchors.centerIn: parent; text: "ZZZ"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22; visible: !root.gameLogos["zzz"] }
                                 }
 
                                 Text {
@@ -240,7 +250,16 @@ Item {
                                     width: 80; height: 80; radius: 40
                                     color: "#34c27a"
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    Text { anchors.centerIn: parent; text: "GI"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 26 }
+                                    clip: true
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 64; height: 64
+                                        source: root.gameLogos["genshin"] || ""
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                        visible: source !== ""
+                                    }
+                                    Text { anchors.centerIn: parent; text: "GI"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 26; visible: !root.gameLogos["genshin"] }
                                 }
 
                                 Text {
@@ -292,7 +311,16 @@ Item {
                                     width: 80; height: 80; radius: 40
                                     color: "#3f9ec3"
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    Text { anchors.centerIn: parent; text: "HSR"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22 }
+                                    clip: true
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 64; height: 64
+                                        source: root.gameLogos["hsr"] || ""
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                        visible: source !== ""
+                                    }
+                                    Text { anchors.centerIn: parent; text: "HSR"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22; visible: !root.gameLogos["hsr"] }
                                 }
 
                                 Text {

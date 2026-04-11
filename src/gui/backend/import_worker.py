@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-from src.core.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+import src.core.app_config as app_config
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 
 class ImportWorker(QThread):
@@ -67,8 +67,8 @@ class ImportWorker(QThread):
 
         try:
 
-            from ZZAR import get_temp_dir
-            temp_dir = Path(tempfile.mkdtemp(prefix='zzar_import_', dir=str(get_temp_dir())))
+            from XXAR import get_temp_dir
+            temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
 
             wem_dir = temp_dir / 'wem_files'
             wem_dir.mkdir(parents=True, exist_ok=True)
@@ -143,8 +143,8 @@ class ImportWorker(QThread):
                 if total_game_pcks == 0:
                     self.progress.emit(f"Warning: No matching game PCKs found for {input_pck_names}. Searched {len(all_game_pcks)} game PCKs.")
 
-                from ZZAR import get_temp_dir
-                temp_bnk_dir = Path(tempfile.mkdtemp(prefix='zzar_bnk_scan_', dir=str(get_temp_dir())))
+                from XXAR import get_temp_dir
+                temp_bnk_dir = Path(tempfile.mkdtemp(prefix='mod_bnk_scan_', dir=str(get_temp_dir())))
 
                 for idx, game_pck_path in enumerate(game_pck_files):
                     scan_progress = int(30 + ((idx + 1) / max(total_game_pcks, 1)) * 25)
@@ -272,8 +272,8 @@ class ImportWorker(QThread):
                 pck_files = list(game_audio_dir.rglob('*.pck'))
                 total_pcks = len(pck_files)
 
-                from ZZAR import get_temp_dir
-                temp_bnk_dir = Path(tempfile.mkdtemp(prefix='zzar_bnk_scan_', dir=str(get_temp_dir())))
+                from XXAR import get_temp_dir
+                temp_bnk_dir = Path(tempfile.mkdtemp(prefix='mod_bnk_scan_', dir=str(get_temp_dir())))
 
                 for idx, pck_path in enumerate(pck_files):
                     scan_progress = int(5 + ((idx + 1) / max(total_pcks, 1)) * 50)
@@ -397,10 +397,10 @@ class ImportWorker(QThread):
                 for pck_name, pck_files in replacements.items():
                     self.progress.emit(f"  {pck_name}: {len(pck_files)} file(s)")
 
-            self.progress.emit(f"Creating {MOD_FILE_EXT} package...")
+            self.progress.emit(f"Creating {app_config.MOD_FILE_EXT} package...")
             self.progressPercent.emit(70)
 
-            from ZZAR import __version__ as zzar_version
+            from XXAR import __version__ as app_version
             metadata_content = {
                 'format_version': '3.0',
                 'name': self.data['metadata']['name'],
@@ -409,7 +409,7 @@ class ImportWorker(QThread):
                 'description': self.data['metadata'].get('description', ''),
                 'created_date': datetime.now().isoformat(),
                 'replacements': replacements,
-                'zzar_version': zzar_version
+                'app_version': app_version
             }
 
             if self.data.get('thumbnail'):
@@ -434,7 +434,7 @@ class ImportWorker(QThread):
             shutil.rmtree(temp_dir)
             temp_dir = None
 
-            self.progress.emit(f"Created {MOD_FILE_EXT} package: {save_path.name}")
+            self.progress.emit(f"Created {app_config.MOD_FILE_EXT} package: {save_path.name}")
             self.progressPercent.emit(85)
 
             self.progress.emit("Installing mod...")

@@ -6,7 +6,11 @@ from pathlib import Path
 from PyQt5.QtCore import QCoreApplication
 
 from src.core.game_registry import get_game
-from src.wwise.hirc_patcher import apply_duration_patches, scan_bank_for_patch_targets
+from src.wwise.hirc_patcher import (
+    apply_duration_patches,
+    apply_volume_patches,
+    scan_bank_for_patch_targets,
+)
 
 
 def _natural_sort_key(value):
@@ -224,6 +228,11 @@ class BaseBrowserHandler:
             repl_info.get("loop_point_manual_ms", 0)
         )
         entry["loopPointSuggestedMs"] = suggested_ms
+        entry["volumeEditable"] = True
+        entry["volumeEnabled"] = bool(repl_info.get("volume_enabled", True))
+        entry["volumeDb"] = self.normalize_volume_db(
+            repl_info.get("volume_db", 0.0)
+        )
 
     @classmethod
     def is_loop_entry_applicable(cls, pck_filename, repl_info):
@@ -244,6 +253,14 @@ class BaseBrowserHandler:
         except Exception:
             value = 0
         return max(0, value)
+
+    @staticmethod
+    def normalize_volume_db(volume_db):
+        try:
+            value = round(float(volume_db), 1)
+        except Exception:
+            value = 0.0
+        return max(-96.0, min(24.0, value))
 
     @staticmethod
     def _extract_tracker_file_id(tracker_key):
@@ -349,7 +366,8 @@ class BaseBrowserHandler:
             return {"patched_files": 0, "patched_ids": 0}
 
         duration_ms_by_track = self._collect_loop_patch_targets(replacements)
-        if not duration_ms_by_track:
+        volume_db_by_track = self._collect_volume_patch_targets(replacements)
+        if not duration_ms_by_track and not volume_db_by_track:
             return {"patched_files": 0, "patched_ids": 0}
 
         streaming_root = (
@@ -369,7 +387,7 @@ class BaseBrowserHandler:
         if not bank_files:
             return {"patched_files": 0, "patched_ids": 0}
 
-        source_ids = set(duration_ms_by_track.keys())
+        source_ids = set(duration_ms_by_track.keys()) | set(volume_db_by_track.keys())
         patched_file_count = 0
         patched_track_ids = set()
 
@@ -382,45 +400,35 @@ class BaseBrowserHandler:
 
             scan_source = bank_target if bank_target.exists() else bank_source
             try:
-                content = scan_source.read_bytes()
+                raw = scan_source.read_bytes()
             except Exception:
                 continue
 
-            targets = scan_bank_for_patch_targets(content, source_ids)
-            if not targets.tracks and not targets.segments:
-                continue
-
-            if not bank_target.exists():
-                shutil.copy2(bank_source, bank_target)
-
-            result = apply_duration_patches(
-                bank_target, targets, duration_ms_by_track
+            did_patch = self._patch_bank_content(
+                raw, bank_target, scan_source, source_ids,
+                duration_ms_by_track, volume_db_by_track,
+                patched_track_ids,
             )
-            if result["patched_offsets"] <= 0:
-                continue
+            if did_patch:
+                patched_file_count += 1
 
-            patched_file_count += 1
-            patched_track_ids.update(result["patched_source_ids"])
-
-        # Scan override PCKs for HIRC duration patching too
+        # Scan override PCKs for HIRC patching too
         persistent_root = Path(
             str(streaming_root).replace("StreamingAssets", "Persistent")
         )
         for override_pck in self._find_override_pcks(persistent_root):
             try:
                 override_pck.chmod(0o644)
-                content = override_pck.read_bytes()
+                raw = override_pck.read_bytes()
             except Exception:
                 continue
-            targets = scan_bank_for_patch_targets(content, source_ids)
-            if not targets.tracks and not targets.segments:
-                continue
-            result = apply_duration_patches(
-                override_pck, targets, duration_ms_by_track
+            did_patch = self._patch_bank_content(
+                raw, override_pck, override_pck, source_ids,
+                duration_ms_by_track, volume_db_by_track,
+                patched_track_ids,
             )
-            if result["patched_offsets"] > 0:
+            if did_patch:
                 patched_file_count += 1
-                patched_track_ids.update(result["patched_source_ids"])
 
         result = {
             "patched_files": patched_file_count,
@@ -453,7 +461,8 @@ class BaseBrowserHandler:
             return {"patched_files": 0, "patched_ids": 0}
 
         duration_ms_by_track = handler._collect_loop_patch_targets(replacements)
-        if not duration_ms_by_track:
+        volume_db_by_track = handler._collect_volume_patch_targets(replacements)
+        if not duration_ms_by_track and not volume_db_by_track:
             return {"patched_files": 0, "patched_ids": 0}
 
         streaming_root = Path(streaming_root) if streaming_root else None
@@ -483,9 +492,10 @@ class BaseBrowserHandler:
         if not bank_files:
             return {"patched_files": 0, "patched_ids": 0}
 
-        source_ids = set(duration_ms_by_track.keys())
+        source_ids = set(duration_ms_by_track.keys()) | set(volume_db_by_track.keys())
         patched_file_count = 0
         patched_track_ids = set()
+        volume_patched_count = 0
 
         for bank_source in bank_files:
             try:
@@ -503,42 +513,33 @@ class BaseBrowserHandler:
                 base_file = bank_source
 
             try:
-                content = base_file.read_bytes()
+                raw = base_file.read_bytes()
             except Exception:
                 continue
 
-            targets = scan_bank_for_patch_targets(content, source_ids)
-            if not targets.tracks and not targets.segments:
-                continue
-
-            if base_file != bank_target:
-                shutil.copy2(base_file, bank_target)
-
-            result = apply_duration_patches(
-                bank_target, targets, duration_ms_by_track
+            did_patch = handler._patch_bank_content(
+                raw, bank_target, base_file, source_ids,
+                duration_ms_by_track, volume_db_by_track,
+                patched_track_ids,
             )
-            if result["patched_offsets"] <= 0:
-                continue
+            if did_patch:
+                patched_file_count += 1
 
-            patched_file_count += 1
-            patched_track_ids.update(result["patched_source_ids"])
-
-        # Scan override PCKs for HIRC duration patching too
+        # Scan override PCKs for HIRC patching too
         for override_pck in handler._find_override_pcks(persistent_root):
             try:
                 override_pck.chmod(0o644)
-                content = override_pck.read_bytes()
+                raw = override_pck.read_bytes()
             except Exception:
                 continue
-            targets = scan_bank_for_patch_targets(content, source_ids)
-            if not targets.tracks and not targets.segments:
-                continue
-            result = apply_duration_patches(
-                override_pck, targets, duration_ms_by_track
+
+            did_patch = handler._patch_bank_content(
+                raw, override_pck, override_pck, source_ids,
+                duration_ms_by_track, volume_db_by_track,
+                patched_track_ids,
             )
-            if result["patched_offsets"] > 0:
+            if did_patch:
                 patched_file_count += 1
-                patched_track_ids.update(result["patched_source_ids"])
 
         result = {
             "patched_files": patched_file_count,
@@ -549,13 +550,67 @@ class BaseBrowserHandler:
             handler._emit_status(
                 QCoreApplication.translate(
                     "Application",
-                    "%3 loop points patched in %1 bank file(s) for %2 track ID(s).",
+                    "%3 HIRC patched in %1 bank file(s) for %2 track ID(s).",
                 )
                 .replace("%1", str(result["patched_files"]))
                 .replace("%2", str(result["patched_ids"]))
                 .replace("%3", label)
             )
         return result
+
+    @staticmethod
+    def _patch_bank_content(
+        raw, target_path, base_file, source_ids,
+        duration_ms_by_track, volume_db_by_track,
+        patched_track_ids,
+    ):
+        """Apply volume and duration patches to bank content.
+
+        Works on a bytearray in memory so volume insertions (which shift bytes)
+        don't break duration offsets.  Writes the final result once.
+        Returns True if any patches were applied.
+        """
+        targets = scan_bank_for_patch_targets(raw, source_ids)
+        has_duration = targets.tracks or targets.segments
+        has_volume = targets.volume_patches and volume_db_by_track
+        if not has_duration and not has_volume:
+            return False
+
+        print(f"[HIRC Patch] {target_path.name}: {len(targets.tracks)} track(s), {len(targets.segments)} seg(s), {len(targets.volume_patches)} vol target(s), has_volume={has_volume}")
+
+        content = bytearray(raw)
+        original_size = len(content)
+
+        # Volume patches first (may insert bytes and shift offsets).
+        vol_result = {"patched": 0, "inserted": 0, "total_shift": 0}
+        if has_volume:
+            vol_result = apply_volume_patches(
+                content, targets.volume_patches, volume_db_by_track,
+            )
+            print(f"[HIRC Patch] Volume: {vol_result['patched']} in-place, {vol_result['inserted']} inserted, size {original_size} -> {len(content)}")
+
+        # If volume insertions shifted bytes, re-scan for duration offsets.
+        if vol_result["inserted"] > 0 and has_duration:
+            targets = scan_bank_for_patch_targets(bytes(content), source_ids)
+
+        dur_result = {"patched_offsets": 0, "patched_source_ids": set()}
+        if has_duration and duration_ms_by_track:
+            dur_result = apply_duration_patches(
+                content, targets, duration_ms_by_track,
+            )
+            print(f"[HIRC Patch] Duration: {dur_result['patched_offsets']} offset(s), {len(dur_result['patched_source_ids'])} source(s)")
+
+        if vol_result["patched"] + vol_result["inserted"] + dur_result["patched_offsets"] <= 0:
+            return False
+
+        if base_file != target_path:
+            import shutil
+            shutil.copy2(base_file, target_path)
+
+        target_path.write_bytes(content)
+        patched_track_ids.update(dur_result["patched_source_ids"])
+        print(f"[HIRC Patch] Written {len(content)} bytes to {target_path}")
+        return True
 
     def _find_bank_pck_files(self, audio_root):
         prefix = self.game.soundbank_pck_prefix.lower()
@@ -638,3 +693,24 @@ class BaseBrowserHandler:
                 .replace("%2", ", ".join(unique_missing[:8]))
             )
         return duration_ms_by_track
+
+    def _collect_volume_patch_targets(self, replacements):
+        volume_db_by_track = {}
+
+        for pck_filename, files in (replacements or {}).items():
+            for tracker_key, repl_info in (files or {}).items():
+                if not self.is_loop_entry_applicable(pck_filename, repl_info):
+                    continue
+
+                track_id = self._extract_tracker_file_id(tracker_key)
+                if track_id is None:
+                    continue
+
+                if not repl_info.get("volume_enabled", True):
+                    continue
+
+                volume_db_by_track[track_id] = self.normalize_volume_db(
+                    repl_info.get("volume_db", 0.0)
+                )
+
+        return volume_db_by_track

@@ -11,8 +11,8 @@ class TempCacheManager:
 
     def __init__(self, max_cached_files=100):
 
-        from ZZAR import get_temp_dir
-        self.cache_dir = Path(tempfile.mkdtemp(prefix='zzar_audio_cache_', dir=str(get_temp_dir())))
+        from XXAR import get_temp_dir
+        self.cache_dir = Path(tempfile.mkdtemp(prefix='xxar_audio_cache_', dir=str(get_temp_dir())))
         self.max_cached_files = max_cached_files
         self.cache_index = OrderedDict()
 

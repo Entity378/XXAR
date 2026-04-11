@@ -54,7 +54,7 @@ class AudioMatcher:
         intermediate_wav = None
         if audio_path.suffix.lower() == '.wem':
 
-            from ZZAR import get_temp_dir
+            from XXAR import get_temp_dir
             with tempfile.NamedTemporaryFile(suffix='_intermediate.wav', delete=False, dir=str(get_temp_dir())) as tmp:
                 intermediate_wav = Path(tmp.name)
 
@@ -73,7 +73,7 @@ class AudioMatcher:
         else:
             input_file = audio_path
 
-        from ZZAR import get_temp_dir
+        from XXAR import get_temp_dir
         temp_wav = Path(tempfile.mktemp(suffix='.wav', dir=str(get_temp_dir())))
 
         cmd = [
@@ -124,7 +124,7 @@ class AudioMatcher:
 
     def extract_fingerprint_from_bytes(self, wem_bytes, sample_rate=22050, duration=None):
 
-        from ZZAR import get_temp_dir
+        from XXAR import get_temp_dir
         temp_wem = Path(tempfile.mktemp(suffix='.wem', dir=str(get_temp_dir())))
         try:
             temp_wem.write_bytes(wem_bytes)

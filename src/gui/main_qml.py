@@ -34,11 +34,10 @@ from gui.backend.ui_theme_bridge import UIThemeBridge
 from gui.utils.native_dialogs import NativeDialogs
 from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID
+import src.core.app_config as app_config
 from src.core.app_config import (
-    APP_NAME, APP_FULL_NAME, APP_VERSION, GAME_NAME, GAME_SHORT, GAME_DATA_FOLDER,
-    GAME_DATA_FOLDER_SEARCH, GAME_INSTALL_SUBDIRS, GAME_INSTALL_HOME_SUBDIR,
-    LOGO_PNG, MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR,
-    ACCENT_COLOR, ACCENT_COLOR_LIGHT, ACCENT_COLOR_DARK,
+    APP_NAME, APP_VERSION,
+    switch_active_game,
 )
 
 from gui.connectors.mod_manager_connector import ModManagerConnector
@@ -71,9 +70,9 @@ class AutoDetectWorker(QThread):
             ]
             home_subdir = f"Games/{install_dir}"
         else:
-            install_subdirs = GAME_INSTALL_SUBDIRS
-            home_subdir = GAME_INSTALL_HOME_SUBDIR
-            data_dir = GAME_DATA_FOLDER
+            install_subdirs = app_config.GAME_INSTALL_SUBDIRS
+            home_subdir = app_config.GAME_INSTALL_HOME_SUBDIR
+            data_dir = app_config.GAME_DATA_FOLDER
 
         if self.system_type == "Windows":
 
@@ -161,7 +160,7 @@ class Application(
     def run(self):
 
         print("=" * 50)
-        print(f"{APP_NAME} - {APP_FULL_NAME}")
+        print(f"{APP_NAME} - {app_config.APP_FULL_NAME}")
         print("QML UI Version")
         print("=" * 50)
 
@@ -183,7 +182,7 @@ class Application(
         self.app.setApplicationVersion(QCoreApplication.applicationVersion())
 
         ui_path = Path(__file__).parent
-        icon_path = ui_path / "assets" / LOGO_PNG
+        icon_path = ui_path / "assets" / app_config.ASSETS_DIR / app_config.LOGO_PNG
         if icon_path.exists():
             self.app.setWindowIcon(QIcon(str(icon_path)))
 
@@ -231,6 +230,7 @@ class Application(
         startup_game = normalize_game_id(
             startup_settings.get("selected_game", DEFAULT_GAME_ID)
         )
+        switch_active_game(startup_game)
         self.gamebanana_bridge.set_active_game(startup_game, reload=False)
         self.ui_theme_bridge = UIThemeBridge(startup_game)
 
@@ -244,17 +244,17 @@ class Application(
 
         # App/game branding -- consumed by QML via these context properties
         context.setContextProperty("appName", APP_NAME)
-        context.setContextProperty("appFullName", APP_FULL_NAME)
-        context.setContextProperty("gameName", GAME_NAME)
-        context.setContextProperty("gameShort", GAME_SHORT)
-        context.setContextProperty("gameDataFolder", GAME_DATA_FOLDER)
-        context.setContextProperty("modFileExt", MOD_FILE_EXT)
-        context.setContextProperty("modFileExtUpper", MOD_FILE_EXT_UPPER)
-        context.setContextProperty("logoPng", LOGO_PNG)
-        context.setContextProperty("assetsDir", ASSETS_DIR)
-        context.setContextProperty("accentColor", ACCENT_COLOR)
-        context.setContextProperty("accentColorLight", ACCENT_COLOR_LIGHT)
-        context.setContextProperty("accentColorDark", ACCENT_COLOR_DARK)
+        context.setContextProperty("appFullName", app_config.APP_FULL_NAME)
+        context.setContextProperty("gameName", app_config.GAME_NAME)
+        context.setContextProperty("gameShort", app_config.GAME_SHORT)
+        context.setContextProperty("gameDataFolder", app_config.GAME_DATA_FOLDER)
+        context.setContextProperty("modFileExt", app_config.MOD_FILE_EXT)
+        context.setContextProperty("modFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
+        context.setContextProperty("logoPng", app_config.LOGO_PNG)
+        context.setContextProperty("assetsDir", app_config.ASSETS_DIR)
+        context.setContextProperty("accentColor", app_config.ACCENT_COLOR)
+        context.setContextProperty("accentColorLight", app_config.ACCENT_COLOR_LIGHT)
+        context.setContextProperty("accentColorDark", app_config.ACCENT_COLOR_DARK)
 
         self.translation_manager = TranslationManager(self.engine)
         context.setContextProperty("translationManager", self.translation_manager)
@@ -481,7 +481,7 @@ class Application(
             Qt.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Work in Progress")),
             Q_ARG("QVariant", QCoreApplication.translate("Application", "This feature is not yet implemented.\n\nThis will be added in a future update. (i hope)")),
-            Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/YuzuhaSilly.png")
+            Q_ARG("QVariant", f"../assets/{app_config.ASSETS_DIR}/YuzuhaSilly.png")
         )
 
     def on_wwise_error_dialog(self, title, message):

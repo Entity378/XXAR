@@ -19,19 +19,19 @@ Rectangle {
     property bool closing: false
     property bool audioPreviewPlaying: false
 
-    property var pendingZZARNames: []
+    property var pendingModNames: []
     property string pendingZipPath: ""
     property string activeDownloadUrl: ""
     property var installedModNames: []
     property var installedUrlMap: ({})
     property var installedDownloadUrls: []
-    property var installedZZARsByUrl: ({})
-    property var zzarTotalsByUrl: ({})
+    property var installedModsByUrl: ({})
+    property var modTotalsByUrl: ({})
     property int installedVersion: 0
 
     signal downloadRequested(string downloadUrl, string filename, string modName, int modId)
     signal downloadToPathRequested(string downloadUrl, string filename)
-    signal installChosenZZAR(string zipPath, string zzarName)
+    signal installChosenMod(string zipPath, string modName)
 
     Timer {
         id: hideTimer
@@ -66,8 +66,8 @@ Rectangle {
         if (!installing) activeDownloadUrl = ""
     }
 
-    function showZZARChooser(names, zipPath) {
-        pendingZZARNames = names
+    function showModChooser(names, zipPath) {
+        pendingModNames = names
         pendingZipPath = zipPath
     }
 
@@ -140,13 +140,13 @@ Rectangle {
 
                         Rectangle {
                             height: 24
-                            width: zzarDialogBadgeText.implicitWidth + 16
+                            width: modDialogBadgeText.implicitWidth + 16
                             radius: Theme.radiusMedium
                             color: Theme.primaryAccent
-                            visible: modData && modData.zzar_supported === true
+                            visible: modData && modData.mod_supported === true
 
                             Text {
-                                id: zzarDialogBadgeText
+                                id: modDialogBadgeText
                                 anchors.centerIn: parent
                                 text: appName + " Native"
                                 color: Theme.textOnAccent
@@ -583,7 +583,7 @@ Rectangle {
                                 }
 
                                 Row {
-                                    visible: modData && modData.files && modData.files.some(function(f) { return f.has_zzar })
+                                    visible: modData && modData.files && modData.files.some(function(f) { return f.has_mod_file })
                                     spacing: 8
 
                                     Text {
@@ -599,20 +599,20 @@ Rectangle {
                                         visible: {
                                             modDialog.installedVersion
                                             if (!modData || !modData.files) return false
-                                            var zzarFiles = modData.files.filter(function(f) { return f.has_zzar })
-                                            var installedCount = zzarFiles.filter(function(f) {
+                                            var modFiles = modData.files.filter(function(f) { return f.has_mod_file })
+                                            var installedCount = modFiles.filter(function(f) {
                                                 return modDialog.installedDownloadUrls.indexOf(f.download_url) !== -1
                                             }).length
-                                            return installedCount > 0 && zzarFiles.length > 1
+                                            return installedCount > 0 && modFiles.length > 1
                                         }
                                         text: {
                                             modDialog.installedVersion
                                             if (!modData || !modData.files) return ""
-                                            var zzarFiles = modData.files.filter(function(f) { return f.has_zzar })
-                                            var installedCount = zzarFiles.filter(function(f) {
+                                            var modFiles = modData.files.filter(function(f) { return f.has_mod_file })
+                                            var installedCount = modFiles.filter(function(f) {
                                                 return modDialog.installedDownloadUrls.indexOf(f.download_url) !== -1
                                             }).length
-                                            return "(" + installedCount + "/" + zzarFiles.length + " " + qsTranslate("Application", "installed") + ")"
+                                            return "(" + installedCount + "/" + modFiles.length + " " + qsTranslate("Application", "installed") + ")"
                                         }
                                         color: "#aaaaaa"
                                         font.family: Theme.fontFamily
@@ -622,7 +622,7 @@ Rectangle {
                                 }
 
                                 Repeater {
-                                    model: modData ? modData.files.filter(function(f) { return f.has_zzar }) : []
+                                    model: modData ? modData.files.filter(function(f) { return f.has_mod_file }) : []
 
                                     Rectangle {
                                         width: parent.width
@@ -638,16 +638,16 @@ Rectangle {
                                             modDialog.installedVersion
                                             return modDialog.installedDownloadUrls.indexOf(modelData.download_url) !== -1
                                         }
-                                        property int zzarTotal: {
+                                        property int modTotal: {
                                             modDialog.installedVersion
-                                            return modDialog.zzarTotalsByUrl[modelData.download_url] || 0
+                                            return modDialog.modTotalsByUrl[modelData.download_url] || 0
                                         }
-                                        property int zzarInstalledCount: {
+                                        property int modInstalledCount: {
                                             modDialog.installedVersion
-                                            var arr = modDialog.installedZZARsByUrl[modelData.download_url]
+                                            var arr = modDialog.installedModsByUrl[modelData.download_url]
                                             return arr ? arr.length : 0
                                         }
-                                        property bool partiallyInstalled: zzarTotal > 1 && zzarInstalledCount > 0 && !isInstalled
+                                        property bool partiallyInstalled: modTotal > 1 && modInstalledCount > 0 && !isInstalled
 
                                         MouseArea {
                                             id: fileRowMouse
@@ -731,7 +731,7 @@ Rectangle {
                                                         if (row.rowDownloading) return downloadProgress + "%"
                                                         if (row.rowInstalling) return qsTranslate("Application", "Installing...")
                                                         if (parent.installed) return qsTranslate("Application", "Installed")
-                                                        if (parent.partial) return row.zzarInstalledCount + "/" + row.zzarTotal + " " + qsTranslate("Application", "installed")
+                                                        if (parent.partial) return row.modInstalledCount + "/" + row.modTotal + " " + qsTranslate("Application", "installed")
                                                         return "\u2193  " + qsTranslate("Application", "Install")
                                                     }
                                                     color: Theme.textOnAccent
@@ -764,7 +764,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    visible: modData && modData.files && modData.files.some(function(f) { return f.has_zzar }) && modData.files.some(function(f) { return !f.has_zzar })
+                                    visible: modData && modData.files && modData.files.some(function(f) { return f.has_mod_file }) && modData.files.some(function(f) { return !f.has_mod_file })
                                     text: "Other Files"
                                     color: "#888888"
                                     font.family: Theme.fontFamily
@@ -773,7 +773,7 @@ Rectangle {
                                 }
 
                                 Repeater {
-                                    model: modData ? modData.files.filter(function(f) { return !f.has_zzar }) : []
+                                    model: modData ? modData.files.filter(function(f) { return !f.has_mod_file }) : []
 
                                     Rectangle {
                                         width: parent.width
@@ -936,9 +936,9 @@ Rectangle {
     }
 
     Item {
-        id: zzarChooser
+        id: modChooser
         anchors.fill: parent
-        visible: modDialog.pendingZZARNames.length > 0
+        visible: modDialog.pendingModNames.length > 0
         z: 2000
 
         property var checkedNames: []
@@ -949,16 +949,16 @@ Rectangle {
             id: chooserHideTimer
             interval: 200
             onTriggered: {
-                modDialog.pendingZZARNames = []
+                modDialog.pendingModNames = []
                 modDialog.pendingZipPath = ""
-                zzarChooser.closing = false
+                modChooser.closing = false
             }
         }
 
         Rectangle {
             anchors.fill: parent
             color: "#80000000"
-            opacity: (!zzarChooser.closing && zzarChooser.visible) ? 1.0 : 0.0
+            opacity: (!modChooser.closing && modChooser.visible) ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
             Image {
@@ -981,8 +981,8 @@ Rectangle {
             radius: 20
             border.color: "#3c3d3f"
             border.width: 1
-            scale: (!zzarChooser.closing && zzarChooser.visible) ? 1.0 : 0.9
-            opacity: (!zzarChooser.closing && zzarChooser.visible) ? 1.0 : 0.0
+            scale: (!modChooser.closing && modChooser.visible) ? 1.0 : 0.9
+            opacity: (!modChooser.closing && modChooser.visible) ? 1.0 : 0.0
             Behavior on scale   { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
@@ -1029,13 +1029,13 @@ Rectangle {
                     spacing: 6
 
                     Repeater {
-                        model: modDialog.pendingZZARNames
+                        model: modDialog.pendingModNames
 
                         Item {
                             width: parent.width
                             height: 48
 
-                            readonly property bool checked: zzarChooser.checkedNames.indexOf(modelData) !== -1
+                            readonly property bool checked: modChooser.checkedNames.indexOf(modelData) !== -1
 
                             Rectangle {
                                 anchors.fill: parent
@@ -1080,11 +1080,11 @@ Rectangle {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    var list = zzarChooser.checkedNames.slice()
+                                    var list = modChooser.checkedNames.slice()
                                     var idx = list.indexOf(modelData)
                                     if (idx === -1) list.push(modelData)
                                     else list.splice(idx, 1)
-                                    zzarChooser.checkedNames = list
+                                    modChooser.checkedNames = list
                                 }
                             }
                         }
@@ -1119,7 +1119,7 @@ Rectangle {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                zzarChooser.closing = true
+                                modChooser.closing = true
                                 chooserHideTimer.start()
                             }
                         }
@@ -1130,15 +1130,15 @@ Rectangle {
                         height: 45
                         color: Theme.primaryAccent
                         radius: Theme.radiusMedium
-                        opacity: zzarChooser.checkedNames.length === 0 ? 0.4 : 1.0
+                        opacity: modChooser.checkedNames.length === 0 ? 0.4 : 1.0
                         scale: installSelMouse.pressed ? 0.97 : (installSelMouse.containsMouse ? 1.03 : 1.0)
                         Behavior on scale   { NumberAnimation { duration: 150 } }
                         Behavior on opacity { NumberAnimation { duration: 150 } }
 
                         Text {
                             anchors.centerIn: parent
-                            text: zzarChooser.checkedNames.length > 1
-                                  ? qsTranslate("Application", "Install") + " (" + zzarChooser.checkedNames.length + ")"
+                            text: modChooser.checkedNames.length > 1
+                                  ? qsTranslate("Application", "Install") + " (" + modChooser.checkedNames.length + ")"
                                   : qsTranslate("Application", "Install")
                             color: "#000000"
                             font.family: "Alatsi"
@@ -1150,15 +1150,15 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            enabled: zzarChooser.checkedNames.length > 0
+                            enabled: modChooser.checkedNames.length > 0
                             onClicked: {
-                                var toInstall = zzarChooser.checkedNames.slice()
+                                var toInstall = modChooser.checkedNames.slice()
                                 var zip = modDialog.pendingZipPath
-                                zzarChooser.closing = true
+                                modChooser.closing = true
                                 chooserHideTimer.start()
-                                zzarChooser.checkedNames = []
+                                modChooser.checkedNames = []
                                 for (var i = 0; i < toInstall.length; i++)
-                                    modDialog.installChosenZZAR(zip, toInstall[i])
+                                    modDialog.installChosenMod(zip, toInstall[i])
                             }
                         }
                     }
@@ -1177,7 +1177,7 @@ Rectangle {
             isInstalling = false
             downloadProgress = 0
             activeDownloadUrl = ""
-            pendingZZARNames = []
+            pendingModNames = []
             pendingZipPath = ""
             if (videoLoader.item) videoLoader.item.stopVideo()
         }

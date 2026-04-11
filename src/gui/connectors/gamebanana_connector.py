@@ -24,7 +24,7 @@ class GameBananaConnector:
         self.gamebanana_page.downloadModRequested.connect(
             lambda url, filename, mod_name, mod_id: gb.downloadMod(url, filename, mod_name, mod_id)
         )
-        self.gamebanana_page.installChosenZZARRequested.connect(gb.installChosenZZAR)
+        self.gamebanana_page.installChosenModRequested.connect(gb.installChosenMod)
 
         gb.modsLoaded.connect(
             lambda mods: QMetaObject.invokeMethod(
@@ -63,7 +63,7 @@ class GameBananaConnector:
 
         gb.downloadComplete.connect(self.on_gamebanana_download_complete)
         gb.installComplete.connect(self.on_gamebanana_install_complete)
-        gb.multipleZZARFound.connect(self.on_gamebanana_multiple_zzar)
+        gb.multipleModsFound.connect(self.on_gamebanana_multiple_mods)
         gb.installStateChanged.connect(
             lambda installing: QMetaObject.invokeMethod(
                 self.gamebanana_page, "setInstallState",
@@ -85,9 +85,9 @@ class GameBananaConnector:
             )
         )
 
-        gb.zzarSupportUpdated.connect(
+        gb.modSupportUpdated.connect(
             lambda mod_id, supported: QMetaObject.invokeMethod(
-                self.gamebanana_page, "onZZARSupportUpdated",
+                self.gamebanana_page, "onModSupportUpdated",
                 Qt.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", supported)
             )
         )
@@ -100,7 +100,7 @@ class GameBananaConnector:
         )
 
         gb.errorOccurred.connect(self.on_error_occurred)
-        gb.nonZzarDownloadComplete.connect(self.on_nonzzar_download_complete)
+        gb.nonNativeDownloadComplete.connect(self.on_non_native_download_complete)
 
         mod_dialog = self.gamebanana_page.findChild(QObject, "modDialog")
         if mod_dialog:
@@ -108,29 +108,29 @@ class GameBananaConnector:
 
         self.root.dialogConfirmed.connect(self.on_gamebanana_dialog_confirmed)
 
-        self._nonzzar_saved_path = ""
+        self._non_native_saved_path = ""
 
         print(f"[{APP_NAME}] GameBanana page connected")
 
-    def on_nonzzar_download_complete(self, file_path):
-        self._nonzzar_saved_path = file_path
+    def on_non_native_download_complete(self, file_path):
+        self._non_native_saved_path = file_path
         QMetaObject.invokeMethod(
             self.root, "showConfirmDialog",
             Qt.QueuedConnection,
             Q_ARG("QVariant", "Download Complete"),
             Q_ARG("QVariant", f"Saved to:\n{file_path}\n\nOpen containing folder?"),
-            Q_ARG("QVariant", "open_nonzzar_folder"),
+            Q_ARG("QVariant", "open_non_native_folder"),
             Q_ARG("QVariant", "")
         )
 
     def on_gamebanana_dialog_confirmed(self, action_id):
-        if action_id == "open_nonzzar_folder" and self._nonzzar_saved_path:
-            folder = os.path.dirname(self._nonzzar_saved_path)
+        if action_id == "open_non_native_folder" and self._non_native_saved_path:
+            folder = os.path.dirname(self._non_native_saved_path)
             if os.name == "nt":
                 os.startfile(folder)
             else:
                 subprocess.Popen(["xdg-open", folder])
-            self._nonzzar_saved_path = ""
+            self._non_native_saved_path = ""
 
     def on_gamebanana_download_complete(self, file_path):
         print(f"[{APP_NAME}] Mod downloaded to: {file_path}")
@@ -145,11 +145,11 @@ class GameBananaConnector:
         self.mod_manager_bridge.refreshMods()
         print(f"[{APP_NAME}] {message}")
 
-    def on_gamebanana_multiple_zzar(self, zzar_names, zip_path):
+    def on_gamebanana_multiple_mods(self, mod_names, zip_path):
         QMetaObject.invokeMethod(
-            self.gamebanana_page, "showZZARChooser",
+            self.gamebanana_page, "showModChooser",
             Qt.QueuedConnection,
-            Q_ARG("QVariant", zzar_names),
+            Q_ARG("QVariant", mod_names),
             Q_ARG("QVariant", zip_path)
         )
 

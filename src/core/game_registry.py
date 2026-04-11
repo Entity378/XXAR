@@ -30,6 +30,14 @@ class GameDefinition:
     loop_point_modes: tuple[str, ...] = ("auto", "manual", "disabled")
     special_audio_dirs: tuple[str, ...] = ()
     protected_pcks: frozenset = frozenset({"Patch.pck", "Hotfix.pck"})
+    # Branding
+    app_full_name: str = ""
+    mod_file_ext: str = ""
+    mod_file_ext_upper: str = ""
+    assets_dir: str = ""
+    logo_png: str = ""
+    logo_ico: str = ""
+    logo_256: str = ""
 
 
 _ALL_GAMES: tuple[GameDefinition, ...] = (
@@ -63,6 +71,13 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
+        app_full_name="Zenless Zone Zero Audio Replacer",
+        mod_file_ext=".zzar",
+        mod_file_ext_upper="ZZAR",
+        assets_dir="ZZAR",
+        logo_png="ZZAR-Logo2.png",
+        logo_ico="ZZAR-Logo2.ico",
+        logo_256="ZZAR-Logo2-256.png",
     ),
     GameDefinition(
         id="genshin",
@@ -93,6 +108,13 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
         special_audio_dirs=("BeyondUGC", "MusicGame"),
+        app_full_name="Genshin Impact Audio Replacer",
+        mod_file_ext=".giar",
+        mod_file_ext_upper="GIAR",
+        assets_dir="GIAR",
+        logo_png="GIAR-Logo2.png",
+        logo_ico="GIAR-Logo2.ico",
+        logo_256="GIAR-Logo2-256.png",
     ),
     GameDefinition(
         id="hsr",
@@ -123,6 +145,13 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         hide_useless_pck_default=False,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
+        app_full_name="Honkai Star Rail Audio Replacer",
+        mod_file_ext=".srar",
+        mod_file_ext_upper="SRAR",
+        assets_dir="SRAR",
+        logo_png="SRAR-Logo2.png",
+        logo_ico="SRAR-Logo2.ico",
+        logo_256="SRAR-Logo2-256.png",
     ),
 )
 

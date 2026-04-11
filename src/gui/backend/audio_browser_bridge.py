@@ -13,9 +13,8 @@ from PyQt5.QtCore import (
     QObject, pyqtSlot, pyqtSignal, QMetaObject, Qt, Q_ARG, QThread, QCoreApplication
 )
 
-from src.core.app_config import (
-    MOD_FILE_EXT, MOD_FILE_EXT_UPPER, ASSETS_DIR, APP_NAME, DATA_SUBDIR,
-)
+import src.core.app_config as app_config
+from src.core.app_config import APP_NAME
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -47,22 +46,22 @@ from src.gui.backend.audio_games import (
 )
 from gui.backend.update_manager_bridge import _urlopen
 
-OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{DATA_SUBDIR}/official_sound_database.json"
-OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{DATA_SUBDIR}/official_fingerprint_database.json"
+OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
+OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_fingerprint_database.json"
 
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
 def _get_tag_db_url():
-    from ZZAR import DEV_MODE, get_base_path
+    from XXAR import DEV_MODE, get_base_path
     if DEV_MODE:
-        dev_path = get_base_path() / "data" / DATA_SUBDIR / "dev_sound_database.json"
+        dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
     return OFFICIAL_TAG_DB_URL
 
 def _get_fingerprint_db_url():
-    from ZZAR import DEV_MODE, get_base_path
+    from XXAR import DEV_MODE, get_base_path
     if DEV_MODE:
-        dev_path = get_base_path() / "data" / DATA_SUBDIR / "dev_fingerprint_database.json"
+        dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_fingerprint_database.json"
         return dev_path.as_uri()
     return OFFICIAL_FINGERPRINT_DB_URL
 
@@ -170,7 +169,7 @@ class TagDatabaseDownloadWorker(QThread):
         try:
             url = _get_tag_db_url()
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "ZZAR-TagDB")
+            req.add_header("User-Agent", "XXAR-TagDB")
 
             with _urlopen(req, timeout=30) as response:
                 data = response.read()
@@ -178,7 +177,7 @@ class TagDatabaseDownloadWorker(QThread):
             json.loads(data.decode("utf-8"))
 
             temp_file = tempfile.NamedTemporaryFile(
-                suffix=".json", prefix="zzar_tagdb_", delete=False
+                suffix=".json", prefix="xxar_tagdb_", delete=False
             )
             temp_file.write(data)
             temp_file.close()
@@ -210,7 +209,7 @@ class TagDatabaseCheckWorker(QThread):
         try:
             url = _get_tag_db_url()
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "ZZAR-TagDB")
+            req.add_header("User-Agent", "XXAR-TagDB")
 
             with _urlopen(req, timeout=15) as response:
                 data = response.read()
@@ -242,7 +241,7 @@ class FingerprintDatabaseDownloadWorker(QThread):
         try:
             url = _get_fingerprint_db_url()
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "ZZAR-FingerprintDB")
+            req.add_header("User-Agent", "XXAR-FingerprintDB")
 
             with _urlopen(req, timeout=30) as response:
                 data = response.read()
@@ -250,7 +249,7 @@ class FingerprintDatabaseDownloadWorker(QThread):
             json.loads(data.decode("utf-8"))
 
             temp_file = tempfile.NamedTemporaryFile(
-                suffix=".json", prefix="zzar_fingerprintdb_", delete=False
+                suffix=".json", prefix="xxar_fingerprintdb_", delete=False
             )
             temp_file.write(data)
             temp_file.close()
@@ -1400,6 +1399,61 @@ class AudioBrowserBridge(QObject):
                 .replace("%2", str(tracker_key))
             )
 
+    @pyqtSlot(str, str, bool)
+    def setChangeVolumeEnabled(self, pck_file, tracker_key, enabled):
+        replacements = self.mod_manager.get_all_replacements()
+        file_changes = replacements.get(pck_file, {})
+        repl_info = file_changes.get(tracker_key)
+        if not repl_info:
+            return
+        current = bool(repl_info.get("volume_enabled", False))
+        if current == enabled:
+            return
+        self.mod_manager.update_replacement_fields(
+            pck_file, tracker_key, volume_enabled=enabled,
+        )
+
+    @pyqtSlot(str, str, str)
+    def setChangeVolumeDb(self, pck_file, tracker_key, volume_text):
+        replacements = self.mod_manager.get_all_replacements()
+        file_changes = replacements.get(pck_file, {})
+        repl_info = file_changes.get(tracker_key)
+        if not repl_info:
+            return
+
+        handler = self._active_browser_handler
+        is_applicable = getattr(handler, "is_loop_entry_applicable", None)
+        normalize_vol = getattr(handler, "normalize_volume_db", None)
+        if not callable(is_applicable) or not callable(normalize_vol):
+            return
+        if not is_applicable(pck_file, repl_info):
+            return
+
+        try:
+            parsed = float(volume_text)
+        except (ValueError, TypeError):
+            return
+
+        normalized = normalize_vol(parsed)
+        current = normalize_vol(repl_info.get("volume_db", 0.0))
+        if current == normalized:
+            return
+
+        if self.mod_manager.update_replacement_fields(
+            pck_file,
+            tracker_key,
+            volume_db=normalized,
+        ):
+            self.statusUpdate.emit(
+                QCoreApplication.translate(
+                    "Application",
+                    "Volume updated to %3 dB for %1 (%2).",
+                )
+                .replace("%1", str(pck_file))
+                .replace("%2", str(tracker_key))
+                .replace("%3", str(normalized))
+            )
+
     @pyqtSlot(str)
     def search(self, query):
 
@@ -1605,7 +1659,7 @@ class AudioBrowserBridge(QObject):
                     bnk_indexer.parse_didx()
                     wem_bytes = bnk_indexer.extract_wem(meta["wem_id"])
 
-            from ZZAR import get_temp_dir
+            from XXAR import get_temp_dir
             temp_wem = Path(tempfile.mktemp(suffix=".wem", dir=str(get_temp_dir())))
             temp_wem.write_bytes(wem_bytes)
 
@@ -1647,7 +1701,7 @@ class AudioBrowserBridge(QObject):
             import wave
             import struct
 
-            from ZZAR import get_temp_dir
+            from XXAR import get_temp_dir
             silent_wav = Path(tempfile.mktemp(suffix=".wav", dir=str(get_temp_dir())))
             sample_rate = 48000
             duration_samples = int(0.1 * sample_rate)
@@ -1722,7 +1776,7 @@ class AudioBrowserBridge(QObject):
 
         replacements = self._get_user_replacements()
         if not replacements:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?."), f"../assets/{ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?."), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
             return
 
         changes = []
@@ -1783,7 +1837,7 @@ class AudioBrowserBridge(QObject):
                 changes.append(change_entry)
 
         if not changes:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No manual audio replacements found.\n\nChanges from installed mods are managed in the Mod Manager."), f"../assets/{ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No manual audio replacements found.\n\nChanges from installed mods are managed in the Mod Manager."), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
             return
 
         self.changesReady.emit(changes)
@@ -1951,8 +2005,8 @@ class AudioBrowserBridge(QObject):
                         repl_bnk_id = repl_info.get("bnk_id")
                         if repl_bnk_id:
                             import shutil
-                            from ZZAR import get_temp_dir
-                            bnk_temp = Path(tempfile.mkdtemp(prefix="zzar_bnk_", dir=str(get_temp_dir())))
+                            from XXAR import get_temp_dir
+                            bnk_temp = Path(tempfile.mkdtemp(prefix="mod_bnk_", dir=str(get_temp_dir())))
                             bnk_wem_dir = bnk_temp / f"{repl_bnk_id}_bnk"
                             bnk_wem_dir.mkdir(parents=True, exist_ok=True)
                             plain_wem_id = self._tracker_plain_file_id(file_id)
@@ -2024,19 +2078,19 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "No Replacements"), QCoreApplication.translate("Application", "No audio replacements found."))
             return
 
-        default_name = f"{name.replace(' ', '_')}_v{version}{MOD_FILE_EXT}"
+        default_name = f"{name.replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
 
         from gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Save Mod Package",
             str(Path.home() / default_name),
-            f"{MOD_FILE_EXT_UPPER} Mod Packages (*{MOD_FILE_EXT});;All Files (*)",
+            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
         )
         if not filename:
             return
 
-        if not filename.endswith(MOD_FILE_EXT):
-            filename += MOD_FILE_EXT
+        if not filename.endswith(app_config.MOD_FILE_EXT):
+            filename += app_config.MOD_FILE_EXT
 
         try:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating mod package..."))
@@ -2726,31 +2780,31 @@ class AudioBrowserBridge(QObject):
             )
 
     @pyqtSlot()
-    def browseAndImportZzar(self):
+    def browseAndImportMod(self):
 
         from gui.utils.native_dialogs import NativeDialogs
-        zzar_path = NativeDialogs.get_open_file(
-            f"Select {MOD_FILE_EXT} Mod to Import for Editing",
+        mod_path = NativeDialogs.get_open_file(
+            f"Select {app_config.MOD_FILE_EXT} Mod to Import for Editing",
             str(Path.home()),
-            f"{MOD_FILE_EXT_UPPER} Mod Packages (*{MOD_FILE_EXT});;All Files (*)",
+            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
         )
-        if not zzar_path:
+        if not mod_path:
             return
 
-        self.importZzarForEditing(zzar_path)
+        self.importModForEditing(mod_path)
 
     @pyqtSlot(str)
-    def importZzarForEditing(self, zzar_path):
+    def importModForEditing(self, mod_path):
 
         try:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Importing %1 mod for editing...").replace("%1", MOD_FILE_EXT))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "Importing %1 mod for editing...").replace("%1", app_config.MOD_FILE_EXT))
 
             if self.mod_manager.get_all_replacements():
                 print("[Audio Browser] Clearing existing changes before importing new mod")
                 self.mod_manager.clear_all_replacements()
 
             mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager)
-            metadata = mod_pkg.validate_mod_package(zzar_path)
+            metadata = mod_pkg.validate_mod_package(mod_path)
 
             mod_name = metadata.get('name', 'Unknown')
             mod_author = metadata.get('author', 'Unknown')
@@ -2762,10 +2816,10 @@ class AudioBrowserBridge(QObject):
             import zipfile
             import tempfile
 
-            with zipfile.ZipFile(zzar_path, 'r') as zf:
+            with zipfile.ZipFile(mod_path, 'r') as zf:
 
-                from ZZAR import get_temp_dir
-                temp_dir = Path(tempfile.mkdtemp(prefix='zzar_import_', dir=str(get_temp_dir())))
+                from XXAR import get_temp_dir
+                temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
 
                 try:
 
@@ -2852,7 +2906,7 @@ class AudioBrowserBridge(QObject):
                         "or export as a new mod package.")
                         .replace("%1", mod_name).replace("%2", mod_author)
                         .replace("%3", mod_version).replace("%4", str(replacement_count)),
-                        f"../assets/{ASSETS_DIR}/YanagiSmug.png"
+                        f"../assets/{app_config.ASSETS_DIR}/YanagiSmug.png"
                     )
 
                 except Exception as e:
@@ -2863,10 +2917,10 @@ class AudioBrowserBridge(QObject):
                     raise
 
         except Exception as e:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to import %1").replace("%1", MOD_FILE_EXT))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to import %1").replace("%1", app_config.MOD_FILE_EXT))
             self.errorOccurred.emit(
                 QCoreApplication.translate("Application", "Import Error"),
-                QCoreApplication.translate("Application", "Failed to import %1 mod for editing:\n\n%2").replace("%1", MOD_FILE_EXT).replace("%2", str(e))
+                QCoreApplication.translate("Application", "Failed to import %1 mod for editing:\n\n%2").replace("%1", app_config.MOD_FILE_EXT).replace("%2", str(e))
             )
             import traceback
             traceback.print_exc()

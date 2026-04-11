@@ -15,12 +15,17 @@ ApplicationWindow {
     height: 1024
     minimumWidth: 1024
     minimumHeight: 768
-    title: appName + " - " + appFullName
+    title: appName + " - " + activeAppFullName
 
     property int currentTab: 1
     property bool modCreationEnabled: false
     property string activeGameShort: gameShort
     property string activeGameName: gameName
+    property string activeAssetsDir: assetsDir
+    property string activeLogoPng: logoPng
+    property string activeModFileExt: modFileExt
+    property string activeModFileExtUpper: modFileExtUpper
+    property string activeAppFullName: appFullName
 
     onModCreationEnabledChanged: {
         if (!modCreationEnabled && (currentTab === 2 || currentTab === 3)) {
@@ -188,7 +193,7 @@ ApplicationWindow {
                     Image {
                         width: 75
                         height: 75
-                        source: "../assets/" + assetsDir + "/" + logoPng
+                        source: "../assets/" + activeAssetsDir + "/" + activeLogoPng
                         fillMode: Image.PreserveAspectFit
                     }
 
@@ -222,7 +227,7 @@ ApplicationWindow {
                     Text {
                         id: pageSubtitle
                         text: currentTab === 0 ? qsTranslate("Application", "Browse and download mods from GameBanana") :
-                              currentTab === 1 ? qsTranslate("Application", "Install and manage %1 mods").replace("%1", modFileExt) :
+                              currentTab === 1 ? qsTranslate("Application", "Install and manage %1 mods").replace("%1", activeModFileExt) :
                               currentTab === 2 ? qsTranslate("Application", "Browse and manage audio files") :
                               currentTab === 3 ? qsTranslate("Application", "Convert audio files") :
                               qsTranslate("Application", "Configure application settings")
@@ -253,7 +258,7 @@ ApplicationWindow {
                         anchors.centerIn: parent
                         width: 52
                         height: 52
-                        source: "../assets/" + assetsDir + "/Knock-Knock.png"
+                        source: "../assets/" + activeAssetsDir + "/Knock-Knock.png"
                         fillMode: Image.PreserveAspectFit
                         mipmap: true
                         transformOrigin: Item.Bottom
@@ -372,7 +377,7 @@ ApplicationWindow {
                                 Image {
                                     id: gamebananaImage
                                     anchors.fill: parent
-                                    source: "../assets/" + assetsDir + "/Gamebanana.png"
+                                    source: "../assets/" + activeAssetsDir + "/Gamebanana.png"
                                     fillMode: Image.PreserveAspectFit
                                     visible: false
                                 }
@@ -553,7 +558,7 @@ ApplicationWindow {
                                 Image {
                                     id: conversion_image
                                     anchors.fill: parent
-                                    source: "../assets/" + assetsDir + "/ConversionPageIcon.png"
+                                    source: "../assets/" + activeAssetsDir + "/ConversionPageIcon.png"
                                     fillMode: Image.PreserveAspectFit
                                     visible: false
                                 }
@@ -698,11 +703,14 @@ ApplicationWindow {
                             MouseArea {
                                 id: swapGameMouse
                                 anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: audioBrowserPage.changesDialogOpen ? Qt.ArrowCursor : Qt.PointingHandCursor
                                 hoverEnabled: true
-                                onEntered: parent.hovered = true
+                                onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
                                 onExited: parent.hovered = false
-                                onClicked: mainWindow.swapGameRequested()
+                                onClicked: {
+                                    if (!audioBrowserPage.changesDialogOpen)
+                                        mainWindow.swapGameRequested()
+                                }
                             }
 
                             ToolTip.visible: swapGameMouse.containsMouse
@@ -859,7 +867,7 @@ ApplicationWindow {
 
                 Image {
                     anchors.fill: parent
-                    source: "../assets/" + assetsDir + "/gradient.png"
+                    source: "../assets/" + activeAssetsDir + "/gradient.png"
                     fillMode: Image.Stretch
                     mipmap: true
                     opacity: 0.6
@@ -893,7 +901,7 @@ ApplicationWindow {
 
                     Item { height: 10; width: 1 }
                     Image {
-                        source: "../assets/" + assetsDir + "/GraceFuck.png"
+                        source: "../assets/" + activeAssetsDir + "/GraceFuck.png"
                         width: 240
                         height: 240
                         fillMode: Image.PreserveAspectFit
@@ -1471,16 +1479,16 @@ ApplicationWindow {
             z: 900
 
             onEntered: {
-                var hasZzar = false
+                var hasMod = false
                 if (drag.hasUrls) {
                     for (var i = 0; i < drag.urls.length; i++) {
-                        if (drag.urls[i].toString().toLowerCase().endsWith(modFileExt)) {
-                            hasZzar = true
+                        if (drag.urls[i].toString().toLowerCase().endsWith(activeModFileExt)) {
+                            hasMod = true
                             break
                         }
                     }
                 }
-                if (hasZzar) {
+                if (hasMod) {
                     drag.accept()
                     mainWindow.isDraggingMod = true
                 } else {
@@ -1498,7 +1506,7 @@ ApplicationWindow {
                     var installed = 0
                     for (var i = 0; i < drop.urls.length; i++) {
                         var filePath = mainWindow.urlToLocalPath(drop.urls[i])
-                        if (filePath.toLowerCase().endsWith(modFileExt)) {
+                        if (filePath.toLowerCase().endsWith(activeModFileExt)) {
                             console.log("[Drag & Drop] Installing mod: " + filePath)
                             modManagerBackend.installMod(filePath)
                             installed++
@@ -1568,7 +1576,7 @@ ApplicationWindow {
                     }
 
                     Text {
-                        text: qsTranslate("Application", "Drop %1 mod(s) here to install").replace("%1", modFileExt)
+                        text: qsTranslate("Application", "Drop %1 mod(s) here to install").replace("%1", activeModFileExt)
                         color: Theme.primaryAccent
                         font.family: "Alatsi"
                         font.pixelSize: 28

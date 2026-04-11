@@ -177,7 +177,7 @@ class AudioPlayer(QObject):
 
             if not cached_wav:
 
-                from ZZAR import get_temp_dir
+                from XXAR import get_temp_dir
                 temp_wem = Path(tempfile.mktemp(suffix='.wem', dir=str(get_temp_dir())))
                 temp_wem.write_bytes(wem_bytes)
                 self.temp_files.append(temp_wem)

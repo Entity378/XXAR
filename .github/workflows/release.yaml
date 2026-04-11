@@ -5,23 +5,9 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      target:
-        description: 'Build target'
-        required: true
-        default: 'SRAR'
-        type: choice
-        options:
-          - ZZAR
-          - SRAR
 
 permissions:
   contents: write
-
-env:
-  # On tag push: repo name determines target (ZZAR repo → ZZAR, SRAR repo → SRAR)
-  # On manual run: use the dropdown input
-  BUILD_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || (github.event.repository.name == 'SRAR' && 'SRAR' || 'ZZAR') }}
 
 jobs:
   build-linux:
@@ -57,16 +43,16 @@ jobs:
 
       - name: Build with PyInstaller (Flatpak mode)
         run: |
-          export ${BUILD_TARGET}_FLATPAK_BUILD=1
-          pyinstaller --clean ${BUILD_TARGET}.spec
+          export XXAR_FLATPAK_BUILD=1
+          pyinstaller --clean XXAR.spec
 
       - name: Verify PyInstaller Build
         run: |
-          if [ ! -e dist/${BUILD_TARGET} ]; then
-            echo "Error: dist/${BUILD_TARGET} not found. Check your spec file output name."
+          if [ ! -e dist/XXAR ]; then
+            echo "Error: dist/XXAR not found. Check your spec file output name."
             exit 1
           fi
-          chmod +x dist/${BUILD_TARGET}
+          chmod +x dist/XXAR
 
       - name: Set up Flatpak
         run: |
@@ -77,19 +63,19 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.${BUILD_TARGET}.yml | awk '{print $2}')
-          flatpak-builder --force-clean --repo=flatpak-repo build-dir flatpak/io.github.pucas01.${BUILD_TARGET}.yml
+          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.XXAR.yml | awk '{print $2}')
+          flatpak-builder --force-clean --repo=flatpak-repo build-dir flatpak/io.github.pucas01.XXAR.yml
 
       - name: Export Flatpak Bundle
         run: |
-          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.${BUILD_TARGET}.yml | awk '{print $2}')
-          flatpak build-bundle flatpak-repo ${BUILD_TARGET}-linux-x64.flatpak ${APP_ID}
+          APP_ID=$(grep '^id:' flatpak/io.github.pucas01.XXAR.yml | awk '{print $2}')
+          flatpak build-bundle flatpak-repo XXAR-linux-x64.flatpak ${APP_ID}
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.BUILD_TARGET }}-linux-x64
-          path: ${{ env.BUILD_TARGET }}-linux-x64.flatpak
+          name: XXAR-linux-x64
+          path: XXAR-linux-x64.flatpak
 
   build-windows:
     runs-on: windows-latest
@@ -111,20 +97,20 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --clean "${env:BUILD_TARGET}.spec"
+          pyinstaller --clean XXAR.spec
 
       - name: Verify Build
         run: |
-          if (-not (Test-Path "dist/${env:BUILD_TARGET}.exe")) {
-            Write-Error "dist/${env:BUILD_TARGET}.exe not found. Check your spec file output name."
+          if (-not (Test-Path "dist/XXAR.exe")) {
+            Write-Error "dist/XXAR.exe not found. Check your spec file output name."
             exit 1
           }
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.BUILD_TARGET }}-windows-x64
-          path: dist/${{ env.BUILD_TARGET }}.exe
+          name: XXAR-windows-x64
+          path: dist/XXAR.exe
 
 
   release:
@@ -139,16 +125,15 @@ jobs:
 
       - name: Package for Release
         run: |
-          TARGET=${{ env.BUILD_TARGET }}
-          cp artifacts/${TARGET}-linux-x64/${TARGET}-linux-x64.flatpak .
-          (cd artifacts/${TARGET}-windows-x64 && zip ../../${TARGET}-windows-x64.zip ${TARGET}.exe)
+          cp artifacts/XXAR-linux-x64/XXAR-linux-x64.flatpak .
+          (cd artifacts/XXAR-windows-x64 && zip ../../XXAR-windows-x64.zip XXAR.exe)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.BUILD_TARGET }}-linux-x64.flatpak
-            ${{ env.BUILD_TARGET }}-windows-x64.zip
+            XXAR-linux-x64.flatpak
+            XXAR-windows-x64.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

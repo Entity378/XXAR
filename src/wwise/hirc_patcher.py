@@ -5,6 +5,8 @@ HIRC_TYPE_MUSIC_SEGMENT = 0x0A
 HIRC_TYPE_MUSIC_TRACK = 0x0B
 END_MARKER_ID = 0x5BBBD648
 
+VOLUME_PROP_ID = 0x00
+
 # AkTrackSrcInfo layout (44 bytes per item):
 #   trackID(4) + sourceID(4) + eventID(4) + fPlayAt(8) + fBeginTrimOffset(8) + fEndTrimOffset(8) + fSrcDuration(8)
 _TRACK_SRC_INFO_SIZE = 44
@@ -24,6 +26,14 @@ class TrackPatchInfo:
 
 
 @dataclass
+class VolumePatchInfo:
+    source_id: int
+    prop_bundle_cProps_offset: int   # absolute offset of the cProps byte
+    volume_value_offset: int         # absolute offset of the volume float (or insertion point)
+    has_existing_volume: bool        # True = overwrite in-place, False = need insert
+
+
+@dataclass
 class SegmentPatchInfo:
     fDuration_offset: int
     end_marker_fPos_offset: int
@@ -34,6 +44,7 @@ class SegmentPatchInfo:
 class BankPatchTargets:
     tracks: list = field(default_factory=list)
     segments: list = field(default_factory=list)
+    volume_patches: list = field(default_factory=list)
 
 
 def scan_bank_for_patch_targets(content, source_ids):
@@ -47,6 +58,7 @@ def scan_bank_for_patch_targets(content, source_ids):
     source_id_set = set(int(s) for s in source_ids)
     all_tracks = []
     all_segments = []
+    all_volume = []
 
     for hirc_data_start, hirc_data_size in _find_hirc_sections(content):
         section_end = hirc_data_start + hirc_data_size
@@ -71,8 +83,9 @@ def scan_bank_for_patch_targets(content, source_ids):
                     content, obj_data_start, obj_size, source_id_set
                 )
                 if result is not None:
-                    track_obj_id, patches = result
+                    track_obj_id, patches, vol_patches = result
                     section_tracks.extend(patches)
+                    all_volume.extend(vol_patches)
                     track_obj_to_sources[track_obj_id] = {
                         p.source_id for p in patches
                     }
@@ -110,63 +123,88 @@ def scan_bank_for_patch_targets(content, source_ids):
 
         all_tracks.extend(section_tracks)
 
-    return BankPatchTargets(tracks=all_tracks, segments=all_segments)
+    return BankPatchTargets(
+        tracks=all_tracks, segments=all_segments, volume_patches=all_volume,
+    )
 
 
-def apply_duration_patches(file_path, targets, duration_ms_by_source):
-    # Write new duration values to the bank file at the offsets found by
-    # scan_bank_for_patch_targets.
-    # duration_ms_by_source: dict mapping source_id (int) -> duration in ms (float).
-    # Returns {"patched_offsets": int, "patched_source_ids": set}.
+def apply_volume_patches(content, volume_patches, volume_db_by_source):
+    """Apply volume patches to a mutable bytearray.
+
+    Only patches tracks that already have a Volume property in their
+    AkPropBundle (in-place overwrite, no size change).  Tracks without
+    an existing property are skipped to avoid corrupting the file.
+
+    Returns {"patched": int, "skipped": int}.
+    """
+    patched = 0
+    skipped = 0
+
+    for vp in volume_patches:
+        db_val = volume_db_by_source.get(vp.source_id)
+        if db_val is None:
+            continue
+        if not vp.has_existing_volume:
+            skipped += 1
+            continue
+        vol_bytes = struct.pack("<f", float(db_val))
+        content[vp.volume_value_offset : vp.volume_value_offset + 4] = vol_bytes
+        patched += 1
+
+    if skipped:
+        print(f"[HIRC Patch] Volume: skipped {skipped} track(s) without existing volume property")
+
+    return {"patched": patched, "inserted": 0, "total_shift": 0}
+
+
+def apply_duration_patches(content, targets, duration_ms_by_source):
+    """Write new duration values to the bank content bytearray.
+
+    duration_ms_by_source: dict mapping source_id (int) -> duration in ms (float).
+    Returns {"patched_offsets": int, "patched_source_ids": set}.
+    """
     patched_offsets = 0
     patched_source_ids = set()
 
-    with open(file_path, "r+b") as f:
-        _zero_28 = b"\x00" * 28
-        for track in targets.tracks:
-            dur = duration_ms_by_source.get(track.source_id)
-            if dur is None:
-                continue
-            dur_bytes = struct.pack("<d", float(dur))
+    _zero_28 = b"\x00" * 28
+    for track in targets.tracks:
+        dur = duration_ms_by_source.get(track.source_id)
+        if dur is None:
+            continue
+        dur_bytes = struct.pack("<d", float(dur))
 
-            f.seek(track.clear_region_offset)
-            existing = f.read(36)
-            if existing[:28] == _zero_28 and existing[28:] == dur_bytes:
-                continue
+        existing = bytes(content[track.clear_region_offset : track.clear_region_offset + 36])
+        if existing[:28] == _zero_28 and existing[28:] == dur_bytes:
+            continue
 
-            f.seek(track.clear_region_offset)
-            f.write(_zero_28)
-            f.write(dur_bytes)
-            patched_offsets += 1
-            patched_source_ids.add(track.source_id)
+        content[track.clear_region_offset : track.clear_region_offset + 28] = _zero_28
+        content[track.clear_region_offset + 28 : track.clear_region_offset + 36] = dur_bytes
+        patched_offsets += 1
+        patched_source_ids.add(track.source_id)
 
-        for seg in targets.segments:
-            seg_dur = max(
-                (
-                    duration_ms_by_source[sid]
-                    for sid in seg.associated_source_ids
-                    if sid in duration_ms_by_source
-                ),
-                default=0,
-            )
-            if seg_dur <= 0:
-                continue
-            dur_bytes = struct.pack("<d", float(seg_dur))
+    for seg in targets.segments:
+        seg_dur = max(
+            (
+                duration_ms_by_source[sid]
+                for sid in seg.associated_source_ids
+                if sid in duration_ms_by_source
+            ),
+            default=0,
+        )
+        if seg_dur <= 0:
+            continue
+        dur_bytes = struct.pack("<d", float(seg_dur))
 
-            f.seek(seg.fDuration_offset)
-            existing_dur = f.read(8)
-            f.seek(seg.end_marker_fPos_offset)
-            existing_marker = f.read(8)
+        existing_dur = bytes(content[seg.fDuration_offset : seg.fDuration_offset + 8])
+        existing_marker = bytes(content[seg.end_marker_fPos_offset : seg.end_marker_fPos_offset + 8])
 
-            if existing_dur == dur_bytes and existing_marker == dur_bytes:
-                continue
+        if existing_dur == dur_bytes and existing_marker == dur_bytes:
+            continue
 
-            f.seek(seg.fDuration_offset)
-            f.write(dur_bytes)
-            f.seek(seg.end_marker_fPos_offset)
-            f.write(dur_bytes)
-            patched_offsets += 1
-            patched_source_ids.update(seg.associated_source_ids)
+        content[seg.fDuration_offset : seg.fDuration_offset + 8] = dur_bytes
+        content[seg.end_marker_fPos_offset : seg.end_marker_fPos_offset + 8] = dur_bytes
+        patched_offsets += 1
+        patched_source_ids.update(seg.associated_source_ids)
 
     return {
         "patched_offsets": patched_offsets,
@@ -175,6 +213,36 @@ def apply_duration_patches(file_path, targets, duration_ms_by_source):
 
 
 # Internal helpers
+
+
+def _adjust_hirc_sizes(content, offset_inside_object, delta):
+    """Walk backwards from an offset inside an HIRC object to find and update
+    the object size field and the HIRC section size field."""
+    # Find the nearest HIRC header before this offset.
+    search_start = max(0, offset_inside_object - 0x100000)
+    chunk = bytes(content[search_start : offset_inside_object])
+    hirc_pos = chunk.rfind(b"HIRC")
+    if hirc_pos == -1:
+        return
+    hirc_abs = search_start + hirc_pos
+
+    # HIRC section: "HIRC"(4) + section_size(u32) + numObjects(u32) + objects...
+    section_size_off = hirc_abs + 4
+    old_section_size = struct.unpack_from("<I", content, section_size_off)[0]
+    struct.pack_into("<I", content, section_size_off, old_section_size + delta)
+
+    # Find the object containing offset_inside_object.
+    obj_pos = hirc_abs + 8 + 4  # skip HIRC(4) + section_size(4) + numObjects(4)
+    section_end = hirc_abs + 8 + old_section_size
+    while obj_pos + 5 <= section_end:
+        obj_size_off = obj_pos + 1
+        obj_size = struct.unpack_from("<I", content, obj_size_off)[0]
+        obj_data_start = obj_pos + 5
+        obj_data_end = obj_data_start + obj_size
+        if obj_data_start <= offset_inside_object < obj_data_end:
+            struct.pack_into("<I", content, obj_size_off, obj_size + delta)
+            return
+        obj_pos = obj_data_end
 
 
 def _find_hirc_sections(content):
@@ -198,9 +266,11 @@ def _find_hirc_sections(content):
 
 
 def _parse_music_track(content, data_start, obj_size, source_ids):
-    # Parse a MusicTrack (0x0B) HIRC object.
-    # Returns (obj_id, [TrackPatchInfo, ...]) if the track references any source
-    # in *source_ids*, otherwise None.
+    """Parse a MusicTrack (0x0B) HIRC object.
+
+    Returns (obj_id, [TrackPatchInfo, ...], [VolumePatchInfo, ...])
+    if the track references any source in *source_ids*, otherwise None.
+    """
     d = data_start
     end = d + obj_size
     if d + 9 > end:
@@ -252,7 +322,122 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
 
     if not patches:
         return None
-    return (obj_id, patches)
+
+    # --- Continue parsing to find AkPropBundle for volume ---
+    volume_patches = _parse_volume_from_track(content, p, end, patches)
+
+    return (obj_id, patches, volume_patches)
+
+
+def _parse_volume_from_track(content, p, end, track_patches):
+    """Parse the post-playlist section of a MusicTrack to find the volume
+    property in the AkPropBundle.  *p* is the cursor right after the playlist.
+
+    Layout (confirmed by parse_hirc_examples.py):
+      numSubTrack(u32) + numClipAutomation(u32) +
+        [AkClipAutomation: clipIndex(4) + autoType(4) + numPoints(4) + points(12*n)] +
+      eTrackType(u32) + bIsTransitionEnabled(u8) +
+      NodeBaseParams (Music variant):
+        bIsOverrideParentFX(u8) + uNumFx(u8) + [FX data] +
+        directParentID(u32) + byBitVector(u8) +
+        AkPropBundle: cProps(u8) + pID[cProps] + pValue[cProps*4]
+    """
+    try:
+        return _parse_volume_from_track_inner(content, p, end, track_patches)
+    except Exception:
+        # If parsing fails (unexpected layout), skip volume for this track.
+        return []
+
+
+def _parse_volume_from_track_inner(content, p, end, track_patches):
+    if p + 8 > end:
+        return []
+
+    # numSubTrack + numClipAutomation
+    p += 4  # numSubTrack
+    num_clip = struct.unpack_from("<I", content, p)[0]
+    p += 4
+    if num_clip > 200:
+        return []
+
+    # Skip clip automation items
+    for _ in range(num_clip):
+        if p + 12 > end:
+            return []
+        p += 8  # uClipIndex(4) + eAutoType(4)
+        num_points = struct.unpack_from("<I", content, p)[0]
+        p += 4
+        if num_points > 10000:
+            return []
+        p += 12 * num_points  # AkRTPCGraphPoint: from(f32) + to(f32) + interp(u32)
+
+    # eTrackType(4) + bIsTransitionEnabled(1)
+    if p + 5 > end:
+        return []
+    p += 4  # eTrackType
+    p += 1  # bIsTransitionEnabled
+
+    # NodeBaseParams (Music variant)
+    if p + 2 > end:
+        return []
+    bIsOverrideParentFX = content[p]
+    p += 1
+    uNumFx = content[p]
+    p += 1
+
+    if uNumFx > 0:
+        if p + 1 > end:
+            return []
+        p += 1  # bitsMainFXBypass
+        p += 6 * uNumFx  # FXChunk: fxIndex(1) + fxID(4) + bIsShareSet(1)
+
+    # directParentID(4) + byBitVector(1)
+    if p + 5 > end:
+        return []
+    p += 4  # directParentID
+    p += 1  # byBitVector
+
+    # AkPropBundle
+    if p + 1 > end:
+        return []
+    cProps = content[p]
+    cProps_offset = p
+    p += 1
+
+    if cProps > 50:
+        return []
+    if p + cProps + cProps * 4 > end:
+        return []
+
+    # Read property IDs
+    prop_ids = list(content[p : p + cProps])
+    p += cProps  # now at start of values array
+
+    # Look for Volume (property ID 0x00)
+    volume_value_offset = None
+    has_existing = False
+    for i, pid in enumerate(prop_ids):
+        if pid == VOLUME_PROP_ID:
+            volume_value_offset = p + i * 4
+            has_existing = True
+            break
+
+    if not has_existing:
+        # Insertion point: end of values array
+        volume_value_offset = p + cProps * 4
+
+    # Create one VolumePatchInfo per matched source in this track
+    results = []
+    for tp in track_patches:
+        results.append(
+            VolumePatchInfo(
+                source_id=tp.source_id,
+                prop_bundle_cProps_offset=cProps_offset,
+                volume_value_offset=volume_value_offset,
+                has_existing_volume=has_existing,
+            )
+        )
+    return results
 
 
 def _parse_music_segment(content, data_start, obj_size):

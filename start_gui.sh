@@ -1,7 +1,7 @@
 
 
 echo "================================"
-echo "ZZAR - GUI Launcher"
+echo "XXAR - GUI Launcher"
 echo "================================"
 echo ""
 
@@ -42,11 +42,11 @@ fi
 echo "✓ PyQt5.QtQml found"
 
 echo ""
-echo "Starting ZZAR GUI..."
+echo "Starting XXAR GUI..."
 echo ""
 
 cd "$(dirname "$0")"
-python3 ZZAR.py
+python3 XXAR.py
 
 echo ""
 echo "GUI closed."

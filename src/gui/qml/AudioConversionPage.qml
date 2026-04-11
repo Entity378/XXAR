@@ -332,12 +332,12 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.spacingSmall
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Browse File")
                         onClicked: browseInputFileClicked()
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Browse Directory")
                         onClicked: browseInputDirectoryClicked()
                     }
@@ -394,7 +394,7 @@ Item {
                         }
                     }
 
-                    ZZARButton {
+                    XXARButton {
                         text: qsTranslate("Application", "Browse")
                         onClicked: browseOutputDirectoryClicked()
                     }
@@ -523,7 +523,7 @@ Item {
                     Item { Layout.fillWidth: true }
                 }
 
-                ZZARButton {
+                XXARButton {
                     objectName: "tutorialConvertBtn"
                     Layout.fillWidth: true
                     Layout.preferredHeight: Theme.buttonHeightLarge

@@ -944,7 +944,7 @@ def screen_welcome(ffmpeg_ok, vgmstream_ok):
     clear_screen()
     print()
     print(colored("  +==========================================+", C.CYAN))
-    print(colored("  |     ZZAR Speaker Clustering Tool         |", C.CYAN, C.BOLD))
+    print(colored("  |     XXAR Speaker Clustering Tool         |", C.CYAN, C.BOLD))
     print(colored("  +==========================================+", C.CYAN))
     print()
     print(colored("  Identify voice characters in ZZZ audio banks", C.DIM))

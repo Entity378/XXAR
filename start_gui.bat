@@ -1,8 +1,8 @@
 @echo off
-REM ZZAR - Zenless Zone Zero Audio Replacer - GUI Launcher (Windows)
+REM XXAR - Cross-game Audio Replacer - GUI Launcher (Windows)
 
 echo ================================
-echo ZZAR - GUI Launcher
+echo XXAR - GUI Launcher
 echo ================================
 echo.
 
@@ -50,12 +50,12 @@ if %ERRORLEVEL% NEQ 0 (
 echo + PyQt5.QtQml found
 
 echo.
-echo Starting ZZAR GUI...
+echo Starting XXAR GUI...
 echo.
 
 REM Run the GUI (pushd handles UNC paths properly)
 pushd "%~dp0"
-python ZZAR.py
+python XXAR.py
 set EXIT_CODE=%ERRORLEVEL%
 popd
 

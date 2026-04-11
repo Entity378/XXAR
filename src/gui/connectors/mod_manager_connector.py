@@ -8,7 +8,7 @@ from src.core.app_config import APP_NAME
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from gui.utils.native_dialogs import NativeDialogs
-from src.core.app_config import MOD_FILE_EXT, MOD_FILE_EXT_UPPER
+import src.core.app_config as app_config
 
 
 class ModManagerConnector:
@@ -55,7 +55,7 @@ class ModManagerConnector:
 
         mod_page.setProperty("modManager", self.mod_manager_bridge)
 
-        from ZZAR import DEV_MODE
+        from XXAR import DEV_MODE
         mod_page.setProperty("devMode", DEV_MODE)
 
         print(f"[{APP_NAME}] Mod manager page connected")
@@ -98,9 +98,9 @@ class ModManagerConnector:
         start_dir = self._get_last_install_dir()
 
         file_paths = NativeDialogs.get_open_files(
-            QCoreApplication.translate("Application", "Select %1 Mod Package(s)").replace("%1", MOD_FILE_EXT),
+            QCoreApplication.translate("Application", "Select %1 Mod Package(s)").replace("%1", app_config.MOD_FILE_EXT),
             start_dir,
-            QCoreApplication.translate("Application", "%1 Mod Packages (*%2);;ZIP Files (*.zip);;All Files (*)").replace("%1", MOD_FILE_EXT_UPPER).replace("%2", MOD_FILE_EXT),
+            QCoreApplication.translate("Application", "%1 Mod Packages (*%2);;ZIP Files (*.zip);;All Files (*)").replace("%1", app_config.MOD_FILE_EXT_UPPER).replace("%2", app_config.MOD_FILE_EXT),
         )
 
         if file_paths:
