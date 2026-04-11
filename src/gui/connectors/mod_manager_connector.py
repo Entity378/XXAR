@@ -7,7 +7,7 @@ from src.core.app_config import APP_NAME
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
-from gui.utils.native_dialogs import NativeDialogs
+from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 
 

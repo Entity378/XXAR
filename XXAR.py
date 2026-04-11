@@ -48,7 +48,7 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db
 
 from src.core.app_config import APP_VERSION
 __version__ = APP_VERSION
-DEV_MODE = True
+DEV_MODE = False
 
 def get_base_path():
 
@@ -62,7 +62,8 @@ def get_temp_dir():
     if os.environ.get(FLATPAK_ENV_VAR):
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
     elif hasattr(sys, '_MEIPASS'):
-        base = Path(sys.executable).parent.resolve()
+        appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
+        base = appdata / CONFIG_DIR_NAME
     else:
         base = Path(__file__).parent
     temp = base / 'temp'
@@ -75,7 +76,7 @@ src_path = base_dir / 'src'
 sys.path.insert(0, str(src_path))
 
 try:
-    from gui.main_qml import Application
+    from src.gui.main_qml import Application
 except ModuleNotFoundError as e:
     print(f"Error: Could not find modules in {src_path}")
     print(f"Current sys.path: {sys.path}")

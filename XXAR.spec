@@ -9,10 +9,10 @@ block_cipher = None
 is_flatpak_build = os.environ.get('XXAR_FLATPAK_BUILD') == '1'
 
 added_files = [
-    ('src/gui/qml', 'gui/qml'),
-    ('src/gui/assets', 'gui/assets'),
-    ('src/gui/components', 'gui/components'),
-    ('src/gui/translations', 'gui/translations'),
+    ('src/gui/qml', 'src/gui/qml'),
+    ('src/gui/assets', 'src/gui/assets'),
+    ('src/gui/components', 'src/gui/components'),
+    ('src/gui/translations', 'src/gui/translations'),
     ('src/resources', 'resources'),
     ('setup_wwise.py', '.'),
     ('setup_windows_audio_tools.py', '.'),
@@ -130,18 +130,18 @@ else:
 
 a = Analysis(
     ['XXAR.py'],
-    pathex=['.', 'src'],
+    pathex=['.'],
     binaries=extra_binaries,
     datas=added_files,
     hiddenimports=[
-        'gui.main_qml',
-        'gui.backend.audio_browser_bridge',
-        'gui.backend.audio_conversion_bridge',
-        'gui.backend.import_worker',
-        'gui.backend.mod_manager_bridge',
-        'gui.backend.native_dialogs',
-        'gui.backend.gamebanana_bridge',
-        'gui.backend.update_manager_bridge',
+        'src.gui.main_qml',
+        'src.gui.backend.audio_browser_bridge',
+        'src.gui.backend.audio_conversion_bridge',
+        'src.gui.backend.import_worker',
+        'src.gui.backend.mod_manager_bridge',
+        'src.gui.utils.native_dialogs',
+        'src.gui.backend.gamebanana_bridge',
+        'src.gui.backend.update_manager_bridge',
         'PIL',
         'PIL.Image',
         'PyQt5.QtMultimedia',

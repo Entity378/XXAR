@@ -23,7 +23,7 @@ from src.mods.persistent_manager import PersistentModManager
 from src.core.config_manager import get_settings_file
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
-from gui.utils.native_dialogs import NativeDialogs
+from src.gui.utils.native_dialogs import NativeDialogs
 
 class WwiseSetupWorker(QThread):
     progress = pyqtSignal(str)

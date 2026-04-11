@@ -1369,7 +1369,7 @@ class GameBananaBridge(QObject):
     @pyqtSlot(str, str)
     def downloadModToPath(self, download_url, filename):
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         save_path = NativeDialogs.get_save_file(
             title="Save Mod File",
             start_dir=str(Path.home() / filename),

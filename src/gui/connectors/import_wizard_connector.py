@@ -5,7 +5,7 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
 
-from gui.utils.native_dialogs import NativeDialogs
+from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 
 
@@ -155,7 +155,7 @@ class ImportWizardConnector:
             "save_path": save_path,
         }
 
-        from gui.backend.import_worker import ImportWorker
+        from src.gui.backend.import_worker import ImportWorker
 
         self.import_worker = ImportWorker(
             import_data, game_audio_dir, self.mod_manager_bridge.mod_package_manager

@@ -27,6 +27,8 @@ temp*/
 test*/
 verify*/
 tools*/
+dist*/
+build*/
 
 # OS
 .DS_Store

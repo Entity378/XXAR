@@ -25,13 +25,13 @@ sys.path.insert(
     0, str(project_root / "src")
 )
 
-from gui.backend.mod_manager_bridge import ModManagerBridge
-from gui.backend.audio_browser_bridge import AudioBrowserBridge
-from gui.backend.audio_conversion_bridge import AudioConversionBridge
-from gui.backend.update_manager_bridge import UpdateManagerBridge
-from gui.backend.gamebanana_bridge import GameBananaBridge
-from gui.backend.ui_theme_bridge import UIThemeBridge
-from gui.utils.native_dialogs import NativeDialogs
+from src.gui.backend.mod_manager_bridge import ModManagerBridge
+from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
+from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
+from src.gui.backend.update_manager_bridge import UpdateManagerBridge
+from src.gui.backend.gamebanana_bridge import GameBananaBridge
+from src.gui.backend.ui_theme_bridge import UIThemeBridge
+from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID
 import src.core.app_config as app_config
@@ -40,13 +40,13 @@ from src.core.app_config import (
     switch_active_game,
 )
 
-from gui.connectors.mod_manager_connector import ModManagerConnector
-from gui.connectors.audio_browser_connector import AudioBrowserConnector
-from gui.connectors.import_wizard_connector import ImportWizardConnector
-from gui.connectors.settings_connector import SettingsConnector
-from gui.connectors.update_connector import UpdateConnector
-from gui.connectors.gamebanana_connector import GameBananaConnector
-from gui.translation_manager import TranslationManager
+from src.gui.connectors.mod_manager_connector import ModManagerConnector
+from src.gui.connectors.audio_browser_connector import AudioBrowserConnector
+from src.gui.connectors.import_wizard_connector import ImportWizardConnector
+from src.gui.connectors.settings_connector import SettingsConnector
+from src.gui.connectors.update_connector import UpdateConnector
+from src.gui.connectors.gamebanana_connector import GameBananaConnector
+from src.gui.translation_manager import TranslationManager
 
 class AutoDetectWorker(QThread):
 

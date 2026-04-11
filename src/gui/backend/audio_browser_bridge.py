@@ -44,7 +44,7 @@ from src.core.config_manager import (
 from src.gui.backend.audio_games import (
     build_browser_handlers,
 )
-from gui.backend.update_manager_bridge import _urlopen
+from src.gui.backend.update_manager_bridge import _urlopen
 
 OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
 OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Pucas01/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_fingerprint_database.json"
@@ -1584,7 +1584,7 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Could not find item data"))
             return
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Custom Audio",
             str(Path.home()),
@@ -1633,7 +1633,7 @@ class AudioBrowserBridge(QObject):
 
         file_id = meta.get("file_id", meta.get("wem_id"))
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Export as WAV", str(Path.home() / f"{file_id}.wav"), "WAV Files (*.wav)"
         )
@@ -2061,7 +2061,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseThumbnail(self):
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
             str(Path.home()),
@@ -2080,7 +2080,7 @@ class AudioBrowserBridge(QObject):
 
         default_name = f"{name.replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Save Mod Package",
             str(Path.home() / default_name),
@@ -2439,7 +2439,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             str(Path.home()),
@@ -2469,7 +2469,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def selectRecordingFile(self):
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             str(Path.home()),
@@ -2782,7 +2782,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseAndImportMod(self):
 
-        from gui.utils.native_dialogs import NativeDialogs
+        from src.gui.utils.native_dialogs import NativeDialogs
         mod_path = NativeDialogs.get_open_file(
             f"Select {app_config.MOD_FILE_EXT} Mod to Import for Editing",
             str(Path.home()),

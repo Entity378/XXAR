@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 
-from gui.utils.native_dialogs import NativeDialogs
+from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME, switch_active_game
 from src.core.config_manager import (
@@ -588,7 +588,7 @@ class SettingsConnector:
         )
         game = get_game(game_id)
 
-        from gui.main_qml import AutoDetectWorker
+        from src.gui.main_qml import AutoDetectWorker
         self.auto_detect_worker = AutoDetectWorker(
             platform.system(),
             install_dir_name=game.install_dir_name,
@@ -1150,7 +1150,7 @@ class SettingsConnector:
             )
         game = get_game(game_id)
 
-        from gui.main_qml import AutoDetectWorker
+        from src.gui.main_qml import AutoDetectWorker
         self.auto_detect_worker = AutoDetectWorker(
             platform.system(),
             install_dir_name=game.install_dir_name,
