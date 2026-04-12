@@ -30,6 +30,7 @@ class GameDefinition:
     loop_point_modes: tuple[str, ...] = ("auto", "manual", "disabled")
     special_audio_dirs: tuple[str, ...] = ()
     protected_pcks: frozenset = frozenset({"Patch.pck", "Hotfix.pck"})
+    titlescreen_pcks: tuple[str, ...] = ("Minimum.pck",)
     # Branding
     app_full_name: str = ""
     mod_file_ext: str = ""

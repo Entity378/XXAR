@@ -27,7 +27,11 @@ class GIARBrowserHandler(BaseBrowserHandler):
     @classmethod
     def is_loop_entry_applicable(cls, pck_filename, repl_info):
         name = str(pck_filename or "").lower()
-        if not name.startswith("music"):
+        from src.core.game_registry import get_game
+        titlescreen = {
+            n.lower() for n in (get_game("genshin").titlescreen_pcks or ())
+        }
+        if not name.startswith("music") and name not in titlescreen:
             return False
         file_type = str((repl_info or {}).get("file_type", "")).lower()
         return file_type in ("wem", "bnk")
