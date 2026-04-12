@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/gui/assets/XXAR/XXAR-Logo2.svg" alt="XXAR Logo" width="200"/>
+  <img src="src/gui/assets/XXAR/XXAR-Logo2-512.png" alt="XXAR Logo" width="200"/>
 </p>
 
 <h1 align="center">XXAR</h1>
