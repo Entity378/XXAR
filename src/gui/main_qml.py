@@ -182,7 +182,7 @@ class Application(
         self.app.setApplicationVersion(QCoreApplication.applicationVersion())
 
         ui_path = Path(__file__).parent
-        icon_path = ui_path / "assets" / app_config.ASSETS_DIR / app_config.LOGO_PNG
+        icon_path = ui_path / "assets" / "XXAR" / "XXAR-Logo2-256.png"
         if icon_path.exists():
             self.app.setWindowIcon(QIcon(str(icon_path)))
 

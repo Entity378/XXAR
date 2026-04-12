@@ -181,7 +181,7 @@ if not sys.platform.startswith('win'):
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-icon_file = 'src/gui/assets/ZZAR/ZZAR-Logo2.ico' if sys.platform.startswith('win') else None  # TODO: create XXAR icon
+icon_file = 'src/gui/assets/XXAR/XXAR-Logo2.ico' if sys.platform.startswith('win') else None
 
 exe = EXE(
     pyz,
