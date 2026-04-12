@@ -37,10 +37,46 @@ def _urlopen(req, timeout=10):
         raise
 
 
+_PRERELEASE_RANK = {"alpha": 0, "beta": 1, "rc": 2}
+
+
+def clean_version_string(raw):
+    cleaned = raw.strip()
+    prefix = f"{APP_NAME}-v"
+    if cleaned.startswith(prefix):
+        return cleaned[len(prefix):]
+    if cleaned.startswith(("v", "V")):
+        return cleaned[1:]
+    return cleaned
+
+
 def parse_version(version_str):
-    cleaned = version_str.lstrip("v").strip()
-    parts = cleaned.split(".")
-    return tuple(int(p) for p in parts)
+    cleaned = clean_version_string(version_str)
+    base, _, pre = cleaned.partition("-")
+
+    numbers = []
+    for part in base.split("."):
+        try:
+            numbers.append(int(part))
+        except ValueError:
+            numbers.append(0)
+    while len(numbers) < 3:
+        numbers.append(0)
+    base_tuple = tuple(numbers[:3])
+
+    if not pre:
+        return base_tuple + (3, 0)
+
+    pre_lower = pre.lower()
+    for kind, rank in _PRERELEASE_RANK.items():
+        if pre_lower.startswith(kind):
+            rest = pre_lower[len(kind):].lstrip(".")
+            try:
+                pre_num = int(rest) if rest else 0
+            except ValueError:
+                pre_num = 0
+            return base_tuple + (rank, pre_num)
+    return base_tuple + (-1, 0)
 
 
 class UpdateCheckWorker(QThread):
@@ -96,7 +132,7 @@ class UpdateCheckWorker(QThread):
                 self.errorOccurred.emit(f"No {asset_name} found in release assets")
                 return
 
-            version_str = tag.lstrip("v")
+            version_str = clean_version_string(tag)
             release_notes = data.get("body", "") or ""
             self.updateAvailable.emit(version_str, download_url, release_notes)
 
