@@ -1554,12 +1554,11 @@ Exceeding this rate limit will temporarily block you from viewing mods for 1 hou
 
 If you're interested in translating, reach out to:
 
-Discord: Pucas01
-Twitter: Pucas02
+Discord: Entity378
 
 Or open an issue on the GitHub repo.
 
-I only speak English and Dutch.</source>
+I only speak English and Italian.</source>
             <translation type="unfinished"></translation>
         </message>
         <message>
@@ -1807,7 +1806,7 @@ I only speak English and Dutch.</source>
         </message>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="35" />
-            <source>Oh and if you ever wanted to ask me something, im all ears (DM Pucas01 on Discord, Pucas02 on Twitter or make an issue on the github).</source>
+            <source>Oh and if you ever wanted to ask me something, im all ears (DM Entity378 on Discord or make an issue on the github).</source>
             <translation type="unfinished"></translation>
         </message>
         <message>
@@ -2286,7 +2285,7 @@ By proceeding, you acknowledge that:
 • You are downloading software directly from Audiokinetic
 • This software is subject to Audiokinetic's licensing terms
 • You use this software at your own risk
-• Pucas01 and other XXAR contributors are not responsible for any issues
+• Entity378 and other XXAR contributors are not responsible for any issues
 
 Do you want to continue?</source>
             <translation type="unfinished"></translation>

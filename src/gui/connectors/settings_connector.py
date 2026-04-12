@@ -477,7 +477,7 @@ class SettingsConnector:
             "* You are downloading software directly from Audiokinetic\n"
             "* This software is subject to Audiokinetic's licensing terms\n"
             "* You use this software at your own risk\n"
-            "* Pucas01 and other XXAR contributors are not responsible for any issues\n\n"
+            "* Entity378 and other XXAR contributors are not responsible for any issues\n\n"
             "Do you want to continue?")
         QMetaObject.invokeMethod(
             self.root,

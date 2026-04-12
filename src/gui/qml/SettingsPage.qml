@@ -436,7 +436,7 @@ Item {
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: mainWindow.showAlertDialog(
                                                 qsTranslate("Application", "Help Translate %1!").replace("%1", appName),
-                                                qsTranslate("Application", "I need your help to translate %1 to more languages!\n\nIf you're interested in translating, reach out to:\n\nDiscord: Pucas01\nTwitter: Pucas02\n\nOr open an issue on the GitHub repo.\n\nI only speak English and Dutch.").replace("%1", appName),
+                                                qsTranslate("Application", "I need your help to translate %1 to more languages!\n\nIf you're interested in translating, reach out to:\n\nDiscord: Entity378\n\nOr open an issue on the GitHub repo.\n\nI only speak English and Italian.").replace("%1", appName),
                                                 "../assets/" + assetsDir + "/YeShunguangReed.png"
                                             )
                                         }
@@ -2019,7 +2019,7 @@ Item {
                                 }
 
                                 Text {
-                                    text: "pucas01"
+                                    text: "Entity378"
                                     color: "#ffffff"
                                     font.family: "Alatsi"
                                     font.pixelSize: 14

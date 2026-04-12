@@ -1569,18 +1569,16 @@ Superar este límite te bloqueará temporalmente el acceso a los mods durante 1 
 
 If you're interested in translating, reach out to:
 
-Discord: Pucas01
-Twitter: Pucas02
+Discord: Entity378
 
 Or open an issue on the GitHub repo.
 
-I only speak English and Dutch.</source>
+I only speak English and Italian.</source>
             <translation>¡Necesito tu ayuda para traducir %1 a más idiomas!
 
 Si te interesa traducir, contáctame en:
 
-Discord: Pucas01
-Twitter: Pucas02
+Discord: Entity378
 
 O abre un issue en el repositorio de GitHub.
 
@@ -1831,8 +1829,8 @@ Solo hablo inglés y neerlandés.</translation>
         </message>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="35" />
-            <source>Oh and if you ever wanted to ask me something, im all ears (DM Pucas01 on Discord, Pucas02 on Twitter or make an issue on the github).</source>
-            <translation>Ah si quisieras preguntarme algo, estoy a toda oreja (MD Pucas01 en Discord, Pucas02 en Twitter or haz un issue/problema en github (Creador solo puede hablar en Inglés y Holandés!).</translation>
+            <source>Oh and if you ever wanted to ask me something, im all ears (DM Entity378 on Discord or make an issue on the github).</source>
+            <translation>Ah si quisieras preguntarme algo, estoy a toda oreja (MD Entity378 en Discord or haz un issue/problema en github (Creador solo puede hablar en Inglés y Holandés!).</translation>
         </message>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="42" />
@@ -2320,7 +2318,7 @@ By proceeding, you acknowledge that:
 • You are downloading software directly from Audiokinetic
 • This software is subject to Audiokinetic's licensing terms
 • You use this software at your own risk
-• Pucas01 and other XXAR contributors are not responsible for any issues
+• Entity378 and other XXAR contributors are not responsible for any issues
 
 Do you want to continue?</source>
             <translation>Estás apunto de instalar software licenciado de Audiokinetic.
@@ -2329,7 +2327,7 @@ Al proceder, reconoces que:
 • Estás descargando software directamente de Audiokinetic
 • Este software esta sujetado a los términos de licencia de Audiokinetic
 • Usa este software a tu propio riesgo.
-• Pucas01 y otros contribuidores no son responsables por algún problema
+• Entity378 y otros contribuidores no son responsables por algún problema
 
 Quieres continuar?</translation>
         </message>

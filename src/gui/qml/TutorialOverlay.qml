@@ -32,7 +32,7 @@ Item {
                 { text: qsTranslate("Application", "Remove button. select a mod first, then press it."), highlight: "tutorialRemoveBtn" },
                 { text: qsTranslate("Application", "When you're done picking mods, apply. nothing happens until you do."), highlight: "tutorialApplyBtn" },
                 { text: "", highlight: "tutorialApplyBtn", sticker: "MiyabiMelon.png" },
-                { text: qsTranslate("Application", "Oh and if you ever wanted to ask me something, im all ears (DM Pucas01 on Discord, Pucas02 on Twitter or make an issue on the github)."), highlight: "tutorialApplyBtn" },
+                { text: qsTranslate("Application", "Oh and if you ever wanted to ask me something, im all ears (DM Entity378 on Discord or make an issue on the github)."), highlight: "tutorialApplyBtn" },
             ])
         },
         {
