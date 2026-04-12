@@ -16,7 +16,6 @@ import py7zr
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import BASE_DIR, IS_WINDOWS, SUBPROCESS_KWARGS
 
 # Constants
@@ -135,13 +134,113 @@ def get_hdiff_audio_pkg(
 
 # HDiff patching utilities
 
-def _find_hpatchz() -> str | None:
-    # Locate the hpatchz binary: bundled tool dir first, then PATH
+HPATCHZ_API_URL = (
+    "https://api.github.com/repos/sisong/HDiffPatch/releases/latest"
+)
+
+
+def _hpatchz_install_dir(app_game_dir: Path) -> Path:
+    # hpatchz lives alongside the original_vo cache because it is only used
+    # to patch those PCK files. Keeping it inside the SR backup tree means
+    # nothing spills into the shared tools/ directory.
+    return _cache_dir(app_game_dir) / "hpatchz"
+
+
+def _find_hpatchz(app_game_dir: Path) -> str | None:
+    # Locate the hpatchz binary in the SR backup dir first, then PATH. The
+    # upstream zip layout varies between releases (flat vs. nested under
+    # windows64/), so recurse rather than probing a single path.
     exe_name = "hpatchz.exe" if IS_WINDOWS else "hpatchz"
-    local_path = get_tools_dir() / "audio" / "hpatchz" / exe_name
-    if local_path.is_file():
-        return str(local_path.resolve())
+    hpatchz_root = _hpatchz_install_dir(app_game_dir)
+    if hpatchz_root.is_dir():
+        for candidate in hpatchz_root.rglob(exe_name):
+            if candidate.is_file():
+                return str(candidate.resolve())
     return shutil.which("hpatchz")
+
+
+def _resolve_hpatchz_url() -> str | None:
+    # Query GitHub releases for the latest windows64 asset. Asset names have
+    # varied: hpatchz_v*_windows_x64.zip (old) and hdiffpatch_v*_bin_windows64.zip
+    # (current), so match on a substring.
+    try:
+        req = urllib.request.Request(
+            HPATCHZ_API_URL,
+            headers={
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "XXAR-VODownload",
+            },
+        )
+        with _urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"[VO Download] Failed to query HDiffPatch releases: {e}")
+        return None
+
+    for asset in data.get("assets") or []:
+        name = asset.get("name", "").lower()
+        if (
+            name.endswith(".zip")
+            and "windows" in name
+            and "64" in name
+            and "arm" not in name
+        ):
+            return asset.get("browser_download_url")
+    return None
+
+
+def _download_hpatchz(
+    app_game_dir: Path, progress_cb=None
+) -> str | None:
+    # Download hpatchz into the SR backup dir. Windows-only; on Linux we
+    # expect the user's package manager to provide it.
+    if not IS_WINDOWS:
+        return None
+
+    url = _resolve_hpatchz_url()
+    if not url:
+        return None
+
+    install_dir = _hpatchz_install_dir(app_game_dir)
+    install_dir.mkdir(parents=True, exist_ok=True)
+
+    if progress_cb:
+        progress_cb("Downloading hpatchz (hdiff patcher)...")
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".zip")
+    tmp_path = Path(tmp_path)
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "XXAR-VODownload"}
+        )
+        with _urlopen(req, timeout=60) as resp, open(tmp_fd, "wb") as f:
+            while True:
+                chunk = resp.read(_CHUNK_SIZE)
+                if not chunk:
+                    break
+                f.write(chunk)
+
+        import zipfile
+        with zipfile.ZipFile(tmp_path, "r") as zf:
+            zf.extractall(install_dir)
+    except Exception as e:
+        print(f"[VO Download] hpatchz download failed: {e}")
+        return None
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    return _find_hpatchz(app_game_dir)
+
+
+def _ensure_hpatchz(
+    app_game_dir: Path, progress_cb=None
+) -> str | None:
+    # Return a usable hpatchz path, downloading it into the SR backup dir
+    # on first use if needed.
+    found = _find_hpatchz(app_game_dir)
+    if found:
+        return found
+    return _download_hpatchz(app_game_dir, progress_cb)
 
 
 def _download_hdiff_archive(
@@ -222,13 +321,14 @@ def _apply_hdiff_patches(
     working_dir: Path,
     hdiff_dir: Path,
     folder_name: str,
+    app_game_dir: Path,
     progress_cb=None,
 ) -> bool:
     # Apply hdiff patches to PCK files in working_dir.
     # working_dir contains copies of the old cached PCKs.
     # hdiff_dir contains .hdiff files and optionally deletefiles.txt.
     # Returns True if all patches applied successfully.
-    hpatchz = _find_hpatchz()
+    hpatchz = _ensure_hpatchz(app_game_dir, progress_cb)
     if not hpatchz:
         print("[VO Download] hpatchz binary not found, cannot apply hdiff")
         return False
@@ -472,12 +572,13 @@ def restore_language_from_api(
         print(f"[VO Download] Cannot restore {folder_name}: API unavailable")
         return False
 
-    # 2.5. Try hdiff patching if we have a stale cache
+    # 2.5. Try hdiff patching if we have a stale cache. hpatchz is fetched
+    # on-demand into the SR backup dir (by _apply_hdiff_patches) only when an
+    # hdiff is actually available, so missing hpatchz doesn't waste a download.
     if (
         cached_version is not None
         and cache_lang_dir.is_dir()
         and any(cache_lang_dir.glob("*.pck"))
-        and _find_hpatchz() is not None
     ):
         hdiff_pkg = get_hdiff_audio_pkg(
             api_data, cached_version, folder_name
@@ -623,7 +724,11 @@ def _try_hdiff_patch(
                     )
 
                 ok = _apply_hdiff_patches(
-                    working_dir, hdiff_dir, folder_name, progress_cb
+                    working_dir,
+                    hdiff_dir,
+                    folder_name,
+                    app_game_dir,
+                    progress_cb,
                 )
                 if not ok:
                     return False
