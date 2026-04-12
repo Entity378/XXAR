@@ -4,6 +4,7 @@ import subprocess
 import platform
 from pathlib import Path
 import shutil
+from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 try:
@@ -26,9 +27,10 @@ class AudioConverter:
 
         if platform.system() == "Windows":
 
+            tools_root = get_tools_dir()
             possible_paths = [
-                _BASE_DIR / "tools" / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffmpeg.exe",
-                _BASE_DIR / "tools" / "audio" / "ffmpeg" / "bin" / "ffmpeg.exe",
+                tools_root / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffmpeg.exe",
+                tools_root / "audio" / "ffmpeg" / "bin" / "ffmpeg.exe",
             ]
 
             for local_ffmpeg in possible_paths:
@@ -49,7 +51,7 @@ class AudioConverter:
 
         if platform.system() == "Windows":
 
-            local_vgmstream = _BASE_DIR / "tools" / "audio" / "vgmstream" / "vgmstream-cli.exe"
+            local_vgmstream = get_tools_dir() / "audio" / "vgmstream" / "vgmstream-cli.exe"
             if local_vgmstream.exists():
                 return str(local_vgmstream.resolve())
 

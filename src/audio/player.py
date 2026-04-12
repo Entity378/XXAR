@@ -6,6 +6,7 @@ import shutil
 import time
 from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer
+from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 if not _is_windows:
@@ -58,9 +59,10 @@ class AudioPlayer(QObject):
 
     def _find_ffplay(self):
 
+        tools_root = get_tools_dir()
         possible_paths = [
-            _BASE_DIR / "tools" / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffplay.exe",
-            _BASE_DIR / "tools" / "audio" / "ffmpeg" / "bin" / "ffplay.exe",
+            tools_root / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffplay.exe",
+            tools_root / "audio" / "ffmpeg" / "bin" / "ffplay.exe",
         ]
         for p in possible_paths:
             if p.exists():
@@ -70,9 +72,10 @@ class AudioPlayer(QObject):
 
     def _find_ffprobe(self):
 
+        tools_root = get_tools_dir()
         possible_paths = [
-            _BASE_DIR / "tools" / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffprobe.exe",
-            _BASE_DIR / "tools" / "audio" / "ffmpeg" / "bin" / "ffprobe.exe",
+            tools_root / "audio" / "ffmpeg" / "ffmpeg-master-latest-win64-gpl" / "bin" / "ffprobe.exe",
+            tools_root / "audio" / "ffmpeg" / "bin" / "ffprobe.exe",
         ]
         for p in possible_paths:
             if p.exists():

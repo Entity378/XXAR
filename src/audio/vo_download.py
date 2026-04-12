@@ -16,6 +16,7 @@ import py7zr
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import BASE_DIR, IS_WINDOWS, SUBPROCESS_KWARGS
 
 # Constants
@@ -137,7 +138,7 @@ def get_hdiff_audio_pkg(
 def _find_hpatchz() -> str | None:
     # Locate the hpatchz binary: bundled tool dir first, then PATH
     exe_name = "hpatchz.exe" if IS_WINDOWS else "hpatchz"
-    local_path = BASE_DIR / "tools" / "audio" / "hpatchz" / exe_name
+    local_path = get_tools_dir() / "audio" / "hpatchz" / exe_name
     if local_path.is_file():
         return str(local_path.resolve())
     return shutil.which("hpatchz")

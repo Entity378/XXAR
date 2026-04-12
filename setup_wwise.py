@@ -12,9 +12,9 @@ import urllib.error
 
 DEFAULT_WWISE_URL = "https://gitlab.com/ytnshio/ebi/-/raw/main/WWIse.zip"
 
-# When running from PyInstaller, use the exe's directory (not _MEIPASS temp dir)
-# so tools persist across runs. When running from source, use the script's directory.
-# In Flatpak, /app/bin/ is read-only so use XDG_DATA_HOME instead.
+# Tools live under the user's per-profile config/data dir so they survive exe
+# upgrades. On Windows that's Roaming AppData (alongside settings.json); on
+# Linux/Flatpak it's XDG_DATA_HOME (Flatpak's /app/bin is read-only).
 try:
     _src = Path(__file__).resolve().parent / 'src'
     if str(_src) not in sys.path:
@@ -24,13 +24,16 @@ except Exception:
     FLATPAK_ENV_VAR = 'XXAR_FLATPAK'
     CONFIG_DIR_NAME = 'XXAR'
 
-if os.environ.get(FLATPAK_ENV_VAR):
-    _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-elif hasattr(sys, '_MEIPASS'):
-    _BASE_DIR = Path(sys.executable).parent.resolve()
+if os.environ.get(FLATPAK_ENV_VAR) or not sys.platform.startswith('win'):
+    _TOOLS_ROOT = Path(
+        os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')
+    ) / CONFIG_DIR_NAME / "tools"
 else:
-    _BASE_DIR = Path(__file__).parent.resolve()
-WWISE_DIR = _BASE_DIR / "tools" / "wwise"
+    _TOOLS_ROOT = Path(
+        os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')
+    ) / CONFIG_DIR_NAME / "tools"
+
+WWISE_DIR = _TOOLS_ROOT / "wwise"
 WWISE_CONSOLE = WWISE_DIR / "WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
 
 
@@ -236,7 +239,8 @@ Examples:
 Notes:
   - Requires Wine to be installed on Linux
   - Downloads ~50-100MB (minimal Wwise package)
-  - Installs to ./tools/wwise/
+  - Installs to %APPDATA%/XXAR/tools/wwise/ (Windows)
+  - Installs to $XDG_DATA_HOME/XXAR/tools/wwise/ (Linux/Flatpak)
         """
     )
 

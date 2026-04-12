@@ -18,13 +18,22 @@ VGMSTREAM_URL = "https://github.com/vgmstream/vgmstream/releases/latest/download
 HPATCHZ_URL = "https://github.com/sisong/HDiffPatch/releases/download/v4.8.2/hpatchz_v4.8.2_windows_x64.zip"
 
 # Installation directories
-# When running from PyInstaller, use the exe's directory (not _MEIPASS temp dir)
-# so tools persist across runs. When running from source, use the script's directory.
-if hasattr(sys, '_MEIPASS'):
-    _BASE_DIR = Path(sys.executable).parent.resolve()
+# Tools live under the user's per-profile config/data dir so they survive exe
+# upgrades and aren't scattered beside the binary. On Windows that's Roaming
+# AppData (alongside settings.json); on Linux it's XDG_DATA_HOME (Flatpak-safe).
+CONFIG_DIR_NAME = "XXAR"
+FLATPAK_ENV_VAR = "XXAR_FLATPAK"
+
+if os.environ.get(FLATPAK_ENV_VAR) or not sys.platform.startswith("win"):
+    _TOOLS_ROOT = Path(
+        os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
+    ) / CONFIG_DIR_NAME / "tools"
 else:
-    _BASE_DIR = Path(__file__).parent.resolve()
-TOOLS_DIR = _BASE_DIR / "tools" / "audio"
+    _TOOLS_ROOT = Path(
+        os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
+    ) / CONFIG_DIR_NAME / "tools"
+
+TOOLS_DIR = _TOOLS_ROOT / "audio"
 FFMPEG_DIR = TOOLS_DIR / "ffmpeg"
 VGMSTREAM_DIR = TOOLS_DIR / "vgmstream"
 HPATCHZ_DIR = TOOLS_DIR / "hpatchz"
@@ -354,7 +363,8 @@ Examples:
 Note:
   - Windows only
   - Downloads ~100-150MB total
-  - Installs to ./tools/audio/
+  - Installs to %APPDATA%/XXAR/tools/audio/ (Windows)
+  - Installs to $XDG_DATA_HOME/XXAR/tools/audio/ (Linux/Flatpak)
         """
     )
 

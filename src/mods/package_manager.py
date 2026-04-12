@@ -31,28 +31,7 @@ class ModPackageManager:
 
         self.mods_dir.mkdir(parents=True, exist_ok=True)
 
-        self._migrate_old_config()
-
         self.load_config()
-
-    def _migrate_old_config(self):
-
-        old_config = Path.home() / '.zzar_mod_config.json'
-        old_library = Path.home() / '.zzar_mod_library'
-
-        if old_config.exists() and not self.config_path.exists():
-            try:
-                shutil.copy2(old_config, self.config_path)
-                print(f"Migrated mod config: {old_config} -> {self.config_path}")
-            except Exception as e:
-                print(f"Warning: Failed to migrate mod config: {e}")
-
-        if old_library.exists() and not self.mod_library_path.exists():
-            try:
-                shutil.copytree(old_library, self.mod_library_path)
-                print(f"Migrated mod library: {old_library} -> {self.mod_library_path}")
-            except Exception as e:
-                print(f"Warning: Failed to migrate mod library: {e}")
 
     def load_config(self):
 

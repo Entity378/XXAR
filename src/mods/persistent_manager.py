@@ -1,7 +1,6 @@
 
 
 import json
-import shutil
 from pathlib import Path
 from datetime import datetime
 from src.core.config_manager import get_mod_tracker_file
@@ -14,8 +13,6 @@ class PersistentModManager:
         self.persistent_base_path = Path(persistent_base_path) if persistent_base_path else None
         self.mod_tracker_path = Path(tracker_path) if tracker_path else get_mod_tracker_file()
         self.mod_tracker = {}
-
-        self._migrate_old_tracker()
 
         self.load_tracker()
 
@@ -89,17 +86,6 @@ class PersistentModManager:
             raise ValueError("Persistent path not set")
 
         return self.persistent_base_path / pck_filename
-
-    def _migrate_old_tracker(self):
-
-        old_tracker = Path.home() / '.zzar_mod_tracker.json'
-
-        if old_tracker.exists() and not self.mod_tracker_path.exists():
-            try:
-                shutil.copy2(old_tracker, self.mod_tracker_path)
-                print(f"Migrated mod tracker: {old_tracker} -> {self.mod_tracker_path}")
-            except Exception as e:
-                print(f"Warning: Failed to migrate mod tracker: {e}")
 
     def load_tracker(self):
 

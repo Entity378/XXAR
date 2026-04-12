@@ -20,7 +20,7 @@ from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
 
 from src.mods.package_manager import ModPackageManager, InvalidModPackageError
 from src.mods.persistent_manager import PersistentModManager
-from src.core.config_manager import get_settings_file
+from src.core.config_manager import get_settings_file, get_tools_dir
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.gui.utils.native_dialogs import NativeDialogs
@@ -306,13 +306,7 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def checkWwiseInstalled(self):
 
-        if os.environ.get(FLATPAK_ENV_VAR):
-            base_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-        elif hasattr(sys, '_MEIPASS'):
-            base_dir = Path(sys.executable).parent.resolve()
-        else:
-            base_dir = Path(".").resolve()
-        wwise_console = base_dir / "tools" / "wwise" / "WWIse" / "Authoring" / "x64" / "Release" / "bin" / "WwiseConsole.exe"
+        wwise_console = get_tools_dir() / "wwise" / "WWIse" / "Authoring" / "x64" / "Release" / "bin" / "WwiseConsole.exe"
         is_installed = wwise_console.exists()
         print(f"[Mod Manager] Wwise check path: {wwise_console}")
         print(f"[Mod Manager] Wwise installed: {is_installed}")
@@ -357,16 +351,11 @@ class ModManagerBridge(QObject):
             self.audioToolsStatusChanged.emit(False)
             return False
 
-        if os.environ.get(FLATPAK_ENV_VAR):
-            base_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-        elif hasattr(sys, '_MEIPASS'):
-            base_dir = Path(sys.executable).parent.resolve()
-        else:
-            base_dir = Path(__file__).parent.parent.parent.parent.resolve()
-        ffmpeg_dir = base_dir / "tools" / "audio" / "ffmpeg"
-        vgmstream_exe = base_dir / "tools" / "audio" / "vgmstream" / "vgmstream-cli.exe"
+        tools_root = get_tools_dir()
+        ffmpeg_dir = tools_root / "audio" / "ffmpeg"
+        vgmstream_exe = tools_root / "audio" / "vgmstream" / "vgmstream-cli.exe"
 
-        print(f"[Mod Manager] Checking for tools in: {base_dir / 'tools' / 'audio'}")
+        print(f"[Mod Manager] Checking for tools in: {tools_root / 'audio'}")
 
         ffmpeg_found = False
         if ffmpeg_dir.exists():

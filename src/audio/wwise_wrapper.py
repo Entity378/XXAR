@@ -7,6 +7,7 @@ import sys
 import platform
 from pathlib import Path
 from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
 
 # Resources: the bundled template lives inside _MEIPASS (read-only in PyInstaller).
@@ -31,13 +32,13 @@ class WwiseConsole:
     def __init__(self, wwise_dir=None, project_path=None):
 
         if wwise_dir is None:
-            wwise_dir = _BASE_DIR / "tools" / "wwise"
+            wwise_dir = get_tools_dir() / "wwise"
         else:
             wwise_dir = Path(wwise_dir)
 
         self.wwise_dir = wwise_dir.resolve()
 
-        self.wwise_console = _BASE_DIR / "tools/wwise/WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
+        self.wwise_console = self.wwise_dir / "WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
         self.is_windows = platform.system() == "Windows"
         if self.is_windows:
             self.wine_cmd = None
