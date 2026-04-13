@@ -1,15 +1,25 @@
-# ZZZ Audio Mod Tool Dependencies
+# XXAR - Audio Mod Tool Dependencies
 
-# Audio processing
+# GUI (Qt5 + QML, QtMultimedia, QtNetwork)
+PyQt5>=5.15.0
+
+# Audio processing (fingerprint matching, FFT/DCT)
 numpy>=1.24.0
 scipy>=1.10.0
 
-# Image processing
+# Image processing (mod preview/thumbnail handling)
 Pillow>=10.0.0
 
-# GUI
-PyQt5>=5.15.0
-
-# Archive support
-rarfile>=4.0
+# Archive support (mod import/export, tool setup)
 py7zr>=0.20.0
+rarfile>=4.0
+
+# Build / packaging
+pyinstaller>=6.0.0
+
+# --- Optional: developer scripts only (scripts/) ---
+# Used by scripts/transcribe_tag.py and scripts/speaker_cluster.py.
+# Not required to run the main app.
+# torch>=2.0.0
+# openai-whisper>=20231117
+# speechbrain>=0.5.16
