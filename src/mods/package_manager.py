@@ -466,13 +466,8 @@ class ModPackageManager:
         import tempfile
 
         try:
-
-            try:
-                from src.wwise.pck_packer import PCKPacker
-                from src.wwise.bnk_mod_helper import prepare_bnk_structure
-            except ImportError:
-                from pck_packer import PCKPacker
-                from bnk_mod_helper import prepare_bnk_structure
+            from src.wwise.pck_packer import PCKPacker
+            from src.wwise.bnk_mod_helper import prepare_bnk_structure
         except ImportError as e:
             raise ModApplicationError(f"Failed to import required modules: {e}")
 

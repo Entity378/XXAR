@@ -3,10 +3,7 @@
 import sys
 from pathlib import Path
 
-try:
-    from src.wwise.pck_packer import PCKPacker
-except ImportError:
-    from pck_packer import PCKPacker
+from src.wwise.pck_packer import PCKPacker
 
 import src.core.app_config as app_config
 

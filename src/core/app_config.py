@@ -7,7 +7,7 @@ from src.core.game_registry import (
 
 
 APP_NAME = "XXAR"
-APP_VERSION = "0.5.0-alpha"
+APP_VERSION = "0.6.0-alpha"
 CONFIG_DIR_NAME = "XXAR"
 
 FLATPAK_ENV_VAR = "XXAR_FLATPAK"

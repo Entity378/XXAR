@@ -8,7 +8,7 @@ from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs
 
 try:
-    from wwise_wrapper import WwiseConsole
+    from src.audio.wwise_wrapper import WwiseConsole
     WWISE_AVAILABLE = True
 except ImportError:
     WWISE_AVAILABLE = False
