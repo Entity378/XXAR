@@ -9,30 +9,15 @@ import urllib.parse
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 import src.core.app_config as app_config
-from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
+from src.core.app_config import APP_NAME
 from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
-
-if os.environ.get(FLATPAK_ENV_VAR):
-    _BASE_DIR = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-elif hasattr(sys, '_MEIPASS'):
-    _BASE_DIR = Path(sys.executable).parent.resolve()
-else:
-    _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+from src.core.subprocess_utils import get_bundled_resource
 
 def _find_bundled_unrar():
-    # Find the bundled unrar.exe (Windows only).
     if sys.platform != 'win32':
         return None
-    candidates = [
-        # PyInstaller bundle: resources/ is next to the exe
-        _BASE_DIR / "resources" / "windows" / "unrar.exe",
-        # Running from source
-        Path(__file__).resolve().parent.parent.parent / "resources" / "windows" / "unrar.exe",
-    ]
-    for path in candidates:
-        if path.exists():
-            return str(path)
-    return None
+    path = get_bundled_resource("windows", "unrar.exe")
+    return str(path) if path else None
 
 def _urlopen(req, timeout=10):
     try:

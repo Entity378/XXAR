@@ -151,7 +151,18 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        # Heavy ML/audio libs used only by scripts/ (transcribe_tag.py,
+        # speaker_cluster.py) — not by the app itself. Without these excludes
+        # pyinstaller-hooks-contrib auto-collects torch (+CUDA) and blows the
+        # bundle up to several GB.
+        'torch',
+        'torchvision',
+        'torchaudio',
+        'whisper',
+        'openai-whisper',
+        'speechbrain',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

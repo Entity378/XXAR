@@ -5,7 +5,7 @@ import platform
 from pathlib import Path
 import shutil
 from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
+from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs
 
 try:
     from wwise_wrapper import WwiseConsole

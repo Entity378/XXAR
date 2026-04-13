@@ -6,23 +6,25 @@ import os
 import sys
 import platform
 from pathlib import Path
-from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+from src.core.app_config import FLATPAK_ENV_VAR
 from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs, BASE_DIR as _BASE_DIR
+from src.core.subprocess_utils import (
+    IS_WINDOWS as _is_windows,
+    SUBPROCESS_KWARGS as _subprocess_kwargs,
+    get_bundled_resources_dir,
+    is_frozen,
+)
 
-# Resources: the bundled template lives inside _MEIPASS (read-only in PyInstaller).
-# For writable operations (mkdir, cache), copy to a persistent writable location.
-_BUNDLED_RESOURCE_DIR = Path(__file__).resolve().parent / "resources"
+# Wwise writes cache/temp files inside the project dir, so when the bundle is
+# read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
+_BUNDLED_RESOURCE_DIR = get_bundled_resources_dir()
 
-if os.environ.get(FLATPAK_ENV_VAR) or hasattr(sys, '_MEIPASS'):
-    _RESOURCE_DIR = _BASE_DIR / "resources"
+if os.environ.get(FLATPAK_ENV_VAR) or is_frozen():
+    _RESOURCE_DIR = get_tools_dir() / "wwise_project"
     _wproj = _RESOURCE_DIR / "WAVtoWEM" / "WAVtoWEM.wproj"
-    if not _wproj.exists() and (_BUNDLED_RESOURCE_DIR / "WAVtoWEM" / "WAVtoWEM.wproj").exists():
-        shutil.copytree(
-            str(_BUNDLED_RESOURCE_DIR / "WAVtoWEM"),
-            str(_RESOURCE_DIR / "WAVtoWEM"),
-            dirs_exist_ok=True,
-        )
+    src_wav = _BUNDLED_RESOURCE_DIR / "WAVtoWEM"
+    if not _wproj.exists() and src_wav.exists():
+        shutil.copytree(str(src_wav), str(_RESOURCE_DIR / "WAVtoWEM"), dirs_exist_ok=True)
 else:
     _RESOURCE_DIR = _BUNDLED_RESOURCE_DIR
 
