@@ -1951,10 +1951,36 @@ class AudioBrowserBridge(QObject):
             if not replacements:
                 return
 
+            # Remap entries that target protected override PCKs (Patch.pck /
+            # Hotfix.pck) to their corresponding SoundBank/Streamed PCK in
+            # StreamingAssets, and pre-extract pristine BNK content from the
+            # overrides for the merge step below.
+            patch_bnk_content = {}
+            try:
+                from src.wwise.patch_target_resolver import resolve_and_extract
+                persistent_base_for_resolver = Path(
+                    str(streaming_base).replace("StreamingAssets", "Persistent")
+                )
+                patch_info = resolve_and_extract(
+                    replacements, streaming_base, persistent_base_for_resolver, game,
+                )
+                patch_bnk_content = patch_info.get("patch_bnk_content", {})
+                if patch_info.get("remapped"):
+                    print(f"[Audio Browser] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+                if patch_info.get("dropped"):
+                    print(f"[Audio Browser] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
+            except Exception as e:
+                print(f"[Audio Browser] Warning: patch target resolution failed: {e}")
+
             total_files = sum(len(files) for files in replacements.values())
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
 
             for pck_filename, files in replacements.items():
+                # Defensive: protected PCKs should have been remapped above.
+                if pck_filename in game.protected_pcks:
+                    print(f"[Audio Browser] Skipping rebuild of protected PCK {pck_filename} (unexpected post-remap)")
+                    continue
+
                 pck_file_path = streaming_base / pck_filename
 
                 if not pck_file_path.exists():
@@ -1991,6 +2017,10 @@ class AudioBrowserBridge(QObject):
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Adding %1 replacement(s) to %2...").replace("%1", str(len(files))).replace("%2", pck_filename))
 
+                # Split entries into direct WEMs and per-BNK WEM maps.
+                bnk_wem_maps = {}   # {bnk_id: {wem_id: wem_path}}
+                bnk_lang_ids = {}   # {bnk_id: lang_id} fallback
+
                 for file_id, repl_info in files.items():
                     repl_wem = Path(repl_info["wem_path"])
                     if not repl_wem.exists():
@@ -2003,16 +2033,41 @@ class AudioBrowserBridge(QObject):
                         packer.replace_file(int(file_id), str(repl_wem), repl_info["lang_id"])
                     else:
                         repl_bnk_id = repl_info.get("bnk_id")
-                        if repl_bnk_id:
-                            import shutil
-                            from XXAR import get_temp_dir
-                            bnk_temp = Path(tempfile.mkdtemp(prefix="mod_bnk_", dir=str(get_temp_dir())))
-                            bnk_wem_dir = bnk_temp / f"{repl_bnk_id}_bnk"
-                            bnk_wem_dir.mkdir(parents=True, exist_ok=True)
-                            plain_wem_id = self._tracker_plain_file_id(file_id)
-                            shutil.copy(str(repl_wem), str(bnk_wem_dir / f"{plain_wem_id}.wem"))
-                            packer.replace_bnk_wems(repl_bnk_id, str(bnk_wem_dir), repl_info["lang_id"])
-                            shutil.rmtree(str(bnk_temp), ignore_errors=True)
+                        if not repl_bnk_id:
+                            continue
+                        plain_wem_id = int(self._tracker_plain_file_id(file_id))
+                        bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
+                        bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
+
+                # Add transport-only merges for BNKs present in this PCK and in
+                # Patch.pck override but not directly touched by a user edit —
+                # so their pristine content moves here once the override BNK is
+                # nulled by patch_override_pcks.
+                touched_bnks = set(bnk_wem_maps.keys())
+                for patch_bnk_id in list(patch_bnk_content.keys()):
+                    if patch_bnk_id in touched_bnks:
+                        continue
+                    if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
+                        bnk_wem_maps[patch_bnk_id] = {}
+
+                for bnk_id, wem_map in bnk_wem_maps.items():
+                    lang_id = None
+                    for search_lang_id, bnks in packer.soundbank_titles.items():
+                        if bnk_id in bnks:
+                            lang_id = search_lang_id
+                            break
+                    if lang_id is None:
+                        lang_id = bnk_lang_ids.get(bnk_id, 0)
+                        print(f"[Apply] Warning: BNK {bnk_id} not found in {pck_filename}, skipping merge")
+                        continue
+
+                    patch_wems = None
+                    if bnk_id in patch_bnk_content:
+                        patch_wems = patch_bnk_content[bnk_id].get("wems")
+
+                    packer.merge_bnk_wems(
+                        bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,
+                    )
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Packing %1...").replace("%1", pck_filename))
                 packer.pack(use_patching=False)

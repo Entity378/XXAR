@@ -256,6 +256,74 @@ class PCKPacker:
 
         print(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
+    def merge_bnk_wems(self, bnk_id, mod_wem_map, patch_bnk_wems=None, lang_id=0):
+        # Load BNK bnk_id from the original (pristine) PCK, transport any WEMs
+        # from patch_bnk_wems whose ids are NOT already in the BNK (Patch.pck
+        # override WEMs that must move to the destination so the override-null
+        # trick doesn't drop audio), then apply mod replacements on top.
+        #
+        # mod_wem_map:    {wem_id: wem_path_or_bytes}  — mod replacements
+        # patch_bnk_wems: {wem_id: wem_bytes}          — pristine WEMs from the
+        #                                                 override BNK in Patch.pck
+        #
+        # Precedence: mod > streaming pristine > Patch.pck pristine (missing only)
+        lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
+        print(f"\n  Merging BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
+
+        if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
+            print(f"    Error: BNK {bnk_id} not found in original PCK with lang_id={lang_id} ({lang_name})")
+            return
+
+        file_index, size, offset = self.soundbank_titles[lang_id][bnk_id][0]
+        original_file = self.file_list[file_index]
+        original_file.seek(offset)
+        bnk_bytes = original_file.read(size)
+
+        try:
+            bnk = BNKFile(bnk_bytes=bnk_bytes)
+        except Exception as e:
+            print(f"    Error loading BNK: {e}")
+            return
+
+        streaming_wems = set(bnk.list_wems())
+
+        transported = 0
+        if patch_bnk_wems:
+            for wem_id, wem_bytes in patch_bnk_wems.items():
+                if wem_id in streaming_wems:
+                    continue
+                bnk.add_wem(int(wem_id), wem_bytes)
+                transported += 1
+            if transported:
+                print(f"    Transported {transported} pristine WEM(s) from Patch.pck override")
+
+        replaced = 0
+        for wem_id, mod_data in (mod_wem_map or {}).items():
+            if isinstance(mod_data, (bytes, bytearray)):
+                mod_bytes = bytes(mod_data)
+            else:
+                with open(mod_data, 'rb') as wf:
+                    mod_bytes = wf.read()
+            wid = int(wem_id)
+            if wid in bnk.list_wems():
+                try:
+                    bnk.replace_wem(wid, wem_bytes=mod_bytes)
+                except KeyError:
+                    bnk.add_wem(wid, mod_bytes)
+            else:
+                bnk.add_wem(wid, mod_bytes)
+            replaced += 1
+
+        modified_bnk_bytes = bnk.get_bytes()
+        new_file_index = len(self.file_list)
+        temp_bnk = BytesIO(modified_bnk_bytes)
+        temp_bnk.seek(0)
+        self.file_list.append(temp_bnk)
+
+        self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(modified_bnk_bytes), 0)]
+
+        print(f"[OK] Merged BNK {bnk_id}: {replaced} mod WEM(s), {transported} transported, new size: {len(modified_bnk_bytes)} bytes")
+
     def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
         # Remove specific WEM IDs from a BNK inside the PCK
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')

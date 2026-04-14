@@ -5,10 +5,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
     game_id = "genshin"
     LOOP_POINT_MODES = {"auto", "manual", "disabled"}
 
-    def __init__(self, bridge, status_callback=None):
-        super().__init__(bridge, game_id=self.game_id)
-        self._status_callback = status_callback
-
     def include_pck_file(
         self,
         pck_file,

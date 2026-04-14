@@ -28,11 +28,11 @@ class BaseBrowserHandler:
     LOOP_POINT_MODES = {"auto", "manual", "disabled"}
     loop_point_patching_supported = None
 
-    def __init__(self, bridge, game_id=None):
+    def __init__(self, bridge, game_id=None, status_callback=None):
         self.bridge = bridge
         self.game_id = game_id or self.game_id
         self.game = get_game(self.game_id)
-        self._status_callback = None
+        self._status_callback = status_callback
 
     def _reset_bridge_state(self, data_folder):
         b = self.bridge

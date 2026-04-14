@@ -487,6 +487,24 @@ class ModPackageManager:
 
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
 
+        # Remap entries that target protected override PCKs (Patch.pck / Hotfix.pck)
+        # to their corresponding SoundBank/Streamed PCK in StreamingAssets and
+        # pre-extract pristine BNK content from the overrides so the main loop
+        # can merge mod + pristine in a single pass.
+        patch_bnk_content = {}
+        try:
+            from src.wwise.patch_target_resolver import resolve_and_extract
+            patch_info = resolve_and_extract(
+                resolved, game_audio_dir, persistent_audio_dir, game,
+            )
+            patch_bnk_content = patch_info.get("patch_bnk_content", {})
+            if patch_info.get("remapped"):
+                print(f"[Mod Manager] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+            if patch_info.get("dropped"):
+                print(f"[Mod Manager] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
+        except Exception as e:
+            print(f"[Mod Manager] Warning: patch target resolution failed: {e}")
+
         if self.persistent_mod_manager:
             old_replacements = self.persistent_mod_manager.get_all_replacements()
             self.persistent_mod_manager.clear_all_replacements()
@@ -541,6 +559,13 @@ class ModPackageManager:
         for idx, pck_name in enumerate(pck_list):
             if progress_callback:
                 progress_callback(f"Processing {pck_name}...", idx, total_pcks)
+
+            # Defensive: after resolve_and_extract protected PCKs should have
+            # been remapped. If one slips through (resolver failure) skip it
+            # here — rebuilding a protected override produces a broken stub.
+            if pck_name in game.protected_pcks:
+                print(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
+                continue
 
             original_pck = None
 
@@ -629,16 +654,18 @@ class ModPackageManager:
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
 
+                # Also schedule a BNK merge for any bnk_id that is in an
+                # override PCK and ALSO present in this PCK but not directly
+                # touched by a mod. This transports pristine Patch.pck WEMs
+                # that would otherwise be lost when the override BNK is nulled.
+                touched_bnks = set(bnk_wems.keys())
+                for patch_bnk_id in list(patch_bnk_content.keys()):
+                    if patch_bnk_id in touched_bnks:
+                        continue
+                    if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
+                        bnk_wems[patch_bnk_id] = {}
+
                 for bnk_id, wem_map in bnk_wems.items():
-
-                    bnk_dir = temp_dir / str(bnk_id)
-                    bnk_dir.mkdir(parents=True, exist_ok=True)
-
-                    for wem_id, wem_path in wem_map.items():
-                        dest_path = bnk_dir / f"{wem_id}.wem"
-                        shutil.copy2(wem_path, dest_path)
-
-                    # Auto-detect the correct lang_id for this BNK in the target PCK
                     lang_id = None
                     for search_lang_id, bnks in packer.soundbank_titles.items():
                         if bnk_id in bnks:
@@ -646,11 +673,16 @@ class ModPackageManager:
                             break
 
                     if lang_id is None:
-                        # Fallback to stored lang_id if BNK not found
-                        lang_id = bnk_lang_ids.get(bnk_id, 0)
-                        print(f"Warning: BNK {bnk_id} not found in PCK, using stored lang_id={lang_id}")
+                        print(f"Warning: BNK {bnk_id} not found in {pck_name}, skipping merge")
+                        continue
 
-                    packer.replace_bnk_wems(bnk_id, str(bnk_dir), lang_id=lang_id)
+                    patch_wems = None
+                    if bnk_id in patch_bnk_content:
+                        patch_wems = patch_bnk_content[bnk_id].get("wems")
+
+                    packer.merge_bnk_wems(
+                        bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,
+                    )
 
                 packer.pack(use_patching=False)
 
