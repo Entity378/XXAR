@@ -342,6 +342,12 @@ class AudioBrowserBridge(QObject):
 
         self._index_cache = {}
         self._tree_cache = {}
+
+        # Cache of {bnk_id: {wem_id: (override_name, lang_id)}} sourced from
+        # Patch.pck/Hotfix.pck for the current game — survives tab switches so
+        # the merge can be reapplied on every index build and cache restore.
+        self._patch_pck_wems_by_bnk = None
+        self._patch_pck_cache_key = None
         self._current_directory = None
         self._current_tree_key = None
         self._audio_root = None
@@ -386,6 +392,8 @@ class AudioBrowserBridge(QObject):
         self._current_directory = None
         self._current_tree_key = None
         self.index_ready = False
+        self._patch_pck_wems_by_bnk = None
+        self._patch_pck_cache_key = None
 
     @staticmethod
     def _normalize_game_mode(game_mode, default=DEFAULT_GAME_ID):
@@ -711,6 +719,15 @@ class AudioBrowserBridge(QObject):
 
             if cache_key in self._index_cache:
                 self.file_id_index = self._index_cache[cache_key]
+                # Re-apply patch merge defensively — protects against stale
+                # caches where the patch entries were lost (e.g. cache built
+                # before Persistent/Patch.pck existed) so cross-tab search
+                # for patch-unique WEMs stays reliable.
+                try:
+                    self._merge_patch_entries_into_index(self.file_id_index)
+                    self._index_cache[cache_key] = self.file_id_index
+                except Exception as e:
+                    print(f"[Browser] Patch.pck index merge on restore failed: {e}")
                 self.index_ready = True
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Index ready - %1 unique file IDs").replace("%1", str(len(self.file_id_index))))
             else:
@@ -1040,6 +1057,93 @@ class AudioBrowserBridge(QObject):
                     "isModified": False,
                     "parentBnk": str(bnk_data["file_id"]),
                 })
+
+            # Merge WEMs that exist only in the override PCKs (Patch.pck /
+            # Hotfix.pck) for this same BNK id. Those WEMs are invisible from
+            # StreamingAssets alone and must be shown so the user can mod them.
+            # The canonical pck_path stays the StreamingAssets SoundBank so
+            # staged replacements target a stable PCK name.
+            existing_wem_ids = {w["wem_id"] for w in wem_list}
+            try:
+                if self.game_root_dir:
+                    persistent_root = Path(self.game_root_dir).joinpath(
+                        *self._active_game().persistent_audio_subpath
+                    )
+                    from src.wwise.patch_target_resolver import find_patch_pck_sources
+                    for patch_path, override_name in find_patch_pck_sources(
+                        persistent_root, self._active_game()
+                    ):
+                        try:
+                            patch_pck_idx = PCKIndexer(str(patch_path)).build_index()
+                        except Exception:
+                            continue
+                        matching_bank = next(
+                            (b for b in patch_pck_idx.get("banks", [])
+                             if b["id"] == bnk_data["file_id"]),
+                            None,
+                        )
+                        if not matching_bank:
+                            continue
+                        try:
+                            with open(patch_path, "rb") as pf:
+                                pf.seek(matching_bank["offset"])
+                                patch_bnk_bytes = pf.read(matching_bank["size"])
+                            patch_bnk_indexer = BNKIndexer(patch_bnk_bytes)
+                            patch_wem_list = patch_bnk_indexer.parse_didx()
+                        except Exception as e:
+                            print(f"[Browser] Failed reading {override_name} BNK {bnk_data['file_id']}: {e}")
+                            continue
+
+                        for p_wem_info in patch_wem_list:
+                            p_wem_id = p_wem_info["wem_id"]
+                            if p_wem_id in existing_wem_ids:
+                                continue
+                            existing_wem_ids.add(p_wem_id)
+
+                            data_key = f"wem_embedded:{bnk_data['pck_path']}:{bnk_data['file_id']}:{p_wem_id}"
+                            self._item_data[data_key] = {
+                                "type": "wem_embedded",
+                                "wem_id": p_wem_id,
+                                "bnk_id": bnk_data["file_id"],
+                                "bnk_bytes": patch_bnk_bytes,
+                                "pck_path": bnk_data["pck_path"],
+                                "lang_id": bnk_data.get("lang_id", 0),
+                                "source_pck_path": str(patch_path),
+                                "source_override": override_name,
+                            }
+
+                            tag_text = ""
+                            duration_text = ""
+                            display_name = f"{p_wem_id}.wem"
+                            try:
+                                p_wem_bytes = patch_bnk_indexer.extract_wem(p_wem_id)
+                                duration_text = self._get_wem_duration(p_wem_bytes)
+                                sound_info = self._lookup_sound_info(p_wem_bytes, p_wem_id)
+                                if sound_info:
+                                    sound_name = str(sound_info.get("name", "")).strip()
+                                    if sound_name:
+                                        display_name = sound_name
+                                    tag_text = sound_name
+                                    if sound_info["tags"]:
+                                        tag_text += f" [{', '.join(sound_info['tags'])}]"
+                            except Exception:
+                                pass
+
+                            items.append({
+                                "fileName": display_name,
+                                "itemId": str(p_wem_id),
+                                "fileSize": self._format_size(p_wem_info["size"]),
+                                "duration": duration_text,
+                                "itemType": f"WEM (from {override_name})",
+                                "tags": tag_text,
+                                "hasChildren": False,
+                                "depth": 2,
+                                "pckPath": bnk_data["pck_path"],
+                                "isModified": False,
+                                "parentBnk": str(bnk_data["file_id"]),
+                            })
+            except Exception as e:
+                print(f"[Browser] Patch.pck merge in BNK view failed: {e}")
 
             self.treeItemsReady.emit(items)
 
@@ -2980,6 +3084,79 @@ class AudioBrowserBridge(QObject):
             import traceback
             traceback.print_exc()
 
+    def _get_patch_pck_wems_by_bnk(self):
+        # Build {bnk_id: {wem_id: (override_name, lang_id)}} from pristine
+        # Patch.pck/Hotfix.pck in the Persistent folder, cached per game_root
+        # so it survives tab switches. Returns {} on any error.
+        if not self.game_root_dir:
+            return {}
+        cache_key = str(self.game_root_dir)
+        if self._patch_pck_cache_key == cache_key and self._patch_pck_wems_by_bnk is not None:
+            return self._patch_pck_wems_by_bnk
+        result = {}
+        try:
+            persistent_root = Path(self.game_root_dir).joinpath(
+                *self._active_game().persistent_audio_subpath
+            )
+            from src.wwise.patch_target_resolver import find_patch_pck_sources
+            for patch_path, override_name in find_patch_pck_sources(
+                persistent_root, self._active_game()
+            ):
+                try:
+                    patch_idx = PCKIndexer(str(patch_path)).build_index()
+                except Exception:
+                    continue
+                for bank in patch_idx.get("banks", []):
+                    try:
+                        with open(patch_path, "rb") as pf:
+                            pf.seek(bank["offset"])
+                            patch_bnk_bytes = pf.read(bank["size"])
+                        pbi = BNKIndexer(patch_bnk_bytes)
+                        pbi.parse_didx()
+                    except Exception:
+                        continue
+                    bnk_map = result.setdefault(bank["id"], {})
+                    for wem in pbi.wem_list:
+                        bnk_map.setdefault(
+                            wem["wem_id"], (override_name, bank["lang_id"])
+                        )
+        except Exception as e:
+            print(f"[Browser] Patch.pck BNK scan failed: {e}")
+        self._patch_pck_cache_key = cache_key
+        self._patch_pck_wems_by_bnk = result
+        return result
+
+    def _merge_patch_entries_into_index(self, index_dict):
+        # Adds patch-unique WEM ids to `index_dict`, mapping each to the
+        # StreamingAssets SoundBank that also hosts the same bnk_id.
+        patch_map = self._get_patch_pck_wems_by_bnk()
+        if not patch_map:
+            return
+        bnk_to_streaming_pck = {}
+        for fid, locs in index_dict.items():
+            for loc in locs:
+                if loc.get("type") == "bnk" and fid in patch_map:
+                    bnk_to_streaming_pck.setdefault(fid, loc["pck_path"])
+                    break
+        for bnk_id, wems in patch_map.items():
+            streaming_pck = bnk_to_streaming_pck.get(bnk_id)
+            if not streaming_pck:
+                continue
+            for wem_id, (override_name, lang_id) in wems.items():
+                locs = index_dict.setdefault(wem_id, [])
+                if any(
+                    l.get("pck_path") == streaming_pck and l.get("bnk_id") == bnk_id
+                    for l in locs
+                ):
+                    continue
+                locs.append({
+                    "pck_path": streaming_pck,
+                    "type": "wem_embedded",
+                    "bnk_id": bnk_id,
+                    "lang_id": lang_id,
+                    "source_override": override_name,
+                })
+
     def _build_file_index(self, pck_files):
 
         self._index_cancel.set()
@@ -3042,6 +3219,16 @@ class AudioBrowserBridge(QObject):
 
             except Exception:
                 pass
+
+        # Merge patch-unique WEMs (embedded in Patch.pck/Hotfix.pck BNKs whose
+        # id also exists in a StreamingAssets SoundBank) into the index. The
+        # patch scan itself is cached per game on the main thread, so this is
+        # just a quick in-memory union.
+        if not cancel_event.is_set():
+            try:
+                self._merge_patch_entries_into_index(temp_index)
+            except Exception as e:
+                print(f"[Browser] Patch.pck index merge failed: {e}")
 
         if cancel_event.is_set():
             return

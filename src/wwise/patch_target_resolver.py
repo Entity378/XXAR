@@ -1,12 +1,7 @@
-# Resolves mod entries that target protected override PCKs (Patch.pck/Hotfix.pck)
-# by remapping them to the corresponding SoundBank/Streamed PCK in StreamingAssets
-# (the one that originally contains the same bnk_id / wem_id). Also pre-extracts
-# pristine BNK content from Patch.pck for BNKs that the main rebuild loop will
-# need to merge with mod WEMs.
-#
-# Assumption of domain: every BNK/WEM id present in Patch.pck also exists in a
-# SoundBank_SFX_*.pck / Streamed_SFX_*.pck (or equivalent per game) under
-# StreamingAssets — Patch.pck is an override, not a source of new ids.
+# Remaps mod entries that target protected override PCKs (Patch.pck/Hotfix.pck)
+# to the corresponding SoundBank/Streamed PCK in StreamingAssets (where the
+# same bnk_id / wem_id originally lives), and pre-extracts pristine BNK content
+# for the main rebuild loop to merge with mod WEMs.
 
 from pathlib import Path
 
@@ -15,27 +10,29 @@ from src.wwise.pck_indexer import PCKIndexer
 BACKUP_SUFFIX = ".xxar_backup"
 
 
+def find_patch_pck_sources(persistent_root, game):
+    # Returns [(pristine_path, override_pck_name), ...] preferring .xxar_backup
+    # when present so callers see the pre-mod state.
+    persistent_root = Path(persistent_root) if persistent_root else None
+    if not persistent_root or not persistent_root.exists():
+        return []
+
+    protected = set(getattr(game, "protected_pcks", ()) or ())
+    sources = []
+    for p in persistent_root.rglob("*.pck"):
+        if p.name not in protected:
+            continue
+        backup = p.with_name(p.name + BACKUP_SUFFIX)
+        sources.append((backup if backup.exists() else p, p.name))
+    return sources
+
+
 def resolve_and_extract(resolved, streaming_root, persistent_root, game):
-    """Remap protected-PCK entries in `resolved` to their StreamingAssets
-    counterpart and extract pristine BNK content from Patch.pck/Hotfix.pck for
-    every BNK id that appears in `resolved` (after remap) AND in any override.
-
-    `resolved` is mutated in place: protected-PCK keys are removed and their
-    entries are moved under the discovered target pck_name.
-
-    Returns:
-        {
-            "remapped": int,                # number of entries remapped
-            "dropped":  int,                # entries that could not be resolved
-            "patch_bnk_content": {
-                bnk_id: {
-                    "source": "Patch.pck"|"Hotfix.pck",
-                    "wems": {wem_id: wem_bytes, ...},   # pristine
-                },
-                ...
-            },
-        }
-    """
+    # Mutates `resolved` in place (removes protected pck_name keys, moves
+    # entries under the resolved dest_pck). Returns stats plus a
+    # patch_bnk_content dict: {bnk_id: {"source": override_pck_name,
+    # "wems": {wem_id: bytes}}} used by the main loop to transport pristine
+    # override WEMs into the dest BNK before applying mod replacements.
     streaming_root = Path(streaming_root) if streaming_root else None
     persistent_root = Path(persistent_root) if persistent_root else None
     protected_names = set(getattr(game, "protected_pcks", ()) or ())

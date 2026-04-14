@@ -1,7 +1,5 @@
-"""
-Compiles all .ts translation files to .qm using lrelease.
-Run from anywhere: python scripts/release_translations.py
-"""
+# Compiles all .ts translation files to .qm using lrelease.
+# Usage: python scripts/release_translations.py
 
 import subprocess
 import sys

@@ -633,12 +633,8 @@ class BaseBrowserHandler:
         duration_ms_by_track, volume_db_by_track,
         patched_track_ids,
     ):
-        """Apply volume and duration patches to bank content.
-
-        Works on a bytearray in memory so volume insertions (which shift bytes)
-        don't break duration offsets.  Writes the final result once.
-        Returns True if any patches were applied.
-        """
+        # Patch in-memory on a bytearray so volume insertions don't shift
+        # duration offsets mid-pass; single write at the end.
         targets = scan_bank_for_patch_targets(raw, source_ids)
         has_duration = targets.tracks or targets.segments
         has_volume = targets.volume_patches and volume_db_by_track

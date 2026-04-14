@@ -65,7 +65,6 @@ DATA_SUBDIR = _active_game.build_target
 
 
 def switch_active_game(game_id: str):
-    """Update all module-level config to reflect a new active game."""
     import src.core.app_config as _self
 
     game = get_game(game_id)

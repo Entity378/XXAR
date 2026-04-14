@@ -129,14 +129,8 @@ def scan_bank_for_patch_targets(content, source_ids):
 
 
 def apply_volume_patches(content, volume_patches, volume_db_by_source):
-    """Apply volume patches to a mutable bytearray.
-
-    Only patches tracks that already have a Volume property in their
-    AkPropBundle (in-place overwrite, no size change).  Tracks without
-    an existing property are skipped to avoid corrupting the file.
-
-    Returns {"patched": int, "skipped": int}.
-    """
+    # In-place overwrite only: tracks without an existing Volume property in
+    # their AkPropBundle are skipped to avoid shifting offsets/corrupting.
     patched = 0
     skipped = 0
 
@@ -158,11 +152,6 @@ def apply_volume_patches(content, volume_patches, volume_db_by_source):
 
 
 def apply_duration_patches(content, targets, duration_ms_by_source):
-    """Write new duration values to the bank content bytearray.
-
-    duration_ms_by_source: dict mapping source_id (int) -> duration in ms (float).
-    Returns {"patched_offsets": int, "patched_source_ids": set}.
-    """
     patched_offsets = 0
     patched_source_ids = set()
 
@@ -216,9 +205,8 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
 
 
 def _adjust_hirc_sizes(content, offset_inside_object, delta):
-    """Walk backwards from an offset inside an HIRC object to find and update
-    the object size field and the HIRC section size field."""
-    # Find the nearest HIRC header before this offset.
+    # Walk back to the enclosing HIRC header, bump its section size and the
+    # containing object's size by `delta`.
     search_start = max(0, offset_inside_object - 0x100000)
     chunk = bytes(content[search_start : offset_inside_object])
     hirc_pos = chunk.rfind(b"HIRC")
@@ -266,11 +254,8 @@ def _find_hirc_sections(content):
 
 
 def _parse_music_track(content, data_start, obj_size, source_ids):
-    """Parse a MusicTrack (0x0B) HIRC object.
-
-    Returns (obj_id, [TrackPatchInfo, ...], [VolumePatchInfo, ...])
-    if the track references any source in *source_ids*, otherwise None.
-    """
+    # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track
+    # references any id in `source_ids`, else None.
     d = data_start
     end = d + obj_size
     if d + 9 > end:
@@ -330,18 +315,8 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
 
 
 def _parse_volume_from_track(content, p, end, track_patches):
-    """Parse the post-playlist section of a MusicTrack to find the volume
-    property in the AkPropBundle.  *p* is the cursor right after the playlist.
-
-    Layout (confirmed by parse_hirc_examples.py):
-      numSubTrack(u32) + numClipAutomation(u32) +
-        [AkClipAutomation: clipIndex(4) + autoType(4) + numPoints(4) + points(12*n)] +
-      eTrackType(u32) + bIsTransitionEnabled(u8) +
-      NodeBaseParams (Music variant):
-        bIsOverrideParentFX(u8) + uNumFx(u8) + [FX data] +
-        directParentID(u32) + byBitVector(u8) +
-        AkPropBundle: cProps(u8) + pID[cProps] + pValue[cProps*4]
-    """
+    # Post-playlist section of a MusicTrack; walks NodeBaseParams to find the
+    # AkPropBundle Volume entry. Layout reference: parse_hirc_examples.py.
     try:
         return _parse_volume_from_track_inner(content, p, end, track_patches)
     except Exception:

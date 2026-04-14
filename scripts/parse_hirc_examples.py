@@ -1,4 +1,4 @@
-"""Parse and display detailed HIRC examples from Banks1.pck for documentation."""
+# Dumps HIRC examples from Banks1.pck for documentation.
 import struct
 import sys
 

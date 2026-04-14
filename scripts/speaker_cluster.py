@@ -33,7 +33,6 @@ _SPEECHBRAIN_AVAILABLE = False
 _encoder_model = None
 
 def _find_speechbrain_site_packages():
-    """Return the site-packages path inside the speechbrain pipx venv, or None."""
     venv_lib = Path.home() / ".local/share/pipx/venvs/speechbrain/lib"
     if not venv_lib.exists():
         return None
@@ -42,16 +41,9 @@ def _find_speechbrain_site_packages():
     return None
 
 def _patch_speechbrain(site_packages):
-    """
-    Auto-patch known speechbrain compatibility issues so users don't have to
-    manually edit files after `pipx install speechbrain`.
-
-    Patches applied:
-      1. torch_audio_backend.py -- torchaudio 2.x removed list_audio_backends();
-         wrap the call in hasattr() guard.
-      2. speechbrain/utils/fetching.py -- huggingface_hub >=1.0 renamed
-         use_auth_token= to token=.
-    """
+    # Auto-patches two known compat issues after `pipx install speechbrain`:
+    # torchaudio 2.x removed list_audio_backends(); huggingface_hub >=1.0
+    # renamed use_auth_token= to token=.
     patched = []
 
     # --- Patch 1: torch_audio_backend.py ---
@@ -245,7 +237,6 @@ def read_key():
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 def _kbhit():
-    """Return True if a key is waiting in stdin (non-blocking)."""
     if _is_windows:
         import msvcrt
         return msvcrt.kbhit()
@@ -254,7 +245,6 @@ def _kbhit():
         return bool(select.select([sys.stdin], [], [], 0)[0])
 
 def _getch():
-    """Read one character from stdin without blocking (call only after _kbhit())."""
     if _is_windows:
         import msvcrt
         return msvcrt.getwch()
@@ -578,7 +568,6 @@ def find_audio_directory(game_dir, lang_code):
     return None
 
 def scan_wem_folder(wem_dir):
-    """Yield (wem_bytes, meta) for every .wem file directly in wem_dir."""
     wem_files = sorted(Path(wem_dir).glob("*.wem"))
     for wem_file in wem_files:
         try:
@@ -848,7 +837,6 @@ def apply_clusters_to_db(clusters_data, audio_dir):
     return speaker_count, applied_count
 
 def fetch_wem_bytes(meta, audio_dir):
-    """Re-read raw WEM bytes for a clip given its metadata dict."""
     try:
         clip_type = meta.get("type", "wem")
         pck_name  = meta.get("pck_file")
@@ -881,7 +869,7 @@ def fetch_wem_bytes(meta, audio_dir):
 
 
 def play_wem_preview(clips, audio_dir, vgmstream_path, ffmpeg_path, n=3):
-    """Play up to n clips from a speaker group. Press any key to skip a clip."""
+    # Plays up to n clips. Press any key to skip a clip.
     import random
     sample = random.sample(clips, min(n, len(clips)))
     ffplay = shutil.which("ffplay") or (str(Path(ffmpeg_path).parent / "ffplay") if ffmpeg_path else None)
