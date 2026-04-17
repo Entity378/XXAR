@@ -959,13 +959,14 @@ class InstallModWorker(QThread):
     finished = pyqtSignal(bool, str)
     multipleFound = pyqtSignal(list)
 
-    def __init__(self, archive_path, chosen_mod=None, gamebanana_id=0, download_url="", item_type="Sound"):
+    def __init__(self, archive_path, chosen_mod=None, gamebanana_id=0, download_url="", item_type="Sound", game_id=None):
         super().__init__()
         self.archive_path = Path(archive_path)
         self.chosen_mod = chosen_mod
         self.gamebanana_id = gamebanana_id
         self.download_url = download_url
         self.item_type = item_type
+        self.game_id = game_id
 
     def run(self):
         import traceback
@@ -1003,7 +1004,7 @@ class InstallModWorker(QThread):
             with open(extract_path, 'wb') as f:
                 f.write(data)
 
-            manager = ModPackageManager()
+            manager = ModPackageManager(game_id=self.game_id)
             result = manager.install_mod(extract_path)
 
             if result is None:
@@ -1395,7 +1396,7 @@ class GameBananaBridge(QObject):
             self._install_queue.append((archive_path, chosen_mod, gamebanana_id, download_url, item_type))
             return
         self.installStateChanged.emit(True)
-        self.install_worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type)
+        self.install_worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type, game_id=self._active_game_id)
         self.install_worker.finished.connect(self._on_install_finished)
         captured_url = download_url
         def _on_multiple_found(names):
@@ -1422,7 +1423,7 @@ class GameBananaBridge(QObject):
 
         if self._install_queue:
             next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)
-            self.install_worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type)
+            self.install_worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type, game_id=self._active_game_id)
             self.install_worker.finished.connect(self._on_install_finished)
             self.install_worker.multipleFound.connect(
                 lambda names: self.multipleModsFound.emit(names, next_path)
@@ -1435,7 +1436,7 @@ class GameBananaBridge(QObject):
     def getInstalledModNames(self):
         try:
             from src.mods.package_manager import ModPackageManager
-            manager = ModPackageManager()
+            manager = ModPackageManager(game_id=self._active_game_id)
             return [
                 mod['metadata'].get('name', '')
                 for mod in manager.get_installed_mods()
@@ -1454,7 +1455,7 @@ class GameBananaBridge(QObject):
 
         try:
             from src.mods.package_manager import ModPackageManager
-            manager = ModPackageManager()
+            manager = ModPackageManager(game_id=self._active_game_id)
             mod_ids = []
             for mod in manager.get_installed_mods():
                 gid = mod['metadata'].get('gamebanana_id')
@@ -1469,7 +1470,7 @@ class GameBananaBridge(QObject):
 
         try:
             from src.mods.package_manager import ModPackageManager
-            manager = ModPackageManager()
+            manager = ModPackageManager(game_id=self._active_game_id)
             totals = dict(_cache.get("mod_totals_by_url", {}))
             mods_by_url = {}
             for mod in manager.get_installed_mods():
@@ -1501,7 +1502,7 @@ class GameBananaBridge(QObject):
 
         try:
             from src.mods.package_manager import ModPackageManager
-            manager = ModPackageManager()
+            manager = ModPackageManager(game_id=self._active_game_id)
             result = {}
             for mod in manager.get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')
@@ -1521,7 +1522,7 @@ class GameBananaBridge(QObject):
         try:
             from src.mods.package_manager import ModPackageManager
             totals = dict(_cache.get("mod_totals_by_url", {}))
-            for mod in ModPackageManager().get_installed_mods():
+            for mod in ModPackageManager(game_id=self._active_game_id).get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')
                 t = mod['metadata'].get('gamebanana_mod_total')
                 if url and t and url not in totals:

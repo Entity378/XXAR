@@ -13,7 +13,6 @@ from pathlib import Path
 import json
 import os
 import sys
-import shutil
 import subprocess
 import src.core.app_config as app_config
 from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
@@ -157,9 +156,10 @@ class ModManagerBridge(QObject):
         self.conflict_preferences = {}
         self.hsr_vo_backup_mode = "local"
 
-        self.persistent_mod_manager = PersistentModManager()
+        self.persistent_mod_manager = PersistentModManager(game_id=self.active_game_id)
         self.mod_package_manager = ModPackageManager(
-            persistent_mod_manager=self.persistent_mod_manager
+            persistent_mod_manager=self.persistent_mod_manager,
+            game_id=self.active_game_id,
         )
 
         self.load_settings()
@@ -225,30 +225,27 @@ class ModManagerBridge(QObject):
                     ):
                         custom_mods_dir = settings.get("custom_mod_library_dir", "")
 
-                    old_mods_dir = self.mod_package_manager.mods_dir
                     if custom_mods_dir:
                         set_mod_library_dir(custom_mods_dir)
                         new_library = get_mod_library_dir()
                     else:
                         set_mod_library_dir(None)
                         new_library = get_game_mod_library_dir(self.active_game_id)
-                    new_mods_dir = new_library / 'mods'
 
-                    if old_mods_dir != new_mods_dir and old_mods_dir.exists():
-                        new_mods_dir.mkdir(parents=True, exist_ok=True)
-                        for mod_dir in old_mods_dir.iterdir():
-                            if mod_dir.is_dir():
-                                dest = new_mods_dir / mod_dir.name
-                                if not dest.exists():
-                                    try:
-                                        shutil.move(str(mod_dir), str(dest))
-                                        print(f"[Mod Manager] Moved mod {mod_dir.name} to {dest}")
-                                    except Exception as e:
-                                        print(f"[Mod Manager] Warning: Failed to move {mod_dir.name}: {e}")
-
+                    persistent_base = (
+                        self.persistent_mod_manager.persistent_base_path
+                        if self.persistent_mod_manager
+                        else None
+                    )
+                    self.persistent_mod_manager = PersistentModManager(
+                        persistent_base_path=persistent_base,
+                        tracker_path=Path(new_library) / "mod_tracker.json",
+                        game_id=self.active_game_id,
+                    )
                     self.mod_package_manager = ModPackageManager(
                         mod_library_path=str(new_library),
-                        persistent_mod_manager=self.persistent_mod_manager
+                        persistent_mod_manager=self.persistent_mod_manager,
+                        game_id=self.active_game_id,
                     )
                     print(f"[Mod Manager]   Mods dir: {new_library}")
 

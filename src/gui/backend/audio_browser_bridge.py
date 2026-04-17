@@ -319,7 +319,7 @@ class AudioBrowserBridge(QObject):
         self.audio_player = AudioPlayer(AudioConverter(), self.cache_manager)
         self.sound_db = SoundDatabase()
         self.fingerprint_db = FingerprintDatabase()
-        self.mod_manager = PersistentModManager()
+        self.mod_manager = PersistentModManager(game_id=DEFAULT_GAME_ID)
 
         self.game_root_dir = None
         self.game_mode = DEFAULT_GAME_ID
@@ -429,7 +429,8 @@ class AudioBrowserBridge(QObject):
             db_path=get_game_fingerprint_database_file(normalized)
         )
         self.mod_manager = PersistentModManager(
-            tracker_path=get_game_mod_tracker_file(normalized)
+            tracker_path=get_game_mod_tracker_file(normalized),
+            game_id=normalized,
         )
         self._active_db_game_id = normalized
         self._emit_changes_count()
@@ -2253,7 +2254,7 @@ class AudioBrowserBridge(QObject):
 
         try:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating mod package..."))
-            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager)
+            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
 
             metadata = {
                 "name": name,
@@ -2962,7 +2963,7 @@ class AudioBrowserBridge(QObject):
                 print("[Audio Browser] Clearing existing changes before importing new mod")
                 self.mod_manager.clear_all_replacements()
 
-            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager)
+            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
             metadata = mod_pkg.validate_mod_package(mod_path)
 
             mod_name = metadata.get('name', 'Unknown')

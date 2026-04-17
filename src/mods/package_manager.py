@@ -7,7 +7,25 @@ import zipfile
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from src.core.config_manager import get_mod_library_dir, get_mod_config_file
+from src.core.config_manager import (
+    get_mod_library_dir,
+    get_game_mod_library_dir,
+    normalize_game_id,
+)
+from src.core.game_registry import DEFAULT_GAME_ID
+
+
+def _get_active_game_id():
+    try:
+        from src.core.config_manager import get_settings_file
+        settings_file = get_settings_file()
+        if settings_file.exists():
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+                return normalize_game_id(settings.get('selected_game', DEFAULT_GAME_ID))
+    except Exception:
+        pass
+    return DEFAULT_GAME_ID
 
 
 class InvalidModPackageError(Exception):
@@ -21,11 +39,15 @@ class ModApplicationError(Exception):
 class ModPackageManager:
 
 
-    def __init__(self, mod_library_path=None, persistent_mod_manager=None):
+    def __init__(self, mod_library_path=None, persistent_mod_manager=None, game_id=None):
 
-        self.mod_library_path = Path(mod_library_path) if mod_library_path else get_mod_library_dir()
+        self.game_id = normalize_game_id(game_id) if game_id else _get_active_game_id()
+        if mod_library_path:
+            self.mod_library_path = Path(mod_library_path)
+        else:
+            self.mod_library_path = get_game_mod_library_dir(self.game_id)
         self.mods_dir = self.mod_library_path / 'mods'
-        self.config_path = get_mod_config_file()
+        self.config_path = self.mod_library_path / 'mod_config.json'
         self.persistent_mod_manager = persistent_mod_manager
         self.mod_config = {}
 

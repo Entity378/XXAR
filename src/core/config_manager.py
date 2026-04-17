@@ -82,14 +82,6 @@ class ConfigManager:
         return self.config_dir / "settings.json"
 
     @property
-    def mod_config_file(self):
-        return self.config_dir / "mod_config.json"
-
-    @property
-    def mod_tracker_file(self):
-        return self.config_dir / "mod_tracker.json"
-
-    @property
     def default_mod_library_dir(self):
         return self.game_data_dir(DEFAULT_GAME_ID) / "mod_library"
 
@@ -164,14 +156,6 @@ def get_settings_file():
     return _config_manager.settings_file
 
 
-def get_mod_config_file():
-    return _config_manager.mod_config_file
-
-
-def get_mod_tracker_file():
-    return _config_manager.mod_tracker_file
-
-
 def get_mod_library_dir():
     return _config_manager.mod_library_dir
 
@@ -216,18 +200,12 @@ def get_custom_mod_library_settings_key(game_id=DEFAULT_GAME_ID):
     return f"{game}_custom_mod_library_dir"
 
 
-def get_game_mod_config_file(game_id=DEFAULT_GAME_ID):
-    game = normalize_game_id(game_id)
-    if game == DEFAULT_GAME_ID:
-        return get_mod_config_file()
-    return get_config_dir() / f"mod_config_{game}.json"
+def get_game_mod_config_file(game_id=DEFAULT_GAME_ID, custom_root=None):
+    return get_game_mod_library_dir(game_id, custom_root) / "mod_config.json"
 
 
-def get_game_mod_tracker_file(game_id=DEFAULT_GAME_ID):
-    game = normalize_game_id(game_id)
-    if game == DEFAULT_GAME_ID:
-        return get_mod_tracker_file()
-    return get_config_dir() / f"mod_tracker_{game}.json"
+def get_game_mod_tracker_file(game_id=DEFAULT_GAME_ID, custom_root=None):
+    return get_game_mod_library_dir(game_id, custom_root) / "mod_tracker.json"
 
 
 def resolve_mod_paths_for_game(game_id=DEFAULT_GAME_ID, custom_root=None):

@@ -3,15 +3,20 @@
 import json
 from pathlib import Path
 from datetime import datetime
-from src.core.config_manager import get_mod_tracker_file
+from src.core.config_manager import get_game_mod_tracker_file
+from src.core.game_registry import DEFAULT_GAME_ID
 
 class PersistentModManager:
 
 
-    def __init__(self, persistent_base_path=None, tracker_path=None):
+    def __init__(self, persistent_base_path=None, tracker_path=None, game_id=None):
 
         self.persistent_base_path = Path(persistent_base_path) if persistent_base_path else None
-        self.mod_tracker_path = Path(tracker_path) if tracker_path else get_mod_tracker_file()
+        if tracker_path:
+            self.mod_tracker_path = Path(tracker_path)
+        else:
+            self.mod_tracker_path = get_game_mod_tracker_file(game_id or DEFAULT_GAME_ID)
+        self.mod_tracker_path.parent.mkdir(parents=True, exist_ok=True)
         self.mod_tracker = {}
 
         self.load_tracker()
