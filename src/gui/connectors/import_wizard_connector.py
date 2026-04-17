@@ -35,7 +35,9 @@ class ImportWizardConnector:
             filter_str = "WEM Files (*.wem);;All Files (*)"
             title = "Select WEM File(s)"
 
-        files = NativeDialogs.get_open_files(title, str(Path.home()), filter_str)
+        files = NativeDialogs.get_open_files(
+            title, filter_str=filter_str, remember_key="import_wem_files"
+        )
 
         if files:
             print(f"[Import Wizard] Selected {len(files)} file(s)")
@@ -54,7 +56,9 @@ class ImportWizardConnector:
     def on_wizard_browse_folder(self, mode):
         print(f"[Import Wizard] Browsing for folder, mode: {mode}")
 
-        folder = NativeDialogs.get_directory("Select Folder", str(Path.home()))
+        folder = NativeDialogs.get_directory(
+            "Select Folder", remember_key="import_folder"
+        )
 
         if folder:
             print(f"[Import Wizard] Selected folder: {folder}")
@@ -87,8 +91,8 @@ class ImportWizardConnector:
 
         file_path = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
-            str(Path.home()),
-            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)",
+            filter_str="Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)",
+            remember_key="thumbnail",
         )
 
         if file_path:
@@ -120,8 +124,9 @@ class ImportWizardConnector:
 
         save_path = NativeDialogs.get_save_file(
             f"Save {app_config.MOD_FILE_EXT} Mod Package",
-            str(Path.home() / f"{wizard_data['modName']}{app_config.MOD_FILE_EXT}"),
-            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT})",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT})",
+            remember_key="save_mod",
+            default_filename=f"{wizard_data['modName']}{app_config.MOD_FILE_EXT}",
         )
 
         if not save_path:

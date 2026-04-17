@@ -3,6 +3,7 @@ import subprocess
 import os
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
+from src.gui.utils.path_memory import get_last_dir, save_last_dir
 
 class NativeDialogs:
     @staticmethod
@@ -82,7 +83,21 @@ class NativeDialogs:
         return zenity_args
 
     @staticmethod
-    def get_open_file(title="Open File", start_dir=None, filter_str=""):
+    def _resolve_start_dir(start_dir, remember_key, default_filename=None):
+        # When remember_key is set, use the remembered directory (optionally
+        # combined with the caller's default filename). Otherwise fall back to
+        # start_dir or home.
+        if remember_key:
+            remembered = get_last_dir(remember_key, fallback=None)
+            if remembered:
+                if default_filename:
+                    return str(Path(remembered) / default_filename)
+                return remembered
+        return start_dir or ""
+
+    @staticmethod
+    def get_open_file(title="Open File", start_dir=None, filter_str="", remember_key=None):
+        start_dir = NativeDialogs._resolve_start_dir(start_dir, remember_key)
 
         if NativeDialogs._is_linux() and NativeDialogs._zenity_available():
             args = ["--file-selection", f"--title={title}"]
@@ -93,13 +108,19 @@ class NativeDialogs:
 
             success, res = NativeDialogs._run_zenity(args)
             if success:
-                return res if res else ""
+                path = res if res else ""
+                if path and remember_key:
+                    save_last_dir(remember_key, path)
+                return path
 
         path, _ = QFileDialog.getOpenFileName(None, title, start_dir or "", filter_str)
+        if path and remember_key:
+            save_last_dir(remember_key, path)
         return path
 
     @staticmethod
-    def get_open_files(title="Select Files", start_dir=None, filter_str=""):
+    def get_open_files(title="Select Files", start_dir=None, filter_str="", remember_key=None):
+        start_dir = NativeDialogs._resolve_start_dir(start_dir, remember_key)
 
         if NativeDialogs._is_linux() and NativeDialogs._zenity_available():
             args = [
@@ -115,15 +136,21 @@ class NativeDialogs:
 
             success, res = NativeDialogs._run_zenity(args)
             if success:
-                return res.split("|") if res else []
+                paths = res.split("|") if res else []
+                if paths and remember_key:
+                    save_last_dir(remember_key, paths[0])
+                return paths
 
         paths, _ = QFileDialog.getOpenFileNames(
             None, title, start_dir or "", filter_str
         )
+        if paths and remember_key:
+            save_last_dir(remember_key, paths[0])
         return paths
 
     @staticmethod
-    def get_directory(title="Select Directory", start_dir=None):
+    def get_directory(title="Select Directory", start_dir=None, remember_key=None):
+        start_dir = NativeDialogs._resolve_start_dir(start_dir, remember_key)
 
         if NativeDialogs._is_linux() and NativeDialogs._zenity_available():
             args = ["--file-selection", "--directory", f"--title={title}"]
@@ -132,12 +159,29 @@ class NativeDialogs:
 
             success, res = NativeDialogs._run_zenity(args)
             if success:
-                return res if res else ""
+                path = res if res else ""
+                if path and remember_key:
+                    save_last_dir(remember_key, path)
+                return path
 
-        return QFileDialog.getExistingDirectory(None, title, start_dir or "")
+        path = QFileDialog.getExistingDirectory(None, title, start_dir or "")
+        if path and remember_key:
+            save_last_dir(remember_key, path)
+        return path
 
     @staticmethod
-    def get_save_file(title="Save File", start_dir=None, filter_str=""):
+    def get_save_file(title="Save File", start_dir=None, filter_str="", remember_key=None, default_filename=None):
+        # For save dialogs, start_dir is often a full file path (dir + filename).
+        # When remember_key is set, we extract the filename from start_dir and
+        # combine it with the remembered directory.
+        if remember_key and start_dir and not default_filename:
+            try:
+                p = Path(start_dir)
+                if p.suffix or not p.is_dir():
+                    default_filename = p.name
+            except Exception:
+                pass
+        start_dir = NativeDialogs._resolve_start_dir(start_dir, remember_key, default_filename)
 
         if NativeDialogs._is_linux() and NativeDialogs._zenity_available():
             args = [
@@ -153,7 +197,12 @@ class NativeDialogs:
 
             success, res = NativeDialogs._run_zenity(args)
             if success:
-                return res if res else ""
+                path = res if res else ""
+                if path and remember_key:
+                    save_last_dir(remember_key, path)
+                return path
 
         path, _ = QFileDialog.getSaveFileName(None, title, start_dir or "", filter_str)
+        if path and remember_key:
+            save_last_dir(remember_key, path)
         return path

@@ -540,14 +540,16 @@ class Application(
             filter_str = "WAV Files (*.wav);;All Files (*)"
             title = "Select WAV File"
 
-        file_path = NativeDialogs.get_open_file(title, str(Path.home()), filter_str)
+        file_path = NativeDialogs.get_open_file(
+            title, filter_str=filter_str, remember_key="audio_convert_input_file"
+        )
 
         if file_path:
             self.audio_conversion_bridge.inputPathSelected.emit(file_path)
 
     def on_conversion_browse_input_dir(self):
         dirname = NativeDialogs.get_directory(
-            "Select Input Directory", str(Path.home())
+            "Select Input Directory", remember_key="audio_convert_input_dir"
         )
 
         if dirname:
@@ -555,7 +557,7 @@ class Application(
 
     def on_conversion_browse_output_dir(self):
         dirname = NativeDialogs.get_directory(
-            "Select Output Directory", str(Path.home())
+            "Select Output Directory", remember_key="audio_convert_output_dir"
         )
 
         if dirname:

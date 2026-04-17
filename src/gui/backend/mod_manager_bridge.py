@@ -898,7 +898,9 @@ class ModManagerBridge(QObject):
             filter_str = "WEM Files (*.wem);;All Files (*)"
             title = "Select WEM File(s)"
 
-        filenames = NativeDialogs.get_open_files(title, str(Path.home()), filter_str)
+        filenames = NativeDialogs.get_open_files(
+            title, filter_str=filter_str, remember_key="import_wem_files"
+        )
 
         if filenames:
             print(f"[Import Wizard] Selected {len(filenames)} file(s)")
@@ -909,7 +911,9 @@ class ModManagerBridge(QObject):
     def browseImportFolder(self, mode):
 
 
-        dirname = NativeDialogs.get_directory("Select Folder", str(Path.home()))
+        dirname = NativeDialogs.get_directory(
+            "Select Folder", remember_key="import_folder"
+        )
 
         if dirname:
             folder_path = Path(dirname)
@@ -960,8 +964,8 @@ class ModManagerBridge(QObject):
 
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
-            str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            filter_str="Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            remember_key="thumbnail",
         )
 
         if filename:
@@ -982,8 +986,9 @@ class ModManagerBridge(QObject):
         default_name = mod_name.replace(" ", "_") + app_config.MOD_FILE_EXT
         save_path = NativeDialogs.get_save_file(
             f"Save {app_config.MOD_FILE_EXT} Mod Package",
-            str(Path.home() / default_name),
-            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="save_mod",
+            default_filename=default_name,
         )
 
         return save_path if save_path else ""
@@ -1013,8 +1018,9 @@ class ModManagerBridge(QObject):
             default_name = mod_name.replace(" ", "_") + "_v" + mod_version + app_config.MOD_FILE_EXT
             save_path = NativeDialogs.get_save_file(
                 f"Export Mod as {app_config.MOD_FILE_EXT}",
-                str(Path.home() / default_name),
-                f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+                filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+                remember_key="save_mod",
+                default_filename=default_name,
             )
 
             if not save_path:

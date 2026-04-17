@@ -1358,8 +1358,9 @@ class GameBananaBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         save_path = NativeDialogs.get_save_file(
             title="Save Mod File",
-            start_dir=str(Path.home() / filename),
-            filter_str="All Files (*)"
+            filter_str="All Files (*)",
+            remember_key="gamebanana_download",
+            default_filename=filename,
         )
         if not save_path:
             return

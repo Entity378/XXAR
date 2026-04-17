@@ -1692,8 +1692,8 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Custom Audio",
-            str(Path.home()),
-            "Audio Files (*.mp3 *.wav *.wem *.flac *.ogg *.m4a);;All Files (*)",
+            filter_str="Audio Files (*.mp3 *.wav *.wem *.flac *.ogg *.m4a);;All Files (*)",
+            remember_key="custom_audio_replace",
         )
         if not filename:
             return
@@ -1740,7 +1740,10 @@ class AudioBrowserBridge(QObject):
 
         from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
-            "Export as WAV", str(Path.home() / f"{file_id}.wav"), "WAV Files (*.wav)"
+            "Export as WAV",
+            filter_str="WAV Files (*.wav)",
+            remember_key="export_wav",
+            default_filename=f"{file_id}.wav",
         )
         if not filename:
             return
@@ -2224,8 +2227,8 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
-            str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            filter_str="Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            remember_key="thumbnail",
         )
         if filename:
             self.thumbnailPathSelected.emit(filename)
@@ -2243,8 +2246,9 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Save Mod Package",
-            str(Path.home() / default_name),
-            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="save_mod",
+            default_filename=default_name,
         )
         if not filename:
             return
@@ -2602,8 +2606,8 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
-            str(Path.home()),
-            "Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
+            filter_str="Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
+            remember_key="audio_recording",
         )
         if not recording_path:
             return
@@ -2632,8 +2636,8 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
-            str(Path.home()),
-            "Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
+            filter_str="Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
+            remember_key="audio_recording",
         )
         if recording_path:
             QMetaObject.invokeMethod(
@@ -2945,8 +2949,8 @@ class AudioBrowserBridge(QObject):
         from src.gui.utils.native_dialogs import NativeDialogs
         mod_path = NativeDialogs.get_open_file(
             f"Select {app_config.MOD_FILE_EXT} Mod to Import for Editing",
-            str(Path.home()),
-            f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="import_mod_for_editing",
         )
         if not mod_path:
             return

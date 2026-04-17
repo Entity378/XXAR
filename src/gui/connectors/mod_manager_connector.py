@@ -1,5 +1,4 @@
 from PyQt5.QtCore import QCoreApplication
-import json
 import platform
 import subprocess
 from pathlib import Path
@@ -67,44 +66,16 @@ class ModManagerConnector:
             ""
         )
 
-    def _get_last_install_dir(self):
-        try:
-            if self.settings_file.exists():
-                with open(self.settings_file, "r") as f:
-                    settings = json.load(f)
-                    last_dir = settings.get("last_install_dir", "")
-                    if last_dir and Path(last_dir).is_dir():
-                        return last_dir
-        except Exception:
-            pass
-        return str(Path.home())
-
-    def _save_last_install_dir(self, file_path):
-        try:
-            directory = str(Path(file_path).parent)
-            settings = {}
-            if self.settings_file.exists():
-                with open(self.settings_file, "r") as f:
-                    settings = json.load(f)
-            settings["last_install_dir"] = directory
-            with open(self.settings_file, "w") as f:
-                json.dump(settings, f, indent=2)
-        except Exception as e:
-            print(f"[Mod Manager] Warning: Failed to save last install dir: {e}")
-
     def on_install_mod_clicked(self):
         print("[Mod Manager] Opening file dialog for mod installation...")
 
-        start_dir = self._get_last_install_dir()
-
         file_paths = NativeDialogs.get_open_files(
             QCoreApplication.translate("Application", "Select %1 Mod Package(s)").replace("%1", app_config.MOD_FILE_EXT),
-            start_dir,
-            QCoreApplication.translate("Application", "%1 Mod Packages (*%2);;ZIP Files (*.zip);;All Files (*)").replace("%1", app_config.MOD_FILE_EXT_UPPER).replace("%2", app_config.MOD_FILE_EXT),
+            filter_str=QCoreApplication.translate("Application", "%1 Mod Packages (*%2);;ZIP Files (*.zip);;All Files (*)").replace("%1", app_config.MOD_FILE_EXT_UPPER).replace("%2", app_config.MOD_FILE_EXT),
+            remember_key="install_mod",
         )
 
         if file_paths:
-            self._save_last_install_dir(file_paths[0])
             print(f"[Mod Manager] Installing {len(file_paths)} mod(s)...")
             for file_path in file_paths:
                 print(f"[Mod Manager] Installing mod from: {file_path}")
