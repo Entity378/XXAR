@@ -26,6 +26,19 @@ Item {
         modConflicts = temp
     }
 
+    function randomizeWinners() {
+        for (var i = 0; i < modConflicts.length; i++) {
+            var conflict = modConflicts[i]
+            var mods = conflict.mods
+            if (mods && mods.length > 0) {
+                conflict.winner_mod = mods[Math.floor(Math.random() * mods.length)]
+            }
+        }
+        var temp = modConflicts
+        modConflicts = []
+        modConflicts = temp
+    }
+
     Rectangle {
         anchors.fill: parent
         color: "#80000000"
@@ -235,89 +248,127 @@ Item {
                 }
             }
 
-            Row {
+            Item {
                 width: parent.width
-                spacing: 15
-                layoutDirection: Qt.RightToLeft
+                height: Theme.buttonHeightLarge
 
                 Rectangle {
-                    width: 160
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 140
                     height: Theme.buttonHeightLarge
-                    color: Theme.primaryAccent
+                    color: "transparent"
                     radius: Theme.radiusMedium
-                    scale: applyMouse.pressed ? 0.97 : (applyMouse.containsMouse ? 1.03 : 1.0)
+                    border.color: Theme.primaryAccent
+                    border.width: 1
+                    scale: randomMouse.pressed ? 0.97 : (randomMouse.containsMouse ? 1.03 : 1.0)
                     Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
 
                     Text {
                         anchors.centerIn: parent
-                        text: qsTranslate("Application", "Apply & Save")
-                        color: Theme.textOnAccent
+                        text: qsTranslate("Application", "Randomize")
+                        color: Theme.primaryAccent
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeNormal
                         font.bold: true
                     }
 
                     MouseArea {
-                        id: applyMouse
+                        id: randomMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            var prefs = []
-                            for (var i = 0; i < root.modConflicts.length; i++) {
-                                var modConflict = root.modConflicts[i]
-                                for (var j = 0; j < modConflict.files.length; j++) {
-                                    var file = modConflict.files[j]
-                                    prefs.push({
-                                        pck: file.pck,
-                                        file_id: String(file.file_id),
-                                        winner_mod: modConflict.winner_mod
-                                    })
-                                }
-                            }
-
-                            if (modManager) {
-                                modManager.saveConflictPreferences(JSON.stringify(prefs))
-                            }
-
-                            root.closing = true
-                            root.resolved()
-                            Qt.callLater(function() {
-                                root.visible = false
-                                root.closing = false
-                            })
+                            root.randomizeWinners()
                         }
                     }
                 }
 
-                Rectangle {
-                    width: 120
-                    height: Theme.buttonHeightLarge
-                    color: Theme.disabledAccent
-                    radius: Theme.radiusMedium
-                    scale: cancelMouse.pressed ? 0.97 : (cancelMouse.containsMouse ? 1.03 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+                Row {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 15
+                    layoutDirection: Qt.RightToLeft
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: qsTranslate("Application", "Cancel")
-                        color: Theme.textPrimary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeNormal
+                    Rectangle {
+                        width: 160
+                        height: Theme.buttonHeightLarge
+                        color: Theme.primaryAccent
+                        radius: Theme.radiusMedium
+                        scale: applyMouse.pressed ? 0.97 : (applyMouse.containsMouse ? 1.03 : 1.0)
+                        Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTranslate("Application", "Apply & Save")
+                            color: Theme.textOnAccent
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeNormal
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            id: applyMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                var prefs = []
+                                for (var i = 0; i < root.modConflicts.length; i++) {
+                                    var modConflict = root.modConflicts[i]
+                                    for (var j = 0; j < modConflict.files.length; j++) {
+                                        var file = modConflict.files[j]
+                                        prefs.push({
+                                            pck: file.pck,
+                                            file_id: String(file.file_id),
+                                            winner_mod: modConflict.winner_mod
+                                        })
+                                    }
+                                }
+
+                                if (modManager) {
+                                    modManager.saveConflictPreferences(JSON.stringify(prefs))
+                                }
+
+                                root.closing = true
+                                root.resolved()
+                                Qt.callLater(function() {
+                                    root.visible = false
+                                    root.closing = false
+                                })
+                            }
+                        }
                     }
 
-                    MouseArea {
-                        id: cancelMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.closing = true
-                            root.cancelled()
-                            Qt.callLater(function() {
-                                root.visible = false
-                                root.closing = false
-                            })
+                    Rectangle {
+                        width: 120
+                        height: Theme.buttonHeightLarge
+                        color: Theme.disabledAccent
+                        radius: Theme.radiusMedium
+                        scale: cancelMouse.pressed ? 0.97 : (cancelMouse.containsMouse ? 1.03 : 1.0)
+                        Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTranslate("Application", "Cancel")
+                            color: Theme.textPrimary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeNormal
+                        }
+
+                        MouseArea {
+                            id: cancelMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.closing = true
+                                root.cancelled()
+                                Qt.callLater(function() {
+                                    root.visible = false
+                                    root.closing = false
+                                })
+                            }
                         }
                     }
                 }
