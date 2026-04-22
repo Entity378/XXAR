@@ -27,7 +27,7 @@
 						</Property>
 						<Property Name="SRConversionQuality" Type="int32">
 							<ValueList>
-								<Value>1</Value>
+								<Value>2</Value>
 							</ValueList>
 						</Property>
 						<Property Name="SampleRate" Type="int32">

@@ -14,6 +14,7 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -34,3 +35,16 @@ build*/
 .DS_Store
 Thumbs.db
 *.md
+
+# Reference MSIs placed locally for analysis (not part of the source tree)
+XXMI-Launcher-Installer-Online-*.msi
+
+# C# / WixSharp build output
+installer_ws/bin/
+installer_ws/obj/
+*.wixpdb
+*.user
+
+# WixSharp build intermediates
+installer_ws/bin/
+installer_ws/obj/

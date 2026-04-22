@@ -1,0 +1,88 @@
+<wixsharp:WpfDialog
+    x:Class="XXAR.Installer.Dialogs.XXARLicenceDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wixsharp="clr-namespace:WixSharp.UI.WPF;assembly=WixSharp.UI.WPF"
+    DialogTitle="[ProductName] Setup"
+    Background="#10123A">
+    <wixsharp:WpfDialog.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/XXAR.Installer.Build;component/Themes/XXARPalette.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </wixsharp:WpfDialog.Resources>
+
+    <Grid Background="{DynamicResource XXARWindowBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="53" />
+        </Grid.RowDefinitions>
+
+        <!-- Top banner -->
+        <Border Grid.Row="0" Background="#0A0B28"
+                BorderBrush="{DynamicResource XXARAccentBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="License Agreement"
+                               Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                               FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="Please read the following license agreement carefully."
+                               Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="11" Margin="0,2,0,0" />
+                </StackPanel>
+                <Image Grid.Column="1"
+                       Source="/XXAR.Installer.Build;component/Assets/XXAR-Logo2-512.png"
+                       Height="44" Stretch="Uniform"
+                       VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Grid>
+        </Border>
+
+        <!-- Content -->
+        <Grid Grid.Row="1" Margin="20,16,20,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#0E1030"
+                    BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="1"
+                    CornerRadius="3">
+                <RichTextBox x:Name="LicenceText" IsReadOnly="True"
+                             Background="Transparent" Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                             BorderThickness="0" Padding="10"
+                             VerticalScrollBarVisibility="Auto" />
+            </Border>
+
+            <CheckBox Grid.Row="1" x:Name="AcceptCheckbox"
+                      IsChecked="{Binding LicenseAcceptedChecked, Mode=TwoWay}"
+                      Margin="0,12,0,0" Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                      FontSize="13">
+                <TextBlock Text="I accept the terms in the License Agreement" />
+            </CheckBox>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#080922"
+                BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button x:Name="GoPrev" Content="[WixUIBack]"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        Click="GoPrev_Click" Margin="4,0" />
+                <Button x:Name="GoNext" Content="[WixUINext]"
+                        Style="{StaticResource XXARPrimaryButton}"
+                        IsEnabled="{Binding LicenseAcceptedChecked}"
+                        Click="GoNext_Click" Margin="4,0" />
+                <Button x:Name="Cancel" Content="[WixUICancel]"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        Click="Cancel_Click" Margin="12,0,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</wixsharp:WpfDialog>

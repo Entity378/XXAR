@@ -196,7 +196,7 @@ class AudioConverter:
             if af:
                 cmd.extend(['-af', af])
             cmd.extend([
-                '-acodec', 'pcm_s16le',
+                '-acodec', 'pcm_f32le',
                 '-ar', str(sample_rate),
                 '-ac', str(channels),
                 '-y',

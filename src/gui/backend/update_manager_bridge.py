@@ -7,6 +7,7 @@ import shutil
 import ssl
 import tarfile
 import zipfile
+import subprocess
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -17,6 +18,28 @@ from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
 
 GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
+
+# Registry key the MSI installer writes (see installer_ws/Setup.cs). If absent
+# we assume portable/ZIP install and route updates through the helper exe.
+_MSI_REGISTRY_PATH = rf"Software\{APP_NAME}"
+_MSI_REGISTRY_VALUE = "InstallLocation"
+
+
+def _read_msi_install_location():
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _MSI_REGISTRY_PATH) as key:
+            value, _ = winreg.QueryValueEx(key, _MSI_REGISTRY_VALUE)
+            p = Path(value)
+            return p if p.exists() else None
+    except (OSError, ImportError):
+        return None
+
+
+def _is_msi_install():
+    return _read_msi_install_location() is not None
 
 
 def _get_ssl_context():
@@ -80,7 +103,8 @@ def parse_version(version_str):
 
 
 class UpdateCheckWorker(QThread):
-    updateAvailable = pyqtSignal(str, str, str)  # version, download_url, release_notes
+    # version, download_url, asset_name, release_notes
+    updateAvailable = pyqtSignal(str, str, str, str)
     noUpdateAvailable = pyqtSignal()
     errorOccurred = pyqtSignal(str)
 
@@ -114,27 +138,39 @@ class UpdateCheckWorker(QThread):
                 return
 
             if sys.platform.startswith("win"):
-                asset_name = f"{APP_NAME}-windows-x64.zip"
+                # Prefer MSI if we know the install came from the MSI, else
+                # fall back to the portable ZIP. Track the raw tag so we can
+                # probe version-tagged MSI asset names.
+                version_tag = clean_version_string(tag)
+                if _is_msi_install():
+                    asset_candidates = [
+                        f"{APP_NAME}-Installer-v{version_tag}.msi",
+                        f"{APP_NAME}-Installer.msi",
+                    ]
+                else:
+                    asset_candidates = [f"{APP_NAME}-windows-x64.zip"]
             else:
-                asset_name = f"{APP_NAME}-linux-x64.flatpak"
+                asset_candidates = [f"{APP_NAME}-linux-x64.flatpak"]
 
             download_url = ""
-            for asset in data.get("assets", []):
-                if asset["name"] == asset_name:
+            asset_name = ""
+            assets_by_name = {a["name"]: a for a in data.get("assets", [])}
+            for candidate in asset_candidates:
+                asset = assets_by_name.get(candidate)
+                if asset:
+                    asset_name = candidate
                     # api url needs token auth, browser url works without
-                    if self.github_token:
-                        download_url = asset["url"]
-                    else:
-                        download_url = asset["browser_download_url"]
+                    download_url = asset["url"] if self.github_token else asset["browser_download_url"]
                     break
 
             if not download_url:
-                self.errorOccurred.emit(f"No {asset_name} found in release assets")
+                tried = ", ".join(asset_candidates)
+                self.errorOccurred.emit(f"No matching asset found in release (tried: {tried})")
                 return
 
             version_str = clean_version_string(tag)
             release_notes = data.get("body", "") or ""
-            self.updateAvailable.emit(version_str, download_url, release_notes)
+            self.updateAvailable.emit(version_str, download_url, asset_name, release_notes)
 
         except urllib.error.HTTPError as e:
             if e.code == 404:
@@ -151,25 +187,21 @@ class UpdateCheckWorker(QThread):
 
 class UpdateDownloadWorker(QThread):
     downloadProgress = pyqtSignal(int)  # percent
-    downloadFinished = pyqtSignal(str)  # extracted binary path
+    # Emits (kind, path). kind is one of: "msi", "zip_staging", "flatpak".
+    downloadFinished = pyqtSignal(str, str)
     errorOccurred = pyqtSignal(str)
 
-    def __init__(self, download_url, github_token=""):
+    def __init__(self, download_url, asset_name, github_token=""):
         super().__init__()
         self.download_url = download_url
+        self.asset_name = asset_name
         self.github_token = github_token
 
     def run(self):
         try:
             update_dir = get_cache_dir() / "updates"
             update_dir.mkdir(parents=True, exist_ok=True)
-
-            if sys.platform.startswith("win"):
-                archive_name = f"{APP_NAME}-windows-x64.zip"
-            else:
-                archive_name = f"{APP_NAME}-linux-x64.flatpak"
-
-            archive_path = update_dir / archive_name
+            archive_path = update_dir / self.asset_name
 
             req = urllib.request.Request(self.download_url)
             req.add_header("User-Agent", f"{APP_NAME}-Updater")
@@ -193,22 +225,47 @@ class UpdateDownloadWorker(QThread):
                             percent = min(int(downloaded * 100 / total_size), 100)
                             self.downloadProgress.emit(percent)
 
-            if sys.platform.startswith("win"):
+            lower = self.asset_name.lower()
+            if lower.endswith(".msi"):
+                # msiexec consumes the .msi directly; no extraction.
+                self.downloadFinished.emit("msi", str(archive_path))
+            elif lower.endswith(".zip"):
+                # Portable: pre-extract into a staging folder the helper will
+                # move into Resources/Bin. Nuke any previous staging first.
+                staging_parent = update_dir / "staging"
+                if staging_parent.exists():
+                    shutil.rmtree(str(staging_parent), ignore_errors=True)
+                staging_parent.mkdir(parents=True, exist_ok=True)
                 with zipfile.ZipFile(archive_path, "r") as zf:
-                    zf.extractall(update_dir)
-                binary_path = update_dir / f"{APP_NAME}.exe"
+                    zf.extractall(staging_parent)
+                archive_path.unlink(missing_ok=True)
+                # The zip's top-level entry is the PyInstaller COLLECT folder
+                # (dist/XXAR/). Resolve it regardless of its exact name.
+                entries = [p for p in staging_parent.iterdir() if p.is_dir()]
+                if len(entries) != 1:
+                    self.errorOccurred.emit(
+                        f"Expected a single top-level folder in {self.asset_name}, "
+                        f"found {len(entries)}"
+                    )
+                    return
+                staging_root = entries[0]
+                if not (staging_root / f"{APP_NAME}.exe").exists():
+                    self.errorOccurred.emit(f"{APP_NAME}.exe not found inside staging")
+                    return
+                self.downloadFinished.emit("zip_staging", str(staging_root))
+            elif lower.endswith(".flatpak"):
+                self.downloadFinished.emit("flatpak", str(archive_path))
             else:
+                # Legacy tar.gz path preserved for existing Linux Flatpak
+                # pipeline that may still stream a .tar.gz.
                 with tarfile.open(archive_path, "r:gz") as tf:
                     tf.extractall(update_dir)
                 binary_path = update_dir / APP_NAME
-
-            archive_path.unlink(missing_ok=True)
-
-            if not binary_path.exists():
-                self.errorOccurred.emit("Extracted binary not found")
-                return
-
-            self.downloadFinished.emit(str(binary_path))
+                if not binary_path.exists():
+                    self.errorOccurred.emit("Extracted binary not found")
+                    return
+                archive_path.unlink(missing_ok=True)
+                self.downloadFinished.emit("flatpak", str(binary_path))
 
         except Exception as e:
             self.errorOccurred.emit(f"Download failed: {e}")
@@ -227,7 +284,9 @@ class UpdateManagerBridge(QObject):
         self._check_worker = None
         self._download_worker = None
         self._download_url = ""
-        self._downloaded_binary = ""
+        self._asset_name = ""
+        self._downloaded_path = ""
+        self._downloaded_kind = ""  # "msi", "zip_staging", "flatpak"
         self._current_version = ""
         self._github_token = ""
 
@@ -274,9 +333,10 @@ class UpdateManagerBridge(QObject):
         self._check_worker.errorOccurred.connect(self._on_check_error)
         self._check_worker.start()
 
-    def _on_update_available(self, version, download_url, release_notes):
-        print(f"[Updater] Update available: {version}")
+    def _on_update_available(self, version, download_url, asset_name, release_notes):
+        print(f"[Updater] Update available: {version} ({asset_name})")
         self._download_url = download_url
+        self._asset_name = asset_name
         self.updateAvailable.emit(version, release_notes)
 
     def _on_no_update(self):
@@ -298,7 +358,9 @@ class UpdateManagerBridge(QObject):
 
         print(f"[Updater] Starting download from: {self._download_url}")
 
-        self._download_worker = UpdateDownloadWorker(self._download_url, self._github_token)
+        self._download_worker = UpdateDownloadWorker(
+            self._download_url, self._asset_name, self._github_token
+        )
         self._download_worker.downloadProgress.connect(self._on_download_progress)
         self._download_worker.downloadFinished.connect(self._on_download_finished)
         self._download_worker.errorOccurred.connect(self._on_download_error)
@@ -307,9 +369,10 @@ class UpdateManagerBridge(QObject):
     def _on_download_progress(self, percent):
         self.updateProgress.emit(percent)
 
-    def _on_download_finished(self, binary_path):
-        print(f"[Updater] Download complete: {binary_path}")
-        self._downloaded_binary = binary_path
+    def _on_download_finished(self, kind, path):
+        print(f"[Updater] Download complete ({kind}): {path}")
+        self._downloaded_kind = kind
+        self._downloaded_path = path
         self.updateDownloaded.emit()
 
     def _on_download_error(self, message):
@@ -334,33 +397,88 @@ class UpdateManagerBridge(QObject):
                 return resolved
         return sys.executable
 
+    @staticmethod
+    def _get_install_root(current_exe):
+        # Onefolder layout: <root>/Resources/Bin/XXAR.exe.
+        # The install root is the grand-grandparent of the exe.
+        exe = Path(current_exe).resolve()
+        parent = exe.parent
+        if parent.name.lower() == "bin" and parent.parent.name.lower() == "resources":
+            return parent.parent.parent
+        # Fallback: exe directly in install root (dev runs, or unexpected layout).
+        return parent
+
+    def _helper_exe_path(self, install_root):
+        helper = install_root / "Resources" / "Updater" / f"{APP_NAME} Updater.exe"
+        return helper if helper.exists() else None
+
     @pyqtSlot()
     def applyUpdate(self):
-        if not self._downloaded_binary or not Path(self._downloaded_binary).exists():
-            self.updateError.emit("Downloaded binary not found")
+        if not self._downloaded_path or not Path(self._downloaded_path).exists():
+            self.updateError.emit("Downloaded update not found")
             return
 
         try:
             current_exe = self._get_real_exe_path()
-            print(f"[Updater] Applying update...")
-            print(f"[Updater] sys.executable: {sys.executable}")
+            print(f"[Updater] Applying update ({self._downloaded_kind})...")
             print(f"[Updater] Real exe path: {current_exe}")
-            print(f"[Updater] New binary: {self._downloaded_binary}")
+            print(f"[Updater] Source: {self._downloaded_path}")
 
-            if sys.platform.startswith("win"):
-                self._apply_windows_update(current_exe)
-            else:
+            if self._downloaded_kind == "msi":
+                self._apply_msi_update(current_exe)
+            elif self._downloaded_kind == "zip_staging":
+                self._apply_zip_update(current_exe)
+            elif self._downloaded_kind == "flatpak":
                 self._apply_linux_update(current_exe)
+            else:
+                self.updateError.emit(f"Unknown update kind: {self._downloaded_kind}")
+                return
 
-            print(f"[Updater] Update applied successfully!")
+            print(f"[Updater] Update handoff complete")
             self.updateApplied.emit()
 
         except Exception as e:
             print(f"[Updater] Failed to apply update: {e}")
             self.updateError.emit(f"Failed to apply update: {e}")
 
+    def _apply_msi_update(self, current_exe):
+        msi_path = Path(self._downloaded_path)
+        install_root = self._get_install_root(current_exe)
+
+        # /qr = reduced UI (progress bar only), /norestart = leave reboot to us
+        args = [
+            "msiexec", "/i", str(msi_path),
+            "/qr", "/norestart",
+            f"APPDIR={install_root}",
+        ]
+        print(f"[Updater] Running: {' '.join(args)}")
+        subprocess.Popen(args, creationflags=0x00000008)  # DETACHED_PROCESS
+
+    def _apply_zip_update(self, current_exe):
+        staging_dir = Path(self._downloaded_path)
+        install_root = self._get_install_root(current_exe)
+        helper = self._helper_exe_path(install_root)
+        if helper is None:
+            raise RuntimeError(
+                f"Updater helper not found under {install_root / 'Resources' / 'Updater'}"
+            )
+
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        args = [
+            str(helper),
+            "--dist-dir", str(install_root),
+            "--staging-dir", str(staging_dir),
+        ]
+        print(f"[Updater] Spawning helper: {' '.join(args)}")
+        subprocess.Popen(
+            args,
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+        )
+
     def _apply_linux_update(self, current_exe):
-        new_binary = Path(self._downloaded_binary)
+        new_binary = Path(self._downloaded_path)
         target = Path(current_exe)
 
         backup = target.with_suffix(".bak")
@@ -376,60 +494,3 @@ class UpdateManagerBridge(QObject):
 
         print(f"[Updater] Binary replaced: {target}")
         print(f"[Updater] Backup at: {backup}")
-
-    def _apply_windows_update(self, current_exe):
-        new_binary = Path(self._downloaded_binary)
-        target = Path(current_exe)
-        target_dir = target.parent
-        backup = target_dir / f"{APP_NAME}.exe.bak"
-        log_file = get_cache_dir() / "updates" / "update.log"
-
-        bat_path = get_cache_dir() / "updates" / "update.bat"
-        # ping for delays since timeout crashes without a console window
-        bat_content = f"""@echo off
-echo [{APP_NAME} Updater] Starting update... > "{log_file}"
-echo [{APP_NAME} Updater] Target: {target} >> "{log_file}"
-echo [{APP_NAME} Updater] Source: {new_binary} >> "{log_file}"
-echo [{APP_NAME} Updater] Waiting for {APP_NAME} to exit... >> "{log_file}"
-set RETRIES=0
-:waitloop
-ping -n 3 127.0.0.1 >nul
-set /a RETRIES+=1
-if %RETRIES% GEQ 30 (
-    echo [{APP_NAME} Updater] ERROR: Timed out after 60s >> "{log_file}"
-    goto :eof
-)
-rem Try to rename the running exe - fails if still locked
-if exist "{backup}" del /F "{backup}" >nul 2>&1
-rename "{target}" "{APP_NAME}.exe.bak" >nul 2>&1
-if exist "{target}" (
-    echo [{APP_NAME} Updater] Still locked, attempt %RETRIES% >> "{log_file}"
-    goto waitloop
-)
-echo [{APP_NAME} Updater] Old binary renamed >> "{log_file}"
-copy /Y /B "{new_binary}" "{target}" >nul 2>&1
-if not exist "{target}" (
-    echo [{APP_NAME} Updater] Copy failed, restoring backup >> "{log_file}"
-    rename "{backup}" "{APP_NAME}.exe" >nul 2>&1
-    goto :eof
-)
-echo [{APP_NAME} Updater] Copy successful >> "{log_file}"
-del /F "{backup}" >nul 2>&1
-del /F "{new_binary}" >nul 2>&1
-echo [{APP_NAME} Updater] Launching updated {APP_NAME} >> "{log_file}"
-explorer.exe "{target}"
-del "%~f0"
-"""
-        with open(bat_path, "w") as f:
-            f.write(bat_content)
-
-        print(f"[Updater] Batch script written to: {bat_path}")
-        print(f"[Updater] Log file: {log_file}")
-        print(f"[Updater] Target exe: {target}")
-        print(f"[Updater] New binary: {new_binary}")
-
-        import subprocess
-        subprocess.Popen(
-            ["cmd", "/c", str(bat_path)],
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
-        )

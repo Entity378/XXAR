@@ -1,0 +1,73 @@
+name: Release
+
+# Triggers a build + attaches artifacts when a tag matching vX.Y.Z is pushed.
+# Linux Flatpak build is intentionally left out — add another job if/when the
+# Flatpak manifest is ready to reuse the same onefolder output.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (without leading v), e.g. 1.2.3"
+        required: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match '^v(.+)$') { $v = $Matches[1] }
+          elseif ("${{ github.event.inputs.version }}") { $v = "${{ github.event.inputs.version }}" }
+          else { throw "Could not determine version" }
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install WiX 7 toolset
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          # WiX 7 requires OSMF EULA acceptance once per machine.
+          wix eula accept wix7
+          wix extension add -g WixToolset.UI.wixext
+          wix extension add -g WixToolset.Util.wixext
+
+      - name: Build all artifacts
+        shell: pwsh
+        run: |
+          pwsh -File installer_ws\build_all.ps1 -Version "${{ steps.ver.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            dist/XXAR-windows-x64.zip
+            dist/XXAR-Installer-v*.msi
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/XXAR-windows-x64.zip
+            dist/XXAR-Installer-v*.msi
+          fail_on_unmatched_files: true
+          draft: true

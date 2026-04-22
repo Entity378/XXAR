@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- WixSharp ManagedUI runs inside the MSI context which historically
+         required .NET Framework 4.x. The build-time program itself can
+         target modern .NET but net48 keeps UI DLLs loadable by msiexec. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>XXAR.Installer</RootNamespace>
+    <AssemblyName>XXAR.Installer.Build</AssemblyName>
+    <!-- We do our own MSI output, nothing to publish from the build exe. -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixSharp_wix4" Version="2.13.0" />
+    <PackageReference Include="WixSharp-wix4.WPF" Version="2.13.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\XXAR-Logo2-512.png" />
+    <Resource Include="Assets\XXAR-Logo2.ico" />
+    <Resource Include="Themes\XXARPalette.xaml" />
+  </ItemGroup>
+
+</Project>

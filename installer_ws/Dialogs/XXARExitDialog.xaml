@@ -1,0 +1,68 @@
+<wixsharp:WpfDialog
+    x:Class="XXAR.Installer.Dialogs.XXARExitDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wixsharp="clr-namespace:WixSharp.UI.WPF;assembly=WixSharp.UI.WPF"
+    DialogTitle="[ProductName] Setup"
+    Background="#10123A">
+    <wixsharp:WpfDialog.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/XXAR.Installer.Build;component/Themes/XXARPalette.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </wixsharp:WpfDialog.Resources>
+
+    <Grid Background="{DynamicResource XXARWindowBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="53" />
+        </Grid.RowDefinitions>
+
+        <!-- Content: same 156px side banner + text as WelcomeDialog -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="156" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#0A0B28">
+                <Image Source="/XXAR.Installer.Build;component/Assets/XXAR-Logo2-512.png"
+                       Margin="20" Stretch="Uniform"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Border>
+            <Border Grid.Column="0" HorizontalAlignment="Right" Width="1"
+                    Background="{DynamicResource XXARAccentBrush}" />
+
+            <StackPanel Grid.Column="1" Margin="20,25,20,20" VerticalAlignment="Top">
+                <TextBlock x:Name="DialogTitleLabel" Text="[ExitDialogTitle]"
+                           Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                           FontSize="16" TextWrapping="WrapWithOverflow" />
+                <TextBlock x:Name="DialogDescription" Text="[ExitDialogDescription]"
+                           Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                           FontSize="13" Margin="0,14,0,0"
+                           TextWrapping="WrapWithOverflow" LineHeight="20" />
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Background="#080922"
+                BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="20,0">
+                <Button x:Name="ViewLog" Content="View log"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                        Click="ViewLog_Click" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <Button x:Name="GoExit" Content="[WixUIFinish]"
+                            Style="{StaticResource XXARPrimaryButton}"
+                            Click="GoExit_Click" Margin="4,0" />
+                    <Button x:Name="Cancel" Content="[WixUICancel]"
+                            Style="{StaticResource XXARSecondaryButton}"
+                            Click="Cancel_Click" Margin="12,0,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</wixsharp:WpfDialog>

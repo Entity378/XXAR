@@ -1051,19 +1051,25 @@ class ModManagerBridge(QObject):
                 self.errorOccurred.emit("Error", "Mod audio files not found")
                 return
 
+            from src.mods.package_manager import _AUDIO_SETTING_KEYS
+
             current_replacements = {}
             for pck_name, files in full_metadata.get('replacements', {}).items():
                 current_replacements[pck_name] = {}
                 for file_id, file_info in files.items():
                     wem_file = wem_dir / f"{file_id}.wem"
                     if wem_file.exists():
-                        current_replacements[pck_name][file_id] = {
+                        entry = {
                             'wem_path': str(wem_file),
                             'sound_name': file_info.get('sound_name', ''),
                             'lang_id': file_info.get('lang_id', 0),
                             'bnk_id': file_info.get('bnk_id'),
                             'file_type': file_info.get('file_type', 'wem')
                         }
+                        for audio_key in _AUDIO_SETTING_KEYS:
+                            if audio_key in file_info:
+                                entry[audio_key] = file_info[audio_key]
+                        current_replacements[pck_name][file_id] = entry
 
             export_metadata = {
                 'name': full_metadata.get('name', 'Unknown'),

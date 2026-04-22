@@ -36,6 +36,47 @@ class ModApplicationError(Exception):
 
     pass
 
+_AUDIO_SETTING_KEYS = (
+    'loop_point_mode',
+    'loop_point_manual_ms',
+    'volume_enabled',
+    'volume_db',
+)
+
+
+def _extract_audio_settings(file_info):
+    # Pick only non-default fields so old mods and unchanged settings
+    # stay absent from metadata.json (backwards-compatible).
+    result = {}
+    if not isinstance(file_info, dict):
+        return result
+
+    loop_mode = file_info.get('loop_point_mode')
+    if loop_mode is not None:
+        normalized = str(loop_mode).strip().lower()
+        if normalized and normalized != 'auto':
+            result['loop_point_mode'] = normalized
+
+    try:
+        manual_ms = int(file_info.get('loop_point_manual_ms', 0) or 0)
+    except (TypeError, ValueError):
+        manual_ms = 0
+    if manual_ms > 0:
+        result['loop_point_manual_ms'] = manual_ms
+
+    if 'volume_enabled' in file_info and file_info.get('volume_enabled') is False:
+        result['volume_enabled'] = False
+
+    try:
+        volume_db = round(float(file_info.get('volume_db', 0.0) or 0.0), 1)
+    except (TypeError, ValueError):
+        volume_db = 0.0
+    if volume_db != 0.0:
+        result['volume_db'] = volume_db
+
+    return result
+
+
 class ModPackageManager:
 
 
@@ -107,7 +148,7 @@ class ModPackageManager:
                     # Use compound key for BNK entries so the same WEM ID in
                     # multiple BNKs doesn't overwrite itself in the flat dict.
                     internal_key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
-                    normalized[pck_name][internal_key] = {
+                    entry = {
                         'wem_file': file_info.get('wem_file', ''),
                         'sound_name': file_info.get('sound_name', ''),
                         'lang_id': file_info.get('lang_id', 0),
@@ -115,6 +156,10 @@ class ModPackageManager:
                         'file_type': file_info.get('file_type', 'wem'),
                         'file_id': file_id,
                     }
+                    for key in _AUDIO_SETTING_KEYS:
+                        if key in file_info:
+                            entry[key] = file_info[key]
+                    normalized[pck_name][internal_key] = entry
         return normalized
 
     def validate_mod_package(self, mod_path):
@@ -390,6 +435,9 @@ class ModPackageManager:
                         'file_id': file_info.get('file_id'),
                         'conflicts_with': []
                     }
+                    for key in _AUDIO_SETTING_KEYS:
+                        if key in file_info:
+                            replacement_info[key] = file_info[key]
 
                     all_replacements[pck_name][conflict_key][mod_name] = replacement_info
 
@@ -767,7 +815,7 @@ class ModPackageManager:
                 persistent_format[pck_name] = {}
                 for key, file_info in files.items():
                     actual_wem_id = file_info.get('file_id', key)
-                    persistent_format[pck_name][actual_wem_id] = {
+                    tracker_entry = {
                         'wem_path': file_info['wem_path'],
                         'file_type': file_info.get('file_type', 'wem'),
                         'lang_id': file_info.get('lang_id', 0),
@@ -775,6 +823,10 @@ class ModPackageManager:
                         'date_modified': datetime.now().isoformat(),
                         'source': 'mod_manager'
                     }
+                    for audio_key in _AUDIO_SETTING_KEYS:
+                        if audio_key in file_info:
+                            tracker_entry[audio_key] = file_info[audio_key]
+                    persistent_format[pck_name][actual_wem_id] = tracker_entry
 
             self.persistent_mod_manager.import_replacements_from_mods(persistent_format)
 
@@ -826,12 +878,14 @@ class ModPackageManager:
                     if bnk_key not in replacements_data[pck_name]:
                         replacements_data[pck_name][bnk_key] = {}
 
-                    replacements_data[pck_name][bnk_key][actual_file_id] = {
+                    entry = {
                         'wem_file': wem_relative,
                         'sound_name': file_info.get('sound_name', ''),
                         'lang_id': file_info.get('lang_id', 0),
                         'file_type': file_info.get('file_type', 'wem')
                     }
+                    entry.update(_extract_audio_settings(file_info))
+                    replacements_data[pck_name][bnk_key][actual_file_id] = entry
 
             thumbnail_filename = None
             if thumbnail_path and Path(thumbnail_path).exists():

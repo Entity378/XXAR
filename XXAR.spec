@@ -177,11 +177,12 @@ a = Analysis(
 # NOTE: libssl/libcrypto are intentionally NOT excluded here. Qt's network
 # module uses dlopen() to load OpenSSL at runtime using the bare filename
 # (e.g. "libssl.so.1.1"). If we exclude these from the bundle, Qt cannot find
-# them inside the _MEI temp dir and TLS fails ("TLS initialization failed").
+# them next to Qt5Network and TLS fails ("TLS initialization failed").
 # Bundling the CI's OpenSSL 1.x alongside the CI's Qt5Network is correct —
-# they were built together. The bundled copies live in the _MEI dir and are
-# found before any system OpenSSL via LD_LIBRARY_PATH set by the PyInstaller
-# bootloader, so there is no conflict with the user's system OpenSSL 3.x.
+# they were built together. The bundled copies live in the dist folder and
+# are found before any system OpenSSL via LD_LIBRARY_PATH set by the
+# PyInstaller bootloader, so there is no conflict with the user's system
+# OpenSSL 3.x.
 if not sys.platform.startswith('win'):
     exclude_prefixes = ('libwayland-',)
     a.binaries = [
@@ -197,10 +198,8 @@ icon_file = 'src/gui/assets/XXAR/XXAR-Logo2.ico' if sys.platform.startswith('win
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='XXAR',
     debug=False,
     bootloader_ignore_signals=False,
@@ -208,4 +207,15 @@ exe = EXE(
     upx=True,
     console=False,
     icon=icon_file,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='XXAR',
 )
