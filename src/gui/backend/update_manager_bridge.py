@@ -17,7 +17,8 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
 
-GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
+_DEFAULT_GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
+GITHUB_API_URL = os.environ.get("XXAR_UPDATE_API_URL_OVERRIDE", _DEFAULT_GITHUB_API_URL)
 
 # Registry key the MSI installer writes (see installer_ws/Setup.cs). If absent
 # we assume portable/ZIP install and route updates through the helper exe.
@@ -39,6 +40,8 @@ def _read_msi_install_location():
 
 
 def _is_msi_install():
+    if os.environ.get("XXAR_UPDATE_FORCE_PORTABLE") == "1":
+        return False
     return _read_msi_install_location() is not None
 
 
@@ -230,8 +233,10 @@ class UpdateDownloadWorker(QThread):
                 # msiexec consumes the .msi directly; no extraction.
                 self.downloadFinished.emit("msi", str(archive_path))
             elif lower.endswith(".zip"):
-                # Portable: pre-extract into a staging folder the helper will
-                # move into Resources/Bin. Nuke any previous staging first.
+                # The portable zip (built by installer_ws/build_all.ps1) carries
+                # Resources/Bin/ and Resources/Updater/. The helper swaps only
+                # Bin — Updater stays installed since the running helper exe
+                # must not rewrite itself.
                 staging_parent = update_dir / "staging"
                 if staging_parent.exists():
                     shutil.rmtree(str(staging_parent), ignore_errors=True)
@@ -239,18 +244,12 @@ class UpdateDownloadWorker(QThread):
                 with zipfile.ZipFile(archive_path, "r") as zf:
                     zf.extractall(staging_parent)
                 archive_path.unlink(missing_ok=True)
-                # The zip's top-level entry is the PyInstaller COLLECT folder
-                # (dist/XXAR/). Resolve it regardless of its exact name.
-                entries = [p for p in staging_parent.iterdir() if p.is_dir()]
-                if len(entries) != 1:
-                    self.errorOccurred.emit(
-                        f"Expected a single top-level folder in {self.asset_name}, "
-                        f"found {len(entries)}"
-                    )
-                    return
-                staging_root = entries[0]
+
+                staging_root = staging_parent / "Resources" / "Bin"
                 if not (staging_root / f"{APP_NAME}.exe").exists():
-                    self.errorOccurred.emit(f"{APP_NAME}.exe not found inside staging")
+                    self.errorOccurred.emit(
+                        f"{APP_NAME}.exe not found at Resources/Bin inside {self.asset_name}"
+                    )
                     return
                 self.downloadFinished.emit("zip_staging", str(staging_root))
             elif lower.endswith(".flatpak"):
@@ -414,6 +413,13 @@ class UpdateManagerBridge(QObject):
 
     @pyqtSlot()
     def applyUpdate(self):
+        # Two helpers fighting over the same Bin rename deadlock each other;
+        # block the re-entry from the SettingsPage Restart button after the
+        # startup dialog's auto-trigger has already fired.
+        if getattr(self, "_apply_in_progress", False):
+            return
+        self._apply_in_progress = True
+
         if not self._downloaded_path or not Path(self._downloaded_path).exists():
             self.updateError.emit("Downloaded update not found")
             return
@@ -470,9 +476,15 @@ class UpdateManagerBridge(QObject):
             "--dist-dir", str(install_root),
             "--staging-dir", str(staging_dir),
         ]
-        print(f"[Updater] Spawning helper: {' '.join(args)}")
+        # The helper's PyInstaller bootstrap is native C and can't chdir
+        # itself — spawn it with cwd outside Resources/Bin so its inherited
+        # handle doesn't block the rename-to-Bin.old we're about to request.
+        import tempfile as _tempfile
+        spawn_cwd = _tempfile.gettempdir()
+        print(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
         subprocess.Popen(
             args,
+            cwd=spawn_cwd,
             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
         )

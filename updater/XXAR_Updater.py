@@ -24,7 +24,10 @@ if sys.platform != "win32":
 
 
 LOCK_RETRY_SECONDS = 1.0
-LOCK_RETRY_MAX = 30  # ~30 s total
+# Empirically, Windows Defender's real-time scan of the freshly-extracted
+# staging Bin dir can hold a directory handle for ~30-60 s; a worst-case
+# budget of 3 min is safer than failing updates on slow machines.
+LOCK_RETRY_MAX = 180
 APP_EXE_NAME = "XXAR.exe"
 
 
