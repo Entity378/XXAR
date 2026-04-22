@@ -173,7 +173,9 @@ class Application(
         format.setSamples(4)
         QSurfaceFormat.setDefaultFormat(format)
 
-        QCoreApplication.setOrganizationName(APP_NAME)
+        # Leaving organizationName unset makes Qt's QStandardPaths produce
+        # %LOCALAPPDATA%\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\XXAR\cache\
+        # (the default org+app nesting).
         QCoreApplication.setOrganizationDomain(f"{APP_NAME.lower()}.local")
         QCoreApplication.setApplicationName(APP_NAME)
 

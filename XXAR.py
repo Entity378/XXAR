@@ -44,6 +44,23 @@ def _load_ui_scale():
 
 _load_ui_scale()
 
+
+def _redirect_qml_disk_cache():
+    # Keep Qt's QML bytecode cache under our launcher cache instead of the
+    # default QStandardPaths::CacheLocation. Otherwise Qt would create a
+    # separate top-level cache/ dir alongside our launcher/cache/.
+    from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
+    if os.environ.get(FLATPAK_ENV_VAR):
+        base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
+    elif sys.platform == 'win32':
+        base = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / CONFIG_DIR_NAME
+    else:
+        base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
+    os.environ.setdefault('QML_DISK_CACHE_PATH', str(base / 'launcher' / 'cache' / 'qmlcache'))
+
+
+_redirect_qml_disk_cache()
+
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db=false;qt.network.ssl=false'
 
 from src.core.app_config import APP_VERSION
@@ -62,8 +79,8 @@ def get_temp_dir():
     if os.environ.get(FLATPAK_ENV_VAR):
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
     elif hasattr(sys, '_MEIPASS'):
-        appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
-        base = appdata / CONFIG_DIR_NAME
+        localappdata = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
+        base = localappdata / CONFIG_DIR_NAME
     else:
         base = Path(__file__).parent
     temp = base / 'temp'
@@ -76,6 +93,11 @@ src_path = base_dir / 'src'
 sys.path.insert(0, str(src_path))
 
 try:
+    # Run once-per-install folder migrations before anything else in src/
+    # caches a ConfigManager path.
+    from src.core.migration import run_migrations
+    run_migrations()
+
     from src.gui.main_qml import Application
 except ModuleNotFoundError as e:
     print(f"Error: Could not find modules in {src_path}")

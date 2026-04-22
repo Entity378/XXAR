@@ -17,9 +17,9 @@ FFMPEG_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffm
 VGMSTREAM_URL = "https://github.com/vgmstream/vgmstream/releases/latest/download/vgmstream-win64.zip"
 
 # Installation directories
-# Tools live under the user's per-profile config/data dir so they survive exe
-# upgrades and aren't scattered beside the binary. On Windows that's Roaming
-# AppData (alongside settings.json); on Linux it's XDG_DATA_HOME (Flatpak-safe).
+# Tools live under the user's per-profile data dir so they survive exe
+# upgrades and aren't scattered beside the binary. On Windows that's Local
+# AppData; on Linux it's XDG_DATA_HOME (Flatpak-safe).
 CONFIG_DIR_NAME = "XXAR"
 FLATPAK_ENV_VAR = "XXAR_FLATPAK"
 
@@ -29,7 +29,7 @@ if os.environ.get(FLATPAK_ENV_VAR) or not sys.platform.startswith("win"):
     ) / CONFIG_DIR_NAME / "tools"
 else:
     _TOOLS_ROOT = Path(
-        os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
+        os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
     ) / CONFIG_DIR_NAME / "tools"
 
 TOOLS_DIR = _TOOLS_ROOT / "audio"

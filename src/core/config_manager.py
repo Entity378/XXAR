@@ -17,6 +17,7 @@ class ConfigManager:
         self._launcher_dir = None
         self._games_dir = None
         self._tools_dir = None
+        self._backup_dir = None
         self._custom_mod_library_dir = None
 
     @property
@@ -67,7 +68,9 @@ class ConfigManager:
         if self._games_dir:
             return self._games_dir
 
-        self._games_dir = self.data_dir / "games"
+        # User content (mod library + per-game databases) lives in Roaming
+        # on Windows so it follows the user across machines.
+        self._games_dir = self.config_dir / "games"
         self._games_dir.mkdir(parents=True, exist_ok=True)
         return self._games_dir
 
@@ -106,16 +109,27 @@ class ConfigManager:
         if self._tools_dir:
             return self._tools_dir
 
-        # Windows: Roaming AppData (alongside settings.json) so binaries persist
-        # across reinstalls and aren't scattered next to the exe. Linux keeps
-        # XDG_DATA_HOME for continuity with the existing Flatpak layout.
-        if self.platform == "win32":
-            self._tools_dir = self.config_dir / "tools"
-        else:
-            self._tools_dir = self.data_dir / "tools"
-
+        # Machine-local binaries (Wwise, FFmpeg, vgmstream, hpatchz): never
+        # roam these, they're architecture-specific and big.
+        self._tools_dir = self.data_dir / "tools"
         self._tools_dir.mkdir(parents=True, exist_ok=True)
         return self._tools_dir
+
+    @property
+    def backup_dir(self):
+        if self._backup_dir:
+            return self._backup_dir
+
+        # Machine-local: backups can be multi-GB (HSR VO originals), must not roam.
+        self._backup_dir = self.data_dir / "backup"
+        self._backup_dir.mkdir(parents=True, exist_ok=True)
+        return self._backup_dir
+
+    def game_backup_dir(self, game_id=DEFAULT_GAME_ID):
+        game = normalize_game_id_from_registry(game_id, default=DEFAULT_GAME_ID)
+        p = self.backup_dir / game
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
     @property
     def sound_database_file(self):
@@ -174,6 +188,14 @@ def get_cache_dir():
 
 def get_tools_dir():
     return _config_manager.tools_dir
+
+
+def get_backup_dir():
+    return _config_manager.backup_dir
+
+
+def get_game_backup_dir(game_id=DEFAULT_GAME_ID):
+    return _config_manager.game_backup_dir(game_id)
 
 
 def get_sound_database_file():

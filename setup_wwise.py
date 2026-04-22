@@ -30,7 +30,7 @@ if os.environ.get(FLATPAK_ENV_VAR) or not sys.platform.startswith('win'):
     ) / CONFIG_DIR_NAME / "tools"
 else:
     _TOOLS_ROOT = Path(
-        os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')
+        os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')
     ) / CONFIG_DIR_NAME / "tools"
 
 WWISE_DIR = _TOOLS_ROOT / "wwise"

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.core.config_manager import get_game_data_dir
+from src.core.config_manager import get_game_backup_dir
 from src.core.game_registry import get_game
 
 from src.audio import vo_download
@@ -54,26 +54,26 @@ class SRARBrowserHandler(BaseBrowserHandler):
         if not needed_languages:
             return
 
-        app_game_dir = get_game_data_dir("hsr")
+        game_cache_root = get_game_backup_dir("hsr")
 
         if vo_backup_mode == "local":
             _restore_via_local_hashes(
-                app_game_dir, persistent_path, needed_languages, progress_callback
+                game_cache_root, persistent_path, needed_languages, progress_callback
             )
         else:
             _restore_via_api(
-                app_game_dir, persistent_path, needed_languages,
+                game_cache_root, persistent_path, needed_languages,
                 game, progress_callback,
             )
 
 
-def _restore_via_local_hashes(app_game_dir, persistent_path, languages, progress_cb):
+def _restore_via_local_hashes(game_cache_root, persistent_path, languages, progress_cb):
     from src.audio import vo_local_backup
 
     restored = 0
     for lang in sorted(languages):
         ok = vo_local_backup.restore_language_from_hashes(
-            app_game_dir=app_game_dir,
+            game_cache_root=game_cache_root,
             persistent_path=persistent_path,
             folder_name=lang,
             progress_cb=progress_cb,
@@ -87,7 +87,7 @@ def _restore_via_local_hashes(app_game_dir, persistent_path, languages, progress
         print(f"[HSR VO Restore] Restored {restored} language(s) via local backup")
 
 
-def _restore_via_api(app_game_dir, persistent_path, languages, game, progress_cb):
+def _restore_via_api(game_cache_root, persistent_path, languages, game, progress_cb):
     data_folder = persistent_path
     for _ in range(len(game.persistent_audio_subpath)):
         data_folder = data_folder.parent
@@ -97,12 +97,12 @@ def _restore_via_api(app_game_dir, persistent_path, languages, game, progress_cb
         print("[HSR VO Restore] Could not read game version")
         return
 
-    cached_version = vo_download.cleanup_stale_cache(app_game_dir, version)
+    cached_version = vo_download.cleanup_stale_cache(game_cache_root, version)
 
     restored = 0
     for lang in sorted(languages):
         ok = vo_download.restore_language_from_api(
-            app_game_dir=app_game_dir,
+            game_cache_root=game_cache_root,
             persistent_path=persistent_path,
             folder_name=lang,
             version=version,

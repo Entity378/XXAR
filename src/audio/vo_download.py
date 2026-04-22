@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS
+from src.core.config_manager import get_tools_dir
 
 # Constants
 API_URL = (
@@ -25,7 +26,6 @@ API_URL = (
 HSR_GAME_ID = "4ziysqXOQ8"
 HSR_LAUNCHER_ID = "VYTpXlbWo8"
 
-CACHE_DIR_NAME = "original_vo"
 CACHE_META_FILE = "cache_meta.json"
 
 # API language code to game folder name
@@ -139,19 +139,15 @@ HPATCHZ_API_URL = (
 )
 
 
-def _hpatchz_install_dir(app_game_dir: Path) -> Path:
-    # hpatchz lives alongside the original_vo cache because it is only used
-    # to patch those PCK files. Keeping it inside the SR backup tree means
-    # nothing spills into the shared tools/ directory.
-    return _cache_dir(app_game_dir) / "hpatchz"
+def _hpatchz_install_dir() -> Path:
+    return get_tools_dir() / "hpatchz"
 
 
-def _find_hpatchz(app_game_dir: Path) -> str | None:
-    # Locate the hpatchz binary in the SR backup dir first, then PATH. The
-    # upstream zip layout varies between releases (flat vs. nested under
+def _find_hpatchz() -> str | None:
+    # The upstream zip layout varies between releases (flat vs. nested under
     # windows64/), so recurse rather than probing a single path.
     exe_name = "hpatchz.exe" if IS_WINDOWS else "hpatchz"
-    hpatchz_root = _hpatchz_install_dir(app_game_dir)
+    hpatchz_root = _hpatchz_install_dir()
     if hpatchz_root.is_dir():
         for candidate in hpatchz_root.rglob(exe_name):
             if candidate.is_file():
@@ -189,11 +185,8 @@ def _resolve_hpatchz_url() -> str | None:
     return None
 
 
-def _download_hpatchz(
-    app_game_dir: Path, progress_cb=None
-) -> str | None:
-    # Download hpatchz into the SR backup dir. Windows-only; on Linux we
-    # expect the user's package manager to provide it.
+def _download_hpatchz(progress_cb=None) -> str | None:
+    # Windows-only; on Linux we expect the user's package manager to provide it.
     if not IS_WINDOWS:
         return None
 
@@ -201,7 +194,7 @@ def _download_hpatchz(
     if not url:
         return None
 
-    install_dir = _hpatchz_install_dir(app_game_dir)
+    install_dir = _hpatchz_install_dir()
     install_dir.mkdir(parents=True, exist_ok=True)
 
     if progress_cb:
@@ -229,18 +222,15 @@ def _download_hpatchz(
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    return _find_hpatchz(app_game_dir)
+    return _find_hpatchz()
 
 
-def _ensure_hpatchz(
-    app_game_dir: Path, progress_cb=None
-) -> str | None:
-    # Return a usable hpatchz path, downloading it into the SR backup dir
-    # on first use if needed.
-    found = _find_hpatchz(app_game_dir)
+def _ensure_hpatchz(progress_cb=None) -> str | None:
+    # Returns a usable hpatchz path, downloading on first use if needed.
+    found = _find_hpatchz()
     if found:
         return found
-    return _download_hpatchz(app_game_dir, progress_cb)
+    return _download_hpatchz(progress_cb)
 
 
 def _download_hdiff_archive(
@@ -321,14 +311,13 @@ def _apply_hdiff_patches(
     working_dir: Path,
     hdiff_dir: Path,
     folder_name: str,
-    app_game_dir: Path,
     progress_cb=None,
 ) -> bool:
     # Apply hdiff patches to PCK files in working_dir.
     # working_dir contains copies of the old cached PCKs.
     # hdiff_dir contains .hdiff files and optionally deletefiles.txt.
     # Returns True if all patches applied successfully.
-    hpatchz = _ensure_hpatchz(app_game_dir, progress_cb)
+    hpatchz = _ensure_hpatchz(progress_cb)
     if not hpatchz:
         print("[VO Download] hpatchz binary not found, cannot apply hdiff")
         return False
@@ -403,13 +392,10 @@ def _apply_hdiff_patches(
     return True
 
 
-# Cache metadata
-def _cache_dir(app_game_dir: Path) -> Path:
-    return app_game_dir / CACHE_DIR_NAME
-
-
-def _load_cache_meta(app_game_dir: Path) -> dict:
-    meta_file = _cache_dir(app_game_dir) / CACHE_META_FILE
+# Cache metadata — `game_cache_root` is the per-game backup dir,
+# e.g. %LOCALAPPDATA%\XXAR\backup\hsr\
+def _load_cache_meta(game_cache_root: Path) -> dict:
+    meta_file = game_cache_root / CACHE_META_FILE
     if not meta_file.is_file():
         return {}
     try:
@@ -418,25 +404,24 @@ def _load_cache_meta(app_game_dir: Path) -> dict:
         return {}
 
 
-def _save_cache_meta(app_game_dir: Path, meta: dict):
-    cache = _cache_dir(app_game_dir)
-    cache.mkdir(parents=True, exist_ok=True)
-    (cache / CACHE_META_FILE).write_text(
+def _save_cache_meta(game_cache_root: Path, meta: dict):
+    game_cache_root.mkdir(parents=True, exist_ok=True)
+    (game_cache_root / CACHE_META_FILE).write_text(
         json.dumps(meta, indent=2), encoding="utf-8"
     )
 
 
 def is_language_cached(
-    app_game_dir: Path, version: str, folder_name: str
+    game_cache_root: Path, version: str, folder_name: str
 ) -> bool:
     # Return "True" if we already have cached originals for this version
-    meta = _load_cache_meta(app_game_dir)
+    meta = _load_cache_meta(game_cache_root)
     if meta.get("version") != version:
         return False
     lang_entry = meta.get("languages", {}).get(folder_name)
     if not lang_entry:
         return False
-    lang_dir = _cache_dir(app_game_dir) / folder_name
+    lang_dir = game_cache_root / folder_name
     return lang_dir.is_dir() and any(lang_dir.glob("*.pck"))
 
 
@@ -542,7 +527,7 @@ def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
 
 # High-level restore
 def restore_language_from_api(
-    app_game_dir: Path,
+    game_cache_root: Path,
     persistent_path: Path,
     folder_name: str,
     version: str,
@@ -552,11 +537,10 @@ def restore_language_from_api(
     # Ensure *persistent_path/folder_name* contains original PCK files.
     # Uses the local cache when available; attempts hdiff patching when
     # cached_version is provided; otherwise downloads from the API.
-    cache_root = _cache_dir(app_game_dir)
-    cache_lang_dir = cache_root / folder_name
+    cache_lang_dir = game_cache_root / folder_name
 
     # 1. Check cache
-    if is_language_cached(app_game_dir, version, folder_name):
+    if is_language_cached(game_cache_root, version, folder_name):
         if progress_cb:
             progress_cb(f"Restoring {folder_name} VO from cache...")
         _copy_to_persistent(cache_lang_dir, persistent_path / folder_name)
@@ -573,8 +557,8 @@ def restore_language_from_api(
         return False
 
     # 2.5. Try hdiff patching if we have a stale cache. hpatchz is fetched
-    # on-demand into the SR backup dir (by _apply_hdiff_patches) only when an
-    # hdiff is actually available, so missing hpatchz doesn't waste a download.
+    # on-demand by _apply_hdiff_patches only when an hdiff is actually
+    # available, so missing hpatchz doesn't waste a download.
     if (
         cached_version is not None
         and cache_lang_dir.is_dir()
@@ -585,7 +569,7 @@ def restore_language_from_api(
         )
         if hdiff_pkg is not None:
             patched = _try_hdiff_patch(
-                app_game_dir=app_game_dir,
+                game_cache_root=game_cache_root,
                 cache_lang_dir=cache_lang_dir,
                 hdiff_pkg=hdiff_pkg,
                 folder_name=folder_name,
@@ -605,14 +589,12 @@ def restore_language_from_api(
                     f"hdiff patch ({cached_version} -> {version})"
                 )
                 return True
-            # hdiff failed -- clean up stale cache before full download
             print(
                 f"[VO Download] HDiff patch failed for {folder_name}, "
                 f"falling back to full download"
             )
 
-    # Clean up stale cache before full download
-    _purge_language_cache(app_game_dir, folder_name)
+    _purge_language_cache(game_cache_root, folder_name)
 
     pkg = get_audio_pkg_for_language(api_data, folder_name)
     if pkg is None:
@@ -621,12 +603,13 @@ def restore_language_from_api(
         )
         return False
 
-    # 3. Check disk space
+    # 3. Check disk space on the cache volume (not the game install volume).
     decompressed = int(pkg.get("decompressed_size", 0))
     archive_size = int(pkg.get("size", 0))
     needed = archive_size + decompressed
     if needed > 0:
-        free = shutil.disk_usage(str(app_game_dir)).free
+        game_cache_root.mkdir(parents=True, exist_ok=True)
+        free = shutil.disk_usage(str(game_cache_root)).free
         if free < needed:
             msg = (
                 f"Not enough disk space to download {folder_name} VO. "
@@ -650,19 +633,18 @@ def restore_language_from_api(
     )
 
     if not ok:
-        # Clean up partial cache
         shutil.rmtree(cache_lang_dir, ignore_errors=True)
         return False
 
     # 5. Update cache metadata
-    meta = _load_cache_meta(app_game_dir)
+    meta = _load_cache_meta(game_cache_root)
     meta["version"] = version
     langs = meta.setdefault("languages", {})
     langs[folder_name] = {
         "md5": pkg.get("md5", ""),
         "cached_at": datetime.now(timezone.utc).isoformat(),
     }
-    _save_cache_meta(app_game_dir, meta)
+    _save_cache_meta(game_cache_root, meta)
 
     # 6. Copy to persistent
     if progress_cb:
@@ -673,7 +655,7 @@ def restore_language_from_api(
 
 
 def _try_hdiff_patch(
-    app_game_dir: Path,
+    game_cache_root: Path,
     cache_lang_dir: Path,
     hdiff_pkg: dict,
     folder_name: str,
@@ -687,7 +669,8 @@ def _try_hdiff_patch(
     decompressed = int(hdiff_pkg.get("decompressed_size", 0))
     needed = archive_size + decompressed
     if needed > 0:
-        free = shutil.disk_usage(str(app_game_dir)).free
+        game_cache_root.mkdir(parents=True, exist_ok=True)
+        free = shutil.disk_usage(str(game_cache_root)).free
         if free < needed:
             print(
                 f"[VO Download] Not enough space for hdiff "
@@ -696,7 +679,6 @@ def _try_hdiff_patch(
             )
             return False
 
-    # Download the hdiff archive
     archive_path = _download_hdiff_archive(
         url=hdiff_pkg["url"],
         expected_md5=hdiff_pkg.get("md5", ""),
@@ -707,13 +689,11 @@ def _try_hdiff_patch(
         return False
 
     try:
-        # Extract hdiff files to a temp dir
         with tempfile.TemporaryDirectory() as hdiff_tmp:
             hdiff_dir = Path(hdiff_tmp)
             if not _extract_hdiff_archive(archive_path, hdiff_dir):
                 return False
 
-            # Copy current cache to a working directory
             with tempfile.TemporaryDirectory() as work_tmp:
                 working_dir = Path(work_tmp) / folder_name
                 shutil.copytree(cache_lang_dir, working_dir)
@@ -727,18 +707,15 @@ def _try_hdiff_patch(
                     working_dir,
                     hdiff_dir,
                     folder_name,
-                    app_game_dir,
                     progress_cb,
                 )
                 if not ok:
                     return False
 
-                # Success -- replace cache with patched copy
                 shutil.rmtree(cache_lang_dir)
                 shutil.copytree(working_dir, cache_lang_dir)
 
-        # Update cache metadata
-        meta = _load_cache_meta(app_game_dir)
+        meta = _load_cache_meta(game_cache_root)
         meta["version"] = version
         langs = meta.setdefault("languages", {})
         langs[folder_name] = {
@@ -746,7 +723,7 @@ def _try_hdiff_patch(
             "cached_at": datetime.now(timezone.utc).isoformat(),
             "patched_from": hdiff_pkg.get("version", ""),
         }
-        _save_cache_meta(app_game_dir, meta)
+        _save_cache_meta(game_cache_root, meta)
         return True
 
     finally:
@@ -757,21 +734,18 @@ def _try_hdiff_patch(
 
 
 def _copy_to_persistent(src_dir: Path, dest_dir: Path):
-    # Replace "dest_dir" with a copy of "src_dir"
     if dest_dir.exists():
         shutil.rmtree(dest_dir)
     shutil.copytree(src_dir, dest_dir)
 
 
 def cleanup_stale_cache(
-    app_game_dir: Path, current_version: str
+    game_cache_root: Path, current_version: str
 ) -> str | None:
-    # Check if the cache version differs from "current_version".
     # Returns the old cached version string if stale (for hdiff patching),
-    # or None if the cache is already current or empty.
-    # Does NOT delete old cache -- the caller decides whether to hdiff-patch
-    # or fall back to full download.
-    meta = _load_cache_meta(app_game_dir)
+    # or None if the cache is current or empty. Does NOT delete old cache —
+    # the caller decides whether to hdiff-patch or fall back to full download.
+    meta = _load_cache_meta(game_cache_root)
     if not meta:
         return None
     cached_version = meta.get("version")
@@ -780,10 +754,8 @@ def cleanup_stale_cache(
     return cached_version
 
 
-def _purge_language_cache(app_game_dir: Path, folder_name: str):
-    # Delete the cached language directory and remove it from metadata
-    cache_root = _cache_dir(app_game_dir)
-    lang_dir = cache_root / folder_name
+def _purge_language_cache(game_cache_root: Path, folder_name: str):
+    lang_dir = game_cache_root / folder_name
     if lang_dir.is_dir():
         shutil.rmtree(lang_dir, ignore_errors=True)
         print(f"[VO Download] Cleaned stale cache: {folder_name}")

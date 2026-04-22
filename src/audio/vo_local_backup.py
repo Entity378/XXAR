@@ -10,7 +10,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.audio.vo_download import _cache_dir, _load_cache_meta, _save_cache_meta
+from src.audio.vo_download import _load_cache_meta, _save_cache_meta
 
 _CHUNK_SIZE = 1 << 20  # 1 MB
 
@@ -59,7 +59,7 @@ def _scan_hash_files(lang_dir: Path) -> dict[str, str]:
 # High-level restore
 
 def restore_language_from_hashes(
-    app_game_dir: Path,
+    game_cache_root: Path,
     persistent_path: Path,
     folder_name: str,
     progress_cb=None,
@@ -79,7 +79,7 @@ def restore_language_from_hashes(
         print(f"[VO Local Backup] No .hash files found in {folder_name}")
         return False
 
-    cache_lang_dir = _cache_dir(app_game_dir) / folder_name
+    cache_lang_dir = game_cache_root / folder_name
     cache_lang_dir.mkdir(parents=True, exist_ok=True)
 
     backed_up = 0
@@ -114,15 +114,14 @@ def restore_language_from_hashes(
             else:
                 missing += 1
 
-    # Update shared cache metadata.
-    meta = _load_cache_meta(app_game_dir)
+    meta = _load_cache_meta(game_cache_root)
     langs = meta.setdefault("languages", {})
     langs[folder_name] = {
         "method": "hash_backup",
         "cached_at": datetime.now(timezone.utc).isoformat(),
         "file_count": len(list(cache_lang_dir.glob("*.pck"))),
     }
-    _save_cache_meta(app_game_dir, meta)
+    _save_cache_meta(game_cache_root, meta)
 
     if backed_up or restored:
         print(
