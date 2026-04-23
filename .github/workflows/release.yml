@@ -1,6 +1,8 @@
 name: Release
 
-# Triggers a build + attaches artifacts when a tag matching vX.Y.Z is pushed.
+# Tag push: build + upload artifacts to the run (no draft release).
+# Manual trigger (Actions -> Run workflow): build + create a draft release
+# with artifacts attached, ready to be edited and published.
 # Linux Flatpak build is intentionally left out — add another job if/when the
 # Flatpak manifest is ready to reuse the same onefolder output.
 
@@ -63,9 +65,10 @@ jobs:
           if-no-files-found: error
 
       - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
           files: |
             dist/XXAR-windows-x64.zip
             dist/XXAR-Installer-v*.msi
