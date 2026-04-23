@@ -11,6 +11,9 @@ from src.wwise.hirc_patcher import (
     apply_volume_patches,
     scan_bank_for_patch_targets,
 )
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 def _natural_sort_key(value):
@@ -641,7 +644,7 @@ class BaseBrowserHandler:
         if not has_duration and not has_volume:
             return False
 
-        print(f"[HIRC Patch] {target_path.name}: {len(targets.tracks)} track(s), {len(targets.segments)} seg(s), {len(targets.volume_patches)} vol target(s), has_volume={has_volume}")
+        logger.info(f"[HIRC Patch] {target_path.name}: {len(targets.tracks)} track(s), {len(targets.segments)} seg(s), {len(targets.volume_patches)} vol target(s), has_volume={has_volume}")
 
         content = bytearray(raw)
         original_size = len(content)
@@ -652,7 +655,7 @@ class BaseBrowserHandler:
             vol_result = apply_volume_patches(
                 content, targets.volume_patches, volume_db_by_track,
             )
-            print(f"[HIRC Patch] Volume: {vol_result['patched']} in-place, {vol_result['inserted']} inserted, size {original_size} -> {len(content)}")
+            logger.info(f"[HIRC Patch] Volume: {vol_result['patched']} in-place, {vol_result['inserted']} inserted, size {original_size} -> {len(content)}")
 
         # If volume insertions shifted bytes, re-scan for duration offsets.
         if vol_result["inserted"] > 0 and has_duration:
@@ -663,7 +666,7 @@ class BaseBrowserHandler:
             dur_result = apply_duration_patches(
                 content, targets, duration_ms_by_track,
             )
-            print(f"[HIRC Patch] Duration: {dur_result['patched_offsets']} offset(s), {len(dur_result['patched_source_ids'])} source(s)")
+            logger.info(f"[HIRC Patch] Duration: {dur_result['patched_offsets']} offset(s), {len(dur_result['patched_source_ids'])} source(s)")
 
         if vol_result["patched"] + vol_result["inserted"] + dur_result["patched_offsets"] <= 0:
             return False
@@ -682,7 +685,7 @@ class BaseBrowserHandler:
 
         target_path.write_bytes(content)
         patched_track_ids.update(dur_result["patched_source_ids"])
-        print(f"[HIRC Patch] Written {len(content)} bytes to {target_path}")
+        logger.info(f"[HIRC Patch] Written {len(content)} bytes to {target_path}")
         return True
 
     def _find_bank_pck_files(self, audio_root):

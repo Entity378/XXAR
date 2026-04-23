@@ -11,6 +11,9 @@ from src.core.config_manager import get_game_sound_database_file
 from src.core.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
 
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class AudioBrowserConnector:
 
     def _connect_audio_browser(self):
@@ -201,7 +204,7 @@ class AudioBrowserConnector:
 
         ab.loadFromSettings()
         ab.checkForNewTagDb()
-        print(f"[{APP_NAME}] Audio browser page connected")
+        logger.info(f"[{APP_NAME}] Audio browser page connected")
 
 
     def _on_new_tag_db_available(self, count):
@@ -255,9 +258,9 @@ class AudioBrowserConnector:
             )
 
     def _on_audio_navigate_to_item(self, file_id, pck_path, bnk_id=""):
-        print(f"[Connector] _on_audio_navigate_to_item called: file_id={file_id}, pck_path={pck_path}, bnk_id={bnk_id}")
+        logger.info(f"[Connector] _on_audio_navigate_to_item called: file_id={file_id}, pck_path={pck_path}, bnk_id={bnk_id}")
         if self.audio_page:
-            print(f"[Connector] audio_page exists, invoking scrollToItem")
+            logger.info(f"[Connector] audio_page exists, invoking scrollToItem")
             result = QMetaObject.invokeMethod(
                 self.audio_page, "scrollToItem",
                 Qt.QueuedConnection,
@@ -265,9 +268,9 @@ class AudioBrowserConnector:
                 Q_ARG("QVariant", pck_path),
                 Q_ARG("QVariant", bnk_id),
             )
-            print(f"[Connector] invokeMethod returned: {result}")
+            logger.info(f"[Connector] invokeMethod returned: {result}")
         else:
-            print(f"[Connector] audio_page is None!")
+            logger.info(f"[Connector] audio_page is None!")
 
     def _on_audio_changes(self, changes):
         if self.audio_page:
@@ -339,14 +342,14 @@ class AudioBrowserConnector:
             folder = Path(persistent_dir)
 
         if not folder.exists():
-            print(f"[Audio Browser] Folder does not exist: {folder}")
+            logger.info(f"[Audio Browser] Folder does not exist: {folder}")
             QMetaObject.invokeMethod(
                 self.root, "showErrorToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder does not exist:\n%1").replace("%1", str(folder))),
             )
             return
 
-        print(f"[Audio Browser] Opening folder: {folder}")
+        logger.info(f"[Audio Browser] Opening folder: {folder}")
         system = platform.system()
         try:
             if system == "Windows":
@@ -364,7 +367,7 @@ class AudioBrowserConnector:
                     env=env,
                 )
         except Exception as e:
-            print(f"[Audio Browser] ERROR: Could not open folder: {e}")
+            logger.error(f"[Audio Browser] ERROR: Could not open folder: {e}")
 
     def on_open_tag_db_folder(self):
         game_id = normalize_game_id(
@@ -373,7 +376,7 @@ class AudioBrowserConnector:
         folder = get_game_sound_database_file(game_id).parent
         folder.mkdir(parents=True, exist_ok=True)
 
-        print(f"[Audio Browser] Opening tag DB folder: {folder}")
+        logger.info(f"[Audio Browser] Opening tag DB folder: {folder}")
         system = platform.system()
         try:
             if system == "Windows":
@@ -391,7 +394,7 @@ class AudioBrowserConnector:
                     env=env,
                 )
         except Exception as e:
-            print(f"[Audio Browser] ERROR: Could not open tag DB folder: {e}")
+            logger.error(f"[Audio Browser] ERROR: Could not open tag DB folder: {e}")
 
     def _on_match_results(self, results):
         if self.audio_page:

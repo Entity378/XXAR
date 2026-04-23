@@ -16,6 +16,9 @@ from pathlib import Path
 
 from src.core.game_registry import get_game, DEFAULT_GAME_ID
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 BACKUP_SUFFIX = ".xxar_backup"
 
 
@@ -55,9 +58,9 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
         if not backup_path.exists():
             try:
                 shutil.copy2(override_pck, backup_path)
-                print(f"[Override Patcher] Backed up {override_pck.name}")
+                logger.info(f"[Override Patcher] Backed up {override_pck.name}")
             except Exception as e:
-                print(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
+                logger.error(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
                 continue
 
         # Restore from clean backup before patching so repeated applies are
@@ -69,7 +72,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
             shutil.copy2(backup_path, override_pck)
             override_pck.chmod(0o644)
         except Exception as e:
-            print(f"[Override Patcher] Failed to restore from backup: {e}")
+            logger.error(f"[Override Patcher] Failed to restore from backup: {e}")
             continue
 
         try:
@@ -77,7 +80,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
             indexer = PCKIndexer(str(override_pck))
             index = indexer.build_index()
         except Exception as e:
-            print(f"[Override Patcher] Failed to index {override_pck.name}: {e}")
+            logger.error(f"[Override Patcher] Failed to index {override_pck.name}: {e}")
             continue
 
         pck_bnk_ids = {entry["id"] for entry in index["banks"]}
@@ -88,7 +91,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
         try:
             nulled = _null_bnk_ids_in_file_table(override_pck, conflicting)
         except Exception as e:
-            print(f"[Override Patcher] Failed to null BNK IDs in {override_pck.name}: {e}")
+            logger.error(f"[Override Patcher] Failed to null BNK IDs in {override_pck.name}: {e}")
             try:
                 shutil.copy2(backup_path, override_pck)
             except Exception:
@@ -98,7 +101,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
         if nulled:
             patched_pcks += 1
             all_nulled_bnk_ids.update(nulled)
-            print(f"[Override Patcher] Nulled {len(nulled)} BNK ID(s) in {override_pck.name}: {nulled}")
+            logger.info(f"[Override Patcher] Nulled {len(nulled)} BNK ID(s) in {override_pck.name}: {nulled}")
             if progress_callback:
                 progress_callback(f"Patched {override_pck.name} ({len(nulled)} BNK conflicts)")
 
@@ -163,9 +166,9 @@ def restore_override_pck_backups(persistent_root):
             shutil.copy2(backup_file, target)
             backup_file.unlink()
             restored += 1
-            print(f"[Override Patcher] Restored original {original_name}")
+            logger.info(f"[Override Patcher] Restored original {original_name}")
         except Exception as e:
-            print(f"[Override Patcher] Failed to restore {original_name}: {e}")
+            logger.error(f"[Override Patcher] Failed to restore {original_name}: {e}")
 
     return restored
 

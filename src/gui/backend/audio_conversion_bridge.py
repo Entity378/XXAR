@@ -4,6 +4,9 @@ import sys
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
@@ -123,7 +126,7 @@ class AudioConversionBridge(QObject):
     @pyqtSlot(int, str, str, int, bool, int)
     def convertAudio(self, mode, input_path, output_path, sample_rate, normalize, lufs=-9):
 
-        print(f"[Audio Conversion] Starting conversion - Mode: {mode}, Input: {input_path}")
+        logger.info(f"[Audio Conversion] Starting conversion - Mode: {mode}, Input: {input_path}")
 
         if not input_path:
             self.errorOccurred.emit("Error", "Please select an input file or directory")
@@ -147,12 +150,12 @@ class AudioConversionBridge(QObject):
 
     def _onProgress(self, message):
 
-        print(f"[Audio Conversion] {message}")
+        logger.info(f"[Audio Conversion] {message}")
         self.logMessage.emit(message)
 
     def _onFinished(self, success, message):
 
-        print(f"[Audio Conversion] Finished - Success: {success}, Message: {message}")
+        logger.info(f"[Audio Conversion] Finished - Success: {success}, Message: {message}")
         self.logMessage.emit("\n" + message)
         self.conversionFinished.emit()
 

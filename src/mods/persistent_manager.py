@@ -6,6 +6,9 @@ from datetime import datetime
 from src.core.config_manager import get_game_mod_tracker_file
 from src.core.game_registry import DEFAULT_GAME_ID
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class PersistentModManager:
 
 
@@ -99,7 +102,7 @@ class PersistentModManager:
                 with open(self.mod_tracker_path, 'r') as f:
                     self.mod_tracker = json.load(f)
         except Exception as e:
-            print(f"Warning: Failed to load mod tracker: {e}")
+            logger.error(f"Warning: Failed to load mod tracker: {e}")
             self.mod_tracker = {}
 
     def save_tracker(self):
@@ -108,7 +111,7 @@ class PersistentModManager:
             with open(self.mod_tracker_path, 'w') as f:
                 json.dump(self.mod_tracker, f, indent=2)
         except Exception as e:
-            print(f"Warning: Failed to save mod tracker: {e}")
+            logger.error(f"Warning: Failed to save mod tracker: {e}")
 
     def get_stats(self):
 

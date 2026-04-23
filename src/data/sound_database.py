@@ -7,6 +7,9 @@ from datetime import datetime
 
 from src.core.config_manager import get_sound_database_file
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class SoundDatabase:
 
 
@@ -114,7 +117,7 @@ class SoundDatabase:
                 with open(self.db_path, 'r', encoding='utf-8') as f:
                     self.database = json.load(f)
         except Exception as e:
-            print(f"Warning: Failed to load sound database: {e}")
+            logger.error(f"Warning: Failed to load sound database: {e}")
             self.database = {}
 
     def save(self):
@@ -123,7 +126,7 @@ class SoundDatabase:
             with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(self.database, f, indent=2)
         except Exception as e:
-            print(f"Warning: Failed to save sound database: {e}")
+            logger.error(f"Warning: Failed to save sound database: {e}")
 
     def export_to_file(self, export_path):
 

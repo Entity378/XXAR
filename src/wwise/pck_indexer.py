@@ -1,6 +1,9 @@
 import struct
 from pathlib import Path
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class PCKIndexer:
 
 
@@ -208,7 +211,7 @@ class PCKIndexer:
                         with open(out_file, 'wb') as wf:
                             wf.write(file_data)
                     except Exception as e:
-                        print(f"Error extracting WEM {file_info['id']}: {e}")
+                        logger.error(f"Error extracting WEM {file_info['id']}: {e}")
 
             if extract_bnk and self.index_data['banks']:
                 for bank_info in self.index_data['banks']:
@@ -221,4 +224,4 @@ class PCKIndexer:
                         with open(out_file, 'wb') as wf:
                             wf.write(file_data)
                     except Exception as e:
-                        print(f"Error extracting BNK {bank_info['id']}: {e}")
+                        logger.error(f"Error extracting BNK {bank_info['id']}: {e}")

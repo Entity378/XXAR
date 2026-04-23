@@ -5,6 +5,9 @@ from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 def align16(x):
 
     return (16 - (x % 16)) % 16
@@ -170,7 +173,7 @@ class BNKFile:
                     self.data['HIRC'] = HIRC(chunk_data)
                 else:
 
-                    print(f"  Unknown BNK chunk: {tag_str} ({size} bytes)")
+                    logger.info(f"  Unknown BNK chunk: {tag_str} ({size} bytes)")
 
             except (struct_error, UnicodeDecodeError):
                 break
@@ -218,7 +221,7 @@ class BNKFile:
 
         self._correct_offsets()
 
-        print(f"  Replaced WEM {wem_id} in BNK ({len(wem_bytes)} bytes)")
+        logger.info(f"  Replaced WEM {wem_id} in BNK ({len(wem_bytes)} bytes)")
 
     def add_wem(self, wem_id, wem_bytes):
         if 'DATA' not in self.data:
@@ -235,7 +238,7 @@ class BNKFile:
 
         del self.data['DATA'].wem_data[wem_id]
         self._correct_offsets()
-        print(f"  Removed WEM {wem_id} from BNK")
+        logger.info(f"  Removed WEM {wem_id} from BNK")
         return True
 
     def _correct_offsets(self):
@@ -263,7 +266,7 @@ class BNKFile:
             for section in self.data.values():
                 f.write(section.getdata())
 
-        print(f"  Saved BNK: {output_path}")
+        logger.info(f"  Saved BNK: {output_path}")
 
     def get_bytes(self):
 
@@ -281,26 +284,26 @@ def extract_bnk_wems(bnk_path, output_dir):
     bnk = BNKFile(bnk_path)
     wem_ids = bnk.list_wems()
 
-    print(f"\nExtracting {len(wem_ids)} WEMs from {bnk_path.name}...")
+    logger.info(f"\nExtracting {len(wem_ids)} WEMs from {bnk_path.name}...")
 
     for wem_id in wem_ids:
         output_file = output_dir / f"{wem_id}.wem"
         bnk.extract_wem(wem_id, output_file)
-        print(f"  Extracted: {wem_id}.wem")
+        logger.info(f"  Extracted: {wem_id}.wem")
 
-    print(f"\n[OK] Extracted {len(wem_ids)} WEM files to {output_dir}")
+    logger.info(f"\n[OK] Extracted {len(wem_ids)} WEM files to {output_dir}")
 
 def main():
 
     import sys
 
     if len(sys.argv) < 3:
-        print("Usage: python bnk_handler.py <command> <bnk_file> [options]")
-        print("")
-        print("Commands:")
-        print("  list <bnk_file>                    - List WEM IDs in BNK")
-        print("  extract <bnk_file> <output_dir>    - Extract all WEMs from BNK")
-        print("  replace <bnk_file> <wem_id> <wem_file> <output_bnk>  - Replace WEM in BNK")
+        logger.info("Usage: python bnk_handler.py <command> <bnk_file> [options]")
+        logger.info("")
+        logger.info("Commands:")
+        logger.info("  list <bnk_file>                    - List WEM IDs in BNK")
+        logger.info("  extract <bnk_file> <output_dir>    - Extract all WEMs from BNK")
+        logger.info("  replace <bnk_file> <wem_id> <wem_file> <output_bnk>  - Replace WEM in BNK")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -309,21 +312,21 @@ def main():
     if command == 'list':
         bnk = BNKFile(bnk_file)
         wem_ids = bnk.list_wems()
-        print(f"\nWEM files in {Path(bnk_file).name}:")
+        logger.info(f"\nWEM files in {Path(bnk_file).name}:")
         for wem_id in wem_ids:
-            print(f"  {wem_id}")
-        print(f"\nTotal: {len(wem_ids)} WEM files")
+            logger.info(f"  {wem_id}")
+        logger.info(f"\nTotal: {len(wem_ids)} WEM files")
 
     elif command == 'extract':
         if len(sys.argv) < 4:
-            print("Error: extract requires <output_dir>")
+            logger.error("Error: extract requires <output_dir>")
             sys.exit(1)
         output_dir = sys.argv[3]
         extract_bnk_wems(bnk_file, output_dir)
 
     elif command == 'replace':
         if len(sys.argv) < 6:
-            print("Error: replace requires <wem_id> <wem_file> <output_bnk>")
+            logger.error("Error: replace requires <wem_id> <wem_file> <output_bnk>")
             sys.exit(1)
         wem_id = int(sys.argv[3])
         wem_file = sys.argv[4]
@@ -332,10 +335,10 @@ def main():
         bnk = BNKFile(bnk_file)
         bnk.replace_wem(wem_id, wem_file)
         bnk.save(output_bnk)
-        print(f"\n[OK] Created modified BNK: {output_bnk}")
+        logger.info(f"\n[OK] Created modified BNK: {output_bnk}")
 
     else:
-        print(f"Unknown command: {command}")
+        logger.info(f"Unknown command: {command}")
         sys.exit(1)
 
 if __name__ == "__main__":

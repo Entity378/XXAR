@@ -13,6 +13,9 @@ from src.core.app_config import APP_NAME
 from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
 from src.core.subprocess_utils import get_bundled_resource
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 def _find_bundled_unrar():
     if sys.platform != 'win32':
         return None
@@ -176,7 +179,7 @@ class FetchModsWorker(QThread):
 
             url = f"{GAMEBANANA_API_BASE}/Sound/Index?{filters}&{urllib.parse.urlencode(params)}"
 
-            print(f"[GameBanana] Fetching sound mods: {url}")
+            logger.info(f"[GameBanana] Fetching sound mods: {url}")
 
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'XXAR/1.1.0')
@@ -194,12 +197,12 @@ class FetchModsWorker(QThread):
                             if mod:
                                 mods.append(mod)
                         except Exception as e:
-                            print(f"[GameBanana] Error parsing mod: {e}")
+                            logger.error(f"[GameBanana] Error parsing mod: {e}")
                             continue
 
                 metadata = data.get('_aMetadata', {}) if isinstance(data, dict) else {}
                 total_count = metadata.get('_nRecordCount', 0)
-                print(f"[GameBanana] Parsed {len(mods)} mods from response (total: {total_count})")
+                logger.info(f"[GameBanana] Parsed {len(mods)} mods from response (total: {total_count})")
                 self.finished.emit(True, (mods, total_count))
 
         except urllib.error.HTTPError as e:
@@ -289,7 +292,7 @@ class FetchMiscModsWorker(QThread):
                 params['_sOrder'] = 'DESC'
 
             url = f"{GAMEBANANA_API_BASE}/Mod/Index?{filters}&{urllib.parse.urlencode(params)}"
-            print(f"[GameBanana] Fetching misc mods: {url}")
+            logger.info(f"[GameBanana] Fetching misc mods: {url}")
 
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'XXAR/1.1.0')
@@ -308,7 +311,7 @@ class FetchMiscModsWorker(QThread):
                     if mod:
                         candidates.append(mod)
                 except Exception as e:
-                    print(f"[GameBanana] Error parsing misc mod: {e}")
+                    logger.error(f"[GameBanana] Error parsing misc mod: {e}")
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
             native_mods = []
@@ -327,7 +330,7 @@ class FetchMiscModsWorker(QThread):
                     except Exception:
                         pass
 
-            print(f"[GameBanana] Found {len(native_mods)} {APP_NAME}-native misc mods")
+            logger.info(f"[GameBanana] Found {len(native_mods)} {APP_NAME}-native misc mods")
             self.finished.emit(True, native_mods)
 
         except urllib.error.HTTPError as e:
@@ -421,7 +424,7 @@ class FetchMiscModsWorker(QThread):
                             _cache_set("mod_thumbnail", mod_id, thumbnail)
                             return (True, thumbnail)
         except Exception as e:
-            print(f"[GameBanana] Error checking misc mod {mod_id}: {e}")
+            logger.error(f"[GameBanana] Error checking misc mod {mod_id}: {e}")
         _cache_set("mod_support_misc", mod_id, False)
         return (False, '')
 
@@ -501,7 +504,7 @@ class FetchModDetailsWorker(QThread):
     def _run_sound_type(self):
         fields = "name,Owner().name,text,description,views,likes,date,Files().aFiles(),Preview().sPreviewUrl()"
         url = f"https://api.gamebanana.com/Core/Item/Data?itemtype=Sound&itemid={self.mod_id}&fields={fields}"
-        print(f"[GameBanana] Fetching Sound details: {url}")
+        logger.info(f"[GameBanana] Fetching Sound details: {url}")
 
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'XXAR/1.1.0')
@@ -517,7 +520,7 @@ class FetchModDetailsWorker(QThread):
     def _run_mod_type(self):
 
         url = f"{GAMEBANANA_API_BASE}/Mod/{self.mod_id}/ProfilePage"
-        print(f"[GameBanana] Fetching Mod details (ProfilePage): {url}")
+        logger.info(f"[GameBanana] Fetching Mod details (ProfilePage): {url}")
 
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'XXAR/1.1.0')
@@ -534,7 +537,7 @@ class FetchModDetailsWorker(QThread):
     def _parse_mod_profile_page(self, data):
 
         if not isinstance(data, dict):
-            print(f"[GameBanana] Unexpected Mod ProfilePage format: {type(data)}")
+            logger.info(f"[GameBanana] Unexpected Mod ProfilePage format: {type(data)}")
             return None
 
         submitter = data.get('_aSubmitter', {})
@@ -598,7 +601,7 @@ class FetchModDetailsWorker(QThread):
 
 
         if not isinstance(data, list) or len(data) < 9:
-            print(f"[GameBanana] Invalid data format: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
+            logger.info(f"[GameBanana] Invalid data format: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
             return None
 
         name = data[0] if len(data) > 0 else 'Unknown'
@@ -865,7 +868,7 @@ class FetchModSupportWorker(QThread):
                                 _cache_set("mod_support", mod_id, True)
                                 return (mod_id, True)
         except Exception as e:
-            print(f"[GameBanana] Error checking mod support for {mod_id}: {e}")
+            logger.error(f"[GameBanana] Error checking mod support for {mod_id}: {e}")
         _cache_set("mod_support", mod_id, False)
         return (mod_id, False)
 
@@ -1041,7 +1044,7 @@ class DownloadModWorker(QThread):
 
     def run(self):
         try:
-            print(f"[GameBanana] Downloading: {self.download_url}")
+            logger.info(f"[GameBanana] Downloading: {self.download_url}")
 
             req = urllib.request.Request(self.download_url)
             req.add_header('User-Agent', 'XXAR/1.1.0')
@@ -1065,7 +1068,7 @@ class DownloadModWorker(QThread):
                             progress = int((downloaded / total_size) * 100)
                             self.progress.emit(progress)
 
-            print(f"[GameBanana] Download complete: {self.save_path}")
+            logger.info(f"[GameBanana] Download complete: {self.save_path}")
             self.finished.emit(True, str(self.save_path))
 
         except Exception as e:
@@ -1160,10 +1163,8 @@ class GameBananaBridge(QObject):
 
         self._active_game_id = normalized
         self._active_gamebanana_game_id = resolved_gb_id
-        print(
-            f"[GameBanana] Active game set to '{self._active_game_id}' "
-            f"(Generic_Game={self._active_gamebanana_game_id})"
-        )
+        logger.info(f"[GameBanana] Active game set to '{self._active_game_id}' "
+            f"(Generic_Game={self._active_gamebanana_game_id})")
 
         if reload:
             self.refresh()
@@ -1182,7 +1183,7 @@ class GameBananaBridge(QObject):
                 if not settings.get("enable_gb_thumbnails", False):
                     return
         except Exception as e:
-            print(f"[GameBananaBridge] Error reading thumbnail setting: {e}")
+            logger.error(f"[GameBananaBridge] Error reading thumbnail setting: {e}")
 
         cached = _cache_get("thumbnails", mod_id)
         if cached and cached.startswith("file://"):
@@ -1219,7 +1220,7 @@ class GameBananaBridge(QObject):
 
         if (self.fetch_worker and self.fetch_worker.isRunning()) or \
            (self.misc_fetch_worker and self.misc_fetch_worker.isRunning()):
-            print("[GameBanana] Already fetching mods")
+            logger.info("[GameBanana] Already fetching mods")
             return
 
         self.current_page = page
@@ -1265,7 +1266,7 @@ class GameBananaBridge(QObject):
                 self._combined_mods.append(mod)
                 self._mod_item_types[mod['id']] = 'Mod'
         elif not success:
-            print(f"[GameBanana] Misc mods fetch failed: {data}")
+            logger.error(f"[GameBanana] Misc mods fetch failed: {data}")
         self._pending_fetch_count -= 1
         self._maybe_emit_combined()
 
@@ -1282,7 +1283,7 @@ class GameBananaBridge(QObject):
             self.cached_mods = data
             self.modsLoaded.emit(data)
             self.totalModsCount.emit(self._total_sound_mods)
-            print(f"[GameBanana] Loaded {len(data)} mods ({len(self._sound_mod_ids)} Sound + {len(data) - len(self._sound_mod_ids)} Misc {APP_NAME}), total Sound: {self._total_sound_mods}")
+            logger.info(f"[GameBanana] Loaded {len(data)} mods ({len(self._sound_mod_ids)} Sound + {len(data) - len(self._sound_mod_ids)} Misc {APP_NAME}), total Sound: {self._total_sound_mods}")
 
             if self._sound_mod_ids:
                 if self.mod_support_worker and self.mod_support_worker.isRunning():
@@ -1292,13 +1293,13 @@ class GameBananaBridge(QObject):
                 self.mod_support_worker.start()
         else:
             self.errorOccurred.emit("Failed to Load Mods", str(data))
-            print(f"[GameBanana] Error: {data}")
+            logger.error(f"[GameBanana] Error: {data}")
 
     @pyqtSlot(int)
     def fetchModDetails(self, mod_id):
 
         if self.details_worker and self.details_worker.isRunning():
-            print("[GameBanana] Already fetching details")
+            logger.info("[GameBanana] Already fetching details")
             return
 
         self.loadingStateChanged.emit(True)
@@ -1327,10 +1328,10 @@ class GameBananaBridge(QObject):
                 _save_cache()
 
             self.modDetailsLoaded.emit(data)
-            print(f"[GameBanana] Loaded details for mod: {data.get('name', 'Unknown')}")
+            logger.info(f"[GameBanana] Loaded details for mod: {data.get('name', 'Unknown')}")
         else:
             self.errorOccurred.emit("Failed to Load Mod Details", str(data))
-            print(f"[GameBanana] Error: {data}")
+            logger.error(f"[GameBanana] Error: {data}")
 
     @pyqtSlot(str, str, str, int)
     def downloadMod(self, download_url, filename, mod_name, mod_id=0):
@@ -1350,7 +1351,7 @@ class GameBananaBridge(QObject):
         self.download_worker.finished.connect(self._on_download_finished)
         self.download_worker.start()
 
-        print(f"[GameBanana] Starting download: {mod_name}")
+        logger.info(f"[GameBanana] Starting download: {mod_name}")
 
     @pyqtSlot(str, str)
     def downloadModToPath(self, download_url, filename):
@@ -1385,12 +1386,12 @@ class GameBananaBridge(QObject):
 
         if success:
             self.downloadComplete.emit(result)
-            print(f"[GameBanana] Download complete: {result}")
+            logger.info(f"[GameBanana] Download complete: {result}")
             item_type = self._mod_item_types.get(self._current_download_mod_id, 'Sound')
             self._run_install(result, chosen_mod=None, gamebanana_id=self._current_download_mod_id, download_url=self._current_download_url, item_type=item_type)
         else:
             self.errorOccurred.emit("Download Failed", result)
-            print(f"[GameBanana] Download error: {result}")
+            logger.error(f"[GameBanana] Download error: {result}")
 
     def _run_install(self, archive_path, chosen_mod, gamebanana_id=0, download_url="", item_type="Sound"):
         if self.install_worker and self.install_worker.isRunning():
@@ -1417,10 +1418,10 @@ class GameBananaBridge(QObject):
         if success:
             self.installComplete.emit(message)
             self.installedModsChanged.emit(self.getInstalledModNames())
-            print(f"[GameBanana] Install complete: {message}")
+            logger.info(f"[GameBanana] Install complete: {message}")
         else:
             self.errorOccurred.emit("Install Failed", message)
-            print(f"[GameBanana] Install error: {message}")
+            logger.error(f"[GameBanana] Install error: {message}")
 
         if self._install_queue:
             next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)

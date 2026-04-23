@@ -26,6 +26,9 @@ from src.core.game_registry import (
     is_valid_game_data_dir,
     normalize_game_data_dir,
 )
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class SettingsConnector:
@@ -169,7 +172,7 @@ class SettingsConnector:
                 else:
                     self.gamebanana_bridge.refresh()
         except Exception as e:
-            print(f"[Settings] Background game switch error: {e}")
+            logger.error(f"[Settings] Background game switch error: {e}")
 
     def on_swap_game_requested(self):
         if self._swap_in_progress:
@@ -205,7 +208,7 @@ class SettingsConnector:
                 Q_ARG("QVariant", message),
             )
         except Exception as e:
-            print(f"[Settings] Failed to swap active game: {e}")
+            logger.error(f"[Settings] Failed to swap active game: {e}")
             QMetaObject.invokeMethod(
                 self.root,
                 "showErrorToast",
@@ -320,12 +323,12 @@ class SettingsConnector:
         )
 
         self.load_settings_to_ui()
-        print(f"[{APP_NAME}] Settings page connected")
+        logger.info(f"[{APP_NAME}] Settings page connected")
 
     def _connect_welcome_dialog(self):
         self.welcome_dialog = self.root.findChild(QObject, "welcomeDialog")
         if not self.welcome_dialog:
-            print(f"[{APP_NAME}] WARNING: Welcome dialog not found!")
+            logger.warning(f"[{APP_NAME}] WARNING: Welcome dialog not found!")
             return
 
         self.welcome_dialog.modeSelected.connect(self.on_welcome_mode_selected)
@@ -370,7 +373,7 @@ class SettingsConnector:
         )
         self._set_root_active_game_props(selected_game)
 
-        print(f"[{APP_NAME}] Welcome dialog connected")
+        logger.info(f"[{APP_NAME}] Welcome dialog connected")
 
     def load_settings_to_ui(self):
         settings = self.load_settings()
@@ -438,9 +441,9 @@ class SettingsConnector:
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
-            print(f"[{APP_NAME}] Language changed to: {lang_code}")
+            logger.info(f"[{APP_NAME}] Language changed to: {lang_code}")
         except Exception as e:
-            print(f"[{APP_NAME}] Error saving language preference: {e}")
+            logger.error(f"[{APP_NAME}] Error saving language preference: {e}")
 
     def on_ui_scale_changed(self, scale):
         try:
@@ -449,13 +452,13 @@ class SettingsConnector:
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
-            print(f"[{APP_NAME}] UI scale changed to: {scale}")
+            logger.info(f"[{APP_NAME}] UI scale changed to: {scale}")
             QMetaObject.invokeMethod(
                 self.root, "showSuccessToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "UI scale saved. Restart to apply.")),
             )
         except Exception as e:
-            print(f"[{APP_NAME}] Error saving UI scale: {e}")
+            logger.error(f"[{APP_NAME}] Error saving UI scale: {e}")
 
     def on_mod_creation_mode_changed(self, enabled):
         self.root.setProperty("modCreationEnabled", enabled)
@@ -500,14 +503,14 @@ class SettingsConnector:
         )
 
     def on_audio_tools_status_changed(self, installed):
-        print(f"[{APP_NAME}] on_audio_tools_status_changed called: installed={installed}")
+        logger.info(f"[{APP_NAME}] on_audio_tools_status_changed called: installed={installed}")
         if self.settings_page:
-            print(f"[{APP_NAME}] Setting audioToolsInstalled={installed}, isInstallingAudioTools=False")
+            logger.info(f"[{APP_NAME}] Setting audioToolsInstalled={installed}, isInstallingAudioTools=False")
             self.settings_page.setProperty("audioToolsInstalled", installed)
             self.settings_page.setProperty("isInstallingAudioTools", False)
-            print(f"[{APP_NAME}] Properties set successfully")
+            logger.info(f"[{APP_NAME}] Properties set successfully")
         else:
-            print(f"[{APP_NAME}] WARNING: settings_page is None!")
+            logger.warning(f"[{APP_NAME}] WARNING: settings_page is None!")
 
     def on_audio_tools_setup_success(self, title, message):
         if self.audio_browser_bridge:
@@ -522,9 +525,9 @@ class SettingsConnector:
         )
 
     def on_mod_install_success(self, title, message, image_path):
-        print(f"[DEBUG] Mod install success dialog triggered: {title}")
-        print(f"[DEBUG] Message: {message}")
-        print(f"[DEBUG] Image: {image_path}")
+        logger.info(f"[DEBUG] Mod install success dialog triggered: {title}")
+        logger.info(f"[DEBUG] Message: {message}")
+        logger.info(f"[DEBUG] Image: {image_path}")
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
@@ -631,7 +634,7 @@ class SettingsConnector:
         )
 
     def on_save_settings(self, game_path):
-        print(f"[Settings] Saving settings with game path: {game_path}")
+        logger.info(f"[Settings] Saving settings with game path: {game_path}")
 
         mod_creation_mode = self.settings_page.property("modCreationEnabled")
         enable_gb_thumbnails = self.settings_page.property("enableGbThumbnails")
@@ -673,7 +676,7 @@ class SettingsConnector:
             settings[custom_mods_key] = custom_mods_dir
             if current_game == DEFAULT_GAME_ID:
                 settings["custom_mod_library_dir"] = custom_mods_dir
-            print(f"[Settings] Active game saved: {saved_game}")
+            logger.info(f"[Settings] Active game saved: {saved_game}")
         elif game_path:
             QMetaObject.invokeMethod(
                 self.root,
@@ -688,15 +691,15 @@ class SettingsConnector:
             )
         elif "selected_game" not in settings:
             settings["selected_game"] = DEFAULT_GAME_ID
-        print(f"[Settings] Mod Creation Mode: {mod_creation_mode}")
-        print(f"[Settings] Custom mods dir: {custom_mods_dir or '(default)'}")
+        logger.info(f"[Settings] Mod Creation Mode: {mod_creation_mode}")
+        logger.info(f"[Settings] Custom mods dir: {custom_mods_dir or '(default)'}")
 
         try:
             self.settings_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
 
-            print(f"[Settings] Settings saved to: {self.settings_file}")
+            logger.info(f"[Settings] Settings saved to: {self.settings_file}")
 
             QMetaObject.invokeMethod(
                 self.root,
@@ -706,7 +709,7 @@ class SettingsConnector:
             )
 
             if self.mod_manager_bridge:
-                print("[Settings] Reloading mod manager with new paths...")
+                logger.info("[Settings] Reloading mod manager with new paths...")
                 self.mod_manager_bridge.load_settings()
                 self.mod_manager_bridge.refreshMods()
 
@@ -726,7 +729,7 @@ class SettingsConnector:
                 self.audio_browser_bridge.scanLanguageFolders(active_data_dir)
 
         except Exception as e:
-            print(f"[Settings] ERROR: Failed to save settings: {e}")
+            logger.error(f"[Settings] ERROR: Failed to save settings: {e}")
             QMetaObject.invokeMethod(
                 self.root,
                 "showAlertDialog",
@@ -739,7 +742,7 @@ class SettingsConnector:
     def check_first_launch(self):
         try:
             if not self.settings_file.exists():
-                print(f"[{APP_NAME}] First launch detected - showing welcome dialog")
+                logger.info(f"[{APP_NAME}] First launch detected - showing welcome dialog")
                 QMetaObject.invokeMethod(
                     self.root,
                     "showWelcomeDialog",
@@ -747,10 +750,10 @@ class SettingsConnector:
                 )
                 return True
             else:
-                print(f"[{APP_NAME}] Settings file exists, skipping welcome dialog")
+                logger.info(f"[{APP_NAME}] Settings file exists, skipping welcome dialog")
                 return False
         except Exception as e:
-            print(f"[{APP_NAME}] Error checking first launch: {e}")
+            logger.error(f"[{APP_NAME}] Error checking first launch: {e}")
             return False
 
     def _can_move_language_folder(self, folder_name, persistent_path, streaming_path):
@@ -760,13 +763,13 @@ class SettingsConnector:
 
         streaming_exists = streaming_folder.exists()
         streaming_has_pcks = streaming_exists and any(streaming_folder.glob("*.pck"))
-        print(f"[{APP_NAME}] Move check for '{folder_name}': streaming exists={streaming_exists}, has PCKs={streaming_has_pcks}")
+        logger.info(f"[{APP_NAME}] Move check for '{folder_name}': streaming exists={streaming_exists}, has PCKs={streaming_has_pcks}")
 
         if streaming_has_pcks:
-            print(f"[{APP_NAME}]   -> NOT moveable: streaming already has '{folder_name}' with PCK files")
+            logger.info(f"[{APP_NAME}]   -> NOT moveable: streaming already has '{folder_name}' with PCK files")
             return False
 
-        print(f"[{APP_NAME}]   -> MOVEABLE")
+        logger.info(f"[{APP_NAME}]   -> MOVEABLE")
         return True
 
     def check_multiple_languages(self):
@@ -777,11 +780,11 @@ class SettingsConnector:
             )
             game_def = get_game(selected_game)
             if not game_def.check_streaming_pairing:
-                print(f"[{APP_NAME}] Skipping language check for game: {selected_game}")
+                logger.info(f"[{APP_NAME}] Skipping language check for game: {selected_game}")
                 return
 
             if settings.get("hide_language_warning", False):
-                print(f"[{APP_NAME}] Language warning disabled by user")
+                logger.warning(f"[{APP_NAME}] Language warning disabled by user")
                 return
 
             streaming_key, persistent_key = get_audio_settings_keys(selected_game)
@@ -789,12 +792,12 @@ class SettingsConnector:
                 "persistent_audio_dir", ""
             )
             if not persistent_dir:
-                print(f"[{APP_NAME}] No persistent directory configured yet")
+                logger.info(f"[{APP_NAME}] No persistent directory configured yet")
                 return
 
             persistent_path = Path(persistent_dir)
             if not persistent_path.exists():
-                print(f"[{APP_NAME}] Persistent directory does not exist yet")
+                logger.info(f"[{APP_NAME}] Persistent directory does not exist yet")
                 return
 
             streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
@@ -807,11 +810,11 @@ class SettingsConnector:
                     pck_files = list(item.glob("*.pck"))
                     if pck_files:
                         language_folders.append(item.name)
-                        print(f"[{APP_NAME}] Found language folder: {item.name} with {len(pck_files)} PCK files")
+                        logger.info(f"[{APP_NAME}] Found language folder: {item.name} with {len(pck_files)} PCK files")
 
                         if streaming_path and self._can_move_language_folder(item.name, persistent_path, streaming_path):
                             moveable_folders.append(item.name)
-                            print(f"[{APP_NAME}] Language folder {item.name} is moveable to streaming")
+                            logger.info(f"[{APP_NAME}] Language folder {item.name} is moveable to streaming")
 
             # Detect game-pushed PCK files identified by a sibling .hash file
             hash_pcks = []
@@ -822,10 +825,10 @@ class SettingsConnector:
                     pck_in_streaming = streaming_path / pck_name
                     if pck_in_persistent.exists():
                         hash_pcks.append(pck_name)
-                        print(f"[{APP_NAME}] Found hash-identified PCK in Persistent (missing from Streaming): {pck_name}")
+                        logger.warning(f"[{APP_NAME}] Found hash-identified PCK in Persistent (missing from Streaming): {pck_name}")
 
             if moveable_folders or hash_pcks:
-                print(f"[{APP_NAME}] Found moveable language folders: {moveable_folders}, hash PCKs: {hash_pcks}")
+                logger.info(f"[{APP_NAME}] Found moveable language folders: {moveable_folders}, hash PCKs: {hash_pcks}")
                 languages_text = ", ".join(language_folders)
                 moveable_text = ", ".join(moveable_folders)
                 hash_pcks_text = ", ".join(hash_pcks)
@@ -838,7 +841,7 @@ class SettingsConnector:
                     Q_ARG("QVariant", hash_pcks_text),
                 )
             else:
-                print(f"[{APP_NAME}] Language check OK: {len(language_folders)} language folder(s), no hash PCKs, none moveable")
+                logger.info(f"[{APP_NAME}] Language check OK: {len(language_folders)} language folder(s), no hash PCKs, none moveable")
                 QMetaObject.invokeMethod(
                     self.root,
                     "hideLanguageWarningDialog",
@@ -846,7 +849,7 @@ class SettingsConnector:
                 )
 
         except Exception as e:
-            print(f"[{APP_NAME}] Error checking multiple languages: {e}")
+            logger.error(f"[{APP_NAME}] Error checking multiple languages: {e}")
 
     def on_move_language_to_streaming(self, folder_name):
         # Move a language folder from Persistent to StreamingAssets.
@@ -888,24 +891,24 @@ class SettingsConnector:
                 return
 
 
-            print(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
+            logger.info(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
             destination.mkdir(parents=True, exist_ok=True)
 
             skipped = []
             for item in source.iterdir():
                 if item.is_file() and item.name in get_game(selected_game).protected_pcks:
                     skipped.append(item.name)
-                    print(f"[{APP_NAME}] Leaving protected file in Persistent: {item.name}")
+                    logger.info(f"[{APP_NAME}] Leaving protected file in Persistent: {item.name}")
                     continue
                 shutil.move(str(item), str(destination / item.name))
 
             if not any(source.iterdir()):
                 source.rmdir()
-                print(f"[{APP_NAME}] Removed empty source folder: {source}")
+                logger.info(f"[{APP_NAME}] Removed empty source folder: {source}")
             elif skipped:
-                print(f"[{APP_NAME}] Source folder kept (contains protected files: {', '.join(skipped)})")
+                logger.info(f"[{APP_NAME}] Source folder kept (contains protected files: {', '.join(skipped)})")
 
-            print(f"[{APP_NAME}] Successfully moved {folder_name} to StreamingAssets")
+            logger.info(f"[{APP_NAME}] Successfully moved {folder_name} to StreamingAssets")
 
             QMetaObject.invokeMethod(
                 self.root, "showSuccessToast", Qt.QueuedConnection,
@@ -915,7 +918,7 @@ class SettingsConnector:
             self.check_multiple_languages()
 
         except Exception as e:
-            print(f"[{APP_NAME}] Error moving language folder: {e}")
+            logger.error(f"[{APP_NAME}] Error moving language folder: {e}")
             QMetaObject.invokeMethod(
                 self.root, "showErrorToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", folder_name).replace("%2", str(e))),
@@ -953,16 +956,16 @@ class SettingsConnector:
                 )
                 return
 
-            print(f"[{APP_NAME}] Moving hash PCK: {source_pck} -> {dest_pck}")
+            logger.info(f"[{APP_NAME}] Moving hash PCK: {source_pck} -> {dest_pck}")
             shutil.move(str(source_pck), str(dest_pck))
 
             # Remove the accompanying .hash file(s) from Persistent
             pck_stem = Path(pck_name).stem
             for hash_file in persistent_path.glob(f"{pck_stem}_*.hash"):
                 hash_file.unlink()
-                print(f"[{APP_NAME}] Removed hash file: {hash_file.name}")
+                logger.info(f"[{APP_NAME}] Removed hash file: {hash_file.name}")
 
-            print(f"[{APP_NAME}] Successfully moved {pck_name} to StreamingAssets")
+            logger.info(f"[{APP_NAME}] Successfully moved {pck_name} to StreamingAssets")
             QMetaObject.invokeMethod(
                 self.root, "showSuccessToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Moved '%1' to StreamingAssets successfully!").replace("%1", pck_name)),
@@ -971,7 +974,7 @@ class SettingsConnector:
             self.check_multiple_languages()
 
         except Exception as e:
-            print(f"[{APP_NAME}] Error moving hash PCK: {e}")
+            logger.error(f"[{APP_NAME}] Error moving hash PCK: {e}")
             QMetaObject.invokeMethod(
                 self.root, "showErrorToast", Qt.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", pck_name).replace("%2", str(e))),
@@ -979,7 +982,7 @@ class SettingsConnector:
 
     def on_welcome_game_selected(self, game_id):
         game_id = normalize_game_id(game_id)
-        print(f"[{APP_NAME}] User selected game: {game_id}")
+        logger.info(f"[{APP_NAME}] User selected game: {game_id}")
         self._set_root_active_game_props(game_id)
         if self.welcome_dialog:
             game = get_game(game_id)
@@ -988,7 +991,7 @@ class SettingsConnector:
             )
 
     def on_welcome_mode_selected(self, mode):
-        print(f"[{APP_NAME}] User selected mode: {mode}")
+        logger.info(f"[{APP_NAME}] User selected mode: {mode}")
 
         try:
             settings = {}
@@ -1069,7 +1072,7 @@ class SettingsConnector:
             self.check_multiple_languages()
 
         except Exception as e:
-            print(f"[{APP_NAME}] Error saving welcome mode: {e}")
+            logger.error(f"[{APP_NAME}] Error saving welcome mode: {e}")
             QMetaObject.invokeMethod(
                 self.root,
                 "showErrorToast",
@@ -1078,7 +1081,7 @@ class SettingsConnector:
             )
 
     def on_start_tutorial(self):
-        print(f"[{APP_NAME}] Starting tutorial...")
+        logger.info(f"[{APP_NAME}] Starting tutorial...")
         self.root.setProperty("tutorialActive", True)
         QMetaObject.invokeMethod(
             self.root,
@@ -1087,7 +1090,7 @@ class SettingsConnector:
         )
 
     def on_welcome_browse_game_dir(self):
-        print(f"[{APP_NAME}] Welcome browse button clicked!")
+        logger.info(f"[{APP_NAME}] Welcome browse button clicked!")
         current = self.welcome_dialog.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
         welcome_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
@@ -1133,7 +1136,7 @@ class SettingsConnector:
             )
 
     def on_welcome_auto_detect(self):
-        print(f"[{APP_NAME}] Welcome auto-detect button clicked!")
+        logger.info(f"[{APP_NAME}] Welcome auto-detect button clicked!")
 
         if self.auto_detect_worker and self.auto_detect_worker.isRunning():
             return
@@ -1207,14 +1210,14 @@ class SettingsConnector:
             self.welcome_dialog.setProperty("isInstallingWwise", False)
 
     def on_welcome_audio_tools_status_changed(self, installed):
-        print(f"[{APP_NAME}] on_welcome_audio_tools_status_changed called: installed={installed}")
+        logger.info(f"[{APP_NAME}] on_welcome_audio_tools_status_changed called: installed={installed}")
         if self.welcome_dialog:
-            print(f"[{APP_NAME}] Setting welcome dialog audioToolsInstalled={installed}, isInstallingAudioTools=False")
+            logger.info(f"[{APP_NAME}] Setting welcome dialog audioToolsInstalled={installed}, isInstallingAudioTools=False")
             self.welcome_dialog.setProperty("audioToolsInstalled", installed)
             self.welcome_dialog.setProperty("isInstallingAudioTools", False)
-            print(f"[{APP_NAME}] Welcome dialog properties set successfully")
+            logger.info(f"[{APP_NAME}] Welcome dialog properties set successfully")
         else:
-            print(f"[{APP_NAME}] WARNING: welcome_dialog is None!")
+            logger.warning(f"[{APP_NAME}] WARNING: welcome_dialog is None!")
 
     def on_language_warning_dont_show_again(self, dont_show):
         try:
@@ -1225,6 +1228,6 @@ class SettingsConnector:
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
 
-            print(f"[{APP_NAME}] Language warning preference saved: hide={dont_show}")
+            logger.warning(f"[{APP_NAME}] Language warning preference saved: hide={dont_show}")
         except Exception as e:
-            print(f"[{APP_NAME}] Error saving language warning preference: {e}")
+            logger.error(f"[{APP_NAME}] Error saving language warning preference: {e}")

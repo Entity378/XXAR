@@ -5,6 +5,9 @@ from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
 from src.gui.utils.path_memory import get_last_dir, save_last_dir
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class NativeDialogs:
     @staticmethod
     def _is_linux():
@@ -39,7 +42,7 @@ class NativeDialogs:
         except (FileNotFoundError, subprocess.CalledProcessError):
             return False
         except Exception as e:
-            print(f"Zenity check error: {e}")
+            logger.error(f"Zenity check error: {e}")
             return False
 
     @staticmethod
@@ -55,7 +58,7 @@ class NativeDialogs:
                 return (True, result.stdout.strip())
             return (True, None)
         except Exception as e:
-            print(f"Native dialog error: {e}")
+            logger.error(f"Native dialog error: {e}")
             return (False, None)
 
     @staticmethod

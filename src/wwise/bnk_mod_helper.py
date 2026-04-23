@@ -7,6 +7,9 @@ from src.wwise.pck_packer import PCKPacker
 
 import src.core.app_config as app_config
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
 
     wem_files_dir = Path(wem_files_dir)
@@ -20,29 +23,29 @@ def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
     if not wem_files:
         raise FileNotFoundError(f"No .wem files found in {wem_files_dir}")
 
-    print(f"\nPreparing BNK structure...")
-    print(f"  BNK ID: {bnk_id}")
-    print(f"  WEM files: {len(wem_files)}")
+    logger.info(f"\nPreparing BNK structure...")
+    logger.info(f"  BNK ID: {bnk_id}")
+    logger.info(f"  WEM files: {len(wem_files)}")
 
     for wem_file in wem_files:
         dest = bnk_dir / wem_file.name
         import shutil
         shutil.copy2(wem_file, dest)
-        print(f"    Copied: {wem_file.name}")
+        logger.info(f"    Copied: {wem_file.name}")
 
-    print(f"\n[OK] Structure created: {output_structure_dir}")
+    logger.info(f"\n[OK] Structure created: {output_structure_dir}")
     return output_structure_dir
 
 def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0):
 
-    print("=" * 60)
-    print("BNK Modding Workflow: WEM -> BNK -> PCK")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("BNK Modding Workflow: WEM -> BNK -> PCK")
+    logger.info("=" * 60)
 
     temp_dir = Path("./temp_bnk_structure")
     structure_dir = prepare_bnk_structure(wem_files_dir, bnk_id, temp_dir)
 
-    print(f"\nLoading original PCK: {original_pck}")
+    logger.info(f"\nLoading original PCK: {original_pck}")
     packer = PCKPacker(original_pck, output_pck)
     packer.load_original_pck()
 
@@ -54,27 +57,27 @@ def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0
     import shutil
     shutil.rmtree(temp_dir)
 
-    print("\n" + "=" * 60)
-    print("[OK] BNK Modding Complete!")
-    print("=" * 60)
-    print(f"\nModded PCK: {output_pck}")
-    print(f"BNK ID: {bnk_id}")
-    print(f"Modified WEMs: {len(list(Path(wem_files_dir).glob('*.wem')))}")
-    print("\nInstall to:")
-    print(f"  {app_config.GAME_DATA_FOLDER}/Persistent/Audio/Windows/Full/")
+    logger.info("\n" + "=" * 60)
+    logger.info("[OK] BNK Modding Complete!")
+    logger.info("=" * 60)
+    logger.info(f"\nModded PCK: {output_pck}")
+    logger.info(f"BNK ID: {bnk_id}")
+    logger.info(f"Modified WEMs: {len(list(Path(wem_files_dir).glob('*.wem')))}")
+    logger.info("\nInstall to:")
+    logger.info(f"  {app_config.GAME_DATA_FOLDER}/Persistent/Audio/Windows/Full/")
 
 def main():
 
     if len(sys.argv) < 5:
-        print("Usage: python bnk_mod_helper.py <original_pck> <wem_files_dir> <bnk_id> <output_pck>")
-        print("")
-        print("Example:")
-        print("  python bnk_mod_helper.py SoundBank_SFX_1.pck ./my_wems 428903628 SoundBank_SFX_1_MODDED.pck")
-        print("")
-        print("This will:")
-        print("  1. Take WEM files from ./my_wems/")
-        print("  2. Embed them in BNK 428903628")
-        print("  3. Repack into SoundBank_SFX_1_MODDED.pck")
+        logger.info("Usage: python bnk_mod_helper.py <original_pck> <wem_files_dir> <bnk_id> <output_pck>")
+        logger.info("")
+        logger.info("Example:")
+        logger.info("  python bnk_mod_helper.py SoundBank_SFX_1.pck ./my_wems 428903628 SoundBank_SFX_1_MODDED.pck")
+        logger.info("")
+        logger.info("This will:")
+        logger.info("  1. Take WEM files from ./my_wems/")
+        logger.info("  2. Embed them in BNK 428903628")
+        logger.info("  3. Repack into SoundBank_SFX_1_MODDED.pck")
         sys.exit(1)
 
     original_pck = sys.argv[1]

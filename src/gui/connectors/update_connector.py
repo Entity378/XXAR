@@ -9,6 +9,9 @@ from src.core.config_manager import get_cache_dir
 from src.core.app_config import APP_NAME, FLATPAK_ENV_VAR
 
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class UpdateConnector:
 
     def _connect_updates(self):
@@ -39,7 +42,7 @@ class UpdateConnector:
         self.update_manager_bridge.updateError.connect(self._on_update_error)
         self.update_manager_bridge.updateApplied.connect(self._on_update_applied)
 
-        print(f"[{APP_NAME}]Settings page connected")
+        logger.info(f"[{APP_NAME}]Settings page connected")
 
     def _on_check_for_updates(self):
         if self.settings_page:
@@ -49,7 +52,7 @@ class UpdateConnector:
         self.update_manager_bridge.checkForUpdates()
 
     def _on_update_available(self, version, release_notes):
-        print(f"[{APP_NAME}]Update available: {version}")
+        logger.info(f"[{APP_NAME}]Update available: {version}")
         if self.settings_page:
             self.settings_page.setProperty("isCheckingUpdates", False)
             self.settings_page.setProperty("updateAvailable", True)
@@ -80,7 +83,7 @@ class UpdateConnector:
         self._startup_update_check = False
 
     def _on_update_not_available(self):
-        print(f"[{APP_NAME}]Already up to date")
+        logger.info(f"[{APP_NAME}]Already up to date")
         was_startup = self._startup_update_check
         self._startup_update_check = False
         if self.settings_page:
@@ -101,7 +104,7 @@ class UpdateConnector:
             self.update_dialog.setProperty("downloadPercent", percent)
 
     def _on_update_downloaded(self):
-        print(f"[{APP_NAME}]Update downloaded, ready to install")
+        logger.info(f"[{APP_NAME}]Update downloaded, ready to install")
         if self.settings_page:
             self.settings_page.setProperty("isDownloadingUpdate", False)
             self.settings_page.setProperty("updateDownloaded", True)
@@ -111,7 +114,7 @@ class UpdateConnector:
             self._on_restart_for_update()
 
     def _on_update_error(self, message):
-        print(f"[{APP_NAME}]Update error: {message}")
+        logger.error(f"[{APP_NAME}]Update error: {message}")
         was_startup = self._startup_update_check
         self._startup_update_check = False
         if self.settings_page:
@@ -138,7 +141,7 @@ class UpdateConnector:
         )
 
     def _on_test_update_dialog(self):
-        print(f"[{APP_NAME}]Test update dialog triggered")
+        logger.info(f"[{APP_NAME}]Test update dialog triggered")
         if self.update_dialog:
             QMetaObject.invokeMethod(
                 self.root,
@@ -149,7 +152,7 @@ class UpdateConnector:
             )
 
     def _on_test_language_dialog(self):
-        print(f"[{APP_NAME}]Test language dialog triggered")
+        logger.info(f"[{APP_NAME}]Test language dialog triggered")
         QMetaObject.invokeMethod(
             self.root,
             "showMultipleLanguagesWarning",
@@ -160,31 +163,31 @@ class UpdateConnector:
         )
 
     def _on_update_dialog_accepted(self):
-        print(f"[{APP_NAME}]User accepted update from dialog")
+        logger.info(f"[{APP_NAME}]User accepted update from dialog")
         self.update_manager_bridge.downloadAndInstall()
 
     def _on_update_dialog_dismissed(self):
-        print(f"[{APP_NAME}]User dismissed update dialog")
+        logger.info(f"[{APP_NAME}]User dismissed update dialog")
 
     def _on_restart_for_update(self):
-        print(f"[{APP_NAME}]Applying update and restarting...")
+        logger.info(f"[{APP_NAME}]Applying update and restarting...")
         self.update_manager_bridge.applyUpdate()
 
     def _on_update_applied(self):
-        print(f"[{APP_NAME}]Update applied successfully, restarting application...")
+        logger.info(f"[{APP_NAME}]Update applied successfully, restarting application...")
         try:
             flag_file = get_cache_dir() / "update_success"
             flag_file.parent.mkdir(parents=True, exist_ok=True)
             flag_file.write_text(QCoreApplication.applicationVersion())
-            print(f"[{APP_NAME}]Update success flag written: {flag_file}")
+            logger.info(f"[{APP_NAME}]Update success flag written: {flag_file}")
         except Exception as e:
-            print(f"[{APP_NAME}]Failed to write update success flag: {e}")
+            logger.error(f"[{APP_NAME}]Failed to write update success flag: {e}")
 
         if sys.platform.startswith("win"):
             QApplication.quit()
         else:
             exe = self.update_manager_bridge._get_real_exe_path()
-            print(f"[{APP_NAME}]Launching updated binary: {exe}")
+            logger.info(f"[{APP_NAME}]Launching updated binary: {exe}")
             import subprocess
             subprocess.Popen(
                 [exe],
@@ -199,7 +202,7 @@ class UpdateConnector:
                 old_version = flag_file.read_text().strip()
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
-                print(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
+                logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
@@ -209,4 +212,4 @@ class UpdateConnector:
                     Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/VivianHappy.png"),
                 )
         except Exception as e:
-            print(f"[{APP_NAME}]Error checking update success flag: {e}")
+            logger.error(f"[{APP_NAME}]Error checking update success flag: {e}")

@@ -6,6 +6,9 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class GameBananaConnector:
     
 
@@ -13,7 +16,7 @@ class GameBananaConnector:
         
         self.gamebanana_page = self.root.findChild(QObject, "gameBananaPage")
         if not self.gamebanana_page:
-            print(f"[{APP_NAME}] GameBanana page not found")
+            logger.info(f"[{APP_NAME}] GameBanana page not found")
             return
 
         gb = self.gamebanana_bridge
@@ -110,7 +113,7 @@ class GameBananaConnector:
 
         self._non_native_saved_path = ""
 
-        print(f"[{APP_NAME}] GameBanana page connected")
+        logger.info(f"[{APP_NAME}] GameBanana page connected")
 
     def on_non_native_download_complete(self, file_path):
         self._non_native_saved_path = file_path
@@ -133,7 +136,7 @@ class GameBananaConnector:
             self._non_native_saved_path = ""
 
     def on_gamebanana_download_complete(self, file_path):
-        print(f"[{APP_NAME}] Mod downloaded to: {file_path}")
+        logger.info(f"[{APP_NAME}] Mod downloaded to: {file_path}")
 
     def on_gamebanana_install_complete(self, message):
         QMetaObject.invokeMethod(
@@ -143,7 +146,7 @@ class GameBananaConnector:
             Q_ARG("QVariant", message)
         )
         self.mod_manager_bridge.refreshMods()
-        print(f"[{APP_NAME}] {message}")
+        logger.info(f"[{APP_NAME}] {message}")
 
     def on_gamebanana_multiple_mods(self, mod_names, zip_path):
         QMetaObject.invokeMethod(

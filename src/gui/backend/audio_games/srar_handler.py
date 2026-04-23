@@ -7,6 +7,9 @@ from src.audio import vo_download
 from .base_handler import BaseBrowserHandler
 
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 def _vo_folder_names(game):
     non_lang = set(game.non_language_tabs or ())
     return {name for name, _ in game.language_folders if name not in non_lang}
@@ -84,7 +87,7 @@ def _restore_via_local_hashes(game_cache_root, persistent_path, languages, progr
             progress_cb(f"Warning: could not restore {lang} originals (local backup)")
 
     if restored:
-        print(f"[HSR VO Restore] Restored {restored} language(s) via local backup")
+        logger.info(f"[HSR VO Restore] Restored {restored} language(s) via local backup")
 
 
 def _restore_via_api(game_cache_root, persistent_path, languages, game, progress_cb):
@@ -94,7 +97,7 @@ def _restore_via_api(game_cache_root, persistent_path, languages, game, progress
 
     version = _read_game_version(data_folder)
     if not version:
-        print("[HSR VO Restore] Could not read game version")
+        logger.error("[HSR VO Restore] Could not read game version")
         return
 
     cached_version = vo_download.cleanup_stale_cache(game_cache_root, version)
@@ -115,4 +118,4 @@ def _restore_via_api(game_cache_root, persistent_path, languages, game, progress
             progress_cb(f"Warning: could not restore {lang} originals")
 
     if restored:
-        print(f"[HSR VO Restore] Restored {restored} language(s) via API")
+        logger.info(f"[HSR VO Restore] Restored {restored} language(s) via API")

@@ -8,6 +8,9 @@ from datetime import datetime
 
 from src.core.config_manager import get_fingerprint_database_file
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class FingerprintDatabase:
     
 
@@ -68,7 +71,7 @@ class FingerprintDatabase:
                 with open(self.db_path, 'r') as f:
                     self.database = json.load(f)
         except Exception as e:
-            print(f"[FingerprintDB] Failed to load: {e}")
+            logger.error(f"[FingerprintDB] Failed to load: {e}")
             self.database = {}
 
     def _save_unlocked(self):
@@ -80,7 +83,7 @@ class FingerprintDatabase:
             with open(self.db_path, 'w') as f:
                 json.dump(db_snapshot, f, indent=2)
         except Exception as e:
-            print(f"[FingerprintDB] Failed to save: {e}")
+            logger.error(f"[FingerprintDB] Failed to save: {e}")
 
     def save(self):
         

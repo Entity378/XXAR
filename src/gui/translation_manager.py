@@ -4,6 +4,9 @@ from pathlib import Path
 from src.core.app_config import APP_NAME
 
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class TranslationManager(QObject):
 
     languageChanged = pyqtSignal()
@@ -59,4 +62,4 @@ class TranslationManager(QObject):
             self.languageChanged.emit()
             self._engine.retranslate()
         else:
-            print(f"[{APP_NAME}] Failed to load translation: {qm_file}")
+            logger.error(f"[{APP_NAME}] Failed to load translation: {qm_file}")

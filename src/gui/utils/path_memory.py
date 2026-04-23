@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 from src.core.config_manager import get_settings_file
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 _SETTINGS_KEY = "last_dirs"
 
 
@@ -22,7 +25,7 @@ def _save_settings(settings, settings_file):
         with open(settings_file, "w") as f:
             json.dump(settings, f, indent=2)
     except Exception as e:
-        print(f"[PathMemory] Warning: Failed to write settings: {e}")
+        logger.error(f"[PathMemory] Warning: Failed to write settings: {e}")
 
 
 def get_last_dir(key, fallback=None):

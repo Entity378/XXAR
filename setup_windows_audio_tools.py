@@ -13,6 +13,9 @@ import ssl
 import socket
 
 # Download URLs for latest versions
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 FFMPEG_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
 VGMSTREAM_URL = "https://github.com/vgmstream/vgmstream/releases/latest/download/vgmstream-win64.zip"
 
@@ -50,10 +53,10 @@ class WindowsAudioToolsSetup:
     def check_platform(self):
         # Check if running on Windows
         if platform.system() != "Windows":
-            print("[WARNING]  This setup is for Windows only!")
-            print("On Linux, install via package manager:")
-            print("  sudo pacman -S ffmpeg vgmstream-cli")
-            print("  sudo apt install ffmpeg vgmstream-cli")
+            logger.warning("[WARNING]  This setup is for Windows only!")
+            logger.info("On Linux, install via package manager:")
+            logger.info("  sudo pacman -S ffmpeg vgmstream-cli")
+            logger.info("  sudo apt install ffmpeg vgmstream-cli")
             return False
         return True
 
@@ -87,10 +90,10 @@ class WindowsAudioToolsSetup:
                 timeout=5
             )
             if result.returncode == 0:
-                print(f"[OK] ffmpeg is working: {self.ffmpeg_exe}")
+                logger.info(f"[OK] ffmpeg is working: {self.ffmpeg_exe}")
                 return True
         except Exception as e:
-            print(f"ffmpeg test failed: {e}")
+            logger.error(f"ffmpeg test failed: {e}")
         return False
 
     def test_vgmstream(self):
@@ -107,17 +110,17 @@ class WindowsAudioToolsSetup:
             )
             # vgmstream-cli returns 1 for help, which is normal
             if "vgmstream" in result.stdout.lower() or "vgmstream" in result.stderr.lower():
-                print(f"[OK] vgmstream-cli is working: {self.vgmstream_exe}")
+                logger.info(f"[OK] vgmstream-cli is working: {self.vgmstream_exe}")
                 return True
         except Exception as e:
-            print(f"vgmstream test failed: {e}")
+            logger.error(f"vgmstream test failed: {e}")
         return False
 
     def download_file(self, url, destination, tool_name):
         # Download a file (simplified - no progress reporting to avoid pipe issues)
-        print(f"\nDownloading {tool_name}...")
-        print(f"  Source: {url}")
-        print(f"  Please wait, this may take a few minutes...")
+        logger.info(f"\nDownloading {tool_name}...")
+        logger.info(f"  Source: {url}")
+        logger.info(f"  Please wait, this may take a few minutes...")
 
         destination.parent.mkdir(parents=True, exist_ok=True)
 
@@ -136,46 +139,46 @@ class WindowsAudioToolsSetup:
 
             # Download without progress reporting (avoids pipe buffer issues)
             urllib.request.urlretrieve(url, destination)
-            print("[OK] Download complete!")
+            logger.info("[OK] Download complete!")
 
             # Restore original timeout
             socket.setdefaulttimeout(old_timeout)
             return True
 
         except Exception as e:
-            print(f"[ERROR] Download failed: {e}")
+            logger.error(f"[ERROR] Download failed: {e}")
             # Restore original timeout even on error
             socket.setdefaulttimeout(old_timeout)
             return False
 
     def extract_zip(self, zip_path, extract_dir, tool_name):
         # Extract a ZIP file
-        print(f"\nExtracting {tool_name}...")
+        logger.info(f"\nExtracting {tool_name}...")
 
         try:
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_dir)
 
-            print(f"[OK] Extraction complete!")
+            logger.info(f"[OK] Extraction complete!")
             zip_path.unlink()
-            print("[OK] Cleaned up temporary files")
+            logger.info("[OK] Cleaned up temporary files")
             return True
 
         except Exception as e:
-            print(f"[ERROR] Extraction failed: {e}")
+            logger.error(f"[ERROR] Extraction failed: {e}")
             return False
 
     def install_ffmpeg(self):
         # Download and install ffmpeg
-        print("\n" + "=" * 60)
-        print("Installing ffmpeg...")
-        print("=" * 60)
+        logger.info("\n" + "=" * 60)
+        logger.info("Installing ffmpeg...")
+        logger.info("=" * 60)
 
         if self.is_ffmpeg_installed():
             if self.test_ffmpeg():
-                print("[OK] ffmpeg is already installed and working!")
+                logger.info("[OK] ffmpeg is already installed and working!")
                 return True
-            print("ffmpeg exists but test failed. Re-installing...")
+            logger.error("ffmpeg exists but test failed. Re-installing...")
 
         # Download
         zip_path = self.tools_dir / "ffmpeg_temp.zip"
@@ -188,26 +191,26 @@ class WindowsAudioToolsSetup:
 
         # Verify the binary exists
         if not self.is_ffmpeg_installed():
-            print("[ERROR] ffmpeg.exe not found after extraction!")
+            logger.error("[ERROR] ffmpeg.exe not found after extraction!")
             return False
 
         # Test is best-effort -- files are on disk, so consider it installed
         if not self.test_ffmpeg():
-            print("[WARNING] ffmpeg test run failed, but binary exists on disk")
+            logger.error("[WARNING] ffmpeg test run failed, but binary exists on disk")
 
         return True
 
     def install_vgmstream(self):
         # Download and install vgmstream
-        print("\n" + "=" * 60)
-        print("Installing vgmstream-cli...")
-        print("=" * 60)
+        logger.info("\n" + "=" * 60)
+        logger.info("Installing vgmstream-cli...")
+        logger.info("=" * 60)
 
         if self.is_vgmstream_installed():
             if self.test_vgmstream():
-                print("[OK] vgmstream-cli is already installed and working!")
+                logger.info("[OK] vgmstream-cli is already installed and working!")
                 return True
-            print("vgmstream-cli exists but test failed. Re-installing...")
+            logger.error("vgmstream-cli exists but test failed. Re-installing...")
 
         # Download
         zip_path = self.tools_dir / "vgmstream_temp.zip"
@@ -220,21 +223,21 @@ class WindowsAudioToolsSetup:
 
         # Verify the binary exists
         if not self.is_vgmstream_installed():
-            print("[ERROR] vgmstream-cli.exe not found after extraction!")
+            logger.error("[ERROR] vgmstream-cli.exe not found after extraction!")
             return False
 
         # Test is best-effort -- files are on disk, so consider it installed
         if not self.test_vgmstream():
-            print("[WARNING] vgmstream test run failed, but binary exists on disk")
+            logger.error("[WARNING] vgmstream test run failed, but binary exists on disk")
 
         return True
 
     def setup_all(self):
         # Install ffmpeg and vgmstream
-        print("=" * 60)
-        print("Windows Audio Tools Setup")
-        print("Installing ffmpeg and vgmstream for Windows")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Windows Audio Tools Setup")
+        logger.info("Installing ffmpeg and vgmstream for Windows")
+        logger.info("=" * 60)
 
         if not self.check_platform():
             return False
@@ -245,19 +248,19 @@ class WindowsAudioToolsSetup:
         # Install vgmstream
         vgmstream_ok = self.install_vgmstream()
 
-        print("\n" + "=" * 60)
+        logger.info("\n" + "=" * 60)
         if ffmpeg_ok and vgmstream_ok:
-            print("[SUCCESS] Setup complete! All tools installed successfully.")
-            print("\nInstalled tools:")
-            print(f"  - ffmpeg: {self.ffmpeg_exe}")
-            print(f"  - vgmstream-cli: {self.vgmstream_exe}")
+            logger.info("[SUCCESS] Setup complete! All tools installed successfully.")
+            logger.info("\nInstalled tools:")
+            logger.info(f"  - ffmpeg: {self.ffmpeg_exe}")
+            logger.info(f"  - vgmstream-cli: {self.vgmstream_exe}")
             return True
         else:
-            print("[WARNING]  Setup incomplete:")
+            logger.warning("[WARNING]  Setup incomplete:")
             if not ffmpeg_ok:
-                print("  [ERROR] ffmpeg installation failed")
+                logger.error("  [ERROR] ffmpeg installation failed")
             if not vgmstream_ok:
-                print("  [ERROR] vgmstream installation failed")
+                logger.error("  [ERROR] vgmstream installation failed")
             return False
 
     def get_ffmpeg_path(self):
@@ -309,21 +312,21 @@ Note:
     setup = WindowsAudioToolsSetup()
 
     if args.check:
-        print("Checking installation status...")
-        print(f"\nPlatform: {platform.system()}")
+        logger.info("Checking installation status...")
+        logger.info(f"\nPlatform: {platform.system()}")
 
         ffmpeg_ok = setup.is_ffmpeg_installed() and setup.test_ffmpeg()
         vgmstream_ok = setup.is_vgmstream_installed() and setup.test_vgmstream()
 
         if ffmpeg_ok:
-            print(f"[OK] ffmpeg: {setup.ffmpeg_exe}")
+            logger.info(f"[OK] ffmpeg: {setup.ffmpeg_exe}")
         else:
-            print("[ERROR] ffmpeg: Not installed")
+            logger.error("[ERROR] ffmpeg: Not installed")
 
         if vgmstream_ok:
-            print(f"[OK] vgmstream: {setup.vgmstream_exe}")
+            logger.info(f"[OK] vgmstream: {setup.vgmstream_exe}")
         else:
-            print("[ERROR] vgmstream: Not installed")
+            logger.error("[ERROR] vgmstream: Not installed")
 
         sys.exit(0 if (ffmpeg_ok and vgmstream_ok) else 1)
 
@@ -338,7 +341,7 @@ Note:
     # Pause before closing to show results (only in interactive mode)
     # Skip pause when run from GUI (stdin is not a tty)
     if sys.stdin and sys.stdin.isatty():
-        print("\nPress Enter to close...")
+        logger.info("\nPress Enter to close...")
         try:
             input()
         except (EOFError, OSError):
@@ -357,13 +360,13 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as e:
-        print("\n" + "=" * 60)
-        print("[ERROR] ERROR OCCURRED:")
-        print("=" * 60)
-        print(f"{type(e).__name__}: {e}")
+        logger.info("\n" + "=" * 60)
+        logger.error("[ERROR] ERROR OCCURRED:")
+        logger.info("=" * 60)
+        logger.info(f"{type(e).__name__}: {e}")
         # Only pause in interactive mode
         if sys.stdin and sys.stdin.isatty():
-            print("\nPress Enter to close...")
+            logger.info("\nPress Enter to close...")
             try:
                 input()
             except (EOFError, OSError):

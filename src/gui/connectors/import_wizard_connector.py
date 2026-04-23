@@ -9,6 +9,9 @@ from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class ImportWizardConnector:
 
     def _connect_import_wizard(self):
@@ -23,10 +26,10 @@ class ImportWizardConnector:
         )
         self.import_wizard.createModClicked.connect(self.on_wizard_create_mod)
         self.import_wizard.wizardCancelled.connect(self.on_wizard_cancelled)
-        print(f"[{APP_NAME}] Import wizard connected")
+        logger.info(f"[{APP_NAME}] Import wizard connected")
 
     def on_wizard_browse_files(self, mode):
-        print(f"[Import Wizard] Browsing for files, mode: {mode}")
+        logger.info(f"[Import Wizard] Browsing for files, mode: {mode}")
 
         if mode == "pck_file":
             filter_str = "PCK Files (*.pck);;All Files (*)"
@@ -40,7 +43,7 @@ class ImportWizardConnector:
         )
 
         if files:
-            print(f"[Import Wizard] Selected {len(files)} file(s)")
+            logger.info(f"[Import Wizard] Selected {len(files)} file(s)")
             self.wizard_selected_files = files
 
             display_names = [Path(f).name for f in files]
@@ -51,17 +54,17 @@ class ImportWizardConnector:
                 Q_ARG("QVariant", display_names),
             )
         else:
-            print("[Import Wizard] File selection cancelled")
+            logger.info("[Import Wizard] File selection cancelled")
 
     def on_wizard_browse_folder(self, mode):
-        print(f"[Import Wizard] Browsing for folder, mode: {mode}")
+        logger.info(f"[Import Wizard] Browsing for folder, mode: {mode}")
 
         folder = NativeDialogs.get_directory(
             "Select Folder", remember_key="import_folder"
         )
 
         if folder:
-            print(f"[Import Wizard] Selected folder: {folder}")
+            logger.info(f"[Import Wizard] Selected folder: {folder}")
             self.wizard_selected_folder = folder
 
             folder_path = Path(folder)
@@ -74,7 +77,7 @@ class ImportWizardConnector:
 
             display_names = [str(f.relative_to(folder_path)) for f in files]
 
-            print(f"[Import Wizard] Found {len(files)} files in folder (recursive)")
+            logger.info(f"[Import Wizard] Found {len(files)} files in folder (recursive)")
 
             QMetaObject.invokeMethod(
                 self.import_wizard,
@@ -84,10 +87,10 @@ class ImportWizardConnector:
                 Q_ARG("QVariant", display_names),
             )
         else:
-            print("[Import Wizard] Folder selection cancelled")
+            logger.info("[Import Wizard] Folder selection cancelled")
 
     def on_wizard_browse_thumbnail(self):
-        print("[Import Wizard] Browsing for thumbnail...")
+        logger.info("[Import Wizard] Browsing for thumbnail...")
 
         file_path = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
@@ -96,7 +99,7 @@ class ImportWizardConnector:
         )
 
         if file_path:
-            print(f"[Import Wizard] Selected thumbnail: {file_path}")
+            logger.info(f"[Import Wizard] Selected thumbnail: {file_path}")
             QMetaObject.invokeMethod(
                 self.import_wizard,
                 "setThumbnailPath",
@@ -104,13 +107,13 @@ class ImportWizardConnector:
                 Q_ARG("QVariant", file_path),
             )
         else:
-            print("[Import Wizard] Thumbnail selection cancelled")
+            logger.info("[Import Wizard] Thumbnail selection cancelled")
 
     def on_wizard_create_mod(self, wizard_data_js):
-        print("[Import Wizard] Creating mod...")
+        logger.info("[Import Wizard] Creating mod...")
 
         wizard_data = wizard_data_js.toVariant()
-        print(f"[Import Wizard] Data: {wizard_data}")
+        logger.info(f"[Import Wizard] Data: {wizard_data}")
 
         settings = self.load_settings()
         game_audio_dir = settings.get("game_audio_dir", "")
@@ -130,13 +133,13 @@ class ImportWizardConnector:
         )
 
         if not save_path:
-            print("[Import Wizard] Save cancelled")
+            logger.info("[Import Wizard] Save cancelled")
             return
 
         if not save_path.endswith(app_config.MOD_FILE_EXT):
             save_path += app_config.MOD_FILE_EXT
 
-        print(f"[Import Wizard] Saving to: {save_path}")
+        logger.info(f"[Import Wizard] Saving to: {save_path}")
 
         QMetaObject.invokeMethod(self.import_wizard, "startImporting", Qt.QueuedConnection)
 
@@ -172,12 +175,12 @@ class ImportWizardConnector:
         self.import_worker.start()
 
     def on_wizard_cancelled(self):
-        print("[Import Wizard] Wizard cancelled")
+        logger.info("[Import Wizard] Wizard cancelled")
         self.wizard_selected_files = []
         self.wizard_selected_folder = ""
 
     def on_import_progress(self, message):
-        print(f"[Import Worker] {message}")
+        logger.info(f"[Import Worker] {message}")
         if self.import_wizard:
             self.import_wizard.setProperty("importStatus", message)
 
@@ -190,11 +193,11 @@ class ImportWizardConnector:
             QMetaObject.invokeMethod(self.import_wizard, "finishImporting", Qt.QueuedConnection)
 
         if success:
-            print(f"[Import Worker] Success: {message}")
+            logger.info(f"[Import Worker] Success: {message}")
             self.mod_manager_bridge.progressUpdate.emit(message)
             self.mod_manager_bridge.refreshMods()
         else:
-            print(f"[Import Worker] Error: {message}")
+            logger.error(f"[Import Worker] Error: {message}")
             self.mod_manager_bridge.errorOccurred.emit(QCoreApplication.translate("Application", "Import Error"), message)
 
         self.import_worker = None

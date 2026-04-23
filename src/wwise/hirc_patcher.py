@@ -1,6 +1,9 @@
 import struct
 from dataclasses import dataclass, field
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 HIRC_TYPE_MUSIC_SEGMENT = 0x0A
 HIRC_TYPE_MUSIC_TRACK = 0x0B
 END_MARKER_ID = 0x5BBBD648
@@ -146,7 +149,7 @@ def apply_volume_patches(content, volume_patches, volume_db_by_source):
         patched += 1
 
     if skipped:
-        print(f"[HIRC Patch] Volume: skipped {skipped} track(s) without existing volume property")
+        logger.info(f"[HIRC Patch] Volume: skipped {skipped} track(s) without existing volume property")
 
     return {"patched": patched, "inserted": 0, "total_shift": 0}
 

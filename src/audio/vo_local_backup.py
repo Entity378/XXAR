@@ -12,6 +12,9 @@ from pathlib import Path
 
 from src.audio.vo_download import _load_cache_meta, _save_cache_meta
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 _CHUNK_SIZE = 1 << 20  # 1 MB
 
 
@@ -76,7 +79,7 @@ def restore_language_from_hashes(
 
     hash_map = _scan_hash_files(lang_dir)
     if not hash_map:
-        print(f"[VO Local Backup] No .hash files found in {folder_name}")
+        logger.info(f"[VO Local Backup] No .hash files found in {folder_name}")
         return False
 
     cache_lang_dir = game_cache_root / folder_name
@@ -124,16 +127,14 @@ def restore_language_from_hashes(
     _save_cache_meta(game_cache_root, meta)
 
     if backed_up or restored:
-        print(
-            f"[VO Local Backup] {folder_name}: "
-            f"backed up {backed_up}, restored {restored}"
-        )
+        logger.info(f"[VO Local Backup] {folder_name}: "
+            f"backed up {backed_up}, restored {restored}")
     if missing:
         msg = (
             f"[VO Local Backup] {folder_name}: {missing} modded file(s) "
             f"could not be restored (no backup available)"
         )
-        print(msg)
+        logger.info(msg)
         if progress_cb:
             progress_cb(msg)
 

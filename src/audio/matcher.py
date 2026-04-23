@@ -11,6 +11,9 @@ import subprocess
 import tempfile
 from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 def _hz_to_mel(hz):
     return 2595.0 * np.log10(1.0 + hz / 700.0)
 
@@ -411,12 +414,12 @@ class AudioMatcher:
                     try:
                         self.fingerprint_db.add_fingerprint(wem_bytes, candidate_fp)
                     except Exception as e:
-                        print(f"[AudioMatcher] Failed to cache fingerprint: {e}")
+                        logger.error(f"[AudioMatcher] Failed to cache fingerprint: {e}")
 
             score = self.compare_fingerprints(recording_fp, candidate_fp)
             return (score, file_info)
         except Exception as e:
-            print(f"[AudioMatcher] Error processing {file_info.get('id', '?')}: {e}")
+            logger.error(f"[AudioMatcher] Error processing {file_info.get('id', '?')}: {e}")
             return None
 
     def find_matches(self, recording_fp, candidate_files, top_n=10, progress_callback=None, cancel_event=None, max_workers=None):

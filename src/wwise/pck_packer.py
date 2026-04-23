@@ -6,6 +6,9 @@ from pathlib import Path
 from io import BytesIO
 from src.wwise.bnk_handler import BNKFile
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 class PCKPacker:
 
 
@@ -41,7 +44,7 @@ class PCKPacker:
 
         self.file_list = [open(self.original_pck_path, 'rb')]
 
-        print(f"Creating minimal PCK (replacements only): {self.output_pck_path.name}")
+        logger.info(f"Creating minimal PCK (replacements only): {self.output_pck_path.name}")
 
     @staticmethod
     def _read_uint32(f):
@@ -67,8 +70,8 @@ class PCKPacker:
             else:
                 sec4_size = 0
 
-            print(f"Loading original PCK: {self.original_pck_path.name}")
-            print(f"  Sections: Banks={sec2_size}, Sounds={sec3_size}, Externals={sec4_size}")
+            logger.info(f"Loading original PCK: {self.original_pck_path.name}")
+            logger.info(f"  Sections: Banks={sec2_size}, Sounds={sec3_size}, Externals={sec4_size}")
 
             strings_offset = f.tell()
             if sec1_size > 0:
@@ -119,7 +122,7 @@ class PCKPacker:
         file_index = len(self.file_list)
         self.file_list.append(open(self.original_pck_path, 'rb'))
 
-        print(f"  Loaded: {self._get_all_files(self.soundbank_titles)} banks, "
+        logger.info(f"  Loaded: {self._get_all_files(self.soundbank_titles)} banks, "
               f"{self._get_all_files(self.soundbank_files)} bank files, "
               f"{self._get_all_files(self.stream_files)} stream files")
 
@@ -205,16 +208,16 @@ class PCKPacker:
             found_section[lang_id] = {}
         found_section[lang_id][file_id] = [(file_index, file_size, 0)]
 
-        print(f"  Replaced ID {file_id} with {replacement_file_path.name} ({file_size} bytes)")
+        logger.info(f"  Replaced ID {file_id} with {replacement_file_path.name} ({file_size} bytes)")
 
     def replace_bnk_wems(self, bnk_id, bnk_wems_dir, lang_id=0):
 
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
-        print(f"\n  Modifying BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
+        logger.info(f"\n  Modifying BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
 
         if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
-            print(f"    Error: BNK {bnk_id} not found in original PCK with lang_id={lang_id} ({lang_name})")
-            print(f"    Available BNKs: {list(self.soundbank_titles.get(lang_id, {}).keys())[:10]}...")
+            logger.error(f"    Error: BNK {bnk_id} not found in original PCK with lang_id={lang_id} ({lang_name})")
+            logger.info(f"    Available BNKs: {list(self.soundbank_titles.get(lang_id, {}).keys())[:10]}...")
             return
 
         file_index, size, offset = self.soundbank_titles[lang_id][bnk_id][0]
@@ -225,7 +228,7 @@ class PCKPacker:
         try:
             bnk = BNKFile(bnk_bytes=bnk_bytes)
         except Exception as e:
-            print(f"    Error loading BNK: {e}")
+            logger.error(f"    Error loading BNK: {e}")
             return
 
         wem_files = list(Path(bnk_wems_dir).glob('*.wem'))
@@ -237,12 +240,12 @@ class PCKPacker:
                 bnk.replace_wem(wem_id, wem_path=wem_file)
                 replaced_count += 1
             except KeyError as e:
-                print(f"    Warning: {e}")
+                logger.warning(f"    Warning: {e}")
             except ValueError:
-                print(f"    Warning: Skipping {wem_file.name} - invalid WEM ID")
+                logger.warning(f"    Warning: Skipping {wem_file.name} - invalid WEM ID")
 
         if replaced_count == 0:
-            print(f"    No WEM files were replaced in BNK {bnk_id}")
+            logger.info(f"    No WEM files were replaced in BNK {bnk_id}")
             return
 
         modified_bnk_bytes = bnk.get_bytes()
@@ -254,7 +257,7 @@ class PCKPacker:
 
         self.soundbank_titles[lang_id][bnk_id] = [(file_index, len(modified_bnk_bytes), 0)]
 
-        print(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
+        logger.info(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
     def merge_bnk_wems(self, bnk_id, mod_wem_map, patch_bnk_wems=None, lang_id=0):
         # Load BNK bnk_id from the original (pristine) PCK, transport any WEMs
@@ -268,10 +271,10 @@ class PCKPacker:
         #
         # Precedence: mod > streaming pristine > Patch.pck pristine (missing only)
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
-        print(f"\n  Merging BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
+        logger.info(f"\n  Merging BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
 
         if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
-            print(f"    Error: BNK {bnk_id} not found in original PCK with lang_id={lang_id} ({lang_name})")
+            logger.error(f"    Error: BNK {bnk_id} not found in original PCK with lang_id={lang_id} ({lang_name})")
             return
 
         file_index, size, offset = self.soundbank_titles[lang_id][bnk_id][0]
@@ -282,7 +285,7 @@ class PCKPacker:
         try:
             bnk = BNKFile(bnk_bytes=bnk_bytes)
         except Exception as e:
-            print(f"    Error loading BNK: {e}")
+            logger.error(f"    Error loading BNK: {e}")
             return
 
         streaming_wems = set(bnk.list_wems())
@@ -295,7 +298,7 @@ class PCKPacker:
                 bnk.add_wem(int(wem_id), wem_bytes)
                 transported += 1
             if transported:
-                print(f"    Transported {transported} pristine WEM(s) from Patch.pck override")
+                logger.info(f"    Transported {transported} pristine WEM(s) from Patch.pck override")
 
         replaced = 0
         for wem_id, mod_data in (mod_wem_map or {}).items():
@@ -322,14 +325,14 @@ class PCKPacker:
 
         self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(modified_bnk_bytes), 0)]
 
-        print(f"[OK] Merged BNK {bnk_id}: {replaced} mod WEM(s), {transported} transported, new size: {len(modified_bnk_bytes)} bytes")
+        logger.info(f"[OK] Merged BNK {bnk_id}: {replaced} mod WEM(s), {transported} transported, new size: {len(modified_bnk_bytes)} bytes")
 
     def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
         # Remove specific WEM IDs from a BNK inside the PCK
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
 
         if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
-            print(f" Warning: BNK {bnk_id} not found in PCK (lang_id={lang_id})")
+            logger.warning(f" Warning: BNK {bnk_id} not found in PCK (lang_id={lang_id})")
             return 0
 
         file_index, size, offset = self.soundbank_titles[lang_id][bnk_id][0]
@@ -340,7 +343,7 @@ class PCKPacker:
         try:
             bnk = BNKFile(bnk_bytes=bnk_bytes)
         except Exception as e:
-            print(f" Error loading BNK {bnk_id}: {e}")
+            logger.error(f" Error loading BNK {bnk_id}: {e}")
             return 0
 
         removed = 0
@@ -360,7 +363,7 @@ class PCKPacker:
 
         self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(modified_bnk_bytes), 0)]
 
-        print(f"    Stripped {removed} WEM(s) from BNK {bnk_id} ({lang_name}), "
+        logger.info(f"    Stripped {removed} WEM(s) from BNK {bnk_id} ({lang_name}), "
               f"size: {size} -> {len(modified_bnk_bytes)} bytes")
         return removed
 
@@ -376,24 +379,24 @@ class PCKPacker:
         bnk_dirs = [d for d in replacements_dir.iterdir() if d.is_dir() and d.name.endswith('_bnk')]
 
         if wem_files:
-            print(f"\nReplacing {len(wem_files)} WEM files from {replacements_dir}...")
+            logger.info(f"\nReplacing {len(wem_files)} WEM files from {replacements_dir}...")
             for wem_file in wem_files:
                 try:
 
                     file_id = int(wem_file.stem)
                     self.replace_file(file_id, wem_file, lang_id)
                 except ValueError:
-                    print(f"  Warning: Skipping {wem_file.name} - filename is not a valid ID")
+                    logger.warning(f"  Warning: Skipping {wem_file.name} - filename is not a valid ID")
 
         if bnk_dirs:
-            print(f"\nProcessing {len(bnk_dirs)} BNK directories...")
+            logger.info(f"\nProcessing {len(bnk_dirs)} BNK directories...")
             for bnk_dir in bnk_dirs:
                 try:
 
                     bnk_id = int(bnk_dir.name.replace('_bnk', ''))
                     self.replace_bnk_wems(bnk_id, bnk_dir, lang_id)
                 except ValueError:
-                    print(f"  Warning: Skipping {bnk_dir.name} - invalid BNK ID format")
+                    logger.warning(f"  Warning: Skipping {bnk_dir.name} - invalid BNK ID format")
 
     def pack(self, use_patching=True):
 
@@ -404,12 +407,12 @@ class PCKPacker:
 
     def pack_with_patching(self):
 
-        print(f"\nBuilding PCK file (patching mode): {self.output_pck_path}")
+        logger.info(f"\nBuilding PCK file (patching mode): {self.output_pck_path}")
 
         import shutil
         shutil.copy2(self.original_pck_path, self.output_pck_path)
         self.output_pck_path.chmod(0o644)
-        print(f"  Copied original PCK: {self.output_pck_path.stat().st_size:,} bytes")
+        logger.info(f"  Copied original PCK: {self.output_pck_path.stat().st_size:,} bytes")
 
         patches = []
 
@@ -434,10 +437,10 @@ class PCKPacker:
                         })
 
         if not patches:
-            print("  No replacements to apply - output is identical to original")
+            logger.info("  No replacements to apply - output is identical to original")
             return
 
-        print(f"  Applying {len(patches)} replacement(s)...")
+        logger.info(f"  Applying {len(patches)} replacement(s)...")
 
         from src.wwise.pck_indexer import PCKIndexer
         indexer = PCKIndexer(self.original_pck_path)
@@ -461,7 +464,7 @@ class PCKPacker:
                             break
 
                 if not original_entry:
-                    print(f"    Warning: Could not find file {file_id} in original PCK")
+                    logger.error(f"    Warning: Could not find file {file_id} in original PCK")
                     continue
 
                 original_offset = original_entry['offset']
@@ -476,7 +479,7 @@ class PCKPacker:
 
                     f.seek(original_offset)
                     f.write(new_data)
-                    print(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes)")
+                    logger.info(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes)")
 
                 elif new_size < original_size:
 
@@ -484,21 +487,21 @@ class PCKPacker:
                     f.write(new_data)
                     padding = original_size - new_size
                     f.write(b'\x00' * padding)
-                    print(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes, padded {padding} bytes)")
+                    logger.info(f"[OK] Patched ID {file_id} at offset {original_offset} ({new_size} bytes, padded {padding} bytes)")
 
                 else:
 
-                    print(f"[!] Warning: ID {file_id} is larger than original ({new_size} > {original_size})")
-                    print(f"Truncating to fit original size. Audio may be incomplete!")
+                    logger.warning(f"[!] Warning: ID {file_id} is larger than original ({new_size} > {original_size})")
+                    logger.info(f"Truncating to fit original size. Audio may be incomplete!")
                     f.seek(original_offset)
                     f.write(new_data[:original_size])
 
-        print(f"[OK] PCK file patched: {self.output_pck_path}")
-        print(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
+        logger.info(f"[OK] PCK file patched: {self.output_pck_path}")
+        logger.info(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
 
     def pack_with_rebuild(self):
 
-        print(f"\nBuilding PCK file (rebuild mode): {self.output_pck_path}")
+        logger.info(f"\nBuilding PCK file (rebuild mode): {self.output_pck_path}")
 
         with open(self.output_pck_path, 'wb') as f:
 
@@ -531,8 +534,8 @@ class PCKPacker:
             self._write_audio_data(f, bf_write_info)
             self._write_audio_data(f, sf_write_info)
 
-        print(f"[OK] PCK file created: {self.output_pck_path}")
-        print(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
+        logger.info(f"[OK] PCK file created: {self.output_pck_path}")
+        logger.info(f"  Size: {self.output_pck_path.stat().st_size:,} bytes")
 
     def _precalculate_section(self, section_map, base_count):
 
@@ -653,15 +656,15 @@ def main():
     import sys
 
     if len(sys.argv) < 4:
-        print("Usage: python pck_packer.py <original_pck> <replacements_dir> <output_pck>")
-        print("")
-        print("Example:")
-        print("  python pck_packer.py Streamed_SFX_1.pck ./my_wem_files/ Streamed_SFX_1_modded.pck")
-        print("")
-        print("The replacements directory should contain .wem files named by their ID:")
-        print("  134133939.wem")
-        print("  86631895.wem")
-        print("  etc.")
+        logger.info("Usage: python pck_packer.py <original_pck> <replacements_dir> <output_pck>")
+        logger.info("")
+        logger.info("Example:")
+        logger.info("  python pck_packer.py Streamed_SFX_1.pck ./my_wem_files/ Streamed_SFX_1_modded.pck")
+        logger.info("")
+        logger.info("The replacements directory should contain .wem files named by their ID:")
+        logger.info("  134133939.wem")
+        logger.info("  86631895.wem")
+        logger.info("  etc.")
         sys.exit(1)
 
     original_pck = sys.argv[1]

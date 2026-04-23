@@ -7,6 +7,9 @@ from pathlib import Path
 
 from src.wwise.pck_indexer import PCKIndexer
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 BACKUP_SUFFIX = ".xxar_backup"
 
 
@@ -61,7 +64,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
             try:
                 idx = PCKIndexer(str(pck_file)).build_index()
             except Exception as e:
-                print(f"[Patch Resolver] Warning: failed to index {pck_file.name}: {e}")
+                logger.error(f"[Patch Resolver] Warning: failed to index {pck_file.name}: {e}")
                 continue
             for bank in idx.get("banks", []):
                 result.setdefault(bank["id"], pck_file.name)
@@ -75,7 +78,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
             try:
                 idx = PCKIndexer(str(pck_file)).build_index()
             except Exception as e:
-                print(f"[Patch Resolver] Warning: failed to index {pck_file.name}: {e}")
+                logger.error(f"[Patch Resolver] Warning: failed to index {pck_file.name}: {e}")
                 continue
             for sound in idx.get("sounds", []):
                 result.setdefault(sound["id"], pck_file.name)
@@ -95,14 +98,14 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
             if file_type == "bnk":
                 bnk_id = info.get("bnk_id")
                 if bnk_id is None:
-                    print(f"[Patch Resolver] Entry {key} in {pck_name} has no bnk_id, dropping")
+                    logger.info(f"[Patch Resolver] Entry {key} in {pck_name} has no bnk_id, dropping")
                     dropped += 1
                     continue
                 if soundbank_bnk_index is None:
                     soundbank_bnk_index = _build_bnk_index()
                 target_pck = soundbank_bnk_index.get(int(bnk_id))
                 if not target_pck:
-                    print(f"[Patch Resolver] BNK {bnk_id} not found in any {game.soundbank_pck_glob} of StreamingAssets, dropping entry {key}")
+                    logger.info(f"[Patch Resolver] BNK {bnk_id} not found in any {game.soundbank_pck_glob} of StreamingAssets, dropping entry {key}")
                     dropped += 1
                     continue
             else:
@@ -112,20 +115,20 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
                 try:
                     wem_id = int(raw_wid)
                 except (TypeError, ValueError):
-                    print(f"[Patch Resolver] Cannot parse WEM id for {key}, dropping")
+                    logger.info(f"[Patch Resolver] Cannot parse WEM id for {key}, dropping")
                     dropped += 1
                     continue
                 if streamed_wem_index is None:
                     streamed_wem_index = _build_wem_index()
                 target_pck = streamed_wem_index.get(wem_id)
                 if not target_pck:
-                    print(f"[Patch Resolver] WEM {wem_id} not found in any {game.streamed_pck_glob} of StreamingAssets, dropping entry {key}")
+                    logger.info(f"[Patch Resolver] WEM {wem_id} not found in any {game.streamed_pck_glob} of StreamingAssets, dropping entry {key}")
                     dropped += 1
                     continue
 
             dest = resolved.setdefault(target_pck, {})
             if key in dest:
-                print(f"[Patch Resolver] Conflict on key {key}: entry already exists in {target_pck}, keeping existing (load order precedence)")
+                logger.info(f"[Patch Resolver] Conflict on key {key}: entry already exists in {target_pck}, keeping existing (load order precedence)")
                 continue
             dest[key] = info
             remapped += 1
@@ -156,7 +159,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
         try:
             idx = PCKIndexer(str(source_path)).build_index()
         except Exception as e:
-            print(f"[Patch Resolver] Warning: failed to index {source_path.name}: {e}")
+            logger.error(f"[Patch Resolver] Warning: failed to index {source_path.name}: {e}")
             continue
 
         bank_entries = [b for b in idx.get("banks", []) if b["id"] in target_bnk_ids]
@@ -173,7 +176,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
                     bnk = BNKFile(bnk_bytes=bnk_bytes)
                     wem_map = {wid: bnk.extract_wem(wid) for wid in bnk.list_wems()}
                 except Exception as e:
-                    print(f"[Patch Resolver] Warning: failed to parse BNK {bank['id']} from {source_path.name}: {e}")
+                    logger.error(f"[Patch Resolver] Warning: failed to parse BNK {bank['id']} from {source_path.name}: {e}")
                     continue
                 patch_bnk_content[bank["id"]] = {
                     "source": override_pck.name,

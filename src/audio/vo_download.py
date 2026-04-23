@@ -20,6 +20,9 @@ from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS
 from src.core.config_manager import get_tools_dir
 
 # Constants
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 API_URL = (
     "https://sg-hyp-api.hoyoverse.com/hyp/hyp-connect/api/getGamePackages"
 )
@@ -68,11 +71,11 @@ def fetch_audio_packages() -> dict | None:
         with _urlopen(req) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         if data.get("retcode") != 0:
-            print(f"[VO Download] API error: {data.get('message')}")
+            logger.error(f"[VO Download] API error: {data.get('message')}")
             return None
         return data
     except Exception as e:
-        print(f"[VO Download] Failed to fetch audio packages: {e}")
+        logger.error(f"[VO Download] Failed to fetch audio packages: {e}")
         return None
 
 
@@ -170,7 +173,7 @@ def _resolve_hpatchz_url() -> str | None:
         with _urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
-        print(f"[VO Download] Failed to query HDiffPatch releases: {e}")
+        logger.error(f"[VO Download] Failed to query HDiffPatch releases: {e}")
         return None
 
     for asset in data.get("assets") or []:
@@ -217,7 +220,7 @@ def _download_hpatchz(progress_cb=None) -> str | None:
         with zipfile.ZipFile(tmp_path, "r") as zf:
             zf.extractall(install_dir)
     except Exception as e:
-        print(f"[VO Download] hpatchz download failed: {e}")
+        logger.error(f"[VO Download] hpatchz download failed: {e}")
         return None
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -272,16 +275,14 @@ def _download_hdiff_archive(
 
         actual_md5 = md5.hexdigest()
         if expected_md5 and actual_md5.lower() != expected_md5.lower():
-            print(
-                f"[VO Download] HDiff MD5 mismatch for {folder_name}: "
-                f"expected {expected_md5}, got {actual_md5}"
-            )
+            logger.info(f"[VO Download] HDiff MD5 mismatch for {folder_name}: "
+                f"expected {expected_md5}, got {actual_md5}")
             tmp_path.unlink(missing_ok=True)
             return None
         return tmp_path
 
     except Exception as e:
-        print(f"[VO Download] Error downloading hdiff for {folder_name}: {e}")
+        logger.error(f"[VO Download] Error downloading hdiff for {folder_name}: {e}")
         try:
             tmp_path.unlink(missing_ok=True)
         except Exception:
@@ -303,7 +304,7 @@ def _extract_hdiff_archive(archive_path: Path, dest_dir: Path) -> bool:
                         shutil.move(str(f), str(dest_dir / f.name))
         return True
     except Exception as e:
-        print(f"[VO Download] Failed to extract hdiff archive: {e}")
+        logger.error(f"[VO Download] Failed to extract hdiff archive: {e}")
         return False
 
 
@@ -319,7 +320,7 @@ def _apply_hdiff_patches(
     # Returns True if all patches applied successfully.
     hpatchz = _ensure_hpatchz(progress_cb)
     if not hpatchz:
-        print("[VO Download] hpatchz binary not found, cannot apply hdiff")
+        logger.info("[VO Download] hpatchz binary not found, cannot apply hdiff")
         return False
 
     # 1. Handle deletefiles.txt
@@ -333,12 +334,12 @@ def _apply_hdiff_patches(
             target = working_dir / Path(line).name
             if target.is_file():
                 target.unlink()
-                print(f"[VO Download] Deleted obsolete file: {target.name}")
+                logger.info(f"[VO Download] Deleted obsolete file: {target.name}")
 
     # 2. Apply .hdiff patches
     hdiff_files = sorted(hdiff_dir.glob("*.hdiff"))
     if not hdiff_files:
-        print("[VO Download] No .hdiff files found in patch archive")
+        logger.info("[VO Download] No .hdiff files found in patch archive")
         return False
 
     total = len(hdiff_files)
@@ -374,14 +375,12 @@ def _apply_hdiff_patches(
                 if e.stderr
                 else ""
             )
-            print(
-                f"[VO Download] hpatchz failed for {target_name}: "
-                f"exit {e.returncode} -- {stderr}"
-            )
+            logger.error(f"[VO Download] hpatchz failed for {target_name}: "
+                f"exit {e.returncode} -- {stderr}")
             new_file.unlink(missing_ok=True)
             return False
         except FileNotFoundError:
-            print(f"[VO Download] hpatchz binary not executable: {hpatchz}")
+            logger.info(f"[VO Download] hpatchz binary not executable: {hpatchz}")
             return False
 
         # Replace old file with patched file
@@ -477,10 +476,8 @@ def download_and_extract(
 
         actual_md5 = md5.hexdigest()
         if expected_md5 and actual_md5.lower() != expected_md5.lower():
-            print(
-                f"[VO Download] MD5 mismatch for {folder_name}: "
-                f"expected {expected_md5}, got {actual_md5}"
-            )
+            logger.info(f"[VO Download] MD5 mismatch for {folder_name}: "
+                f"expected {expected_md5}, got {actual_md5}")
             return False
 
         # Extract PCK files from 7z
@@ -491,7 +488,7 @@ def download_and_extract(
         return True
 
     except Exception as e:
-        print(f"[VO Download] Error downloading {folder_name}: {e}")
+        logger.error(f"[VO Download] Error downloading {folder_name}: {e}")
         return False
     finally:
         try:
@@ -508,7 +505,7 @@ def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
         pck_names = [n for n in all_names if n.lower().endswith(".pck")]
 
         if not pck_names:
-            print("[VO Download] Warning: no .pck files found in archive")
+            logger.warning("[VO Download] Warning: no .pck files found in archive")
             return
 
         # Extract to a temp directory first, then flatten into "dest_dir"
@@ -519,10 +516,8 @@ def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
             for pck in tmp_extract_path.rglob("*.pck"):
                 shutil.move(str(pck), str(dest_dir / pck.name))
 
-        print(
-            f"[VO Download] Extracted {len(pck_names)} PCK file(s) "
-            f"into {dest_dir}"
-        )
+        logger.info(f"[VO Download] Extracted {len(pck_names)} PCK file(s) "
+            f"into {dest_dir}")
 
 
 # High-level restore
@@ -544,7 +539,7 @@ def restore_language_from_api(
         if progress_cb:
             progress_cb(f"Restoring {folder_name} VO from cache...")
         _copy_to_persistent(cache_lang_dir, persistent_path / folder_name)
-        print(f"[VO Download] Restored {folder_name} from cache")
+        logger.info(f"[VO Download] Restored {folder_name} from cache")
         return True
 
     # 2. Fetch API
@@ -553,7 +548,7 @@ def restore_language_from_api(
 
     api_data = fetch_audio_packages()
     if api_data is None:
-        print(f"[VO Download] Cannot restore {folder_name}: API unavailable")
+        logger.info(f"[VO Download] Cannot restore {folder_name}: API unavailable")
         return False
 
     # 2.5. Try hdiff patching if we have a stale cache. hpatchz is fetched
@@ -584,23 +579,17 @@ def restore_language_from_api(
                 _copy_to_persistent(
                     cache_lang_dir, persistent_path / folder_name
                 )
-                print(
-                    f"[VO Download] Restored {folder_name} from "
-                    f"hdiff patch ({cached_version} -> {version})"
-                )
+                logger.info(f"[VO Download] Restored {folder_name} from "
+                    f"hdiff patch ({cached_version} -> {version})")
                 return True
-            print(
-                f"[VO Download] HDiff patch failed for {folder_name}, "
-                f"falling back to full download"
-            )
+            logger.error(f"[VO Download] HDiff patch failed for {folder_name}, "
+                f"falling back to full download")
 
     _purge_language_cache(game_cache_root, folder_name)
 
     pkg = get_audio_pkg_for_language(api_data, folder_name)
     if pkg is None:
-        print(
-            f"[VO Download] No download found for language '{folder_name}'"
-        )
+        logger.info(f"[VO Download] No download found for language '{folder_name}'")
         return False
 
     # 3. Check disk space on the cache volume (not the game install volume).
@@ -616,7 +605,7 @@ def restore_language_from_api(
                 f"Need {_format_size(needed)}, "
                 f"have {_format_size(free)}"
             )
-            print(f"[VO Download] {msg}")
+            logger.info(f"[VO Download] {msg}")
             if progress_cb:
                 progress_cb(msg)
             return False
@@ -650,7 +639,7 @@ def restore_language_from_api(
     if progress_cb:
         progress_cb(f"Restoring {folder_name} VO originals...")
     _copy_to_persistent(cache_lang_dir, persistent_path / folder_name)
-    print(f"[VO Download] Restored {folder_name} from download")
+    logger.info(f"[VO Download] Restored {folder_name} from download")
     return True
 
 
@@ -672,11 +661,9 @@ def _try_hdiff_patch(
         game_cache_root.mkdir(parents=True, exist_ok=True)
         free = shutil.disk_usage(str(game_cache_root)).free
         if free < needed:
-            print(
-                f"[VO Download] Not enough space for hdiff "
+            logger.info(f"[VO Download] Not enough space for hdiff "
                 f"({_format_size(needed)} needed, "
-                f"{_format_size(free)} free)"
-            )
+                f"{_format_size(free)} free)")
             return False
 
     archive_path = _download_hdiff_archive(
@@ -758,4 +745,4 @@ def _purge_language_cache(game_cache_root: Path, folder_name: str):
     lang_dir = game_cache_root / folder_name
     if lang_dir.is_dir():
         shutil.rmtree(lang_dir, ignore_errors=True)
-        print(f"[VO Download] Cleaned stale cache: {folder_name}")
+        logger.info(f"[VO Download] Cleaned stale cache: {folder_name}")

@@ -7,6 +7,9 @@ import platform
 import subprocess
 from pathlib import Path
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     os.environ["QT_QPA_PLATFORM"] = "windows:fontengine=freetype"
 from PyQt5.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase
@@ -88,7 +91,7 @@ class AutoDetectWorker(QThread):
                     return
         else:
 
-            print(f"[{APP_NAME}] Searching for {data_dir} from root directory...")
+            logger.info(f"[{APP_NAME}] Searching for {data_dir} from root directory...")
             try:
                 result = subprocess.run(
                     ["find", "/", "-name", data_dir, "-type", "d"],
@@ -108,9 +111,9 @@ class AutoDetectWorker(QThread):
                             self.found.emit(str(game_data_dir))
                             return
             except subprocess.TimeoutExpired:
-                print(f"[{APP_NAME}] Search timed out after 60 seconds")
+                logger.info(f"[{APP_NAME}] Search timed out after 60 seconds")
             except Exception as e:
-                print(f"[{APP_NAME}] Search error: {e}")
+                logger.error(f"[{APP_NAME}] Search error: {e}")
 
         self.notFound.emit()
 
@@ -159,10 +162,10 @@ class Application(
 
     def run(self):
 
-        print("=" * 50)
-        print(f"{APP_NAME} - {app_config.APP_FULL_NAME}")
-        print("QML UI Version")
-        print("=" * 50)
+        logger.info("=" * 50)
+        logger.info(f"{APP_NAME} - {app_config.APP_FULL_NAME}")
+        logger.info("QML UI Version")
+        logger.info("=" * 50)
 
         QCoreApplication.setAttribute(Qt.AA_DontUseNativeDialogs, False)
 
@@ -196,28 +199,28 @@ class Application(
 
         if audiowide_font.exists():
             if QFontDatabase.addApplicationFont(str(audiowide_font)) == -1:
-                print(f"[{APP_NAME}] WARNING: Failed to load Audiowide font")
+                logger.error(f"[{APP_NAME}] WARNING: Failed to load Audiowide font")
         else:
-            print(f"[{APP_NAME}] WARNING: Audiowide font not found at {audiowide_font}")
+            logger.warning(f"[{APP_NAME}] WARNING: Audiowide font not found at {audiowide_font}")
 
         if alatsi_font.exists():
             if QFontDatabase.addApplicationFont(str(alatsi_font)) == -1:
-                print(f"[{APP_NAME}] WARNING: Failed to load Alatsi font")
+                logger.error(f"[{APP_NAME}] WARNING: Failed to load Alatsi font")
         else:
-            print(f"[{APP_NAME}] WARNING: Alatsi font not found at {alatsi_font}")
+            logger.warning(f"[{APP_NAME}] WARNING: Alatsi font not found at {alatsi_font}")
 
         if stretch_pro_font.exists():
             if QFontDatabase.addApplicationFont(str(stretch_pro_font)) == -1:
-                print(f"[{APP_NAME}] WARNING: Failed to load Stretch Pro font")
+                logger.error(f"[{APP_NAME}] WARNING: Failed to load Stretch Pro font")
         else:
-            print(f"[{APP_NAME}] WARNING: Stretch Pro font not found at {stretch_pro_font}")
+            logger.warning(f"[{APP_NAME}] WARNING: Stretch Pro font not found at {stretch_pro_font}")
 
         zzz_font = fonts_dir / "ZZZ-Font" / "ZZZ-Font.ttf"
         if zzz_font.exists():
             if QFontDatabase.addApplicationFont(str(zzz_font)) == -1:
-                print(f"[{APP_NAME}] WARNING: Failed to load ZZZ font")
+                logger.error(f"[{APP_NAME}] WARNING: Failed to load ZZZ font")
         else:
-            print(f"[{APP_NAME}] WARNING: ZZZ font not found at {zzz_font}")
+            logger.warning(f"[{APP_NAME}] WARNING: ZZZ font not found at {zzz_font}")
 
         self.engine = QQmlApplicationEngine()
         self.mod_manager_bridge = ModManagerBridge()
@@ -274,18 +277,18 @@ class Application(
             qml_base = Path(sys._MEIPASS) / 'PyQt5' / 'Qt5' / 'qml'
             if qml_base.exists():
                 self.engine.addImportPath(str(qml_base))
-                print(f"[{APP_NAME}] Added PyInstaller QML path: {qml_base}")
+                logger.info(f"[{APP_NAME}] Added PyInstaller QML path: {qml_base}")
 
         qml_file = ui_path / "qml" / "MainWindow.qml"
-        print(f"Loading QML from: {qml_file}")
+        logger.info(f"Loading QML from: {qml_file}")
         self.engine.load(QUrl.fromLocalFile(str(qml_file)))
 
         if not self.engine.rootObjects():
-            print("Error: Failed to load QML")
+            logger.error("Error: Failed to load QML")
             sys.exit(1)
 
-        print(f"[{APP_NAME}] QML loaded successfully!")
-        print(f"[{APP_NAME}] Initializing mod manager...")
+        logger.info(f"[{APP_NAME}] QML loaded successfully!")
+        logger.info(f"[{APP_NAME}] Initializing mod manager...")
 
         root = self.engine.rootObjects()[0]
         self.root = root
@@ -309,7 +312,7 @@ class Application(
         root.setProperty("height", win_h)
         root.setProperty("x", win_x)
         root.setProperty("y", win_y)
-        print(f"[{APP_NAME}] Window positioned: {win_w}x{win_h} at ({win_x},{win_y}), available: {avail_w}x{avail_h}")
+        logger.info(f"[{APP_NAME}] Window positioned: {win_w}x{win_h} at ({win_x},{win_y}), available: {avail_w}x{avail_h}")
 
 
         self._connect_mod_manager()
@@ -325,23 +328,23 @@ class Application(
             self.mod_info_dialog.exportRequested.connect(
                 self.mod_manager_bridge.exportMod
             )
-            print(f"[{APP_NAME}] Mod info dialog connected")
+            logger.info(f"[{APP_NAME}] Mod info dialog connected")
 
         self.update_dialog = root.findChild(QObject, "updateDialog")
         if self.update_dialog:
             self.update_dialog.updateAccepted.connect(self._on_update_dialog_accepted)
             self.update_dialog.updateDismissed.connect(self._on_update_dialog_dismissed)
-            print(f"[{APP_NAME}] Update dialog connected")
+            logger.info(f"[{APP_NAME}] Update dialog connected")
 
         self.conflict_resolution_dialog = root.findChild(QObject, "conflictResolutionDialog")
         if self.conflict_resolution_dialog:
             self.conflict_resolution_dialog.setProperty("modManager", self.mod_manager_bridge)
-            print(f"[{APP_NAME}] Conflict resolution dialog connected")
+            logger.info(f"[{APP_NAME}] Conflict resolution dialog connected")
 
         self.mod_conflict_dialog = root.findChild(QObject, "modConflictDialog")
         if self.mod_conflict_dialog:
             self.mod_conflict_dialog.setProperty("modManager", self.mod_manager_bridge)
-            print(f"[{APP_NAME}] Mod conflict dialog connected")
+            logger.info(f"[{APP_NAME}] Mod conflict dialog connected")
 
         self.audio_match_dialog = root.findChild(QObject, "audioMatchDialog")
         if self.audio_match_dialog:
@@ -355,12 +358,12 @@ class Application(
                 self.audio_browser_bridge.cancelMatchingSound
             )
             self.audio_browser_bridge.audio_match_dialog = self.audio_match_dialog
-            print(f"[{APP_NAME}] Audio match dialog connected")
+            logger.info(f"[{APP_NAME}] Audio match dialog connected")
 
         self._connect_welcome_dialog()
 
-        print(f"[{APP_NAME}] Application ready!")
-        print("-" * 50)
+        logger.info(f"[{APP_NAME}] Application ready!")
+        logger.info("-" * 50)
 
         is_first_launch = self.check_first_launch()
 
@@ -370,7 +373,7 @@ class Application(
         self._check_update_success_flag()
 
         if hasattr(sys, '_MEIPASS'):
-            print(f"[{APP_NAME}] PyInstaller build detected, checking for updates...")
+            logger.info(f"[{APP_NAME}] PyInstaller build detected, checking for updates...")
             self._startup_update_check = True
             self.update_manager_bridge.checkForUpdates()
 
@@ -437,7 +440,7 @@ class Application(
         self.conversion_page.setProperty("normalizeChecked", ab.normalize_audio_enabled)
         self.conversion_page.setProperty("normalizeTargetLufs", ab.normalize_target_lufs)
 
-        print(f"[{APP_NAME}] Audio conversion page connected")
+        logger.info(f"[{APP_NAME}] Audio conversion page connected")
 
     def load_settings(self):
         try:
@@ -445,7 +448,7 @@ class Application(
                 with open(self.settings_file, "r") as f:
                     return json.load(f)
         except Exception as e:
-            print(f"Warning: Failed to load settings: {e}")
+            logger.error(f"Warning: Failed to load settings: {e}")
         return {}
 
     def on_progress_update(self, message):

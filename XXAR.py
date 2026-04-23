@@ -98,6 +98,9 @@ try:
     from src.core.migration import run_migrations
     run_migrations()
 
+    from src.core.logger import setup_logging
+    setup_logging()
+
     from src.gui.main_qml import Application
 except ModuleNotFoundError as e:
     print(f"Error: Could not find modules in {src_path}")

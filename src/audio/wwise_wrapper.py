@@ -14,6 +14,9 @@ from src.core.subprocess_utils import (
     get_bundled_resources_dir,
     is_frozen,
 )
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 
 # Wwise writes cache/temp files inside the project dir, so when the bundle is
 # read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
@@ -102,7 +105,7 @@ class WwiseConsole:
 
     def _migrate_project(self):
 
-        print("Running one-time project migration...")
+        logger.info("Running one-time project migration...")
         try:
             if self.is_windows:
                 cmd = [str(self.wwise_console), "migrate", str(self.project_path)]
@@ -111,7 +114,7 @@ class WwiseConsole:
 
             subprocess.run(cmd, capture_output=True, check=False, **_subprocess_kwargs)
         except Exception as e:
-            print(f"Migration warning: {e}")
+            logger.warning(f"Migration warning: {e}")
 
     def _cleanup_wwise_artifacts(self, output_dir):
         output_dir = Path(output_dir)
@@ -189,7 +192,7 @@ class WwiseConsole:
                 output_wine_path
             ]
 
-        print(f"[WwiseConsole] Running: {' '.join(cmd)}")
+        logger.info(f"[WwiseConsole] Running: {' '.join(cmd)}")
         process = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
 
         if process.returncode != 0:
@@ -199,9 +202,9 @@ class WwiseConsole:
             raise RuntimeError(error_detail)
 
         if process.stdout:
-            print("WwiseConsole output:", process.stdout)
+            logger.info("WwiseConsole output:", process.stdout)
         if process.stderr:
-            print("WwiseConsole errors:", process.stderr)
+            logger.error("WwiseConsole errors:", process.stderr)
 
         wem_file = output_dir / wav_file.with_suffix(".wem").name
 
@@ -210,13 +213,13 @@ class WwiseConsole:
             project_cache = self.project_path.parent / ".cache"
             if project_cache.exists():
                 for p in project_cache.rglob("*.wem"):
-                    print(f"Found WEM in cache: {p}")
+                    logger.info(f"Found WEM in cache: {p}")
                     shutil.copy(p, wem_file)
                     break
 
             for p in output_dir.rglob("*.wem"):
                 if p.name == wem_file.name:
-                    print(f"Found WEM in subdirectory: {p}")
+                    logger.info(f"Found WEM in subdirectory: {p}")
                     shutil.copy(p, wem_file)
                     break
 
@@ -235,19 +238,19 @@ class WwiseConsole:
         converted = []
         failed = []
 
-        print(f"\nProcessing {len(wav_files)} files...")
+        logger.info(f"\nProcessing {len(wav_files)} files...")
 
         wav_files_paths = [Path(f).resolve() for f in wav_files]
         wav_dir = wav_files_paths[0].parent
 
         if not all(f.parent == wav_dir for f in wav_files_paths):
-            print("[!]  Warning: WAV files are in different directories. Converting individually...")
+            logger.warning("[!]  Warning: WAV files are in different directories. Converting individually...")
             for wav in wav_files:
                 try:
                     out = self.convert_to_wem(wav, output_dir)
                     converted.append(out)
                 except Exception as e:
-                    print(f"[X] Failed {Path(wav).name}: {e}")
+                    logger.error(f"[X] Failed {Path(wav).name}: {e}")
                     failed.append(wav)
             return converted
 
@@ -280,14 +283,14 @@ class WwiseConsole:
         process = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
 
         if process.returncode != 0:
-            print(f"[X] Batch conversion failed: {process.stdout + process.stderr}")
+            logger.error(f"[X] Batch conversion failed: {process.stdout + process.stderr}")
 
             for wav in wav_files:
                 try:
                     out = self.convert_to_wem(wav, output_dir)
                     converted.append(out)
                 except Exception as e:
-                    print(f"[X] Failed {Path(wav).name}: {e}")
+                    logger.error(f"[X] Failed {Path(wav).name}: {e}")
                     failed.append(wav)
         else:
 
@@ -304,7 +307,7 @@ class WwiseConsole:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python wwise_wrapper.py <input.wav or folder> [output_folder]")
+        logger.info("Usage: python wwise_wrapper.py <input.wav or folder> [output_folder]")
         sys.exit(1)
 
     input_path = Path(sys.argv[1])

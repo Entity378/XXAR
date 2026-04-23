@@ -13,6 +13,9 @@ from src.core.config_manager import (
     normalize_game_id,
 )
 from src.core.game_registry import DEFAULT_GAME_ID
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 def _get_active_game_id():
@@ -108,7 +111,7 @@ class ModPackageManager:
                     'load_order': []
                 }
         except Exception as e:
-            print(f"Warning: Failed to load mod config: {e}")
+            logger.error(f"Warning: Failed to load mod config: {e}")
             self.mod_config = {
                 'installed_mods': {},
                 'load_order': []
@@ -120,7 +123,7 @@ class ModPackageManager:
             with open(self.config_path, 'w') as f:
                 json.dump(self.mod_config, f, indent=2)
         except Exception as e:
-            print(f"Warning: Failed to save mod config: {e}")
+            logger.error(f"Warning: Failed to save mod config: {e}")
 
     def _normalize_metadata_replacements(self, metadata):
         # Convert v1.0 or v2.0 replacements to flat internal format:
@@ -258,19 +261,19 @@ class ModPackageManager:
 
                 if version_cmp > 0:
 
-                    print(f"[Mod Manager] Found existing mod '{mod_name}' v{existing_version}, replacing with v{new_version}")
+                    logger.info(f"[Mod Manager] Found existing mod '{mod_name}' v{existing_version}, replacing with v{new_version}")
                     existing_uuid = uuid_key
                     replaced = True
                     break
                 elif version_cmp == 0:
 
-                    print(f"[Mod Manager] Found existing mod '{mod_name}' v{existing_version}, replacing with same version")
+                    logger.info(f"[Mod Manager] Found existing mod '{mod_name}' v{existing_version}, replacing with same version")
                     existing_uuid = uuid_key
                     replaced = True
                     break
                 else:
 
-                    print(f"[Mod Manager] Warning: Existing mod '{mod_name}' v{existing_version} is newer than v{new_version}, skipping installation")
+                    logger.warning(f"[Mod Manager] Warning: Existing mod '{mod_name}' v{existing_version} is newer than v{new_version}, skipping installation")
                     return None
 
         if existing_uuid:
@@ -387,7 +390,7 @@ class ModPackageManager:
                     and not (self.mods_dir / uuid).exists()]
         for mod_uuid in orphaned:
             mod_name = self.mod_config['installed_mods'][mod_uuid].get('metadata', {}).get('name', mod_uuid)
-            print(f"[Mod Manager] Mod directory missing for '{mod_name}' ({mod_uuid}), removing from config...")
+            logger.warning(f"[Mod Manager] Mod directory missing for '{mod_name}' ({mod_uuid}), removing from config...")
             del self.mod_config['installed_mods'][mod_uuid]
             if mod_uuid in self.mod_config['load_order']:
                 self.mod_config['load_order'].remove(mod_uuid)
@@ -455,9 +458,9 @@ class ModPackageManager:
                     if preferred_mod in all_replacements[pck_name][file_id]:
 
                         resolved[pck_name][file_id] = all_replacements[pck_name][file_id][preferred_mod]
-                        print(f"[Conflict Resolution] Applied preference: {pref_key} -> {preferred_mod}")
+                        logger.info(f"[Conflict Resolution] Applied preference: {pref_key} -> {preferred_mod}")
             except ValueError:
-                print(f"[Conflict Resolution] Invalid preference key: {pref_key}")
+                logger.info(f"[Conflict Resolution] Invalid preference key: {pref_key}")
 
         for pck_name, files in conflicts_tracker.items():
             for file_id, conflicting_uuids in files.items():
@@ -569,11 +572,11 @@ class ModPackageManager:
             )
             patch_bnk_content = patch_info.get("patch_bnk_content", {})
             if patch_info.get("remapped"):
-                print(f"[Mod Manager] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+                logger.info(f"[Mod Manager] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
             if patch_info.get("dropped"):
-                print(f"[Mod Manager] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
+                logger.warning(f"[Mod Manager] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
         except Exception as e:
-            print(f"[Mod Manager] Warning: patch target resolution failed: {e}")
+            logger.error(f"[Mod Manager] Warning: patch target resolution failed: {e}")
 
         if self.persistent_mod_manager:
             old_replacements = self.persistent_mod_manager.get_all_replacements()
@@ -596,9 +599,9 @@ class ModPackageManager:
                         pck_path.chmod(0o644)
                         pck_path.unlink()
                         deleted_count += 1
-                        print(f"Deleted {pck_name} from Persistent folder")
+                        logger.info(f"Deleted {pck_name} from Persistent folder")
                     except Exception as e:
-                        print(f"Warning: Failed to delete {pck_name}: {e}")
+                        logger.error(f"Warning: Failed to delete {pck_name}: {e}")
 
             if progress_callback:
                 progress_callback(f"Cleaned up {deleted_count} PCK file(s)", 1, 1)
@@ -619,9 +622,9 @@ class ModPackageManager:
 
                         pck_path.chmod(0o644)
                         pck_path.unlink()
-                        print(f"Deleted {pck_name} from Persistent folder (mod disabled)")
+                        logger.info(f"Deleted {pck_name} from Persistent folder (mod disabled)")
                     except Exception as e:
-                        print(f"Warning: Failed to delete {pck_name}: {e}")
+                        logger.error(f"Warning: Failed to delete {pck_name}: {e}")
 
         pck_list = list(resolved.keys())
         total_pcks = len(pck_list)
@@ -634,7 +637,7 @@ class ModPackageManager:
             # been remapped. If one slips through (resolver failure) skip it
             # here — rebuilding a protected override produces a broken stub.
             if pck_name in game.protected_pcks:
-                print(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
+                logger.info(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
                 continue
 
             original_pck = None
@@ -681,14 +684,14 @@ class ModPackageManager:
                     output_pck = persistent_subdir / pck_name
 
             if not original_pck or not original_pck.exists():
-                print(f"Warning: Original PCK not found: {pck_name}, skipping...")
+                logger.warning(f"Warning: Original PCK not found: {pck_name}, skipping...")
                 continue
 
             if output_pck.exists():
                 try:
                     output_pck.chmod(0o644)
                 except Exception as e:
-                    print(f"Warning: Failed to remove read-only from {output_pck}: {e}")
+                    logger.error(f"Warning: Failed to remove read-only from {output_pck}: {e}")
 
             from XXAR import get_temp_dir
             temp_dir = Path(tempfile.mkdtemp(prefix='mod_apply_', dir=str(get_temp_dir())))
@@ -706,7 +709,7 @@ class ModPackageManager:
                     wem_path = file_info['wem_path']
 
                     if not Path(wem_path).exists():
-                        print(f"Warning: WEM file not found: {wem_path}, skipping...")
+                        logger.warning(f"Warning: WEM file not found: {wem_path}, skipping...")
                         continue
 
                     # key is always compound "bnk_id|wem_id" now; file_info['file_id'] has plain wem_id for v2.0
@@ -743,7 +746,7 @@ class ModPackageManager:
                             break
 
                     if lang_id is None:
-                        print(f"Warning: BNK {bnk_id} not found in {pck_name}, skipping merge")
+                        logger.warning(f"Warning: BNK {bnk_id} not found in {pck_name}, skipping merge")
                         continue
 
                     patch_wems = None
@@ -784,7 +787,7 @@ class ModPackageManager:
                 progress_callback=override_cb,
             )
         except Exception as e:
-            print(f"[Mod Manager] Warning: Override PCK patching failed: {e}")
+            logger.error(f"[Mod Manager] Warning: Override PCK patching failed: {e}")
 
         try:
             from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path
@@ -861,7 +864,7 @@ class ModPackageManager:
                     wem_path = Path(file_info['wem_path'])
 
                     if not wem_path.exists():
-                        print(f"Warning: WEM file not found: {wem_path}, skipping...")
+                        logger.warning(f"Warning: WEM file not found: {wem_path}, skipping...")
                         continue
 
                     # tracker_key may be "bnk_id|wem_id" or plain "wem_id"
@@ -900,7 +903,7 @@ class ModPackageManager:
                     thumbnail_filename = 'thumbnail.png'
                     img.save(temp_dir / thumbnail_filename, 'PNG')
                 except Exception as e:
-                    print(f"Warning: Failed to process thumbnail: {e}")
+                    logger.error(f"Warning: Failed to process thumbnail: {e}")
 
             metadata_content = {
                 'format_version': '3.0',

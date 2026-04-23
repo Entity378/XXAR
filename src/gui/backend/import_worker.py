@@ -135,6 +135,8 @@ class ImportWorker(QThread):
 
                 target_wem_ids = set(extracted_wem_ids.keys())
                 file_id_to_pck = {}
+                skipped_bnks = 0
+                skipped_wems = 0
 
                 all_game_pcks = list(game_audio_dir.rglob('*.pck'))
                 game_pck_files = [p for p in all_game_pcks if p.name in input_pck_names]
@@ -182,7 +184,7 @@ class ImportWorker(QThread):
                                             if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                                 file_id_to_pck[file_id] = (game_pck_name, bnk_id, lang_id, priority)
                                 except Exception:
-                                    pass
+                                    skipped_bnks += 1
 
                             for wem_info in indexer.index_data['sounds'] + indexer.index_data['externals']:
                                 file_id = str(wem_info['id'])
@@ -194,7 +196,7 @@ class ImportWorker(QThread):
                                         if original_wem == modded_wem:
                                             continue
                                     except Exception:
-                                        pass
+                                        skipped_wems += 1
                                     if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                         file_id_to_pck[file_id] = (game_pck_name, None, lang_id, priority)
 
@@ -203,6 +205,11 @@ class ImportWorker(QThread):
 
                 identical_count = len(extracted_wem_ids) - len(file_id_to_pck)
                 self.progress.emit(f"Found {len(file_id_to_pck)} modified WEM file(s) ({identical_count} identical, skipped)")
+                if skipped_bnks or skipped_wems:
+                    self.progress.emit(
+                        f"Warning: {skipped_bnks} BNK(s) and {skipped_wems} WEM(s) could not be parsed during scan "
+                        f"and were skipped — some mod replacements may be missing their game-side target."
+                    )
                 self.progressPercent.emit(58)
 
                 for file_id in list(extracted_wem_ids.keys()):

@@ -23,6 +23,9 @@ from src.core.config_manager import get_settings_file, get_tools_dir
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 
 class WwiseSetupWorker(QThread):
     progress = pyqtSignal(str)
@@ -97,14 +100,14 @@ class WindowsAudioToolsSetupWorker(QThread):
                             line_stripped = line.rstrip()
                             output_lines.append(line_stripped)
 
-                            print(f"[Audio Tools Setup] {line_stripped}")
+                            logger.info(f"[Audio Tools Setup] {line_stripped}")
 
                             self.progress.emit(line_stripped)
 
                     process.wait(timeout=600)
                 except subprocess.TimeoutExpired:
                     process.kill()
-                    print("[Audio Tools Setup] ERROR: Timed out after 10 minutes")
+                    logger.error("[Audio Tools Setup] ERROR: Timed out after 10 minutes")
                     self.finished.emit(False, "Setup timed out after 10 minutes")
                     return
 
@@ -113,10 +116,10 @@ class WindowsAudioToolsSetupWorker(QThread):
                 else:
 
                     error_preview = '\n'.join(output_lines[-10:]) if len(output_lines) > 10 else '\n'.join(output_lines)
-                    print(f"[Audio Tools Setup] ERROR: Process failed with code {process.returncode}")
-                    print("[Audio Tools Setup] Full output:")
+                    logger.error(f"[Audio Tools Setup] ERROR: Process failed with code {process.returncode}")
+                    logger.info("[Audio Tools Setup] Full output:")
                     for line in output_lines:
-                        print(f"  {line}")
+                        logger.info(f"  {line}")
                     self.finished.emit(False, f"Setup failed (see console for details):\n\n{error_preview}")
 
         except Exception as e:
@@ -247,7 +250,7 @@ class ModManagerBridge(QObject):
                         persistent_mod_manager=self.persistent_mod_manager,
                         game_id=self.active_game_id,
                     )
-                    print(f"[Mod Manager]   Mods dir: {new_library}")
+                    logger.info(f"[Mod Manager]   Mods dir: {new_library}")
 
                     if self.persistent_dir:
                         self.persistent_mod_manager.set_persistent_path(
@@ -257,19 +260,17 @@ class ModManagerBridge(QObject):
                     self.modCreationModeChanged.emit(self.mod_creation_mode)
 
                     if self.game_audio_dir or self.persistent_dir:
-                        print(f"[Mod Manager] Loaded game directories from settings")
-                        print(f"[Mod Manager]   Active game: {self.active_game_id}")
+                        logger.info(f"[Mod Manager] Loaded game directories from settings")
+                        logger.info(f"[Mod Manager]   Active game: {self.active_game_id}")
                         if self.game_audio_dir:
-                            print(f"[Mod Manager]   Game audio: {self.game_audio_dir}")
+                            logger.info(f"[Mod Manager]   Game audio: {self.game_audio_dir}")
                         if self.persistent_dir:
-                            print(f"[Mod Manager]   Persistent: {self.persistent_dir}")
+                            logger.info(f"[Mod Manager]   Persistent: {self.persistent_dir}")
             else:
-                print(
-                    "[Mod Manager] No settings file found - please configure game directory in Settings"
-                )
+                logger.info("[Mod Manager] No settings file found - please configure game directory in Settings")
                 self.active_game_id = DEFAULT_GAME_ID
         except Exception as e:
-            print(f"[Mod Manager] Warning: Failed to load settings: {e}")
+            logger.error(f"[Mod Manager] Warning: Failed to load settings: {e}")
             self.game_audio_dir = ""
             self.persistent_dir = ""
             self.active_game_id = DEFAULT_GAME_ID
@@ -296,17 +297,17 @@ class ModManagerBridge(QObject):
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
 
-            print(f"[Mod Manager] Mod creation mode set to: {enabled}")
+            logger.info(f"[Mod Manager] Mod creation mode set to: {enabled}")
         except Exception as e:
-            print(f"Error saving mod creation mode: {e}")
+            logger.error(f"Error saving mod creation mode: {e}")
 
     @pyqtSlot()
     def checkWwiseInstalled(self):
 
         wwise_console = get_tools_dir() / "wwise" / "WWIse" / "Authoring" / "x64" / "Release" / "bin" / "WwiseConsole.exe"
         is_installed = wwise_console.exists()
-        print(f"[Mod Manager] Wwise check path: {wwise_console}")
-        print(f"[Mod Manager] Wwise installed: {is_installed}")
+        logger.info(f"[Mod Manager] Wwise check path: {wwise_console}")
+        logger.info(f"[Mod Manager] Wwise installed: {is_installed}")
         self.wwiseStatusChanged.emit(is_installed)
         return is_installed
 
@@ -352,21 +353,21 @@ class ModManagerBridge(QObject):
         ffmpeg_dir = tools_root / "audio" / "ffmpeg"
         vgmstream_exe = tools_root / "audio" / "vgmstream" / "vgmstream-cli.exe"
 
-        print(f"[Mod Manager] Checking for tools in: {tools_root / 'audio'}")
+        logger.info(f"[Mod Manager] Checking for tools in: {tools_root / 'audio'}")
 
         ffmpeg_found = False
         if ffmpeg_dir.exists():
             ffmpeg_candidates = list(ffmpeg_dir.rglob("ffmpeg.exe"))
             ffmpeg_found = len(ffmpeg_candidates) > 0
             if ffmpeg_found:
-                print(f"[Mod Manager] Found ffmpeg at: {ffmpeg_candidates[0]}")
+                logger.info(f"[Mod Manager] Found ffmpeg at: {ffmpeg_candidates[0]}")
 
         vgmstream_found = vgmstream_exe.exists()
         if vgmstream_found:
-            print(f"[Mod Manager] Found vgmstream at: {vgmstream_exe}")
+            logger.info(f"[Mod Manager] Found vgmstream at: {vgmstream_exe}")
 
         is_installed = ffmpeg_found and vgmstream_found
-        print(f"[Mod Manager] Windows audio tools installed: {is_installed} (ffmpeg: {ffmpeg_found}, vgmstream: {vgmstream_found})")
+        logger.info(f"[Mod Manager] Windows audio tools installed: {is_installed} (ffmpeg: {ffmpeg_found}, vgmstream: {vgmstream_found})")
         self.audioToolsStatusChanged.emit(is_installed)
         return is_installed
 
@@ -396,9 +397,9 @@ class ModManagerBridge(QObject):
 
     def _on_audio_tools_setup_finished(self, success, message):
 
-        print(f"[Mod Manager] Audio tools setup finished: success={success}")
+        logger.info(f"[Mod Manager] Audio tools setup finished: success={success}")
 
-        print("[Mod Manager] Emitting audioToolsStatusChanged to stop spinner")
+        logger.info("[Mod Manager] Emitting audioToolsStatusChanged to stop spinner")
         self.audioToolsStatusChanged.emit(False)
 
         QTimer.singleShot(500, self.checkAudioToolsInstalled)
@@ -418,7 +419,7 @@ class ModManagerBridge(QObject):
 
         try:
             mods = self.mod_package_manager.get_installed_mods()
-            print(f"[Mod Manager] Found {len(mods)} installed mod(s)")
+            logger.info(f"[Mod Manager] Found {len(mods)} installed mod(s)")
 
             qml_mods = []
             for mod in mods:
@@ -439,13 +440,11 @@ class ModManagerBridge(QObject):
                 }
                 qml_mods.append(qml_mod)
                 status = "ENABLED" if mod["enabled"] else "disabled"
-                print(
-                    f"[Mod Manager]   [{status}] {qml_mod['name']} v{qml_mod['version']} by {qml_mod['author']}"
-                )
+                logger.info(f"[Mod Manager]   [{status}] {qml_mod['name']} v{qml_mod['version']} by {qml_mod['author']}")
 
             return qml_mods
         except Exception as e:
-            print(f"[Mod Manager] ERROR getting mods: {e}")
+            logger.error(f"[Mod Manager] ERROR getting mods: {e}")
             return []
 
     @pyqtSlot(str, bool)
@@ -454,40 +453,38 @@ class ModManagerBridge(QObject):
         try:
             self.mod_package_manager.set_mod_enabled(mod_uuid, enabled)
             state = "enabled" if enabled else "disabled"
-            print(f"[Mod Manager] Mod {state}: {mod_uuid}")
+            logger.info(f"[Mod Manager] Mod {state}: {mod_uuid}")
             self.progressUpdate.emit(f"Mod {state}")
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to toggle mod: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to toggle mod: {str(e)}")
             self.errorOccurred.emit("Error", f"Failed to toggle mod: {str(e)}")
 
     @pyqtSlot(str)
     def installMod(self, file_path):
 
         try:
-            print(f"[Mod Manager] Validating mod package: {Path(file_path).name}")
+            logger.info(f"[Mod Manager] Validating mod package: {Path(file_path).name}")
 
             metadata = self.mod_package_manager.validate_mod_package(file_path)
 
-            print(f"[Mod Manager] Package valid:")
-            print(f"[Mod Manager]   Name: {metadata['name']}")
-            print(f"[Mod Manager]   Author: {metadata.get('author', 'Unknown')}")
-            print(f"[Mod Manager]   Version: {metadata.get('version', '1.0.0')}")
-            print(f"[Mod Manager]   Description: {metadata.get('description', 'N/A')}")
+            logger.info(f"[Mod Manager] Package valid:")
+            logger.info(f"[Mod Manager]   Name: {metadata['name']}")
+            logger.info(f"[Mod Manager]   Author: {metadata.get('author', 'Unknown')}")
+            logger.info(f"[Mod Manager]   Version: {metadata.get('version', '1.0.0')}")
+            logger.info(f"[Mod Manager]   Description: {metadata.get('description', 'N/A')}")
 
             replacement_count = sum(
                 len(files) for files in metadata.get("replacements", {}).values()
             )
             pck_count = len(metadata.get("replacements", {}))
-            print(
-                f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)"
-            )
+            logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
 
-            print(f"[Mod Manager] Installing mod: {metadata['name']}")
+            logger.info(f"[Mod Manager] Installing mod: {metadata['name']}")
             install_result = self.mod_package_manager.install_mod(file_path)
 
             if install_result is None:
 
-                print(f"[Mod Manager] Installation skipped: newer version already installed")
+                logger.info(f"[Mod Manager] Installation skipped: newer version already installed")
                 self.errorOccurred.emit(
                     "Installation Skipped",
                     f"A newer version of '{metadata['name']}' is already installed."
@@ -500,7 +497,7 @@ class ModManagerBridge(QObject):
             replaced = install_result['replaced']
 
             if replaced:
-                print(f"[Mod Manager] Replaced existing mod with v{version}")
+                logger.info(f"[Mod Manager] Replaced existing mod with v{version}")
                 self.progressUpdate.emit(f"Updated: {mod_name} to v{version}")
 
                 self.modInstallSuccess.emit(
@@ -512,7 +509,7 @@ class ModManagerBridge(QObject):
                     ""
                 )
             else:
-                print(f"[Mod Manager] Installed successfully! UUID: {mod_uuid}")
+                logger.info(f"[Mod Manager] Installed successfully! UUID: {mod_uuid}")
                 self.progressUpdate.emit(f"Installed: {mod_name} v{version}")
 
                 self.modInstallSuccess.emit(
@@ -529,24 +526,24 @@ class ModManagerBridge(QObject):
             self.refreshMods()
 
         except InvalidModPackageError as e:
-            print(f"[Mod Manager] ERROR: Invalid mod package: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Invalid mod package: {str(e)}")
             self.errorOccurred.emit("Invalid Mod Package", str(e))
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to install mod: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to install mod: {str(e)}")
             self.errorOccurred.emit("Error", f"Failed to install mod: {str(e)}")
 
     @pyqtSlot(str)
     def removeMod(self, mod_uuid):
 
         try:
-            print(f"[Mod Manager] Removing mod: {mod_uuid}")
+            logger.info(f"[Mod Manager] Removing mod: {mod_uuid}")
             self.mod_package_manager.remove_mod(mod_uuid)
-            print(f"[Mod Manager] Mod removed successfully")
+            logger.info(f"[Mod Manager] Mod removed successfully")
             self.progressUpdate.emit("Mod removed")
             self.modRemoved.emit(mod_uuid)
             self.refreshMods()
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to remove mod: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to remove mod: {str(e)}")
             self.errorOccurred.emit("Error", f"Failed to remove mod: {str(e)}")
 
     @pyqtSlot(list)
@@ -556,12 +553,12 @@ class ModManagerBridge(QObject):
         removed = 0
         for mod_uuid in mod_uuids:
             try:
-                print(f"[Mod Manager] Removing mod: {mod_uuid}")
+                logger.info(f"[Mod Manager] Removing mod: {mod_uuid}")
                 self.mod_package_manager.remove_mod(mod_uuid)
                 self.modRemoved.emit(mod_uuid)
                 removed += 1
             except Exception as e:
-                print(f"[Mod Manager] ERROR: Failed to remove mod {mod_uuid}: {str(e)}")
+                logger.error(f"[Mod Manager] ERROR: Failed to remove mod {mod_uuid}: {str(e)}")
                 errors.append(str(e))
 
         if removed > 0:
@@ -574,11 +571,11 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def refreshMods(self):
 
-        print("[Mod Manager] Refreshing mod list...")
+        logger.info("[Mod Manager] Refreshing mod list...")
         self.mod_package_manager.load_config()
         mods = self.getInstalledMods()
         self.modsLoaded.emit(mods)
-        print(f"[Mod Manager] Loaded {len(mods)} mod(s)")
+        logger.info(f"[Mod Manager] Loaded {len(mods)} mod(s)")
 
     @pyqtSlot(str)
     def saveConflictPreferences(self, preferences_json):
@@ -586,15 +583,15 @@ class ModManagerBridge(QObject):
         try:
             preferences = json.loads(preferences_json)
         except (json.JSONDecodeError, TypeError) as e:
-            print(f"[Mod Manager] ERROR: Failed to parse conflict preferences: {e}")
+            logger.error(f"[Mod Manager] ERROR: Failed to parse conflict preferences: {e}")
             return
 
-        print(f"[Mod Manager] Saving {len(preferences)} conflict preferences")
+        logger.info(f"[Mod Manager] Saving {len(preferences)} conflict preferences")
 
         for pref in preferences:
             key = f"{pref['pck']}:{pref['file_id']}"
             self.conflict_preferences[key] = pref['winner_mod']
-            print(f"[Mod Manager]   {key} -> {pref['winner_mod']}")
+            logger.info(f"[Mod Manager]   {key} -> {pref['winner_mod']}")
 
         try:
             settings = {}
@@ -607,9 +604,9 @@ class ModManagerBridge(QObject):
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
 
-            print("[Mod Manager] Conflict preferences saved to settings")
+            logger.info("[Mod Manager] Conflict preferences saved to settings")
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to save conflict preferences: {e}")
+            logger.error(f"[Mod Manager] ERROR: Failed to save conflict preferences: {e}")
 
     @pyqtSlot()
     def applyModsAfterConflictResolution(self):
@@ -619,11 +616,11 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def applyMods(self):
 
-        print("[Mod Manager] Starting mod application...")
+        logger.info("[Mod Manager] Starting mod application...")
         self.load_settings()
 
         if not self.game_audio_dir or not Path(self.game_audio_dir).exists():
-            print("[Mod Manager] ERROR: Game audio directory not set or doesn't exist")
+            logger.error("[Mod Manager] ERROR: Game audio directory not set or doesn't exist")
             self.errorOccurred.emit(
                 "Missing Directory",
                 "Game audio directory not set. Please configure it in settings first.",
@@ -631,7 +628,7 @@ class ModManagerBridge(QObject):
             return
 
         if not self.persistent_dir:
-            print("[Mod Manager] ERROR: Persistent audio directory not set")
+            logger.error("[Mod Manager] ERROR: Persistent audio directory not set")
             self.errorOccurred.emit(
                 "Missing Directory",
                 "Persistent audio directory not set. Please configure it in settings first.",
@@ -642,19 +639,17 @@ class ModManagerBridge(QObject):
 
             mods = self.mod_package_manager.get_installed_mods()
             enabled_mods = [m for m in mods if m["enabled"]]
-            print(
-                f"[Mod Manager] Found {len(enabled_mods)} enabled mod(s) out of {len(mods)} total"
-            )
+            logger.info(f"[Mod Manager] Found {len(enabled_mods)} enabled mod(s) out of {len(mods)} total")
 
             if not enabled_mods:
-                print("[Mod Manager] No mods enabled, will clean up modded PCK files...")
+                logger.info("[Mod Manager] No mods enabled, will clean up modded PCK files...")
 
             conflicts = self.mod_package_manager.get_mod_conflicts_summary()
             if conflicts["conflicts"]:
                 conflict_count = len(conflicts["conflicts"])
-                print(f"[Mod Manager] Warning: {conflict_count} conflict(s) detected")
+                logger.warning(f"[Mod Manager] Warning: {conflict_count} conflict(s) detected")
                 for conflict in conflicts["conflicts"][:5]:
-                    print(f"[Mod Manager]   - {conflict}")
+                    logger.info(f"[Mod Manager]   - {conflict}")
 
                 conflicts_with_prefs = []
                 for conflict in conflicts["conflicts"]:
@@ -664,7 +659,7 @@ class ModManagerBridge(QObject):
                     if saved_winner and saved_winner != conflict['winner_mod']:
 
                         if saved_winner in conflict['loser_mods']:
-                            print(f"[Mod Manager] Restoring saved preference for {conflict_key}: {saved_winner}")
+                            logger.info(f"[Mod Manager] Restoring saved preference for {conflict_key}: {saved_winner}")
                             old_winner = conflict['winner_mod']
                             conflict['loser_mods'].remove(saved_winner)
                             conflict['loser_mods'].append(old_winner)
@@ -672,7 +667,7 @@ class ModManagerBridge(QObject):
                             conflict['saved_preference'] = saved_winner
                         else:
 
-                            print(f"[Mod Manager] Saved preference '{saved_winner}' no longer available for {conflict_key}, ignoring")
+                            logger.info(f"[Mod Manager] Saved preference '{saved_winner}' no longer available for {conflict_key}, ignoring")
                             conflict['saved_preference'] = None
                     elif saved_winner:
                         conflict['saved_preference'] = saved_winner
@@ -695,13 +690,13 @@ class ModManagerBridge(QObject):
 
                 return
             else:
-                print("[Mod Manager] No conflicts detected")
+                logger.info("[Mod Manager] No conflicts detected")
                 self.progressUpdate.emit("Applying mods...")
 
             self._apply_mods_internal()
 
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
             is_permission_error = isinstance(e, PermissionError) or (
                 e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
             ) or "permission denied" in str(e).lower()
@@ -731,10 +726,8 @@ class ModManagerBridge(QObject):
                                 pck_count = len(list(lang_folder.glob("*.pck")))
                                 if self._should_skip_cleanup_folder(lang_folder, pck_count):
                                     lang_folders_to_skip.add(lang_folder)
-                                    print(
-                                        f"[Mod Manager] Skipping language folder "
-                                        f"{lang_folder.name} (has {pck_count} PCK files)"
-                                    )
+                                    logger.info(f"[Mod Manager] Skipping language folder "
+                                        f"{lang_folder.name} (has {pck_count} PCK files)")
 
 
                         cleaned_files = 0
@@ -744,7 +737,7 @@ class ModManagerBridge(QObject):
                                 continue
 
                             if pck_file.name in get_game(self.active_game_id).protected_pcks:
-                                print(f"[Mod Manager] Skipping protected file: {pck_file.name}")
+                                logger.info(f"[Mod Manager] Skipping protected file: {pck_file.name}")
                                 continue
 
                             try:
@@ -752,21 +745,21 @@ class ModManagerBridge(QObject):
                                 pck_file.unlink()
                                 cleaned_files += 1
                             except Exception as e:
-                                print(f"[Mod Manager] Failed to delete {pck_file}: {e}")
+                                logger.error(f"[Mod Manager] Failed to delete {pck_file}: {e}")
 
                         if cleaned_files > 0:
-                            print(f"[Mod Manager] Cleaned up {cleaned_files} old PCK file(s) from Persistent folder")
+                            logger.info(f"[Mod Manager] Cleaned up {cleaned_files} old PCK file(s) from Persistent folder")
 
                         try:
                             from src.wwise.override_pck_patcher import restore_override_pck_backups
                             restored = restore_override_pck_backups(persistent_path)
                             if restored > 0:
-                                print(f"[Mod Manager] Restored {restored} override PCK backup(s)")
+                                logger.info(f"[Mod Manager] Restored {restored} override PCK backup(s)")
                         except Exception as e:
-                            print(f"[Mod Manager] Warning: Failed to restore override PCK backups: {e}")
+                            logger.error(f"[Mod Manager] Warning: Failed to restore override PCK backups: {e}")
 
                 except Exception as e:
-                    print(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
+                    logger.error(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
 
             # Restore backed-up originals into Persistent (e.g. HSR VO).
             if self.persistent_dir:
@@ -779,12 +772,12 @@ class ModManagerBridge(QObject):
                         vo_backup_mode=vo_mode,
                     )
                 except Exception as e:
-                    print(f"[Mod Manager] Warning: Failed to restore persistent originals: {e}")
+                    logger.error(f"[Mod Manager] Warning: Failed to restore persistent originals: {e}")
 
             self.progressUpdate.emit("Applying mods...")
 
             def progress_callback(message, current, total):
-                print(f"[Mod Manager] [{current}/{total}] {message}")
+                logger.info(f"[Mod Manager] [{current}/{total}] {message}")
                 self.progressUpdate.emit(f"[{current}/{total}] {message}")
 
             self.mod_package_manager.apply_mods(
@@ -794,11 +787,11 @@ class ModManagerBridge(QObject):
                 conflict_preferences=self.conflict_preferences
             )
 
-            print("[Mod Manager] Mods applied successfully!")
+            logger.info("[Mod Manager] Mods applied successfully!")
             self.progressUpdate.emit("Mods applied successfully!")
 
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
             is_permission_error = isinstance(e, PermissionError) or (
                 e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
             ) or "permission denied" in str(e).lower()
@@ -824,7 +817,7 @@ class ModManagerBridge(QObject):
             if mod_uuid not in self.mod_package_manager.mod_config.get(
                 "installed_mods", {}
             ):
-                print(f"[Mod Manager] Mod not found: {mod_uuid}")
+                logger.info(f"[Mod Manager] Mod not found: {mod_uuid}")
                 return None
 
             mod_info = self.mod_package_manager.mod_config["installed_mods"][mod_uuid]
@@ -862,7 +855,7 @@ class ModManagerBridge(QObject):
             }
 
         except Exception as e:
-            print(f"[Mod Manager] ERROR getting mod info: {e}")
+            logger.error(f"[Mod Manager] ERROR getting mod info: {e}")
             import traceback
 
             traceback.print_exc()
@@ -885,7 +878,7 @@ class ModManagerBridge(QObject):
                 subprocess.Popen(['aplay', '-q', path],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
-            print(f"[playSound] ERROR: {e}")
+            logger.error(f"[playSound] ERROR: {e}")
 
     @pyqtSlot(str, result=list)
     def browseImportFiles(self, mode):
@@ -903,7 +896,7 @@ class ModManagerBridge(QObject):
         )
 
         if filenames:
-            print(f"[Import Wizard] Selected {len(filenames)} file(s)")
+            logger.info(f"[Import Wizard] Selected {len(filenames)} file(s)")
             return [Path(f).name for f in filenames]
         return []
 
@@ -917,7 +910,7 @@ class ModManagerBridge(QObject):
 
         if dirname:
             folder_path = Path(dirname)
-            print(f"[Import Wizard] Selected folder: {folder_path}")
+            logger.info(f"[Import Wizard] Selected folder: {folder_path}")
 
             folder_path_lower = str(folder_path).lower()
             use_recursive = (
@@ -953,7 +946,7 @@ class ModManagerBridge(QObject):
                 else:
                     file_names.append(path.name)
 
-            print(f"[Import Wizard] Found {len(file_names)} file(s) in folder")
+            logger.info(f"[Import Wizard] Found {len(file_names)} file(s) in folder")
             return file_names
 
         return []
@@ -969,7 +962,7 @@ class ModManagerBridge(QObject):
         )
 
         if filename:
-            print(f"[Import Wizard] Selected thumbnail: {filename}")
+            logger.info(f"[Import Wizard] Selected thumbnail: {filename}")
             return filename
         return ""
 
@@ -997,7 +990,7 @@ class ModManagerBridge(QObject):
     def exportMod(self, mod_uuid):
 
         try:
-            print(f"[Mod Manager] Exporting mod: {mod_uuid}")
+            logger.info(f"[Mod Manager] Exporting mod: {mod_uuid}")
 
             installed_mods = self.mod_package_manager.get_installed_mods()
             mod_info = None
@@ -1007,7 +1000,7 @@ class ModManagerBridge(QObject):
                     break
 
             if not mod_info:
-                print(f"[Mod Manager] ERROR: Mod {mod_uuid} not found in installed mods")
+                logger.error(f"[Mod Manager] ERROR: Mod {mod_uuid} not found in installed mods")
                 self.errorOccurred.emit("Error", "Mod not found")
                 return
 
@@ -1024,7 +1017,7 @@ class ModManagerBridge(QObject):
             )
 
             if not save_path:
-                print("[Mod Manager] Export cancelled by user")
+                logger.info("[Mod Manager] Export cancelled by user")
                 return
 
             mod_dir = self.mod_package_manager.mods_dir / mod_uuid
@@ -1086,11 +1079,11 @@ class ModManagerBridge(QObject):
                 thumbnail_path
             )
 
-            print(f"[Mod Manager] Mod exported successfully to: {save_path}")
+            logger.info(f"[Mod Manager] Mod exported successfully to: {save_path}")
             self.progressUpdate.emit(f"Mod exported to {Path(save_path).name}")
 
         except Exception as e:
-            print(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
+            logger.error(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
             import traceback
             traceback.print_exc()
             self.errorOccurred.emit("Export Error", f"Failed to export mod: {str(e)}")

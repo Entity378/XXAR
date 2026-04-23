@@ -18,6 +18,9 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 _DEFAULT_GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
 GITHUB_API_URL = os.environ.get("XXAR_UPDATE_API_URL_OVERRIDE", _DEFAULT_GITHUB_API_URL)
 
@@ -318,14 +321,14 @@ class UpdateManagerBridge(QObject):
             with open(settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
         except Exception as e:
-            print(f"[Updater] Failed to save token: {e}")
+            logger.error(f"[Updater] Failed to save token: {e}")
 
     @pyqtSlot()
     def checkForUpdates(self):
         if self._check_worker and self._check_worker.isRunning():
             return
 
-        print(f"[Updater] Checking for updates (current: {self._current_version})")
+        logger.info(f"[Updater] Checking for updates (current: {self._current_version})")
 
         self._check_worker = UpdateCheckWorker(self._current_version, self._github_token)
         self._check_worker.updateAvailable.connect(self._on_update_available)
@@ -334,17 +337,17 @@ class UpdateManagerBridge(QObject):
         self._check_worker.start()
 
     def _on_update_available(self, version, download_url, asset_name, release_notes):
-        print(f"[Updater] Update available: {version} ({asset_name})")
+        logger.info(f"[Updater] Update available: {version} ({asset_name})")
         self._download_url = download_url
         self._asset_name = asset_name
         self.updateAvailable.emit(version, release_notes)
 
     def _on_no_update(self):
-        print("[Updater] Already up to date")
+        logger.info("[Updater] Already up to date")
         self.updateNotAvailable.emit()
 
     def _on_check_error(self, message):
-        print(f"[Updater] Check error: {message}")
+        logger.error(f"[Updater] Check error: {message}")
         self.updateError.emit(message)
 
     @pyqtSlot()
@@ -356,7 +359,7 @@ class UpdateManagerBridge(QObject):
         if self._download_worker and self._download_worker.isRunning():
             return
 
-        print(f"[Updater] Starting download from: {self._download_url}")
+        logger.info(f"[Updater] Starting download from: {self._download_url}")
 
         self._download_worker = UpdateDownloadWorker(
             self._download_url, self._asset_name, self._github_token
@@ -370,13 +373,13 @@ class UpdateManagerBridge(QObject):
         self.updateProgress.emit(percent)
 
     def _on_download_finished(self, kind, path):
-        print(f"[Updater] Download complete ({kind}): {path}")
+        logger.info(f"[Updater] Download complete ({kind}): {path}")
         self._downloaded_kind = kind
         self._downloaded_path = path
         self.updateDownloaded.emit()
 
     def _on_download_error(self, message):
-        print(f"[Updater] Download error: {message}")
+        logger.error(f"[Updater] Download error: {message}")
         self.updateError.emit(message)
 
     @staticmethod
@@ -427,9 +430,9 @@ class UpdateManagerBridge(QObject):
 
         try:
             current_exe = self._get_real_exe_path()
-            print(f"[Updater] Applying update ({self._downloaded_kind})...")
-            print(f"[Updater] Real exe path: {current_exe}")
-            print(f"[Updater] Source: {self._downloaded_path}")
+            logger.info(f"[Updater] Applying update ({self._downloaded_kind})...")
+            logger.info(f"[Updater] Real exe path: {current_exe}")
+            logger.info(f"[Updater] Source: {self._downloaded_path}")
 
             if self._downloaded_kind == "msi":
                 self._apply_msi_update(current_exe)
@@ -441,11 +444,11 @@ class UpdateManagerBridge(QObject):
                 self.updateError.emit(f"Unknown update kind: {self._downloaded_kind}")
                 return
 
-            print(f"[Updater] Update handoff complete")
+            logger.info(f"[Updater] Update handoff complete")
             self.updateApplied.emit()
 
         except Exception as e:
-            print(f"[Updater] Failed to apply update: {e}")
+            logger.error(f"[Updater] Failed to apply update: {e}")
             self.updateError.emit(f"Failed to apply update: {e}")
 
     def _apply_msi_update(self, current_exe):
@@ -460,7 +463,7 @@ class UpdateManagerBridge(QObject):
         ]
         # Same reason as _apply_zip_update: the parent's cwd is Resources/Bin
         # and msiexec must be able to delete/rename that dir during upgrade.
-        print(f"[Updater] Running: {' '.join(args)}")
+        logger.info(f"[Updater] Running: {' '.join(args)}")
         subprocess.Popen(args, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
 
     def _apply_zip_update(self, current_exe):
@@ -483,7 +486,7 @@ class UpdateManagerBridge(QObject):
         # itself — spawn it with cwd outside Resources/Bin so its inherited
         # handle doesn't block the rename-to-Bin.old we're about to request.
         spawn_cwd = tempfile.gettempdir()
-        print(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
+        logger.info(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
         subprocess.Popen(
             args,
             cwd=spawn_cwd,
@@ -506,5 +509,5 @@ class UpdateManagerBridge(QObject):
 
         new_binary.unlink(missing_ok=True)
 
-        print(f"[Updater] Binary replaced: {target}")
-        print(f"[Updater] Backup at: {backup}")
+        logger.info(f"[Updater] Binary replaced: {target}")
+        logger.info(f"[Updater] Backup at: {backup}")

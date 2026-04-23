@@ -10,6 +10,9 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 DEFAULT_WWISE_URL = "https://gitlab.com/ytnshio/ebi/-/raw/main/WWIse.zip"
 
 # Tools live under the user's per-profile config/data dir so they survive exe
@@ -41,9 +44,9 @@ class WwiseSetup:
     # Handles automated Wwise installation
     def setup(self, skip_input=True):
         # Run complete setup process - NO PROMPTS
-        print("=" * 60)
-        print("ZZZ Audio Mod Tool - Automated Wwise Setup")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("ZZZ Audio Mod Tool - Automated Wwise Setup")
+        logger.info("=" * 60)
 
         # Wine is only needed on Linux (Wwise runs natively on Windows)
         if sys.platform.startswith("linux"):
@@ -52,19 +55,19 @@ class WwiseSetup:
 
         if self.check_existing():
             if self.test_wwise():
-                print("\nWwise is already set up and working!")
+                logger.info("\nWwise is already set up and working!")
                 return True
-            print("\nWwise exists but test failed. Re-installing...")
+            logger.error("\nWwise exists but test failed. Re-installing...")
 
-        print("\nStarting automated download...")
+        logger.info("\nStarting automated download...")
         zip_path = self.download_wwise()
         
         if not zip_path:
-            print("Download failed.")
+            logger.error("Download failed.")
             return False
 
         if not self.extract_wwise(zip_path):
-            print("Extraction failed.")
+            logger.error("Extraction failed.")
             return False
 
         return self.test_wwise()
@@ -85,37 +88,37 @@ class WwiseSetup:
                         capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
-                        print(f"[OK] Wine found on host: {result.stdout.strip()}")
+                        logger.info(f"[OK] Wine found on host: {result.stdout.strip()}")
                         return True
                 except Exception:
                     continue
-            print("Wine not found on host system!")
-            print("\nInstall Wine on your system (outside Flatpak):")
-            print("  Arch: sudo pacman -S wine")
-            print("  Debian/Ubuntu: sudo apt install wine")
+            logger.info("Wine not found on host system!")
+            logger.info("\nInstall Wine on your system (outside Flatpak):")
+            logger.info("  Arch: sudo pacman -S wine")
+            logger.info("  Debian/Ubuntu: sudo apt install wine")
             return False
 
         wine = shutil.which('wine64') or shutil.which('wine')
         if not wine:
-            print("Wine not found!")
-            print("\nInstall Wine:")
-            print("  Arch: sudo pacman -S wine")
-            print("  Debian/Ubuntu: sudo apt install wine")
+            logger.info("Wine not found!")
+            logger.info("\nInstall Wine:")
+            logger.info("  Arch: sudo pacman -S wine")
+            logger.info("  Debian/Ubuntu: sudo apt install wine")
             return False
 
-        print(f"[OK] Wine found: {wine}")
+        logger.info(f"[OK] Wine found: {wine}")
         return True
 
     def check_existing(self):
         # Check if Wwise is already installed
         if self.wwise_console.exists():
-            print(f"[OK] Wwise already installed at: {self.wwise_dir}")
+            logger.info(f"[OK] Wwise already installed at: {self.wwise_dir}")
             return True
         return False
 
     def download_wwise(self):
         # Download minimal Wwise package
-        print(f"\nDownloading Wwise from: {self.download_url}")
+        logger.info(f"\nDownloading Wwise from: {self.download_url}")
 
         zip_path = self.wwise_dir / "wwise_temp.zip"
         self.wwise_dir.mkdir(parents=True, exist_ok=True)
@@ -137,45 +140,45 @@ class WwiseSetup:
                     percent = min(downloaded * 100 / total_size, 100)
                     mb_downloaded = downloaded / 1024 / 1024
                     mb_total = total_size / 1024 / 1024
-                    print(f"\r  Progress: {percent:.1f}% ({mb_downloaded:.1f} / {mb_total:.1f} MB)", end='')
+                    logger.info(f"\r  Progress: {percent:.1f}% ({mb_downloaded:.1f} / {mb_total:.1f} MB)", end='')
 
             urllib.request.urlretrieve(
                 self.download_url,
                 zip_path,
                 reporthook=report_progress
             )
-            print("\n[OK] Download complete!")
+            logger.info("\n[OK] Download complete!")
             return zip_path
 
         except Exception as e:
-            print(f"\nDownload failed: {e}")
+            logger.error(f"\nDownload failed: {e}")
             return None
 
     def extract_wwise(self, zip_path):
         # Extract Wwise package
-        print(f"\nExtracting Wwise...")
+        logger.info(f"\nExtracting Wwise...")
 
         try:
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(self.wwise_dir)
 
-            print("[OK] Extraction complete!")
+            logger.info("[OK] Extraction complete!")
 
             zip_path.unlink()
-            print("[OK] Cleaned up temporary files")
+            logger.info("[OK] Cleaned up temporary files")
 
             return True
 
         except Exception as e:
-            print(f"Extraction failed: {e}")
+            logger.error(f"Extraction failed: {e}")
             return False
 
     def test_wwise(self):
         # Test if WwiseConsole works (via Wine on Linux, natively on Windows)
-        print(f"\nTesting WwiseConsole...")
+        logger.info(f"\nTesting WwiseConsole...")
 
         if not self.wwise_console.exists():
-            print(f"WwiseConsole.exe not found at: {self.wwise_console}")
+            logger.info(f"WwiseConsole.exe not found at: {self.wwise_console}")
             return False
 
         try:
@@ -206,14 +209,14 @@ class WwiseSetup:
                 timeout=10
             )
 
-            print("WwiseConsole is accessible!")
+            logger.info("WwiseConsole is accessible!")
             return True
 
         except subprocess.TimeoutExpired:
-            print("WwiseConsole took too long to respond (might still work)")
+            logger.info("WwiseConsole took too long to respond (might still work)")
             return True
         except Exception as e:
-            print(f"WwiseConsole test failed: {e}")
+            logger.error(f"WwiseConsole test failed: {e}")
             return False
 
     
@@ -252,17 +255,17 @@ Notes:
     setup = WwiseSetup(download_url=args.url)
 
     if args.check:
-        print("Checking Wwise installation...")
+        logger.info("Checking Wwise installation...")
         if setup.check_existing():
             if setup.test_wwise():
-                print("Wwise is installed and working!")
+                logger.info("Wwise is installed and working!")
                 sys.exit(0)
             else:
-                print("[!]  Wwise is installed but test failed")
+                logger.error("[!]  Wwise is installed but test failed")
                 sys.exit(1)
         else:
-            print("Wwise is not installed")
-            print("\nRun: python setup_wwise.py")
+            logger.info("Wwise is not installed")
+            logger.info("\nRun: python setup_wwise.py")
             sys.exit(1)
 
     success = setup.setup()

@@ -7,6 +7,9 @@ import shutil
 from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs
 
+from src.core.logger import get_logger
+logger = get_logger(__name__)
+
 try:
     from src.audio.wwise_wrapper import WwiseConsole
     WWISE_AVAILABLE = True
@@ -92,10 +95,10 @@ class AudioConverter:
                     '-o', str(output_file),
                     str(wem_file)
                 ], check=True, capture_output=True, **_subprocess_kwargs)
-                print(f"Converted (vgmstream): {wem_file.name} -> {output_file.name}")
+                logger.info(f"Converted (vgmstream): {wem_file.name} -> {output_file.name}")
                 return output_file
             except subprocess.CalledProcessError as e:
-                print(f"vgmstream failed, trying FFmpeg...")
+                logger.error(f"vgmstream failed, trying FFmpeg...")
 
         if self.ffmpeg_path:
             try:
@@ -107,7 +110,7 @@ class AudioConverter:
                     '-y',
                     str(output_file)
                 ], check=True, capture_output=True, text=True, **_subprocess_kwargs)
-                print(f"Converted (ffmpeg): {wem_file.name} -> {output_file.name}")
+                logger.info(f"Converted (ffmpeg): {wem_file.name} -> {output_file.name}")
                 return output_file
             except subprocess.CalledProcessError as e:
                 pass
@@ -211,7 +214,7 @@ class AudioConverter:
                 short_reason = lines[-1] if lines else "unknown error"
                 raise RuntimeError(f"FFmpeg failed to convert {input_file.name}: {short_reason}")
             norm_msg = f" (normalized to {normalize_lufs} LUFS)" if normalize else ""
-            print(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
+            logger.info(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
             return output_file
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to convert {input_file}: {e}")
@@ -284,7 +287,7 @@ class AudioConverter:
         wem_files = list(input_dir.glob('*.wem'))
         converted = []
 
-        print(f"\nConverting {len(wem_files)} .wem files to .wav...")
+        logger.info(f"\nConverting {len(wem_files)} .wem files to .wav...")
 
         for i, wem_file in enumerate(wem_files):
             try:
@@ -292,9 +295,9 @@ class AudioConverter:
                 self.wem_to_wav(wem_file, output_file)
                 converted.append(output_file)
             except Exception as e:
-                print(f"[{i+1}/{len(wem_files)}] Error: {e}")
+                logger.error(f"[{i+1}/{len(wem_files)}] Error: {e}")
 
-        print(f"\nConverted {len(converted)}/{len(wem_files)} files")
+        logger.info(f"\nConverted {len(converted)}/{len(wem_files)} files")
         return converted
 
     def batch_convert_to_wav(self, input_dir, output_dir=None, pattern='*', normalize=True, normalize_lufs=-9):
@@ -315,7 +318,7 @@ class AudioConverter:
 
         converted = []
 
-        print(f"\nConverting {len(audio_files)} audio files to .wav...")
+        logger.info(f"\nConverting {len(audio_files)} audio files to .wav...")
 
         for i, audio_file in enumerate(audio_files):
             try:
@@ -323,9 +326,9 @@ class AudioConverter:
                 self.any_to_wav(audio_file, output_file, normalize=normalize, normalize_lufs=normalize_lufs)
                 converted.append(output_file)
             except Exception as e:
-                print(f"[{i+1}/{len(audio_files)}] Error: {e}")
+                logger.error(f"[{i+1}/{len(audio_files)}] Error: {e}")
 
-        print(f"\nConverted {len(converted)}/{len(audio_files)} files")
+        logger.info(f"\nConverted {len(converted)}/{len(audio_files)} files")
         return converted
 
     def batch_convert_wav_to_wem(self, input_dir, output_dir=None, normalize=False, normalize_lufs=-9):
@@ -347,7 +350,7 @@ class AudioConverter:
         wav_files = list(input_dir.glob('*.wav'))
 
         if not wav_files:
-            print(f"No .wav files found in {input_dir}")
+            logger.info(f"No .wav files found in {input_dir}")
             return []
 
         if not normalize:
@@ -360,7 +363,7 @@ class AudioConverter:
                                 normalize=True, normalize_lufs=normalize_lufs)
                 converted.append(output_dir / wav_file.with_suffix('.wem').name)
             except Exception as e:
-                print(f"Error converting {wav_file.name}: {e}")
+                logger.error(f"Error converting {wav_file.name}: {e}")
         return converted
 
 def main():
@@ -368,19 +371,19 @@ def main():
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python audio_converter.py <input_file_or_dir> [output] [--mode=MODE]")
-        print("")
-        print("Modes:")
-        print("  wem2wav  - Convert .wem to .wav (default)")
-        print("  any2wav  - Convert any audio format to .wav")
-        print("  wav2wem  - Convert .wav to .wem (requires Wwise)")
-        print("")
-        print("Examples:")
-        print("  python audio_converter.py extracted/")
-        print("  python audio_converter.py my_audio.mp3 output.wav")
-        print("  python audio_converter.py music_folder/ ./wav --mode=any2wav")
-        print("  python audio_converter.py audio.wav --mode=wav2wem")
-        print("  python audio_converter.py wav_folder/ ./wem --mode=wav2wem")
+        logger.info("Usage: python audio_converter.py <input_file_or_dir> [output] [--mode=MODE]")
+        logger.info("")
+        logger.info("Modes:")
+        logger.info("  wem2wav  - Convert .wem to .wav (default)")
+        logger.info("  any2wav  - Convert any audio format to .wav")
+        logger.info("  wav2wem  - Convert .wav to .wem (requires Wwise)")
+        logger.info("")
+        logger.info("Examples:")
+        logger.info("  python audio_converter.py extracted/")
+        logger.info("  python audio_converter.py my_audio.mp3 output.wav")
+        logger.info("  python audio_converter.py music_folder/ ./wav --mode=any2wav")
+        logger.info("  python audio_converter.py audio.wav --mode=wav2wem")
+        logger.info("  python audio_converter.py wav_folder/ ./wem --mode=wav2wem")
         sys.exit(1)
 
     input_path = Path(sys.argv[1])
@@ -410,7 +413,7 @@ def main():
             else:
                 converter.any_to_wav(input_path, output_path)
     except Exception as e:
-        print(f"\n[X] Error: {e}")
+        logger.error(f"\n[X] Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
