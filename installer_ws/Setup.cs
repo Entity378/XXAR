@@ -17,7 +17,11 @@ namespace XXAR.Installer
     public class Setup
     {
         // Fixed GUID — must stay stable across versions for upgrade to work.
-        private static readonly Guid UpgradeCode = new Guid("7F4E2C9A-8B3D-4A1F-9C62-1E5B3D8A7F01");
+        // Rotated for v0.8.0-alpha: install target moved from %APPDATA%\XXAR
+        // to %LOCALAPPDATA%\XXAR. A new UpgradeCode prevents the old MSI
+        // from auto-upgrading in place; users with v0.7 MSI installed must
+        // uninstall it manually before installing v0.8.
+        private static readonly Guid UpgradeCode = new Guid("607A2141-7C0A-415B-9A7C-0C3D214DADF3");
 
         public static int Main(string[] args)
         {
@@ -46,7 +50,7 @@ namespace XXAR.Installer
                 UpgradeCode = UpgradeCode,
                 Version = msiVersion,
                 LicenceFile = licencePath,
-                // Per-user install root: %APPDATA%\XXAR\
+                // Per-user install root: %LOCALAPPDATA%\XXAR\
                 Scope = InstallScope.perUser,
                 OutDir = opts.OutputDir,
                 OutFileName = $"XXAR-Installer-v{opts.Version}",
@@ -58,7 +62,7 @@ namespace XXAR.Installer
                 },
                 Dirs = new[]
                 {
-                    new Dir(@"%AppDataFolder%\XXAR",
+                    new Dir(@"%LocalAppDataFolder%\XXAR",
                         // Resources\Bin\  — all files under dist\XXAR
                         new Dir("Resources",
                             new Dir(new Id("BIN_DIR"), "Bin", new Files(Path.Combine(opts.BinDir, "*.*"))),
