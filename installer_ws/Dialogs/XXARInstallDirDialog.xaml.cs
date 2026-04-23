@@ -1,4 +1,6 @@
+using System;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using WixSharp;
@@ -41,11 +43,13 @@ namespace XXAR.Installer.Dialogs
                 {
                     if (Host == null) return null;
                     var value = session.Property(installDirProperty);
-                    if (!string.IsNullOrEmpty(value)) return value;
-                    var dir = session.GetDirectoryPath(installDirProperty);
-                    if (dir == "ABSOLUTEPATH")
-                        dir = session.Property("INSTALLDIR_ABSOLUTEPATH");
-                    return dir;
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        value = session.GetDirectoryPath(installDirProperty);
+                        if (value == "ABSOLUTEPATH")
+                            value = session.Property("INSTALLDIR_ABSOLUTEPATH");
+                    }
+                    return ResolveSymbolicPath(value);
                 }
                 set
                 {
@@ -53,6 +57,38 @@ namespace XXAR.Installer.Dialogs
                         session[installDirProperty] = value;
                     OnChanged();
                 }
+            }
+
+            // WixSharp hands us a human-readable symbolic form of the install
+            // path (e.g. "LocalApp\XXAR") rather than a fully-resolved one
+            // until the user opens the browse dialog. Resolve the common
+            // SpecialFolder prefixes so the TextBox shows an absolute path.
+            private static string ResolveSymbolicPath(string path)
+            {
+                if (string.IsNullOrEmpty(path) || Path.IsPathRooted(path))
+                    return path;
+
+                var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+                (string prefix, string baseDir)[] map =
+                {
+                    ("LocalApp\\",          localApp),
+                    ("LocalAppDataFolder\\", localApp),
+                    ("[LocalAppDataFolder]", localApp),
+                    ("AppData\\",           appData),
+                    ("AppDataFolder\\",     appData),
+                    ("[AppDataFolder]",     appData),
+                    ("ProgramFiles64\\",    programFiles),
+                    ("[ProgramFiles64Folder]", programFiles),
+                };
+                foreach (var (prefix, baseDir) in map)
+                {
+                    if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        return Path.Combine(baseDir, path.Substring(prefix.Length));
+                }
+                return path;
             }
 
             public void ChangeInstallDir()

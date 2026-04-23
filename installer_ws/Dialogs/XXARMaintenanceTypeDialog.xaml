@@ -1,0 +1,91 @@
+<wixsharp:WpfDialog
+    x:Class="XXAR.Installer.Dialogs.XXARMaintenanceTypeDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wixsharp="clr-namespace:WixSharp.UI.WPF;assembly=WixSharp.UI.WPF"
+    DialogTitle="[ProductName] Setup"
+    Background="#10123A">
+    <wixsharp:WpfDialog.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/XXAR.Installer.Build;component/Themes/XXARPalette.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </wixsharp:WpfDialog.Resources>
+
+    <Grid Background="{DynamicResource XXARWindowBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="53" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#0A0B28"
+                BorderBrush="{DynamicResource XXARAccentBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Modify XXAR"
+                               Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                               FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="Choose whether to repair the installed files or remove XXAR from your computer."
+                               Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="11" Margin="0,2,0,0" />
+                </StackPanel>
+                <Image Grid.Column="1"
+                       Source="/XXAR.Installer.Build;component/Assets/XXAR-Logo2-512.png"
+                       Height="44" Stretch="Uniform"
+                       VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Grid>
+        </Border>
+
+        <!-- Choice tiles -->
+        <StackPanel Grid.Row="1" Margin="20,24,20,10">
+            <Button x:Name="Repair" Style="{StaticResource XXARSecondaryButton}"
+                    Click="Repair_Click" Margin="0,0,0,12"
+                    HorizontalContentAlignment="Left" Padding="16,12"
+                    Height="Auto">
+                <StackPanel>
+                    <TextBlock Text="Repair"
+                               Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                               FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="Reinstall the current version of XXAR, replacing any missing or corrupted files."
+                               Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="11" Margin="0,2,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="Remove" Style="{StaticResource XXARSecondaryButton}"
+                    Click="Remove_Click"
+                    HorizontalContentAlignment="Left" Padding="16,12"
+                    Height="Auto">
+                <StackPanel>
+                    <TextBlock Text="Remove"
+                               Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                               FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="Uninstall XXAR from this computer. Mods and user data remain untouched."
+                               Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="11" Margin="0,2,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Button bar: only Cancel, navigation happens via the tiles above -->
+        <Border Grid.Row="2" Background="#080922"
+                BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button x:Name="Cancel" Content="[WixUICancel]"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        Click="Cancel_Click" Margin="4,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</wixsharp:WpfDialog>

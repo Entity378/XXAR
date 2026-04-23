@@ -44,7 +44,7 @@ namespace XXAR.Installer
                     .Add<XXARExitDialog>(),
 
                 ModifyDialogs = new ManagedDialogs()
-                    .Add<MaintenanceTypeDialog>()
+                    .Add<XXARMaintenanceTypeDialog>()
                     .Add<XXARProgressDialog>()
                     .Add<XXARExitDialog>(),
             };

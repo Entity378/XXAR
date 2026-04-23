@@ -11,8 +11,8 @@ ApplicationWindow {
     id: mainWindow
 
     visible: true
-    width: 1440
-    height: 1024
+    width: Math.min(1440, Math.max(1024, Math.round(Screen.desktopAvailableWidth * 0.85)))
+    height: Math.min(1024, Math.max(768, Math.round(Screen.desktopAvailableHeight * 0.85)))
     minimumWidth: 1024
     minimumHeight: 768
     title: appName + " - " + activeAppFullName
