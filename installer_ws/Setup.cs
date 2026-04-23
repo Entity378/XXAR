@@ -36,10 +36,15 @@ namespace XXAR.Installer
             if (!System.IO.File.Exists(licencePath))
                 throw new FileNotFoundException($"License file missing: {licencePath}");
 
+            // MSI ProductVersion is Major.Minor.Build[.Revision] only —
+            // strip any SemVer prerelease suffix (e.g. "-alpha") before
+            // handing the string to System.Version.
+            var msiVersion = new Version(opts.Version.Split('-')[0]);
+
             var project = new ManagedProject("XXAR")
             {
                 UpgradeCode = UpgradeCode,
-                Version = new Version(opts.Version),
+                Version = msiVersion,
                 LicenceFile = licencePath,
                 // Per-user install root: %APPDATA%\XXAR\
                 Scope = InstallScope.perUser,
