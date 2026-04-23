@@ -855,10 +855,7 @@ class ModManagerBridge(QObject):
             }
 
         except Exception as e:
-            logger.error(f"[Mod Manager] ERROR getting mod info: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.exception(f"[Mod Manager] ERROR getting mod info: {e}")
             return None
 
     @pyqtSlot(str)
@@ -1083,7 +1080,5 @@ class ModManagerBridge(QObject):
             self.progressUpdate.emit(f"Mod exported to {Path(save_path).name}")
 
         except Exception as e:
-            logger.error(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
             self.errorOccurred.emit("Export Error", f"Failed to export mod: {str(e)}")

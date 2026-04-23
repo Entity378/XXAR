@@ -158,8 +158,7 @@ class ReplaceAudioWorker(QThread):
             else:
                 self.finished.emit(False, error_msg)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception("unhandled")
             self.finished.emit(False, str(e))
 
 
@@ -1865,8 +1864,7 @@ class AudioBrowserBridge(QObject):
         except Exception as e:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Error: Failed to mute audio"))
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to mute audio:\n%1").replace("%1", str(e)))
-            import traceback
-            traceback.print_exc()
+            logger.exception("unhandled")
 
     def _get_user_replacements(self):
         all_replacements = self.mod_manager.get_all_replacements()
@@ -2214,8 +2212,7 @@ class AudioBrowserBridge(QObject):
         except Exception as e:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to apply changes"))
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to apply changes:\n%1").replace("%1", str(e)))
-            import traceback
-            traceback.print_exc()
+            logger.exception("unhandled")
 
     @pyqtSlot()
     def exportAsMod(self):
@@ -2880,8 +2877,7 @@ class AudioBrowserBridge(QObject):
             )
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            logger.exception("unhandled")
             QMetaObject.invokeMethod(
                 self, "_onMatchError",
                 Qt.QueuedConnection,
@@ -3091,8 +3087,7 @@ class AudioBrowserBridge(QObject):
                 QCoreApplication.translate("Application", "Import Error"),
                 QCoreApplication.translate("Application", "Failed to import %1 mod for editing:\n\n%2").replace("%1", app_config.MOD_FILE_EXT).replace("%2", str(e))
             )
-            import traceback
-            traceback.print_exc()
+            logger.exception("unhandled")
 
     def _get_patch_pck_wems_by_bnk(self):
         # Build {bnk_id: {wem_id: (override_name, lang_id)}} from pristine
