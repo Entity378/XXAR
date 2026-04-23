@@ -761,6 +761,11 @@ class ModPackageManager:
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")
             finally:
+                # Explicit close: on Windows the file handles PCKPacker holds
+                # on original_pck + replacement WEMs would otherwise linger in
+                # the exception traceback and block the mod swap-in.
+                if 'packer' in locals():
+                    packer.close()
 
                 if temp_dir.exists():
                     shutil.rmtree(temp_dir)

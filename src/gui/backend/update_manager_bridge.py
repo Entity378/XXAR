@@ -6,6 +6,7 @@ import json
 import shutil
 import ssl
 import tarfile
+import tempfile
 import zipfile
 import subprocess
 import urllib.request
@@ -457,8 +458,10 @@ class UpdateManagerBridge(QObject):
             "/qr", "/norestart",
             f"APPDIR={install_root}",
         ]
+        # Same reason as _apply_zip_update: the parent's cwd is Resources/Bin
+        # and msiexec must be able to delete/rename that dir during upgrade.
         print(f"[Updater] Running: {' '.join(args)}")
-        subprocess.Popen(args, creationflags=0x00000008)  # DETACHED_PROCESS
+        subprocess.Popen(args, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
 
     def _apply_zip_update(self, current_exe):
         staging_dir = Path(self._downloaded_path)
@@ -479,8 +482,7 @@ class UpdateManagerBridge(QObject):
         # The helper's PyInstaller bootstrap is native C and can't chdir
         # itself — spawn it with cwd outside Resources/Bin so its inherited
         # handle doesn't block the rename-to-Bin.old we're about to request.
-        import tempfile as _tempfile
-        spawn_cwd = _tempfile.gettempdir()
+        spawn_cwd = tempfile.gettempdir()
         print(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
         subprocess.Popen(
             args,

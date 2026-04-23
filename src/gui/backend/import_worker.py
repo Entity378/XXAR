@@ -144,64 +144,62 @@ class ImportWorker(QThread):
                     self.progress.emit(f"Warning: No matching game PCKs found for {input_pck_names}. Searched {len(all_game_pcks)} game PCKs.")
 
                 from XXAR import get_temp_dir
-                temp_bnk_dir = Path(tempfile.mkdtemp(prefix='mod_bnk_scan_', dir=str(get_temp_dir())))
+                with tempfile.TemporaryDirectory(prefix='mod_bnk_scan_', dir=str(get_temp_dir())) as _tbd:
+                    temp_bnk_dir = Path(_tbd)
 
-                for idx, game_pck_path in enumerate(game_pck_files):
-                    scan_progress = int(30 + ((idx + 1) / max(total_game_pcks, 1)) * 25)
-                    self.progressPercent.emit(scan_progress)
+                    for idx, game_pck_path in enumerate(game_pck_files):
+                        scan_progress = int(30 + ((idx + 1) / max(total_game_pcks, 1)) * 25)
+                        self.progressPercent.emit(scan_progress)
 
-                    if idx % 5 == 0:
-                        self.progress.emit(f"Scanning {game_pck_path.name} ({idx+1}/{total_game_pcks})...")
-
-                    try:
-                        indexer = PCKIndexer(str(game_pck_path))
-                        indexer.build_index()
+                        if idx % 5 == 0:
+                            self.progress.emit(f"Scanning {game_pck_path.name} ({idx+1}/{total_game_pcks})...")
 
                         try:
-                            game_pck_name = str(game_pck_path.relative_to(game_audio_dir)).replace("\\", "/")
-                        except ValueError:
-                            game_pck_name = game_pck_path.name
-                        priority = self._get_pck_priority(game_pck_path.name)
+                            indexer = PCKIndexer(str(game_pck_path))
+                            indexer.build_index()
 
-                        for bnk_info in indexer.index_data['banks']:
-                            bnk_id = bnk_info['id']
                             try:
-                                bnk_bytes = indexer.extract_single_file(bnk_id, 'bnk', bnk_info['lang_id'])
-                                bnk_indexer = BNKIndexer(bnk_bytes)
-                                bnk_indexer.parse_didx()
+                                game_pck_name = str(game_pck_path.relative_to(game_audio_dir)).replace("\\", "/")
+                            except ValueError:
+                                game_pck_name = game_pck_path.name
+                            priority = self._get_pck_priority(game_pck_path.name)
 
-                                for wem in bnk_indexer.wem_list:
-                                    file_id = str(wem['wem_id'])
-                                    if file_id in target_wem_ids:
-                                        original_wem = bnk_indexer.extract_wem(wem['wem_id'])
+                            for bnk_info in indexer.index_data['banks']:
+                                bnk_id = bnk_info['id']
+                                try:
+                                    bnk_bytes = indexer.extract_single_file(bnk_id, 'bnk', bnk_info['lang_id'])
+                                    bnk_indexer = BNKIndexer(bnk_bytes)
+                                    bnk_indexer.parse_didx()
+
+                                    for wem in bnk_indexer.wem_list:
+                                        file_id = str(wem['wem_id'])
+                                        if file_id in target_wem_ids:
+                                            original_wem = bnk_indexer.extract_wem(wem['wem_id'])
+                                            modded_wem = extracted_wem_ids[file_id].read_bytes()
+                                            if original_wem == modded_wem:
+                                                continue
+                                            lang_id = bnk_info['lang_id']
+                                            if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
+                                                file_id_to_pck[file_id] = (game_pck_name, bnk_id, lang_id, priority)
+                                except Exception:
+                                    pass
+
+                            for wem_info in indexer.index_data['sounds'] + indexer.index_data['externals']:
+                                file_id = str(wem_info['id'])
+                                lang_id = wem_info['lang_id']
+                                if file_id in target_wem_ids:
+                                    try:
+                                        original_wem = indexer.extract_single_file(wem_info['id'], 'wem', lang_id)
                                         modded_wem = extracted_wem_ids[file_id].read_bytes()
                                         if original_wem == modded_wem:
                                             continue
-                                        lang_id = bnk_info['lang_id']
-                                        if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
-                                            file_id_to_pck[file_id] = (game_pck_name, bnk_id, lang_id, priority)
-                            except Exception:
-                                pass
+                                    except Exception:
+                                        pass
+                                    if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
+                                        file_id_to_pck[file_id] = (game_pck_name, None, lang_id, priority)
 
-                        for wem_info in indexer.index_data['sounds'] + indexer.index_data['externals']:
-                            file_id = str(wem_info['id'])
-                            lang_id = wem_info['lang_id']
-                            if file_id in target_wem_ids:
-                                try:
-                                    original_wem = indexer.extract_single_file(wem_info['id'], 'wem', lang_id)
-                                    modded_wem = extracted_wem_ids[file_id].read_bytes()
-                                    if original_wem == modded_wem:
-                                        continue
-                                except Exception:
-                                    pass
-                                if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
-                                    file_id_to_pck[file_id] = (game_pck_name, None, lang_id, priority)
-
-                    except Exception as e:
-                        self.progress.emit(f"Warning: Could not scan {game_pck_path.name}: {e}")
-
-                if temp_bnk_dir.exists():
-                    shutil.rmtree(temp_bnk_dir)
+                        except Exception as e:
+                            self.progress.emit(f"Warning: Could not scan {game_pck_path.name}: {e}")
 
                 identical_count = len(extracted_wem_ids) - len(file_id_to_pck)
                 self.progress.emit(f"Found {len(file_id_to_pck)} modified WEM file(s) ({identical_count} identical, skipped)")

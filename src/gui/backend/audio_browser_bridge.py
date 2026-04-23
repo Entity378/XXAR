@@ -179,10 +179,14 @@ class TagDatabaseDownloadWorker(QThread):
             temp_file = tempfile.NamedTemporaryFile(
                 suffix=".json", prefix="xxar_tagdb_", delete=False
             )
-            temp_file.write(data)
-            temp_file.close()
-
-            self.downloadFinished.emit(temp_file.name)
+            try:
+                temp_file.write(data)
+                temp_file.close()
+                self.downloadFinished.emit(temp_file.name)
+            except Exception:
+                try: os.unlink(temp_file.name)
+                except OSError: pass
+                raise
 
         except json.JSONDecodeError:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Downloaded file is not valid JSON"))
@@ -251,10 +255,14 @@ class FingerprintDatabaseDownloadWorker(QThread):
             temp_file = tempfile.NamedTemporaryFile(
                 suffix=".json", prefix="xxar_fingerprintdb_", delete=False
             )
-            temp_file.write(data)
-            temp_file.close()
-
-            self.downloadFinished.emit(temp_file.name)
+            try:
+                temp_file.write(data)
+                temp_file.close()
+                self.downloadFinished.emit(temp_file.name)
+            except Exception:
+                try: os.unlink(temp_file.name)
+                except OSError: pass
+                raise
 
         except json.JSONDecodeError:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Downloaded file is not valid JSON"))
