@@ -17,9 +17,10 @@ Item {
     property string selectedFilePath: ""
     property string selectedFileName: ""
     property string matchStatus: ""
+    property bool languageOnly: false
 
     signal fileSelectionRequested()
-    signal matchStartRequested(string filePath)
+    signal matchStartRequested(string filePath, bool languageOnly)
     signal matchCancelled()
 
     onVisibleChanged: {
@@ -197,6 +198,54 @@ Item {
                 }
             }
 
+            Row {
+                width: parent.width
+                spacing: 10
+                visible: !root.isMatching
+
+                Rectangle {
+                    id: languageOnlyBox
+                    width: 20
+                    height: 20
+                    radius: 4
+                    color: root.languageOnly ? Theme.primaryAccent : "#1a1a1a"
+                    border.color: root.languageOnly ? Theme.primaryAccent : "#3c3d3f"
+                    border.width: 1
+                    anchors.verticalCenter: parent.verticalCenter
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Behavior on border.color { ColorAnimation { duration: 100 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✓"
+                        color: "#000000"
+                        font.pixelSize: 14
+                        font.bold: true
+                        visible: root.languageOnly
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.languageOnly = !root.languageOnly
+                    }
+                }
+
+                Text {
+                    text: qsTranslate("Application", "Match only in current language folder")
+                    color: "#ffffff"
+                    font.family: "Alatsi"
+                    font.pixelSize: 13
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.languageOnly = !root.languageOnly
+                    }
+                }
+            }
+
             Column {
                 width: parent.width
                 spacing: 12
@@ -336,7 +385,7 @@ Item {
                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: {
                             root.isMatching = true
-                            root.matchStartRequested(root.selectedFilePath)
+                            root.matchStartRequested(root.selectedFilePath, root.languageOnly)
                         }
                     }
                 }

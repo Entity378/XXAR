@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class FingerprintDatabase:
     
 
-    FINGERPRINT_VERSION = "1.0"
+    FINGERPRINT_VERSION = "2.0"
 
     def __init__(self, db_path=None):
 

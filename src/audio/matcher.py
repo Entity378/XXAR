@@ -44,13 +44,26 @@ def _mel_filterbank(sample_rate, n_fft, n_mels=40):
 
     return filterbank
 
+DEFAULT_WEIGHTS = {
+    'mfcc':     0.30,
+    'chroma':   0.15,
+    'contrast': 0.10,
+    'centroid': 0.10,
+    'energy':   0.05,
+    'zcr':      0.05,
+    'rolloff':  0.10,
+    'flatness': 0.05,
+    'onset':    0.10,
+}
+
+
 class AudioMatcher:
 
     def __init__(self, ffmpeg_path='ffmpeg', fingerprint_db=None):
         self.ffmpeg_path = ffmpeg_path
         self.fingerprint_db = fingerprint_db
 
-    def extract_fingerprint(self, audio_path, sample_rate=22050, duration=None):
+    def extract_fingerprint(self, audio_path, sample_rate=48000):
 
         audio_path = Path(audio_path)
 
@@ -84,16 +97,12 @@ class AudioMatcher:
             '-i', str(input_file),
             '-ar', str(sample_rate),
             '-ac', '1',
-            '-acodec', 'pcm_s16le',
+            '-acodec', 'pcm_s32le',
+            '-y', str(temp_wav),
         ]
 
-        if duration:
-            cmd.extend(['-t', str(duration)])
-
-        cmd.extend(['-y', str(temp_wav)])
-
         try:
-            subprocess.run(cmd, capture_output=True, check=True, timeout=15, **_subprocess_kwargs)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=120, **_subprocess_kwargs)
         except subprocess.CalledProcessError as e:
 
             if intermediate_wav and intermediate_wav.exists():
@@ -125,13 +134,13 @@ class AudioMatcher:
 
         return self._build_fingerprint(audio_data, sample_rate)
 
-    def extract_fingerprint_from_bytes(self, wem_bytes, sample_rate=22050, duration=None):
+    def extract_fingerprint_from_bytes(self, wem_bytes, sample_rate=48000):
 
         from XXAR import get_temp_dir
         temp_wem = Path(tempfile.mktemp(suffix='.wem', dir=str(get_temp_dir())))
         try:
             temp_wem.write_bytes(wem_bytes)
-            return self.extract_fingerprint(temp_wem, sample_rate, duration)
+            return self.extract_fingerprint(temp_wem, sample_rate)
         finally:
             temp_wem.unlink(missing_ok=True)
 
@@ -140,8 +149,8 @@ class AudioMatcher:
         if len(audio_data) < sample_rate * 0.1:
             return None
 
-        n_fft = 2048
-        hop = 512
+        n_fft = 4096
+        hop = 2048
 
         if len(audio_data) < n_fft:
             n_fft = max(256, len(audio_data) // 4)
@@ -177,14 +186,14 @@ class AudioMatcher:
             result = subprocess.run([
                 self.ffmpeg_path,
                 '-i', str(wav_path),
-                '-f', 's16le',
-                '-acodec', 'pcm_s16le',
+                '-f', 's32le',
+                '-acodec', 'pcm_s32le',
                 '-'
             ], capture_output=True, check=True, **_subprocess_kwargs)
 
-            audio_data = np.frombuffer(result.stdout, dtype=np.int16)
+            audio_data = np.frombuffer(result.stdout, dtype=np.int32)
 
-            audio_data = audio_data.astype(np.float32) / 32768.0
+            audio_data = audio_data.astype(np.float32) / 2147483648.0
 
             return audio_data
         except Exception:
@@ -231,7 +240,7 @@ class AudioMatcher:
         for i, freq in enumerate(f):
             if 40.0 <= freq <= 4000.0:
                 try:
-                    pitch_class = int(12 * np.log2(freq / 440.0)) % 12
+                    pitch_class = round(12 * np.log2(freq / 440.0)) % 12
                     chroma[pitch_class] += np.mean(power_spectrogram[i, :])
                 except (ValueError, OverflowError):
                     continue
@@ -313,12 +322,12 @@ class AudioMatcher:
             'max': float(np.max(onset))
         }
 
-    def compare_fingerprints(self, fp1, fp2):
+    def compare_fingerprints(self, fp1, fp2, weights=None):
 
         if fp1 is None or fp2 is None:
             return 0.0
 
-        scores = []
+        w = weights if weights is not None else DEFAULT_WEIGHTS
 
         mfcc1 = np.array(fp1['mfcc']['mean'])
         mfcc2 = np.array(fp2['mfcc']['mean'])
@@ -327,52 +336,53 @@ class AudioMatcher:
         mfcc_std2 = np.array(fp2['mfcc']['std'])
         mfcc_std_cos = self._cosine_similarity(mfcc_std1, mfcc_std2)
         mfcc_score = 100 * (0.7 * max(0, mfcc_cos) + 0.3 * max(0, mfcc_std_cos))
-        scores.append(('mfcc', mfcc_score, 0.30))
 
         chroma1 = np.array(fp1['chroma'])
         chroma2 = np.array(fp2['chroma'])
         chroma_cos = self._cosine_similarity(chroma1, chroma2)
         chroma_score = 100 * max(0, chroma_cos)
-        scores.append(('chroma', chroma_score, 0.15))
 
         contrast1 = np.array(fp1['spectral_contrast'])
         contrast2 = np.array(fp2['spectral_contrast'])
         contrast_cos = self._cosine_similarity(contrast1, contrast2)
         contrast_score = 100 * max(0, contrast_cos)
-        scores.append(('contrast', contrast_score, 0.10))
 
         centroid_diff = abs(fp1['spectral_centroid']['mean'] - fp2['spectral_centroid']['mean'])
         max_centroid = max(fp1['spectral_centroid']['mean'], fp2['spectral_centroid']['mean'], 1.0)
         centroid_score = 100 * np.exp(-centroid_diff / (max_centroid * 0.3))
-        scores.append(('centroid', centroid_score, 0.10))
 
         energy_mean_diff = abs(fp1['energy']['mean'] - fp2['energy']['mean'])
         max_energy = max(fp1['energy']['mean'], fp2['energy']['mean'], 0.001)
         energy_score = 100 * np.exp(-energy_mean_diff / (max_energy * 0.5))
-        scores.append(('energy', energy_score, 0.05))
 
         zcr_diff = abs(fp1['zero_crossing_rate'] - fp2['zero_crossing_rate'])
         max_zcr = max(fp1['zero_crossing_rate'], fp2['zero_crossing_rate'], 0.001)
         zcr_score = 100 * np.exp(-zcr_diff / (max_zcr * 0.5))
-        scores.append(('zcr', zcr_score, 0.05))
 
         rolloff_diff = abs(fp1['spectral_rolloff']['mean'] - fp2['spectral_rolloff']['mean'])
         max_rolloff = max(fp1['spectral_rolloff']['mean'], fp2['spectral_rolloff']['mean'], 1.0)
         rolloff_score = 100 * np.exp(-rolloff_diff / (max_rolloff * 0.3))
-        scores.append(('rolloff', rolloff_score, 0.10))
 
         flatness_diff = abs(fp1['spectral_flatness']['mean'] - fp2['spectral_flatness']['mean'])
         flatness_score = 100 * np.exp(-flatness_diff / 0.15)
-        scores.append(('flatness', flatness_score, 0.05))
 
         onset1 = fp1.get('onset_strength', {'mean': 0, 'std': 0})
         onset2 = fp2.get('onset_strength', {'mean': 0, 'std': 0})
         onset_mean_diff = abs(onset1['mean'] - onset2['mean'])
         max_onset = max(onset1['mean'], onset2['mean'], 0.001)
         onset_score = 100 * np.exp(-onset_mean_diff / (max_onset * 0.5))
-        scores.append(('onset', onset_score, 0.10))
 
-        total_score = sum(score * weight for _, score, weight in scores)
+        total_score = (
+            w['mfcc']     * mfcc_score
+            + w['chroma']   * chroma_score
+            + w['contrast'] * contrast_score
+            + w['centroid'] * centroid_score
+            + w['energy']   * energy_score
+            + w['zcr']      * zcr_score
+            + w['rolloff']  * rolloff_score
+            + w['flatness'] * flatness_score
+            + w['onset']    * onset_score
+        )
 
         dur1 = fp1['duration']
         dur2 = fp2['duration']
@@ -406,7 +416,7 @@ class AudioMatcher:
                 candidate_fp = self.fingerprint_db.get_fingerprint(wem_bytes)
 
             if candidate_fp is None:
-                candidate_fp = self.extract_fingerprint_from_bytes(wem_bytes, duration=30)
+                candidate_fp = self.extract_fingerprint_from_bytes(wem_bytes)
                 if candidate_fp is None:
                     return None
 

@@ -31,11 +31,13 @@ from src.audio.player import AudioPlayer
 from src.audio.converter import AudioConverter
 from src.data.sound_database import SoundDatabase
 from src.data.fingerprint_database import FingerprintDatabase
+from src.data.constellation_index import ConstellationIndex
 from src.mods.persistent_manager import PersistentModManager
 from src.wwise.pck_packer import PCKPacker
 from src.mods.package_manager import ModPackageManager
 from src.core.config_manager import (
     get_config_dir,
+    get_game_constellation_index_file,
     get_game_fingerprint_database_file,
     get_game_mod_tracker_file,
     get_game_sound_database_file,
@@ -50,7 +52,6 @@ logger = get_logger(__name__)
 
 
 OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
-OFFICIAL_FINGERPRINT_DB_URL = f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_fingerprint_database.json"
 
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
@@ -60,13 +61,6 @@ def _get_tag_db_url():
         dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
     return OFFICIAL_TAG_DB_URL
-
-def _get_fingerprint_db_url():
-    from XXAR import DEV_MODE, get_base_path
-    if DEV_MODE:
-        dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_fingerprint_database.json"
-        return dev_path.as_uri()
-    return OFFICIAL_FINGERPRINT_DB_URL
 
 class _WorkerThread(QThread):
 
@@ -238,46 +232,6 @@ class TagDatabaseCheckWorker(QThread):
         except Exception:
             pass
 
-class FingerprintDatabaseDownloadWorker(QThread):
-
-    downloadFinished = pyqtSignal(str)
-    errorOccurred = pyqtSignal(str)
-
-    def run(self):
-        try:
-            url = _get_fingerprint_db_url()
-            req = urllib.request.Request(url)
-            req.add_header("User-Agent", "XXAR-FingerprintDB")
-
-            with _urlopen(req, timeout=30) as response:
-                data = response.read()
-
-            json.loads(data.decode("utf-8"))
-
-            temp_file = tempfile.NamedTemporaryFile(
-                suffix=".json", prefix="xxar_fingerprintdb_", delete=False
-            )
-            try:
-                temp_file.write(data)
-                temp_file.close()
-                self.downloadFinished.emit(temp_file.name)
-            except Exception:
-                try: os.unlink(temp_file.name)
-                except OSError: pass
-                raise
-
-        except json.JSONDecodeError:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Downloaded file is not valid JSON"))
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                self.errorOccurred.emit(QCoreApplication.translate("Application", "Official fingerprint database not found on GitHub"))
-            else:
-                self.errorOccurred.emit(QCoreApplication.translate("Application", "HTTP error: %1 %2").replace("%1", str(e.code)).replace("%2", str(e.reason)))
-        except urllib.error.URLError as e:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Network error: %1").replace("%1", str(e.reason)))
-        except Exception as e:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Download failed: %1").replace("%1", str(e)))
-
 class AudioBrowserBridge(QObject):
 
     statusUpdate = pyqtSignal(str, arguments=["message"])
@@ -311,11 +265,6 @@ class AudioBrowserBridge(QObject):
     tagDbDownloadError = pyqtSignal(str, arguments=["message"])
     tagDbImportComplete = pyqtSignal(int, arguments=["importedCount"])
     newTagDbAvailable = pyqtSignal(int, arguments=["entryCount"])
-    fingerprintDbPrompt = pyqtSignal(int, arguments=["entryCount"])
-    fingerprintDbDownloadStarted = pyqtSignal()
-    fingerprintDbDownloadReady = pyqtSignal(int, arguments=["entryCount"])
-    fingerprintDbDownloadError = pyqtSignal(str, arguments=["message"])
-    fingerprintDbImportComplete = pyqtSignal(int, arguments=["importedCount"])
     matchProgressUpdate = pyqtSignal(int, int, arguments=["current", "total"])
     matchResultsReady = pyqtSignal(list, arguments=["results"])
     matchStarted = pyqtSignal()
@@ -329,6 +278,7 @@ class AudioBrowserBridge(QObject):
         self.audio_player = AudioPlayer(AudioConverter(), self.cache_manager)
         self.sound_db = SoundDatabase()
         self.fingerprint_db = FingerprintDatabase()
+        self.constellation_index = None
         self.mod_manager = PersistentModManager(game_id=DEFAULT_GAME_ID)
 
         self.game_root_dir = None
@@ -384,10 +334,6 @@ class AudioBrowserBridge(QObject):
         self._tag_db_notify_dismissed = False
         self._tag_db_last_seen_hash = ""
         self._tag_db_check_done = False
-        self._fingerprint_db_worker = None
-        self._fingerprint_db_temp_path = None
-        self._fingerprint_db_prompt_shown = False
-        self._pending_match_path = None
         self._active_db_game_id = None
 
         self.audio_player.state_changed.connect(self._on_playback_state_changed)
@@ -437,6 +383,11 @@ class AudioBrowserBridge(QObject):
         )
         self.fingerprint_db = FingerprintDatabase(
             db_path=get_game_fingerprint_database_file(normalized)
+        )
+        if self.constellation_index is not None:
+            self.constellation_index.close()
+        self.constellation_index = ConstellationIndex(
+            sqlite_path=get_game_constellation_index_file(normalized)
         )
         self.mod_manager = PersistentModManager(
             tracker_path=get_game_mod_tracker_file(normalized),
@@ -2647,8 +2598,8 @@ class AudioBrowserBridge(QObject):
                 Qt.QueuedConnection, Q_ARG("QVariant", recording_path)
             )
 
-    @pyqtSlot(str)
-    def startMatchingWithFile(self, recording_path):
+    @pyqtSlot(str, bool)
+    def startMatchingWithFile(self, recording_path, language_only=False):
 
         if not self.game_root_dir:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "No Directory"), QCoreApplication.translate("Application", "Please select a game directory first."))
@@ -2662,30 +2613,40 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
-        if not self._fingerprint_db_prompt_shown and len(self.fingerprint_db.database) == 0:
-            self._fingerprint_db_prompt_shown = True
-            self._pending_match_path = recording_path
-            self.fingerprintDbPrompt.emit(0)
-            return
-
         self._match_cancel = threading.Event()
 
         self._match_thread = threading.Thread(
             target=self._run_matching_threaded,
-            args=(recording_path, self._match_cancel),
+            args=(recording_path, self._match_cancel, language_only),
             daemon=True,
         )
         self._match_thread.start()
 
-    def _run_matching_threaded(self, recording_path, cancel_event):
+    def _run_matching_threaded(self, recording_path, cancel_event, language_only=False):
 
         try:
             from src.audio.matcher import AudioMatcher
+            from src.audio import constellation
 
             ffmpeg_path = AudioConverter()._find_ffmpeg() or 'ffmpeg'
             matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=self.fingerprint_db)
 
-            recording_fp = matcher.extract_fingerprint(recording_path, duration=30)
+            QMetaObject.invokeMethod(
+                self, "_onMatchStatus", Qt.QueuedConnection,
+                Q_ARG(str, QCoreApplication.translate("Application", "Analyzing recording...")),
+            )
+
+            recording_audio = constellation.decode_file(ffmpeg_path, recording_path)
+            if recording_audio is None or len(recording_audio) == 0:
+                QMetaObject.invokeMethod(
+                    self, "_onMatchError",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, QCoreApplication.translate("Application", "Failed to process the selected audio file.")),
+                )
+                return
+
+            recording_hashes = constellation.extract_hashes(recording_audio)
+            recording_fp = matcher._build_fingerprint(recording_audio, constellation.SAMPLE_RATE)
             if recording_fp is None:
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
@@ -2715,6 +2676,22 @@ class AudioBrowserBridge(QObject):
             pck_files = list(collect_pck_files(Path(directory)))
             total_pcks = len(pck_files)
 
+            active_lang_name = (self.current_language_folder or "").strip().lower()
+
+            constellation_idx = self.constellation_index
+
+            def _index_wem_bytes(wem_bytes):
+                if constellation_idx is None or constellation_idx.has_file(wem_bytes):
+                    return
+                try:
+                    audio = constellation.decode_wem_bytes(ffmpeg_path, wem_bytes)
+                    if audio is None or len(audio) == 0:
+                        return
+                    h = constellation.extract_hashes(audio)
+                    constellation_idx.add_file(wem_bytes, h)
+                except Exception as e:
+                    logger.debug(f"[AudioMatch] Failed to index wem: {e}")
+
             QMetaObject.invokeMethod(
                 self, "_onMatchStatus",
                 Qt.QueuedConnection,
@@ -2732,6 +2709,9 @@ class AudioBrowserBridge(QObject):
                     for wem_info in indexer.index_data["sounds"] + indexer.index_data["externals"]:
                         if cancel_event.is_set():
                             return
+                        if (language_only and active_lang_name and wem_info["lang_id"] != 0
+                                and indexer.lang_map.get(wem_info["lang_id"], "") != active_lang_name):
+                            continue
                         try:
                             wem_bytes = indexer.extract_single_file(
                                 wem_info["id"], "wem", wem_info["lang_id"]
@@ -2742,6 +2722,8 @@ class AudioBrowserBridge(QObject):
                                 tag_text = sound_info.get("name", "")
                                 if sound_info.get("tags"):
                                     tag_text += f" [{', '.join(sound_info['tags'])}]"
+
+                            _index_wem_bytes(wem_bytes)
 
                             candidates.append((wem_bytes, {
                                 "id": wem_info["id"],
@@ -2757,6 +2739,9 @@ class AudioBrowserBridge(QObject):
                     for bnk_info in indexer.index_data["banks"]:
                         if cancel_event.is_set():
                             return
+                        if (language_only and active_lang_name and bnk_info["lang_id"] != 0
+                                and indexer.lang_map.get(bnk_info["lang_id"], "") != active_lang_name):
+                            continue
                         try:
                             bnk_bytes = indexer.extract_single_file(
                                 bnk_info["id"], "bnk", bnk_info["lang_id"]
@@ -2775,6 +2760,8 @@ class AudioBrowserBridge(QObject):
                                         tag_text = sound_info.get("name", "")
                                         if sound_info.get("tags"):
                                             tag_text += f" [{', '.join(sound_info['tags'])}]"
+
+                                    _index_wem_bytes(wem_bytes)
 
                                     candidates.append((wem_bytes, {
                                         "id": wem["wem_id"],
@@ -2804,10 +2791,26 @@ class AudioBrowserBridge(QObject):
                 )
                 return
 
+            shortlist_candidates = candidates
+            if constellation_idx is not None and recording_hashes:
+                try:
+                    shortlist = constellation_idx.query(recording_hashes, top_k=200)
+                    if shortlist:
+                        shortlist_hashes = {entry[0] for entry in shortlist}
+                        shortlist_candidates = [
+                            (wem_bytes, info) for wem_bytes, info in candidates
+                            if hashlib.sha256(wem_bytes).hexdigest() in shortlist_hashes
+                        ]
+                        if not shortlist_candidates:
+                            shortlist_candidates = candidates
+                except Exception as e:
+                    logger.error(f"[AudioMatch] Constellation query failed: {e}")
+                    shortlist_candidates = candidates
+
             QMetaObject.invokeMethod(
                 self, "_onMatchStatus",
                 Qt.QueuedConnection,
-                Q_ARG(str, QCoreApplication.translate("Application", "Matching against %1 sounds...").replace("%1", str(len(candidates)))),
+                Q_ARG(str, QCoreApplication.translate("Application", "Matching against %1 sounds...").replace("%1", str(len(shortlist_candidates)))),
             )
 
             def progress_cb(current, total):
@@ -2820,7 +2823,7 @@ class AudioBrowserBridge(QObject):
                 )
 
             results = matcher.find_matches(
-                recording_fp, candidates, top_n=20,
+                recording_fp, shortlist_candidates, top_n=20,
                 progress_callback=progress_cb,
                 cancel_event=cancel_event,
             )
@@ -3512,95 +3515,6 @@ class AudioBrowserBridge(QObject):
             logger.error(f"[Audio Browser] Error saving tag DB notify preference: {e}")
 
     @pyqtSlot()
-    def downloadOfficialFingerprintDb(self):
-        if self._fingerprint_db_worker and self._fingerprint_db_worker.isRunning():
-            return
-
-        self.statusUpdate.emit(QCoreApplication.translate("Application", "Downloading official fingerprint database..."))
-        self.fingerprintDbDownloadStarted.emit()
-
-        self._fingerprint_db_worker = FingerprintDatabaseDownloadWorker()
-        self._fingerprint_db_worker.downloadFinished.connect(self._on_fingerprint_db_downloaded)
-        self._fingerprint_db_worker.errorOccurred.connect(self._on_fingerprint_db_error)
-        self._fingerprint_db_worker.start()
-
-    def _on_fingerprint_db_downloaded(self, temp_path):
-        self._fingerprint_db_temp_path = temp_path
-        try:
-            with open(temp_path, "rb") as f:
-                raw = f.read()
-            data = json.loads(raw.decode("utf-8"))
-            entry_count = len(data)
-            self.fingerprintDbDownloadReady.emit(entry_count)
-            self.statusUpdate.emit(
-                QCoreApplication.translate("Application", "Official fingerprint database downloaded (%1 entries)").replace("%1", str(entry_count))
-            )
-        except Exception as e:
-            self.fingerprintDbDownloadError.emit(QCoreApplication.translate("Application", "Failed to read downloaded database: %1").replace("%1", str(e)))
-
-    def _on_fingerprint_db_error(self, message):
-        self._fingerprint_db_temp_path = None
-        self.fingerprintDbDownloadError.emit(message)
-        self.statusUpdate.emit(QCoreApplication.translate("Application", "Fingerprint database download failed: %1").replace("%1", message))
-
-    @pyqtSlot(bool)
-    def applyOfficialFingerprintDb(self, merge):
-        if not self._fingerprint_db_temp_path:
-            self.fingerprintDbDownloadError.emit(QCoreApplication.translate("Application", "No downloaded database available"))
-            return
-
-        try:
-            with open(self._fingerprint_db_temp_path, 'r') as f:
-                imported_data = json.load(f)
-
-            if merge:
-                count = 0
-                for sound_hash, info in imported_data.items():
-                    if sound_hash not in self.fingerprint_db.database:
-                        count += 1
-                    self.fingerprint_db.database[sound_hash] = info
-            else:
-                count = len(imported_data)
-                self.fingerprint_db.database = imported_data
-
-            self.fingerprint_db.save()
-
-            mode = QCoreApplication.translate("Application", "Merged") if merge else QCoreApplication.translate("Application", "Replaced")
-            self.fingerprintDbImportComplete.emit(count)
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "%1 fingerprint database -- %2 entries imported").replace("%1", mode).replace("%2", str(count)))
-
-            if self._pending_match_path:
-                QMetaObject.invokeMethod(
-                    self, "continueMatchWithoutFingerprintDb",
-                    Qt.QueuedConnection
-                )
-
-        except Exception as e:
-            self.fingerprintDbDownloadError.emit(QCoreApplication.translate("Application", "Failed to apply fingerprint database: %1").replace("%1", str(e)))
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to apply fingerprint database: %1").replace("%1", str(e)))
-        finally:
-            try:
-                os.unlink(self._fingerprint_db_temp_path)
-            except Exception:
-                pass
-            self._fingerprint_db_temp_path = None
-
-    @pyqtSlot()
-    def continueMatchWithoutFingerprintDb(self):
-        if self._pending_match_path:
-            recording_path = self._pending_match_path
-            self._pending_match_path = None
-
-            self._match_cancel = threading.Event()
-
-            self._match_thread = threading.Thread(
-                target=self._run_matching_threaded,
-                args=(recording_path, self._match_cancel),
-                daemon=True,
-            )
-            self._match_thread.start()
-
-    @pyqtSlot()
     def refresh_audio_tools(self):
 
         self.audio_player.refresh_tools()
@@ -3615,5 +3529,10 @@ class AudioBrowserBridge(QObject):
         if self._tag_db_temp_path:
             try:
                 os.unlink(self._tag_db_temp_path)
+            except Exception:
+                pass
+        if self.constellation_index is not None:
+            try:
+                self.constellation_index.close()
             except Exception:
                 pass

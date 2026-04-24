@@ -139,6 +139,10 @@ class ConfigManager:
     def fingerprint_database_file(self):
         return self.game_data_dir(DEFAULT_GAME_ID) / "fingerprint_database.json"
 
+    @property
+    def constellation_index_file(self):
+        return self.game_data_dir(DEFAULT_GAME_ID) / "constellation_index.sqlite"
+
 _config_manager = ConfigManager()
 
 
@@ -206,6 +210,10 @@ def get_fingerprint_database_file():
     return _config_manager.fingerprint_database_file
 
 
+def get_constellation_index_file():
+    return _config_manager.constellation_index_file
+
+
 def normalize_game_id(game_id):
     return normalize_game_id_from_registry(game_id, default=DEFAULT_GAME_ID)
 
@@ -254,3 +262,10 @@ def get_game_fingerprint_database_file(game_id=DEFAULT_GAME_ID):
     if game == DEFAULT_GAME_ID:
         return get_fingerprint_database_file()
     return get_game_data_dir(game) / "fingerprint_database.json"
+
+
+def get_game_constellation_index_file(game_id=DEFAULT_GAME_ID):
+    game = normalize_game_id(game_id)
+    if game == DEFAULT_GAME_ID:
+        return get_constellation_index_file()
+    return get_game_data_dir(game) / "constellation_index.sqlite"

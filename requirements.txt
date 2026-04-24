@@ -1,21 +1,21 @@
 # XXAR - Audio Mod Tool Dependencies
 
 # GUI (Qt5 + QML, QtMultimedia, QtNetwork)
-PyQt5>=5.15.0
+PyQt5>=5.15.11
 
-# Audio processing (fingerprint matching, FFT/DCT)
-numpy>=1.24.0
-scipy>=1.10.0
+# Audio processing (fingerprint matching, FFT/DCT, constellation hash)
+numpy>=2.4.4
+scipy>=1.17.1
 
 # Image processing (mod preview/thumbnail handling)
-Pillow>=10.0.0
+Pillow>=12.2.0
 
 # Archive support (mod import/export, tool setup)
-py7zr>=0.20.0
-rarfile>=4.0
+py7zr>=1.1.0
+rarfile>=4.2
 
 # Build / packaging
-pyinstaller>=6.0.0
+pyinstaller>=6.20.0
 
 # --- Optional: developer scripts only (scripts/) ---
 # Used by scripts/transcribe_tag.py and scripts/speaker_cluster.py.
