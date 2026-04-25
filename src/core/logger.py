@@ -1,12 +1,4 @@
-"""Centralized file + stdout logging for XXAR.
-
-`setup_logging()` is called once from `XXAR.py` right after `run_migrations()`.
-All modules use `get_logger(__name__)` to obtain a logger that writes both to
-the existing terminal/stdout (so launching from source still prints) and to
-a rotating file at `get_data_dir() / "logs" / "xxar.log"`.
-
-File rotation: 5 MB per file × 5 files = ~25 MB max on disk.
-"""
+#File + stdout logging. Rotates at 5 MB × 5 files (~25 MB max on disk).
 
 from __future__ import annotations
 
@@ -23,8 +15,7 @@ _CONFIGURED = False
 
 
 def _resolve_log_dir() -> Path:
-    # Importing config_manager lazily so that migration.run_migrations() has
-    # a chance to move things before ConfigManager caches any path.
+    # Lazy import: ConfigManager must not cache paths before run_migrations() finishes.
     from src.core.config_manager import get_data_dir
     log_dir = get_data_dir() / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -56,8 +47,7 @@ def setup_logging(level: str | int | None = None) -> None:
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)
     except Exception as e:
-        # Fall back to stderr-only if the log dir can't be created (read-only
-        # volume, corrupted perms); we still want stdout/stderr logging.
+        # Fall back to stderr-only if the log dir is unwritable.
         sys.stderr.write(f"[xxar.logger] file handler setup failed: {e}\n")
 
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -68,8 +58,6 @@ def setup_logging(level: str | int | None = None) -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    # Module-level callers pass __name__; map src.core.foo -> xxar.src.core.foo
-    # so everything sits under the configured "xxar" root.
     if not _CONFIGURED:
         setup_logging()
     if name == "__main__" or not name:

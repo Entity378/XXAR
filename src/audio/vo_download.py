@@ -1,8 +1,4 @@
-# Download original HSR voice-over audio from the official HoYoverse API.
-
-# Queries the ``getGamePackages`` endpoint to obtain per-language 7z archive
-# URLs, downloads them, extracts the PCK files, and caches the result so that
-# subsequent restores are instant
+# Download HSR voice-over originals from HoYoverse's getGamePackages API and cache extracted PCKs.
 
 import hashlib
 import json
@@ -31,7 +27,6 @@ HSR_LAUNCHER_ID = "VYTpXlbWo8"
 
 CACHE_META_FILE = "cache_meta.json"
 
-# API language code to game folder name
 LANGUAGE_MAP: dict[str, str] = {
     "zh-cn": "Chinese(PRC)",
     "en-us": "English",
@@ -39,14 +34,11 @@ LANGUAGE_MAP: dict[str, str] = {
     "ko-kr": "Korean",
 }
 
-# Reverse mapping: folder name to API code
 _FOLDER_TO_API_LANG: dict[str, str] = {v: k for k, v in LANGUAGE_MAP.items()}
 
-# Download chunk size (1 MB)
-_CHUNK_SIZE = 1 << 20
+_CHUNK_SIZE = 1 << 20  # 1 MB
 
 
-# HTTP helper  (mirrors update_manager_bridge._urlopen)
 def _urlopen(req, timeout=30):
     try:
         return urllib.request.urlopen(req, timeout=timeout)
@@ -57,10 +49,7 @@ def _urlopen(req, timeout=30):
         raise
 
 
-# API query
 def fetch_audio_packages() -> dict | None:
-    # Query the HoYoverse API and return the parsed JSON response
-    # Returns "None" on any network / parsing error (logged to stdout)
     url = (
         f"{API_URL}"
         f"?game_ids[]={HSR_GAME_ID}"
@@ -82,7 +71,6 @@ def fetch_audio_packages() -> dict | None:
 def get_audio_pkg_for_language(
     api_response: dict, folder_name: str
 ) -> dict | None:
-    # Return the "audio_pkgs" entry matching "folder_name", or "None"
     api_lang = _FOLDER_TO_API_LANG.get(folder_name)
     if not api_lang:
         return None
@@ -101,7 +89,6 @@ def get_audio_pkg_for_language(
 
 
 def get_api_version(api_response: dict) -> str | None:
-    # Extract the game version string from the API response
     try:
         return api_response["data"]["game_packages"][0]["main"]["major"][
             "version"
@@ -113,8 +100,6 @@ def get_api_version(api_response: dict) -> str | None:
 def get_hdiff_audio_pkg(
     api_response: dict, from_version: str, folder_name: str
 ) -> dict | None:
-    # Find an hdiff audio patch for transitioning from "from_version" to
-    # the current API version, for the given language folder
     api_lang = _FOLDER_TO_API_LANG.get(folder_name)
     if not api_lang:
         return None
@@ -134,8 +119,6 @@ def get_hdiff_audio_pkg(
                 return audio_pkg
     return None
 
-
-# HDiff patching utilities
 
 HPATCHZ_API_URL = (
     "https://api.github.com/repos/sisong/HDiffPatch/releases/latest"
@@ -159,9 +142,8 @@ def _find_hpatchz() -> str | None:
 
 
 def _resolve_hpatchz_url() -> str | None:
-    # Query GitHub releases for the latest windows64 asset. Asset names have
-    # varied: hpatchz_v*_windows_x64.zip (old) and hdiffpatch_v*_bin_windows64.zip
-    # (current), so match on a substring.
+    # Asset names vary between releases (hpatchz_v*_windows_x64.zip vs
+    # hdiffpatch_v*_bin_windows64.zip), so match on substrings.
     try:
         req = urllib.request.Request(
             HPATCHZ_API_URL,
@@ -176,11 +158,12 @@ def _resolve_hpatchz_url() -> str | None:
         logger.error(f"[VO Download] Failed to query HDiffPatch releases: {e}")
         return None
 
+    platform_token = "windows" if IS_WINDOWS else "linux"
     for asset in data.get("assets") or []:
         name = asset.get("name", "").lower()
         if (
             name.endswith(".zip")
-            and "windows" in name
+            and platform_token in name
             and "64" in name
             and "arm" not in name
         ):
@@ -189,10 +172,7 @@ def _resolve_hpatchz_url() -> str | None:
 
 
 def _download_hpatchz(progress_cb=None) -> str | None:
-    # Windows-only; on Linux we expect the user's package manager to provide it.
-    if not IS_WINDOWS:
-        return None
-
+    # Installs into get_tools_dir() so it survives app updates and works inside Flatpak.
     url = _resolve_hpatchz_url()
     if not url:
         return None
@@ -225,11 +205,18 @@ def _download_hpatchz(progress_cb=None) -> str | None:
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    # zipfile.extractall does not preserve the +x bit, so the Linux binary
+    # comes out non-executable. Mark it executable now or hpatchz will fail
+    # with EACCES when invoked.
+    if not IS_WINDOWS:
+        for candidate in install_dir.rglob("hpatchz"):
+            if candidate.is_file():
+                candidate.chmod(0o755)
+
     return _find_hpatchz()
 
 
 def _ensure_hpatchz(progress_cb=None) -> str | None:
-    # Returns a usable hpatchz path, downloading on first use if needed.
     found = _find_hpatchz()
     if found:
         return found
@@ -242,8 +229,6 @@ def _download_hdiff_archive(
     folder_name: str,
     progress_cb=None,
 ) -> Path | None:
-    # Download an hdiff 7z archive to a temp file.
-    # Returns the Path on success; caller is responsible for cleanup.
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".7z")
     tmp_path = Path(tmp_path)
     try:
@@ -291,8 +276,7 @@ def _download_hdiff_archive(
 
 
 def _extract_hdiff_archive(archive_path: Path, dest_dir: Path) -> bool:
-    # Extract all files from an hdiff 7z (.hdiff files + deletefiles.txt)
-    # into dest_dir, flattening directory structure
+    # Flattens directory structure from the 7z into dest_dir.
     dest_dir.mkdir(parents=True, exist_ok=True)
     try:
         with py7zr.SevenZipFile(str(archive_path), mode="r") as z:
@@ -314,29 +298,25 @@ def _apply_hdiff_patches(
     folder_name: str,
     progress_cb=None,
 ) -> bool:
-    # Apply hdiff patches to PCK files in working_dir.
-    # working_dir contains copies of the old cached PCKs.
-    # hdiff_dir contains .hdiff files and optionally deletefiles.txt.
-    # Returns True if all patches applied successfully.
+    # working_dir holds copies of old cached PCKs; hdiff_dir holds .hdiff files
+    # and optionally deletefiles.txt. Returns True only if every patch applies.
     hpatchz = _ensure_hpatchz(progress_cb)
     if not hpatchz:
         logger.info("[VO Download] hpatchz binary not found, cannot apply hdiff")
         return False
 
-    # 1. Handle deletefiles.txt
     delete_list = hdiff_dir / "deletefiles.txt"
     if delete_list.is_file():
         for line in delete_list.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
                 continue
-            # Flatten: take only the filename from possible path
+            # Flatten: paths in deletefiles may be nested; we keep only the basename.
             target = working_dir / Path(line).name
             if target.is_file():
                 target.unlink()
                 logger.info(f"[VO Download] Deleted obsolete file: {target.name}")
 
-    # 2. Apply .hdiff patches
     hdiff_files = sorted(hdiff_dir.glob("*.hdiff"))
     if not hdiff_files:
         logger.info("[VO Download] No .hdiff files found in patch archive")
@@ -344,8 +324,7 @@ def _apply_hdiff_patches(
 
     total = len(hdiff_files)
     for i, hdiff_file in enumerate(hdiff_files, 1):
-        # e.g. "SomeFile.pck.hdiff" patches "SomeFile.pck"
-        target_name = hdiff_file.stem  # removes .hdiff
+        target_name = hdiff_file.stem
         old_file = working_dir / target_name
         new_file = working_dir / (target_name + ".patched")
 
@@ -358,7 +337,6 @@ def _apply_hdiff_patches(
         if old_file.is_file():
             cmd.append(str(old_file))
         else:
-            # New file that didn't exist in the old version
             cmd.append("")
         cmd.extend([str(hdiff_file), str(new_file)])
 
@@ -383,7 +361,6 @@ def _apply_hdiff_patches(
             logger.info(f"[VO Download] hpatchz binary not executable: {hpatchz}")
             return False
 
-        # Replace old file with patched file
         if old_file.is_file():
             old_file.unlink()
         new_file.rename(working_dir / target_name)
@@ -391,8 +368,7 @@ def _apply_hdiff_patches(
     return True
 
 
-# Cache metadata — `game_cache_root` is the per-game backup dir,
-# e.g. %LOCALAPPDATA%\XXAR\backup\hsr\
+# `game_cache_root` is the per-game backup dir (e.g. %LOCALAPPDATA%\XXAR\backup\hsr\).
 def _load_cache_meta(game_cache_root: Path) -> dict:
     meta_file = game_cache_root / CACHE_META_FILE
     if not meta_file.is_file():
@@ -413,7 +389,6 @@ def _save_cache_meta(game_cache_root: Path, meta: dict):
 def is_language_cached(
     game_cache_root: Path, version: str, folder_name: str
 ) -> bool:
-    # Return "True" if we already have cached originals for this version
     meta = _load_cache_meta(game_cache_root)
     if meta.get("version") != version:
         return False
@@ -424,7 +399,6 @@ def is_language_cached(
     return lang_dir.is_dir() and any(lang_dir.glob("*.pck"))
 
 
-# Download + extraction
 def _format_size(size_bytes: int) -> str:
     if size_bytes >= 1 << 30:
         return f"{size_bytes / (1 << 30):.1f} GB"
@@ -440,10 +414,8 @@ def download_and_extract(
     folder_name: str,
     progress_cb=None,
 ) -> bool:
-    # Download a 7z archive and extract PCK files into "dest_dir"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download to a temp file
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".7z")
     tmp_path = Path(tmp_path)
     try:
@@ -470,7 +442,6 @@ def download_and_extract(
                             f"{_format_size(total)} -- {pct}%)"
                         )
 
-        # Verify MD5
         if progress_cb:
             progress_cb(f"Verifying {folder_name} download integrity...")
 
@@ -480,7 +451,6 @@ def download_and_extract(
                 f"expected {expected_md5}, got {actual_md5}")
             return False
 
-        # Extract PCK files from 7z
         if progress_cb:
             progress_cb(f"Extracting {folder_name} original audio files...")
 
@@ -498,8 +468,7 @@ def download_and_extract(
 
 
 def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
-    # Open a 7z archive and extract all ".pck" files into "dest_dir", 
-    # flattening any internal directory structure
+    # Flattens internal directory structure.
     with py7zr.SevenZipFile(str(archive_path), mode="r") as z:
         all_names = z.getnames()
         pck_names = [n for n in all_names if n.lower().endswith(".pck")]
@@ -508,7 +477,6 @@ def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
             logger.warning("[VO Download] Warning: no .pck files found in archive")
             return
 
-        # Extract to a temp directory first, then flatten into "dest_dir"
         with tempfile.TemporaryDirectory() as tmp_extract:
             z.extract(path=tmp_extract, targets=pck_names)
 
@@ -520,7 +488,6 @@ def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):
             f"into {dest_dir}")
 
 
-# High-level restore
 def restore_language_from_api(
     game_cache_root: Path,
     persistent_path: Path,
@@ -529,12 +496,10 @@ def restore_language_from_api(
     cached_version: str | None = None,
     progress_cb=None,
 ) -> bool:
-    # Ensure *persistent_path/folder_name* contains original PCK files.
-    # Uses the local cache when available; attempts hdiff patching when
-    # cached_version is provided; otherwise downloads from the API.
+    # Ensures persistent_path/folder_name contains original PCKs. Tries cache,
+    # then hdiff patching when cached_version is given, then full API download.
     cache_lang_dir = game_cache_root / folder_name
 
-    # 1. Check cache
     if is_language_cached(game_cache_root, version, folder_name):
         if progress_cb:
             progress_cb(f"Restoring {folder_name} VO from cache...")
@@ -542,7 +507,6 @@ def restore_language_from_api(
         logger.info(f"[VO Download] Restored {folder_name} from cache")
         return True
 
-    # 2. Fetch API
     if progress_cb:
         progress_cb("Fetching HSR audio package info...")
 
@@ -551,9 +515,8 @@ def restore_language_from_api(
         logger.info(f"[VO Download] Cannot restore {folder_name}: API unavailable")
         return False
 
-    # 2.5. Try hdiff patching if we have a stale cache. hpatchz is fetched
-    # on-demand by _apply_hdiff_patches only when an hdiff is actually
-    # available, so missing hpatchz doesn't waste a download.
+    # hpatchz is downloaded on-demand inside _apply_hdiff_patches, so we only
+    # pay that cost when an hdiff is actually available.
     if (
         cached_version is not None
         and cache_lang_dir.is_dir()
@@ -592,7 +555,7 @@ def restore_language_from_api(
         logger.info(f"[VO Download] No download found for language '{folder_name}'")
         return False
 
-    # 3. Check disk space on the cache volume (not the game install volume).
+    # Check disk space on the cache volume, not the game install volume.
     decompressed = int(pkg.get("decompressed_size", 0))
     archive_size = int(pkg.get("size", 0))
     needed = archive_size + decompressed
@@ -610,7 +573,6 @@ def restore_language_from_api(
                 progress_cb(msg)
             return False
 
-    # 4. Download + extract into cache
     cache_lang_dir.mkdir(parents=True, exist_ok=True)
 
     ok = download_and_extract(
@@ -625,7 +587,6 @@ def restore_language_from_api(
         shutil.rmtree(cache_lang_dir, ignore_errors=True)
         return False
 
-    # 5. Update cache metadata
     meta = _load_cache_meta(game_cache_root)
     meta["version"] = version
     langs = meta.setdefault("languages", {})
@@ -635,7 +596,6 @@ def restore_language_from_api(
     }
     _save_cache_meta(game_cache_root, meta)
 
-    # 6. Copy to persistent
     if progress_cb:
         progress_cb(f"Restoring {folder_name} VO originals...")
     _copy_to_persistent(cache_lang_dir, persistent_path / folder_name)
@@ -651,9 +611,7 @@ def _try_hdiff_patch(
     version: str,
     progress_cb=None,
 ) -> bool:
-    # Attempt to apply an hdiff patch to update cached PCK files in-place.
-    # Works on a copy of the cache so that failure is safe.
-    # Returns True on success (cache_lang_dir is updated + meta written).
+    # Patches a copy of the cache; failure leaves the original cache intact.
     archive_size = int(hdiff_pkg.get("size", 0))
     decompressed = int(hdiff_pkg.get("decompressed_size", 0))
     needed = archive_size + decompressed
@@ -729,9 +687,8 @@ def _copy_to_persistent(src_dir: Path, dest_dir: Path):
 def cleanup_stale_cache(
     game_cache_root: Path, current_version: str
 ) -> str | None:
-    # Returns the old cached version string if stale (for hdiff patching),
-    # or None if the cache is current or empty. Does NOT delete old cache —
-    # the caller decides whether to hdiff-patch or fall back to full download.
+    # Returns the old cached version (for hdiff use) or None. Does NOT delete —
+    # caller decides whether to hdiff-patch or do a full download.
     meta = _load_cache_meta(game_cache_root)
     if not meta:
         return None

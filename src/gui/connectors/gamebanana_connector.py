@@ -5,6 +5,7 @@ import subprocess
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
+from src.core.subprocess_utils import IS_WINDOWS
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -129,7 +130,7 @@ class GameBananaConnector:
     def on_gamebanana_dialog_confirmed(self, action_id):
         if action_id == "open_non_native_folder" and self._non_native_saved_path:
             folder = os.path.dirname(self._non_native_saved_path)
-            if os.name == "nt":
+            if IS_WINDOWS:
                 os.startfile(folder)
             else:
                 subprocess.Popen(["xdg-open", folder])

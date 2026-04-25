@@ -1,10 +1,28 @@
 import os
 import sys
-import platform
 import subprocess
 from pathlib import Path
 
-IS_WINDOWS = platform.system() == "Windows"
+# ── Platform identification (single source of truth) ────────────────────
+# Every gating check in the app should import from here, not compute its own
+# `platform.system()` / `sys.platform` / `os.name` comparison. The previous
+# scattered checks drifted out of sync (see `os.name == "nt"`, `sys.platform
+# == "win32"`, `sys.platform.startswith("win")`, `platform.system() ==
+# "Windows"` all coexisting in the codebase). Use `platform.system()` only
+# for human-readable strings (logs, settings page, telemetry).
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
+
+# Flatpak sandbox detection. Two independent signals so neither a missing
+# env var (e.g. when the wrapper is bypassed) nor a stripped /.flatpak-info
+# (e.g. inside a nested subprocess) produces a false negative:
+#   - XXAR_FLATPAK=1 is set by xxar-wrapper.sh in the Flatpak manifest.
+#   - /.flatpak-info is injected by the Flatpak runtime into every sandbox.
+IS_FLATPAK = (
+    os.environ.get("XXAR_FLATPAK") == "1"
+    or Path("/.flatpak-info").exists()
+)
+
 
 if IS_WINDOWS:
     _si = subprocess.STARTUPINFO()

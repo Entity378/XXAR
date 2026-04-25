@@ -3,8 +3,6 @@ name: Release
 # Tag push: build + upload artifacts to the run (no draft release).
 # Manual trigger (Actions -> Run workflow): build + create a draft release
 # with artifacts attached, ready to be edited and published.
-# Linux Flatpak build is intentionally left out — add another job if/when the
-# Flatpak manifest is ready to reuse the same onefolder output.
 
 on:
   push:
@@ -72,5 +70,89 @@ jobs:
           files: |
             dist/XXAR-windows-x64.zip
             dist/XXAR-Installer-v*.msi
+          fail_on_unmatched_files: true
+          draft: true
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          tag="${{ github.ref_name }}"
+          if [[ "$tag" =~ ^v(.+)$ ]]; then
+            v="${BASH_REMATCH[1]}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            v="${{ github.event.inputs.version }}"
+          else
+            echo "Could not determine version" >&2
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak \
+            flatpak-builder \
+            elfutils \
+            libegl1 \
+            libxkbcommon0 \
+            libgl1 \
+            libglib2.0-0 \
+            libgstreamer1.0-0 \
+            libgstreamer-plugins-base1.0-0
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build PyInstaller bundle
+        env:
+          XXAR_FLATPAK_BUILD: "1"
+        run: |
+          pyinstaller --noconfirm --clean XXAR.spec
+          test -x dist/XXAR/XXAR
+
+      - name: Add Flathub remote and install runtime
+        run: |
+          flatpak remote-add --user --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub \
+            org.kde.Platform//5.15-24.08 \
+            org.kde.Sdk//5.15-24.08 \
+            org.freedesktop.Platform.ffmpeg-full//24.08
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak-builder --user --force-clean --repo=repo \
+            build-dir flatpak/io.github.Entity378.XXAR.yml
+
+          mkdir -p dist
+          flatpak build-bundle repo \
+            "dist/XXAR-linux-x86_64.flatpak" \
+            io.github.Entity378.XXAR
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: dist/XXAR-linux-x86_64.flatpak
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          files: dist/XXAR-linux-x86_64.flatpak
           fail_on_unmatched_files: true
           draft: true

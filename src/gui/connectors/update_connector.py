@@ -1,12 +1,12 @@
 from PyQt5.QtCore import QCoreApplication
 import os
-import sys
 
 from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication
 
 from src.core.config_manager import get_cache_dir
-from src.core.app_config import APP_NAME, FLATPAK_ENV_VAR
+from src.core.app_config import APP_NAME
+from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK
 import src.core.app_config as app_config
 from src.gui.backend.update_manager_bridge import _get_real_exe_path
 
@@ -60,8 +60,7 @@ class UpdateConnector:
             self.settings_page.setProperty("updateAvailable", True)
             self.settings_page.setProperty("latestVersion", version)
 
-        if os.environ.get(FLATPAK_ENV_VAR):
-            # In Flatpak, show an alert instead of the download dialog
+        if IS_FLATPAK:
             if self._startup_update_check:
                 QMetaObject.invokeMethod(
                     self.root,
@@ -185,7 +184,7 @@ class UpdateConnector:
         except Exception as e:
             logger.error(f"[{APP_NAME}]Failed to write update success flag: {e}")
 
-        if sys.platform.startswith("win"):
+        if IS_WINDOWS:
             QApplication.quit()
         else:
             exe = _get_real_exe_path()

@@ -61,8 +61,10 @@ See all our [Planned Features](FEATURES.md).
 
 Grab the latest release from the [Releases](../../releases) page.
 
-- **Windows:** Download and run `XXAR.exe`
-- **Linux:** Install the `.flatpak` bundle
+- **Windows:** Download `XXAR-Installer-v*.msi` (or the portable `XXAR-windows-x64.zip`)
+- **Linux:** Download `XXAR-linux-x86_64.flatpak` and install it with
+  `flatpak install --user XXAR-linux-x86_64.flatpak`. After that the app
+  auto-updates from inside via subsequent bundles.
 
 ### Option 2: Run from Source
 

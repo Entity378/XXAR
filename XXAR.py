@@ -18,17 +18,19 @@ import sys
 import os
 from pathlib import Path
 
-if sys.platform.startswith('linux') and 'QT_QPA_PLATFORM' not in os.environ:
+from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK
+
+if IS_LINUX and 'QT_QPA_PLATFORM' not in os.environ:
     os.environ['QT_QPA_PLATFORM'] = 'wayland;xcb'
 
-if sys.platform == 'win32':
+if IS_WINDOWS:
     os.environ.setdefault('QT_SCALE_FACTOR_ROUNDING_POLICY', 'PassThrough')
 
 def _load_ui_scale():
     import json
     from pathlib import Path
     try:
-        if sys.platform == 'win32':
+        if IS_WINDOWS:
             appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
             settings_file = appdata / 'XXAR' / 'settings.json'
         else:
@@ -49,10 +51,10 @@ def _redirect_qml_disk_cache():
     # Keep Qt's QML bytecode cache under our launcher cache instead of the
     # default QStandardPaths::CacheLocation. Otherwise Qt would create a
     # separate top-level cache/ dir alongside our launcher/cache/.
-    from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-    if os.environ.get(FLATPAK_ENV_VAR):
+    from src.core.app_config import CONFIG_DIR_NAME
+    if IS_FLATPAK:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-    elif sys.platform == 'win32':
+    elif IS_WINDOWS:
         base = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / CONFIG_DIR_NAME
     else:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
@@ -75,8 +77,8 @@ def get_base_path():
     return Path(__file__).parent
 
 def get_temp_dir():
-    from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-    if os.environ.get(FLATPAK_ENV_VAR):
+    from src.core.app_config import CONFIG_DIR_NAME
+    if IS_FLATPAK:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
     elif hasattr(sys, '_MEIPASS'):
         localappdata = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
@@ -93,8 +95,7 @@ src_path = base_dir / 'src'
 sys.path.insert(0, str(src_path))
 
 try:
-    # Run once-per-install folder migrations before anything else in src/
-    # caches a ConfigManager path.
+    # Must run before anything in src/ caches a ConfigManager path.
     from src.core.migration import run_migrations
     run_migrations()
 

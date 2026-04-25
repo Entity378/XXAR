@@ -7,9 +7,9 @@ import time
 from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer
 from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
 
-if not _is_windows:
+if not IS_WINDOWS:
     from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
     from PyQt5.QtCore import QUrl
 
@@ -29,7 +29,7 @@ class AudioPlayer(QObject):
         self.temp_files = []
         self._state = "stopped"
 
-        if _is_windows:
+        if IS_WINDOWS:
             self._ffplay_process = None
             self._ffplay_path = self._find_ffplay()
             self._ffprobe_path = self._find_ffprobe()
@@ -53,7 +53,7 @@ class AudioPlayer(QObject):
     def refresh_tools(self):
 
         self.audio_converter.refresh_tools()
-        if _is_windows:
+        if IS_WINDOWS:
             self._ffplay_path = self._find_ffplay()
             self._ffprobe_path = self._find_ffprobe()
 
@@ -204,7 +204,7 @@ class AudioPlayer(QObject):
 
             self.current_file = cache_key
 
-            if _is_windows:
+            if IS_WINDOWS:
                 if not self._ffplay_path:
                     raise RuntimeError(
                         "ffplay not found. Please install the audio tools from the Settings page."
@@ -228,7 +228,7 @@ class AudioPlayer(QObject):
 
     def play_url(self, url_str):
         self.current_file = None
-        if _is_windows:
+        if IS_WINDOWS:
             if not self._ffplay_path:
                 raise RuntimeError("ffplay not found. Please install the audio tools from the Settings page.")
             self._stop_ffplay()
@@ -241,7 +241,7 @@ class AudioPlayer(QObject):
 
     def play(self):
 
-        if _is_windows:
+        if IS_WINDOWS:
             if self._paused and self._current_wav_path and self._ffplay_path:
                 self._start_ffplay_at(self._pause_elapsed_ms)
             elif self._state == "playing":
@@ -253,7 +253,7 @@ class AudioPlayer(QObject):
 
     def pause(self):
 
-        if _is_windows:
+        if IS_WINDOWS:
             if self._ffplay_process and self._ffplay_process.poll() is None and not self._paused:
                 elapsed = int((time.monotonic() - self._play_start_time) * 1000)
                 self._pause_elapsed_ms += elapsed
@@ -267,7 +267,7 @@ class AudioPlayer(QObject):
 
     def stop(self):
 
-        if _is_windows:
+        if IS_WINDOWS:
             self._stop_ffplay()
             self._state = "stopped"
             self.state_changed.emit("stopped")
@@ -277,7 +277,7 @@ class AudioPlayer(QObject):
 
     def set_volume(self, volume):
 
-        if _is_windows:
+        if IS_WINDOWS:
             self._volume = volume
             if self._state == "playing" and self._current_wav_path and self._ffplay_path:
                 elapsed = self._pause_elapsed_ms + int((time.monotonic() - self._play_start_time) * 1000)
@@ -287,7 +287,7 @@ class AudioPlayer(QObject):
 
     def set_position(self, position):
 
-        if _is_windows:
+        if IS_WINDOWS:
             if self._current_wav_path and self._ffplay_path:
                 self._start_ffplay_at(position)
         else:
@@ -295,7 +295,7 @@ class AudioPlayer(QObject):
 
     def get_state(self):
 
-        if _is_windows:
+        if IS_WINDOWS:
             return self._state
         else:
             state_map = {

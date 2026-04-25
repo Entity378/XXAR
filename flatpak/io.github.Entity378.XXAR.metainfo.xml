@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Entity378.XXAR</id>
+
+  <name>XXAR</name>
+  <summary>HoYoverse Audio Replacer (ZZZ, Genshin, HSR)</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <developer id="io.github.Entity378">
+    <name>Entity378</name>
+  </developer>
+
+  <description>
+    <p>
+      XXAR is a mod manager and mod creator for HoYoverse games. It can replace
+      any sound inside Zenless Zone Zero, Genshin Impact and Honkai Star Rail
+      with your own audio — without touching a command line.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Mod Manager: install, enable/disable, and reorder audio mods per game</li>
+      <li>Audio Browser: browse every sound in the game with preview playback</li>
+      <li>Mod Creator: build your own .zzar / .giar / .srar mod packages</li>
+      <li>Audio Converter: convert between MP3, WAV, WEM and other formats</li>
+      <li>Loop point and per-replacement volume editing</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.Entity378.XXAR.desktop</launchable>
+
+  <url type="homepage">https://github.com/Entity378/XXAR</url>
+  <url type="bugtracker">https://github.com/Entity378/XXAR/issues</url>
+
+  <branding>
+    <color type="primary" scheme_preference="dark">#1a1a2e</color>
+    <color type="primary" scheme_preference="light">#4a90d9</color>
+  </branding>
+
+  <content_rating type="oars-1.1" />
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <releases>
+    <release version="0.8.3-alpha" date="2026-04-25">
+      <description>
+        <p>First Flatpak release of XXAR after the fork from ZZAR/SRAR.</p>
+        <ul>
+          <li>Single Flatpak bundle now covers all three supported games</li>
+          <li>Self-update flow uses sideloaded .flatpak bundles from GitHub releases</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>

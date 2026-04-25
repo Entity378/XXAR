@@ -215,7 +215,7 @@ class BaseBrowserHandler:
 
     @staticmethod
     def restore_persistent_originals(persistent_path, progress_callback=None, vo_backup_mode="local"):
-        # This in for games like HSR (VOs handling)
+        # Subclass hook for games with VO restoration (currently HSR only).
         return False
 
     def _emit_status(self, message):

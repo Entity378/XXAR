@@ -4,12 +4,11 @@ import subprocess
 import shutil
 import os
 import sys
-import platform
 from pathlib import Path
-from src.core.app_config import FLATPAK_ENV_VAR
 from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import (
-    IS_WINDOWS as _is_windows,
+    IS_WINDOWS,
+    IS_FLATPAK,
     SUBPROCESS_KWARGS as _subprocess_kwargs,
     get_bundled_resources_dir,
     is_frozen,
@@ -22,7 +21,7 @@ logger = get_logger(__name__)
 # read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
 _BUNDLED_RESOURCE_DIR = get_bundled_resources_dir()
 
-if os.environ.get(FLATPAK_ENV_VAR) or is_frozen():
+if IS_FLATPAK or is_frozen():
     _RESOURCE_DIR = get_tools_dir() / "wwise_project"
     _wproj = _RESOURCE_DIR / "WAVtoWEM" / "WAVtoWEM.wproj"
     src_wav = _BUNDLED_RESOURCE_DIR / "WAVtoWEM"
@@ -44,10 +43,10 @@ class WwiseConsole:
         self.wwise_dir = wwise_dir.resolve()
 
         self.wwise_console = self.wwise_dir / "WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
-        self.is_windows = platform.system() == "Windows"
+        self.is_windows = IS_WINDOWS
         if self.is_windows:
             self.wine_cmd = None
-        elif os.environ.get(FLATPAK_ENV_VAR):
+        elif IS_FLATPAK:
             # In Flatpak, call the host system's Wine via flatpak-spawn
             self.wine_cmd = self._detect_host_wine()
         else:

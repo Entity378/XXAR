@@ -1,11 +1,10 @@
 
 
 import subprocess
-import platform
 from pathlib import Path
 import shutil
 from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS as _is_windows, SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -28,7 +27,7 @@ class AudioConverter:
     def _find_ffmpeg(self):
 
 
-        if platform.system() == "Windows":
+        if IS_WINDOWS:
 
             tools_root = get_tools_dir()
             possible_paths = [
@@ -43,16 +42,21 @@ class AudioConverter:
         ffmpeg = shutil.which('ffmpeg')
         if not ffmpeg:
 
-            if platform.system() == "Windows":
+            if IS_WINDOWS:
                 return None
 
-            raise RuntimeError("FFmpeg not found! Please install: sudo pacman -S ffmpeg")
+            raise RuntimeError(
+                "FFmpeg not found! Install it via your package manager:\n"
+                "  Arch:          sudo pacman -S ffmpeg\n"
+                "  Ubuntu/Debian: sudo apt install ffmpeg\n"
+                "  Fedora:        sudo dnf install ffmpeg"
+            )
         return ffmpeg
 
     def _find_vgmstream(self):
 
 
-        if platform.system() == "Windows":
+        if IS_WINDOWS:
 
             local_vgmstream = get_tools_dir() / "audio" / "vgmstream" / "vgmstream-cli.exe"
             if local_vgmstream.exists():
@@ -75,7 +79,7 @@ class AudioConverter:
             output_file = Path(output_file)
 
         if not self.vgmstream_path and not self.ffmpeg_path:
-            if platform.system() == "Windows":
+            if IS_WINDOWS:
                 raise RuntimeError(
                     "Audio conversion tools not found.\n\n"
                     "Please install FFmpeg and vgmstream from the Settings page."
@@ -115,7 +119,7 @@ class AudioConverter:
             except subprocess.CalledProcessError as e:
                 pass
 
-        if platform.system() == "Windows":
+        if IS_WINDOWS:
             raise RuntimeError(
                 f"\n=== Failed to convert {wem_file.name} ===\n"
                 f"WEM files require vgmstream-cli for conversion.\n\n"
@@ -148,7 +152,7 @@ class AudioConverter:
             output_file = Path(output_file)
 
         if not self.ffmpeg_path:
-            if platform.system() == "Windows":
+            if IS_WINDOWS:
                 raise RuntimeError(
                     "FFmpeg not found.\n\n"
                     "Please install the audio tools from the Settings page."

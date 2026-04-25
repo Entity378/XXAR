@@ -301,9 +301,8 @@ class AudioBrowserBridge(QObject):
         self._index_cache = {}
         self._tree_cache = {}
 
-        # Cache of {bnk_id: {wem_id: (override_name, lang_id)}} sourced from
-        # Patch.pck/Hotfix.pck for the current game — survives tab switches so
-        # the merge can be reapplied on every index build and cache restore.
+        # {bnk_id: {wem_id: (override_name, lang_id)}} from Patch/Hotfix PCKs.
+        # Cached per game so tab switches don't redo the scan.
         self._patch_pck_wems_by_bnk = None
         self._patch_pck_cache_key = None
         self._current_directory = None
@@ -679,10 +678,8 @@ class AudioBrowserBridge(QObject):
 
             if cache_key in self._index_cache:
                 self.file_id_index = self._index_cache[cache_key]
-                # Re-apply patch merge defensively — protects against stale
-                # caches where the patch entries were lost (e.g. cache built
-                # before Persistent/Patch.pck existed) so cross-tab search
-                # for patch-unique WEMs stays reliable.
+                # Defensive: stale caches predating Persistent/Patch.pck
+                # would otherwise drop patch-only WEMs from cross-tab search.
                 try:
                     self._merge_patch_entries_into_index(self.file_id_index)
                     self._index_cache[cache_key] = self.file_id_index
@@ -1018,11 +1015,8 @@ class AudioBrowserBridge(QObject):
                     "parentBnk": str(bnk_data["file_id"]),
                 })
 
-            # Merge WEMs that exist only in the override PCKs (Patch.pck /
-            # Hotfix.pck) for this same BNK id. Those WEMs are invisible from
-            # StreamingAssets alone and must be shown so the user can mod them.
-            # The canonical pck_path stays the StreamingAssets SoundBank so
-            # staged replacements target a stable PCK name.
+            # Surface override-only WEMs (Patch/Hotfix BNKs) under the StreamingAssets
+            # SoundBank so staged replacements target a stable PCK name.
             existing_wem_ids = {w["wem_id"] for w in wem_list}
             try:
                 if self.game_root_dir:
@@ -2013,10 +2007,7 @@ class AudioBrowserBridge(QObject):
             if not replacements:
                 return
 
-            # Remap entries that target protected override PCKs (Patch.pck /
-            # Hotfix.pck) to their corresponding SoundBank/Streamed PCK in
-            # StreamingAssets, and pre-extract pristine BNK content from the
-            # overrides for the merge step below.
+            # Remap protected-PCK entries to StreamingAssets and pre-extract pristine BNK content.
             patch_bnk_content = {}
             try:
                 from src.wwise.patch_target_resolver import resolve_and_extract
@@ -2079,7 +2070,6 @@ class AudioBrowserBridge(QObject):
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Adding %1 replacement(s) to %2...").replace("%1", str(len(files))).replace("%2", pck_filename))
 
-                # Split entries into direct WEMs and per-BNK WEM maps.
                 bnk_wem_maps = {}   # {bnk_id: {wem_id: wem_path}}
                 bnk_lang_ids = {}   # {bnk_id: lang_id} fallback
 
@@ -2101,10 +2091,8 @@ class AudioBrowserBridge(QObject):
                         bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
                         bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
 
-                # Add transport-only merges for BNKs present in this PCK and in
-                # Patch.pck override but not directly touched by a user edit —
-                # so their pristine content moves here once the override BNK is
-                # nulled by patch_override_pcks.
+                # Schedule transport-only merges so pristine override BNKs aren't lost
+                # when patch_override_pcks nulls them.
                 touched_bnks = set(bnk_wem_maps.keys())
                 for patch_bnk_id in list(patch_bnk_content.keys()):
                     if patch_bnk_id in touched_bnks:
@@ -2308,14 +2296,13 @@ class AudioBrowserBridge(QObject):
         if not pck_path:
             pck_path = ""
 
-        # Try to find full meta from loaded data first
         meta = self._find_item_meta(file_id, item_type, pck_path, bnk_id)
         if not meta:
             meta_key = f"{file_id}:{pck_path}"
             meta = self._match_metadata.get(meta_key)
 
         if not meta:
-            # Build minimal meta -- must include bnk_id for wem_embedded playback
+            # bnk_id is required when wem_embedded fallback playback kicks in.
             if not pck_path or not Path(pck_path).exists():
                 return
             meta = {
@@ -3139,9 +3126,7 @@ class AudioBrowserBridge(QObject):
             logger.exception("unhandled")
 
     def _get_patch_pck_wems_by_bnk(self):
-        # Build {bnk_id: {wem_id: (override_name, lang_id)}} from pristine
-        # Patch.pck/Hotfix.pck in the Persistent folder, cached per game_root
-        # so it survives tab switches. Returns {} on any error.
+        # Cached per game_root: {bnk_id: {wem_id: (override_name, lang_id)}} from Persistent overrides.
         if not self.game_root_dir:
             return {}
         cache_key = str(self.game_root_dir)
@@ -3181,8 +3166,7 @@ class AudioBrowserBridge(QObject):
         return result
 
     def _merge_patch_entries_into_index(self, index_dict):
-        # Adds patch-unique WEM ids to `index_dict`, mapping each to the
-        # StreamingAssets SoundBank that also hosts the same bnk_id.
+        # Map patch-unique WEM ids to the StreamingAssets SoundBank that hosts the same bnk_id.
         patch_map = self._get_patch_pck_wems_by_bnk()
         if not patch_map:
             return
@@ -3274,10 +3258,7 @@ class AudioBrowserBridge(QObject):
             except Exception:
                 pass
 
-        # Merge patch-unique WEMs (embedded in Patch.pck/Hotfix.pck BNKs whose
-        # id also exists in a StreamingAssets SoundBank) into the index. The
-        # patch scan itself is cached per game on the main thread, so this is
-        # just a quick in-memory union.
+        # Merge patch-unique WEMs into the index (cheap; the scan is already cached).
         if not cancel_event.is_set():
             try:
                 self._merge_patch_entries_into_index(temp_index)
@@ -3308,18 +3289,16 @@ class AudioBrowserBridge(QObject):
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Index ready - %1 unique file IDs").replace("%1", str(len(self.file_id_index))))
 
     def _resolve_pck_path(self, pck_filename):
-        # Check already-loaded items first
         for data in self._item_data.values():
             p = data.get("pck_path", "")
             if p and Path(p).name == Path(pck_filename).name:
                 return p
 
-        # Check loaded PCK paths
+
         for loaded_path in self._pck_loaded:
             if Path(loaded_path).name == Path(pck_filename).name:
                 return loaded_path
 
-        # Search game directory
         if self.game_root_dir:
             game = self._active_game()
             base_path = (
@@ -3353,7 +3332,6 @@ class AudioBrowserBridge(QObject):
                     return data
             elif data.get("type") == "wem_embedded" and str(data.get("wem_id")) == item_id:
                 if not pck_path or data.get("pck_path") == pck_path:
-                    # If parent_bnk is known, use it to pick the correct BNK
                     if parent_bnk and str(data.get("bnk_id")) != str(parent_bnk):
                         continue
                     return data

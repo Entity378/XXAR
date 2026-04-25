@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=XXAR
+GenericName=Audio Mod Manager
+Comment=HoYoverse Audio Replacer for Zenless Zone Zero, Genshin Impact and Honkai Star Rail
+Exec=xxar
+Icon=io.github.Entity378.XXAR
+Terminal=false
+Categories=AudioVideo;Audio;Game;Utility;
+Keywords=zenless;zone;zero;genshin;impact;honkai;star;rail;audio;mod;wem;wwise;pck;soundbank;hoyoverse;
+StartupWMClass=XXAR
+MimeType=application/x-zzar;application/x-giar;application/x-srar;

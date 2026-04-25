@@ -3,14 +3,14 @@ from PyQt5.QtCore import QCoreApplication
 import os
 import sys
 import json
-import platform
 import subprocess
 from pathlib import Path
 
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS
 logger = get_logger(__name__)
 
-if platform.system() == "Windows":
+if IS_WINDOWS:
     os.environ["QT_QPA_PLATFORM"] = "windows:fontengine=freetype"
 from PyQt5.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase
 from PyQt5.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
@@ -56,9 +56,8 @@ class AutoDetectWorker(QThread):
     found = pyqtSignal(str)
     notFound = pyqtSignal()
 
-    def __init__(self, system_type, install_dir_name=None, data_dir_name=None):
+    def __init__(self, install_dir_name=None, data_dir_name=None):
         super().__init__()
-        self.system_type = system_type
         self._install_dir = install_dir_name
         self._data_dir = data_dir_name
 
@@ -77,7 +76,7 @@ class AutoDetectWorker(QThread):
             home_subdir = app_config.GAME_INSTALL_HOME_SUBDIR
             data_dir = app_config.GAME_DATA_FOLDER
 
-        if self.system_type == "Windows":
+        if IS_WINDOWS:
 
             search_paths = (
                 [Path(f"{drive}:/{sub}") for drive in "CDEFGH" for sub in install_subdirs]
@@ -91,29 +90,74 @@ class AutoDetectWorker(QThread):
                     return
         else:
 
-            logger.info(f"[{APP_NAME}] Searching for {data_dir} from root directory...")
-            try:
-                result = subprocess.run(
-                    ["find", "/", "-name", data_dir, "-type", "d"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                    timeout=60
-                )
+            # Iterate every known Wine prefix (manual, Steam Proton, Lutris,
+            # Bottles, Heroic) — `find /` is slow and can't see the host FS from a Flatpak sandbox.
+            logger.info(f"[{APP_NAME}] Scanning Wine prefixes for {data_dir}...")
 
-                if result.stdout:
-                    lines = result.stdout.strip().split('\n')
-                    for line in lines:
-                        if ".local/share/dolphin" in line:
-                            continue
-                        game_data_dir = Path(line)
-                        if game_data_dir.exists() and (game_data_dir / "StreamingAssets").exists():
-                            self.found.emit(str(game_data_dir))
-                            return
-            except subprocess.TimeoutExpired:
-                logger.info(f"[{APP_NAME}] Search timed out after 60 seconds")
-            except Exception as e:
-                logger.error(f"[{APP_NAME}] Search error: {e}")
+            home = Path.home()
+            drive_c_candidates: list[Path] = []
+
+            for wine_root in (home / ".wine", Path(os.environ.get("WINEPREFIX") or "/dev/null")):
+                drive_c = wine_root / "drive_c"
+                if drive_c.is_dir():
+                    drive_c_candidates.append(drive_c)
+
+            steam_compatdata_roots = [
+                home / ".steam" / "steam" / "steamapps" / "compatdata",
+                home / ".local" / "share" / "Steam" / "steamapps" / "compatdata",
+                home / ".var" / "app" / "com.valvesoftware.Steam"
+                     / ".local" / "share" / "Steam" / "steamapps" / "compatdata",
+            ]
+            for compatdata in steam_compatdata_roots:
+                if compatdata.is_dir():
+                    for app_dir in compatdata.iterdir():
+                        drive_c = app_dir / "pfx" / "drive_c"
+                        if drive_c.is_dir():
+                            drive_c_candidates.append(drive_c)
+
+            # Lutris: each game has its own prefix at ~/Games/<name>/drive_c.
+            lutris_games = home / "Games"
+            if lutris_games.is_dir():
+                for game_dir in lutris_games.iterdir():
+                    drive_c = game_dir / "drive_c"
+                    if drive_c.is_dir():
+                        drive_c_candidates.append(drive_c)
+
+            bottles_roots = [
+                home / ".local" / "share" / "bottles" / "bottles",
+                home / ".var" / "app" / "com.usebottles.bottles"
+                     / "data" / "bottles" / "bottles",
+            ]
+            for bottles_root in bottles_roots:
+                if bottles_root.is_dir():
+                    for bottle in bottles_root.iterdir():
+                        drive_c = bottle / "drive_c"
+                        if drive_c.is_dir():
+                            drive_c_candidates.append(drive_c)
+
+            heroic_prefix_roots = [
+                home / "Games" / "Heroic" / "Prefixes",
+                home / ".var" / "app" / "com.heroicgameslauncher.hgl"
+                     / "config" / "heroic" / "tools" / "wine",
+            ]
+            for heroic_root in heroic_prefix_roots:
+                if heroic_root.is_dir():
+                    for pfx in heroic_root.rglob("pfx"):
+                        drive_c = pfx / "drive_c"
+                        if drive_c.is_dir():
+                            drive_c_candidates.append(drive_c)
+
+            for drive_c in drive_c_candidates:
+                for sub in install_subdirs:
+                    game_data_dir = drive_c / sub / data_dir
+                    if game_data_dir.exists() and (game_data_dir / "StreamingAssets").exists():
+                        logger.info(f"[{APP_NAME}] Found game install at: {game_data_dir}")
+                        self.found.emit(str(game_data_dir))
+                        return
+
+            logger.info(
+                f"[{APP_NAME}] No game install found in {len(drive_c_candidates)} Wine prefixes"
+            )
 
         self.notFound.emit()
 
@@ -176,9 +220,8 @@ class Application(
         format.setSamples(4)
         QSurfaceFormat.setDefaultFormat(format)
 
-        # Leaving organizationName unset makes Qt's QStandardPaths produce
-        # %LOCALAPPDATA%\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\XXAR\cache\
-        # (the default org+app nesting).
+        # DO NOT set organizationName — Qt's QStandardPaths would nest cache as
+        # %LOCALAPPDATA%\XXAR\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\cache\.
         QCoreApplication.setOrganizationDomain(f"{APP_NAME.lower()}.local")
         QCoreApplication.setApplicationName(APP_NAME)
 
@@ -247,7 +290,6 @@ class Application(
         self.clipboard_helper = ClipboardHelper()
         context.setContextProperty("clipboardHelper", self.clipboard_helper)
 
-        # App/game branding -- consumed by QML via these context properties
         context.setContextProperty("appName", APP_NAME)
         context.setContextProperty("appFullName", app_config.APP_FULL_NAME)
         context.setContextProperty("gameName", app_config.GAME_NAME)

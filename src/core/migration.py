@@ -10,13 +10,15 @@ import sys
 import time
 from pathlib import Path
 
+from src.core.subprocess_utils import IS_WINDOWS
+
 RETRY_COUNT = 3
 RETRY_SLEEP_SECONDS = 0.5
 LOCK_STALE_SECONDS = 30 * 60
 
 
 def _appdata_xxar() -> Path | None:
-    if sys.platform != "win32":
+    if not IS_WINDOWS:
         return None
     base = os.environ.get("APPDATA")
     if not base:
@@ -25,7 +27,7 @@ def _appdata_xxar() -> Path | None:
 
 
 def _localappdata_xxar() -> Path | None:
-    if sys.platform != "win32":
+    if not IS_WINDOWS:
         return None
     base = os.environ.get("LOCALAPPDATA")
     if not base:

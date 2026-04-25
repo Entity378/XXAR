@@ -31,7 +31,6 @@ class GameDefinition:
     special_audio_dirs: tuple[str, ...] = ()
     protected_pcks: frozenset = frozenset({"Patch.pck", "Hotfix.pck"})
     titlescreen_pcks: tuple[str, ...] = ("Minimum.pck",)
-    # Branding
     app_full_name: str = ""
     mod_file_ext: str = ""
     mod_file_ext_upper: str = ""

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
 from src.gui.utils.path_memory import get_last_dir, save_last_dir
+from src.core.subprocess_utils import IS_LINUX
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -11,13 +12,12 @@ logger = get_logger(__name__)
 class NativeDialogs:
     @staticmethod
     def _is_linux():
-        return sys.platform.startswith("linux")
+        return IS_LINUX
 
     @staticmethod
     def _get_clean_env():
-        # Get environment for running system commands like zenity.
-        # PyInstaller sets LD_LIBRARY_PATH to its bundled libs, which crashes
-        # system GTK apps. Restore the original value so they find their own libs.
+        # PyInstaller's LD_LIBRARY_PATH points at bundled libs and crashes system GTK
+        # apps; restore the original so zenity etc. find their own libs.
         env = os.environ.copy()
         if hasattr(sys, '_MEIPASS'):
             orig = env.get('LD_LIBRARY_PATH_ORIG')
@@ -87,9 +87,6 @@ class NativeDialogs:
 
     @staticmethod
     def _resolve_start_dir(start_dir, remember_key, default_filename=None):
-        # When remember_key is set, use the remembered directory (optionally
-        # combined with the caller's default filename). Otherwise fall back to
-        # start_dir or home.
         if remember_key:
             remembered = get_last_dir(remember_key, fallback=None)
             if remembered:
@@ -174,9 +171,7 @@ class NativeDialogs:
 
     @staticmethod
     def get_save_file(title="Save File", start_dir=None, filter_str="", remember_key=None, default_filename=None):
-        # For save dialogs, start_dir is often a full file path (dir + filename).
-        # When remember_key is set, we extract the filename from start_dir and
-        # combine it with the remembered directory.
+        # Save dialogs receive a full path; if remember_key is set, split into remembered dir + filename.
         if remember_key and start_dir and not default_filename:
             try:
                 p = Path(start_dir)

@@ -1,8 +1,8 @@
 import os
-import sys
 from pathlib import Path
 
 from src.core.app_config import CONFIG_DIR_NAME
+from src.core.subprocess_utils import IS_WINDOWS
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     normalize_game_id as normalize_game_id_from_registry,
@@ -11,7 +11,6 @@ from src.core.game_registry import (
 
 class ConfigManager:
     def __init__(self):
-        self.platform = sys.platform
         self._config_dir = None
         self._data_dir = None
         self._launcher_dir = None
@@ -25,7 +24,7 @@ class ConfigManager:
         if self._config_dir:
             return self._config_dir
 
-        if self.platform == "win32":
+        if IS_WINDOWS:
             appdata = Path(
                 os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
             )
@@ -42,7 +41,7 @@ class ConfigManager:
         if self._data_dir:
             return self._data_dir
 
-        if self.platform == "win32":
+        if IS_WINDOWS:
             localappdata = Path(
                 os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
             )

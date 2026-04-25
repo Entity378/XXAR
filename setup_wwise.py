@@ -11,29 +11,19 @@ import urllib.request
 import urllib.error
 
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK
+from src.core.app_config import CONFIG_DIR_NAME
 logger = get_logger(__name__)
 
 DEFAULT_WWISE_URL = "https://gitlab.com/ytnshio/ebi/-/raw/main/WWIse.zip"
 
-# Tools live under the user's per-profile config/data dir so they survive exe
-# upgrades. On Windows that's Roaming AppData (alongside settings.json); on
-# Linux/Flatpak it's XDG_DATA_HOME (Flatpak's /app/bin is read-only).
-try:
-    _src = Path(__file__).resolve().parent / 'src'
-    if str(_src) not in sys.path:
-        sys.path.insert(0, str(_src))
-    from app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME
-except Exception:
-    FLATPAK_ENV_VAR = 'XXAR_FLATPAK'
-    CONFIG_DIR_NAME = 'XXAR'
-
-if os.environ.get(FLATPAK_ENV_VAR) or not sys.platform.startswith('win'):
+if IS_WINDOWS:
     _TOOLS_ROOT = Path(
-        os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')
+        os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')
     ) / CONFIG_DIR_NAME / "tools"
 else:
     _TOOLS_ROOT = Path(
-        os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')
+        os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')
     ) / CONFIG_DIR_NAME / "tools"
 
 WWISE_DIR = _TOOLS_ROOT / "wwise"
@@ -41,15 +31,12 @@ WWISE_CONSOLE = WWISE_DIR / "WWIse/Authoring/x64/Release/bin/WwiseConsole.exe"
 
 
 class WwiseSetup:
-    # Handles automated Wwise installation
     def setup(self, skip_input=True):
-        # Run complete setup process - NO PROMPTS
         logger.info("=" * 60)
-        logger.info("ZZZ Audio Mod Tool - Automated Wwise Setup")
+        logger.info("XXAR - Automated Wwise Setup")
         logger.info("=" * 60)
 
-        # Wine is only needed on Linux (Wwise runs natively on Windows)
-        if sys.platform.startswith("linux"):
+        if IS_LINUX:
             if not self.check_wine():
                 return False
 
@@ -78,9 +65,8 @@ class WwiseSetup:
         self.wwise_console = WWISE_CONSOLE
 
     def check_wine(self):
-        # Check if Wine is installed
-        if os.environ.get(FLATPAK_ENV_VAR):
-            # In Flatpak, check host system's Wine via flatpak-spawn
+        if IS_FLATPAK:
+            # Flatpak sandbox can't see Wine directly; query host via flatpak-spawn.
             for name in ('wine64', 'wine'):
                 try:
                     result = subprocess.run(
@@ -110,21 +96,19 @@ class WwiseSetup:
         return True
 
     def check_existing(self):
-        # Check if Wwise is already installed
         if self.wwise_console.exists():
             logger.info(f"[OK] Wwise already installed at: {self.wwise_dir}")
             return True
         return False
 
     def download_wwise(self):
-        # Download minimal Wwise package
         logger.info(f"\nDownloading Wwise from: {self.download_url}")
 
         zip_path = self.wwise_dir / "wwise_temp.zip"
         self.wwise_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Fix SSL on Windows PyInstaller builds (no bundled certs)
+            # Windows PyInstaller builds ship without CA certs; fall back to unverified SSL.
             try:
                 urllib.request.urlopen("https://gitlab.com", timeout=5)
             except Exception:
@@ -155,7 +139,6 @@ class WwiseSetup:
             return None
 
     def extract_wwise(self, zip_path):
-        # Extract Wwise package
         logger.info(f"\nExtracting Wwise...")
 
         try:
@@ -174,7 +157,6 @@ class WwiseSetup:
             return False
 
     def test_wwise(self):
-        # Test if WwiseConsole works (via Wine on Linux, natively on Windows)
         logger.info(f"\nTesting WwiseConsole...")
 
         if not self.wwise_console.exists():
@@ -182,10 +164,9 @@ class WwiseSetup:
             return False
 
         try:
-            if sys.platform.startswith("win"):
+            if IS_WINDOWS:
                 cmd = [str(self.wwise_console), '-help']
-            elif os.environ.get(FLATPAK_ENV_VAR):
-                # Detect which wine binary the host has
+            elif IS_FLATPAK:
                 wine_name = 'wine'
                 for name in ('wine64', 'wine'):
                     try:
@@ -226,7 +207,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Automated Wwise setup for ZZZ audio modding',
+        description='Automated Wwise setup for XXAR (HoYoverse audio modding)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -242,7 +223,7 @@ Examples:
 Notes:
   - Requires Wine to be installed on Linux
   - Downloads ~50-100MB (minimal Wwise package)
-  - Installs to %APPDATA%/XXAR/tools/wwise/ (Windows)
+  - Installs to %LOCALAPPDATA%/XXAR/tools/wwise/ (Windows)
   - Installs to $XDG_DATA_HOME/XXAR/tools/wwise/ (Linux/Flatpak)
         """
     )

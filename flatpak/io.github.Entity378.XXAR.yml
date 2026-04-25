@@ -1,0 +1,146 @@
+# XXAR — HoYoverse Audio Replacer (ZZZ / Genshin / HSR)
+# Flatpak manifest — wraps the PyInstaller bundle with system dependencies.
+#
+# Build:   flatpak-builder --force-clean build-dir flatpak/io.github.Entity378.XXAR.yml
+# Install: flatpak-builder --user --install --force-clean build-dir flatpak/io.github.Entity378.XXAR.yml
+# Bundle:  flatpak build-bundle repo XXAR-linux-x86_64.flatpak io.github.Entity378.XXAR
+# Run:     flatpak run io.github.Entity378.XXAR
+#
+# Prerequisites for `dist/XXAR/` to exist before invoking flatpak-builder:
+#   XXAR_FLATPAK_BUILD=1 pyinstaller --noconfirm --clean XXAR.spec
+
+id: io.github.Entity378.XXAR
+runtime: org.kde.Platform
+runtime-version: '5.15-24.08'
+sdk: org.kde.Sdk
+command: xxar
+
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '24.08'
+    add-ld-path: lib
+    no-autodownload: false
+    autodelete: false
+
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=x11
+  - --socket=fallback-x11
+  - --share=ipc
+
+  # Audio
+  - --socket=pulseaudio
+
+  # GPU (QtGraphicalEffects ColorOverlay/OpacityMask need hardware rendering)
+  - --device=dri
+
+  # Network — Wwise download, GameBanana mod browser, GitHub release polling
+  - --share=network
+
+  # Filesystem — game install dirs, mod packages, audio files
+  - --filesystem=home
+
+  # Host access — Wine for WwiseConsole.exe, and `flatpak install` for self-update
+  - --talk-name=org.freedesktop.Flatpak
+
+  # Environment
+  - --env=QT_QPA_PLATFORM=wayland;xcb
+  - --env=GST_PLUGIN_SYSTEM_PATH=/usr/lib/x86_64-linux-gnu/gstreamer-1.0
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - /share/man
+  - /share/doc
+  - '*.a'
+  - '*.la'
+
+modules:
+  # ── vgmstream-cli: WEM audio decoder ──
+  # Only Vorbis/MPEG decoding paths are needed for HoYoverse WEMs. Disable
+  # codecs that require git fetching at build time (g719, atrac9, celt, speex)
+  # since flatpak-builder sandboxes builds without network access.
+  - name: vgmstream
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_CLI=ON
+      - -DBUILD_V123=OFF
+      - -DBUILD_AUDACIOUS=OFF
+      - -DUSE_VORBIS=ON
+      - -DUSE_MPEG=ON
+      - -DUSE_FFMPEG=OFF
+      - -DUSE_G719=OFF
+      - -DUSE_ATRAC9=OFF
+      - -DUSE_CELT=OFF
+      - -DUSE_SPEEX=OFF
+    sources:
+      - type: git
+        url: https://github.com/vgmstream/vgmstream.git
+        tag: r2083
+    post-install:
+      - install -Dm755 cli/vgmstream-cli /app/bin/vgmstream-cli
+
+  # ── unrar: required by GameBananaBridge to extract .rar mod packages ──
+  # The KDE Platform doesn't ship unrar; rarfile (the Python lib) shells out
+  # to it. License: rarlab "freeware" — redistribution of the unrar binary is
+  # explicitly permitted. Source URL bumps occasionally on rarlab.com — when
+  # bumping, update the sha256 with `sha256sum unrarsrc-X.Y.Z.tar.gz`.
+  - name: unrar
+    buildsystem: simple
+    build-commands:
+      - make -C unrar -j${FLATPAK_BUILDER_N_JOBS:-1}
+      - install -Dm755 unrar/unrar /app/bin/unrar
+    sources:
+      - type: archive
+        url: https://www.rarlab.com/rar/unrarsrc-7.2.5.tar.gz
+        sha256: 3d7b402ce7b9825af32a5f593379269e742c883d9d276527be19d0e9f6a114f9
+        strip-components: 0
+
+  # ── ffmpeg extension mount point ──
+  - name: ffmpeg-extension-setup
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/ffmpeg
+
+  # ── XXAR application bundle ──
+  # The PyInstaller onefolder output is copied wholesale into /app/share/xxar/.
+  # The wrapper script in /app/bin/xxar exec's the binary inside it.
+  - name: xxar
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/share/xxar
+      - cp -r XXAR/. /app/share/xxar/
+      - chmod 755 /app/share/xxar/XXAR
+
+      - install -Dm755 xxar-wrapper.sh /app/bin/xxar
+
+      - install -Dm644 io.github.Entity378.XXAR.desktop /app/share/applications/io.github.Entity378.XXAR.desktop
+
+      - install -Dm644 XXAR-Logo2-256.png /app/share/icons/hicolor/256x256/apps/io.github.Entity378.XXAR.png
+      - install -Dm644 XXAR-Logo2-512.png /app/share/icons/hicolor/512x512/apps/io.github.Entity378.XXAR.png
+
+      - install -Dm644 io.github.Entity378.XXAR.metainfo.xml /app/share/metainfo/io.github.Entity378.XXAR.metainfo.xml
+
+    sources:
+      - type: dir
+        path: ../dist/XXAR
+        dest: XXAR
+
+      - type: file
+        path: xxar-wrapper.sh
+
+      - type: file
+        path: io.github.Entity378.XXAR.desktop
+
+      - type: file
+        path: ../src/gui/assets/XXAR/XXAR-Logo2-256.png
+
+      - type: file
+        path: ../src/gui/assets/XXAR/XXAR-Logo2-512.png
+
+      - type: file
+        path: io.github.Entity378.XXAR.metainfo.xml

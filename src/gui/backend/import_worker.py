@@ -250,7 +250,7 @@ class ImportWorker(QThread):
                     self.progress.emit(f"  {pck_name}: {len(pck_files_map)} file(s)")
 
             elif import_mode in ['wem_file', 'wem_folder']:
-                # Convert IDs so we don't have to worry about them later
+                # Normalize 16-char hex IDs to decimal up front.
                 files = {k if len(k) != 16 else str(int(k,16)): self.data['files'][k] for k in self.data['files']}
 
                 self.progress.emit("Processing WEM files...")
@@ -262,7 +262,6 @@ class ImportWorker(QThread):
                     raise Exception("Game audio directory not set. Please set it in Settings first.")
 
                 target_wem_ids = set(files.keys())
-                # Build int->key mapping to match both decimal and hex string IDs
                 target_id_to_key = {}
                 for fid in files.keys():
                     try:
@@ -354,11 +353,10 @@ class ImportWorker(QThread):
                         location_str = f" in BNK {bnk_id}" if bnk_id else ""
                         self.progress.emit(f"File {file_id} -> {pck_name}{priority_str}{location_str} (lang {lang_id})")
                     else:
-                        # Check for pck name in path
                         all_game_pcks = [i.relative_to(game_audio_dir) for i in game_audio_dir.rglob('*.pck')]
                         candidates = [i for i in all_game_pcks if i.stem in str(wem_path)]
                         if len(candidates) > 1:
-                            # If there are duplicates, prioritize game language-like subfolders.
+                            # Prefer language-folder candidates when multiple match.
                             language_candidates = [
                                 i for i in candidates if self._is_language_specific_candidate(i)
                             ]
@@ -368,7 +366,6 @@ class ImportWorker(QThread):
                             pck_name = str(candidates[0])
                         else:
                             pck_name = "Unknown.pck"
-                        # Get bnk ID from path if it exists in path
                         bnk_id = wem_path.split('_bnk')[0].split('/')[1] if '_bnk' in wem_path else None
                         lang_id = 0
                         self.progress.emit(f"Warning: File ID {file_id} not found in any game PCK")

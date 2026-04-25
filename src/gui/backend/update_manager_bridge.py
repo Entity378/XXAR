@@ -17,6 +17,7 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 
 from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
+from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ _MSI_REGISTRY_VALUE = "InstallLocation"
 
 
 def _read_msi_install_location():
-    if not sys.platform.startswith("win"):
+    if not IS_WINDOWS:
         return None
     try:
         import winreg
@@ -47,7 +48,7 @@ def _get_real_exe_path():
     # pyinstaller onefile: sys.executable is inside the temp _MEI dir,
     # not the actual exe on disk
     if hasattr(sys, '_MEIPASS'):
-        if sys.platform.startswith("win"):
+        if IS_WINDOWS:
             import ctypes
             buf = ctypes.create_unicode_buffer(260)
             ctypes.windll.kernel32.GetModuleFileNameW(None, buf, 260)
@@ -175,7 +176,7 @@ class UpdateCheckWorker(QThread):
                 self.noUpdateAvailable.emit()
                 return
 
-            if sys.platform.startswith("win"):
+            if IS_WINDOWS:
                 # Prefer MSI if we know the install came from the MSI, else
                 # fall back to the portable ZIP. Track the raw tag so we can
                 # probe version-tagged MSI asset names.
@@ -188,7 +189,7 @@ class UpdateCheckWorker(QThread):
                 else:
                     asset_candidates = [f"{APP_NAME}-windows-x64.zip"]
             else:
-                asset_candidates = [f"{APP_NAME}-linux-x64.flatpak"]
+                asset_candidates = [f"{APP_NAME}-linux-x86_64.flatpak"]
 
             download_url = ""
             asset_name = ""
@@ -508,19 +509,35 @@ class UpdateManagerBridge(QObject):
         )
 
     def _apply_linux_update(self, current_exe):
-        new_binary = Path(self._downloaded_path)
-        target = Path(current_exe)
+        bundle = Path(self._downloaded_path)
 
-        backup = target.with_suffix(".bak")
-        if backup.exists():
-            backup.unlink()
+        # We only ship a .flatpak bundle for Linux, so the only path forward is
+        # to hand the bundle to the host's flatpak. The `--talk-name=
+        # org.freedesktop.Flatpak` finish-arg in the manifest is what allows
+        # this in-sandbox call to reach the host.
+        if not IS_FLATPAK:
+            self.updateError.emit(
+                "Linux auto-update is only supported inside the Flatpak sandbox. "
+                f"Bundle downloaded to: {bundle}\n"
+                f"Install it manually with:  flatpak install --user {bundle}"
+            )
+            return
 
-        # can't overwrite a running binary on linux (ETXTBSY), rename it first
-        target.rename(backup)
-        shutil.copy2(str(new_binary), str(target))
-        os.chmod(str(target), 0o755)
-
-        new_binary.unlink(missing_ok=True)
-
-        logger.info(f"[Updater] Binary replaced: {target}")
-        logger.info(f"[Updater] Backup at: {backup}")
+        # `flatpak install --bundle` reinstalls in place; --assumeyes skips
+        # confirmation and --noninteractive skips the progress UI. The host
+        # rewrites the OSTree ref while the running app keeps using the old
+        # commit; the user re-launches to pick up the new one.
+        args = [
+            "flatpak-spawn", "--host",
+            "flatpak", "install", "--user",
+            "--noninteractive", "--assumeyes",
+            "--reinstall",
+            str(bundle),
+        ]
+        logger.info(f"[Updater] Running on host: {' '.join(args)}")
+        subprocess.Popen(
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )

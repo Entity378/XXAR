@@ -13,9 +13,11 @@ from pathlib import Path
 import json
 import os
 import sys
+import shutil
 import subprocess
 import src.core.app_config as app_config
-from src.core.app_config import FLATPAK_ENV_VAR, CONFIG_DIR_NAME, APP_NAME
+from src.core.app_config import CONFIG_DIR_NAME, APP_NAME
+from src.core.subprocess_utils import IS_WINDOWS
 
 from src.mods.package_manager import ModPackageManager, InvalidModPackageError
 from src.mods.persistent_manager import PersistentModManager
@@ -343,11 +345,16 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def checkAudioToolsInstalled(self):
 
-        import platform
-
-        if platform.system() != "Windows":
-            self.audioToolsStatusChanged.emit(False)
-            return False
+        if not IS_WINDOWS:
+            ffmpeg_found = shutil.which("ffmpeg") is not None
+            vgmstream_found = shutil.which("vgmstream-cli") is not None
+            is_installed = ffmpeg_found and vgmstream_found
+            logger.info(
+                f"[Mod Manager] Linux audio tools: ffmpeg={ffmpeg_found}, "
+                f"vgmstream={vgmstream_found}"
+            )
+            self.audioToolsStatusChanged.emit(is_installed)
+            return is_installed
 
         tools_root = get_tools_dir()
         ffmpeg_dir = tools_root / "audio" / "ffmpeg"
@@ -374,9 +381,7 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def runAudioToolsSetup(self):
 
-        import platform
-
-        if platform.system() != "Windows":
+        if not IS_WINDOWS:
             self.errorOccurred.emit(
                 "Platform Not Supported",
                 "Automated audio tools installation is for Windows only.\n\n"
@@ -866,14 +871,18 @@ class ModManagerBridge(QObject):
             parsed = urlparse(path)
             if parsed.scheme == 'file':
                 path = url2pathname(parsed.path)
-                if sys.platform.startswith('win') and path.startswith('/'):
+                if IS_WINDOWS and path.startswith('/'):
                     path = path[1:]
-            if sys.platform.startswith('win'):
+            if IS_WINDOWS:
                 import winsound
                 winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
             else:
-                subprocess.Popen(['aplay', '-q', path],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                from PyQt5.QtCore import QUrl
+                from PyQt5.QtMultimedia import QSoundEffect
+                if not hasattr(self, "_sound_effect"):
+                    self._sound_effect = QSoundEffect()
+                self._sound_effect.setSource(QUrl.fromLocalFile(path))
+                self._sound_effect.play()
         except Exception as e:
             logger.error(f"[playSound] ERROR: {e}")
 

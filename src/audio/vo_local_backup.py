@@ -1,9 +1,5 @@
-# Hash-based local VO backup for HSR.
-#
-# Uses the game's own .hash files (e.g. External0_<md5>.hash) to identify
-# which PCK files in Persistent are original (unmodded).  Originals are
-# backed up to a local cache; modded files are restored from that cache
-# before new mods are applied.
+# Hash-based VO backup for HSR: uses External0_<md5>.hash sidecars to detect
+# original PCKs, backs them up locally, restores modded files from that cache.
 
 import hashlib
 import shutil
@@ -18,15 +14,11 @@ logger = get_logger(__name__)
 _CHUNK_SIZE = 1 << 20  # 1 MB
 
 
-# .hash file parsing
-
 def _parse_hash_filename(name: str) -> tuple[str, str] | None:
-    # Parse ``External0_826a01d1af49b7fac662ed39219be7da.hash``.
-    # Returns ``("External0.pck", "826a...")`` or ``None`` if the pattern
-    # does not match.
+    # External0_826a01d1af49b7fac662ed39219be7da.hash -> ("External0.pck", "826a...").
     if not name.endswith(".hash"):
         return None
-    stem = name[:-5]  # strip ".hash"
+    stem = name[:-5]
     parts = stem.rsplit("_", 1)
     if len(parts) != 2:
         return None
@@ -50,7 +42,6 @@ def _compute_file_md5(filepath: Path) -> str:
 
 
 def _scan_hash_files(lang_dir: Path) -> dict[str, str]:
-    # Return ``{pck_filename: expected_md5}`` for all ``.hash`` files.
     result = {}
     for hash_file in lang_dir.glob("*.hash"):
         parsed = _parse_hash_filename(hash_file.name)
@@ -59,20 +50,13 @@ def _scan_hash_files(lang_dir: Path) -> dict[str, str]:
     return result
 
 
-# High-level restore
-
 def restore_language_from_hashes(
     game_cache_root: Path,
     persistent_path: Path,
     folder_name: str,
     progress_cb=None,
 ) -> bool:
-    # Ensure ``persistent_path/folder_name`` contains original PCK files.
-    # Compares each PCK's actual MD5 against the expected value from its
-    # companion ``.hash`` file:
-    # * **Match** -- file is original -> copy to backup cache.
-    # * **Mismatch** -- file was modded -> overwrite with cached backup.
-    # Returns ``True`` if at least one file was processed successfully.
+    # Compare each PCK's MD5 to its .hash sidecar: match -> back up; mismatch -> restore.
     lang_dir = persistent_path / folder_name
     if not lang_dir.is_dir():
         return False
@@ -105,12 +89,10 @@ def restore_language_from_hashes(
         actual_md5 = _compute_file_md5(pck_path)
 
         if actual_md5 == expected_md5:
-            # File is original -- back it up if not already cached.
             if not cached_pck.is_file() or _compute_file_md5(cached_pck) != expected_md5:
                 shutil.copy2(pck_path, cached_pck)
                 backed_up += 1
         else:
-            # File is modded -- restore from cache.
             if cached_pck.is_file():
                 shutil.copy2(cached_pck, pck_path)
                 restored += 1

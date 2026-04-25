@@ -1,5 +1,5 @@
 from PyQt5.QtCore import QCoreApplication
-import platform
+import sys
 import subprocess
 from pathlib import Path
 from src.core.app_config import APP_NAME
@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
+from src.core.subprocess_utils import IS_WINDOWS
 
 
 from src.core.logger import get_logger
@@ -179,11 +180,10 @@ class ModManagerConnector:
         mod_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"[Mod Manager] Opening mod folder: {mod_folder}")
 
-        system = platform.system()
         try:
-            if system == "Windows":
+            if IS_WINDOWS:
                 subprocess.Popen(["explorer", str(mod_folder)])
-            elif system == "Darwin":
+            elif sys.platform == "darwin":
                 subprocess.Popen(["open", str(mod_folder)])
             else:
                 env = NativeDialogs._get_clean_env()

@@ -1,6 +1,5 @@
 from PyQt5.QtCore import QCoreApplication
 import json
-import platform
 import threading
 from pathlib import Path
 
@@ -40,7 +39,7 @@ class SettingsConnector:
         switch_active_game(game_id)
         game = get_game(game_id)
 
-        # Update context properties so ALL QML bindings refresh globally.
+        # Updating context properties refreshes every QML binding globally.
         ctx = self.engine.rootContext()
         ctx.setContextProperty("gameName", game.display_name)
         ctx.setContextProperty("gameShort", game.short_label)
@@ -51,7 +50,6 @@ class SettingsConnector:
         ctx.setContextProperty("logoPng", app_config.LOGO_PNG)
         ctx.setContextProperty("appFullName", app_config.APP_FULL_NAME)
 
-        # Also update the root properties for MainWindow bindings.
         self.root.setProperty("activeGameShort", game.short_label)
         self.root.setProperty("activeGameName", game.display_name)
         self.root.setProperty("activeModFileExt", app_config.MOD_FILE_EXT)
@@ -115,7 +113,6 @@ class SettingsConnector:
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=2)
 
-        # Light UI updates -- instant, main thread.
         if self.settings_page:
             self.settings_page.setProperty(
                 "defaultModsDirectory", str(get_game_mod_library_dir(target_game_id))
@@ -133,7 +130,6 @@ class SettingsConnector:
 
         self._set_root_active_game_props(target_game_id)
 
-        # Heavy work -- background thread (glob, scan, refresh).
         threading.Thread(
             target=self._switch_active_game_heavy,
             args=(target_game_id, game_data_dir),
@@ -148,7 +144,6 @@ class SettingsConnector:
                 if game_data_dir:
                     self.audio_browser_bridge.loadFromSettings()
                 else:
-                    # No directory configured -- clear the browser.
                     self.audio_browser_bridge._index_cancel.set()
                     self.audio_browser_bridge.treeCleared.emit()
                     self.audio_browser_bridge.languageTabsReady.emit([])
@@ -180,7 +175,6 @@ class SettingsConnector:
 
         self._swap_in_progress = True
         try:
-            # Cancel any running indexing immediately.
             if self.audio_browser_bridge:
                 self.audio_browser_bridge._index_cancel.set()
 
@@ -219,7 +213,6 @@ class SettingsConnector:
                 ),
             )
         finally:
-            # Unlock after 1 second cooldown.
             QTimer.singleShot(1000, self._unlock_swap)
 
     def _unlock_swap(self):
@@ -395,7 +388,6 @@ class SettingsConnector:
         enable_gb_thumbnails = settings.get("enable_gb_thumbnails", False)
         self.settings_page.setProperty("enableGbThumbnails", enable_gb_thumbnails)
 
-        # Also propagate to gameBananaPage so the thumbnail guard knows the state
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
             gb_page.setProperty("thumbnailsEnabled", enable_gb_thumbnails)
@@ -409,8 +401,8 @@ class SettingsConnector:
         if mod_creation_mode:
             self.mod_manager_bridge.checkWwiseInstalled()
 
-        if platform.system() == "Windows":
-            self.mod_manager_bridge.checkAudioToolsInstalled()
+        # The bridge probes Linux PATH internally; safe to call unconditionally.
+        self.mod_manager_bridge.checkAudioToolsInstalled()
 
         if selected_data_dir:
             self.settings_page.setGameDirectory(selected_data_dir)
@@ -593,7 +585,6 @@ class SettingsConnector:
 
         from src.gui.main_qml import AutoDetectWorker
         self.auto_detect_worker = AutoDetectWorker(
-            platform.system(),
             install_dir_name=game.install_dir_name,
             data_dir_name=game.data_dir_name,
         )
@@ -663,7 +654,6 @@ class SettingsConnector:
         if current_game == DEFAULT_GAME_ID:
             settings["custom_mod_library_dir"] = custom_mods_dir
 
-        # Propagate thumbnailsEnabled to the GameBanana page immediately
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
             gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))
@@ -757,8 +747,7 @@ class SettingsConnector:
             return False
 
     def _can_move_language_folder(self, folder_name, persistent_path, streaming_path):
-        # Check if a persistent language folder can be moved to streaming.
-        # Moveable only if the streaming folder does NOT already have this language folder.
+        # Moveable only if streaming doesn't already host this language folder.
         streaming_folder = streaming_path / folder_name
 
         streaming_exists = streaming_folder.exists()
@@ -816,7 +805,6 @@ class SettingsConnector:
                             moveable_folders.append(item.name)
                             logger.info(f"[{APP_NAME}] Language folder {item.name} is moveable to streaming")
 
-            # Detect game-pushed PCK files identified by a sibling .hash file
             hash_pcks = []
             if streaming_path:
                 for hash_file in persistent_path.glob("*.hash"):
@@ -852,7 +840,6 @@ class SettingsConnector:
             logger.error(f"[{APP_NAME}] Error checking multiple languages: {e}")
 
     def on_move_language_to_streaming(self, folder_name):
-        # Move a language folder from Persistent to StreamingAssets.
         import shutil
 
         try:
@@ -925,7 +912,6 @@ class SettingsConnector:
             )
 
     def on_move_hash_pck_to_streaming(self, pck_name):
-        # Move a game-pushed PCK file (identified by a .hash file) from Persistent to StreamingAssets.
         import shutil
 
         try:
@@ -959,7 +945,6 @@ class SettingsConnector:
             logger.info(f"[{APP_NAME}] Moving hash PCK: {source_pck} -> {dest_pck}")
             shutil.move(str(source_pck), str(dest_pck))
 
-            # Remove the accompanying .hash file(s) from Persistent
             pck_stem = Path(pck_name).stem
             for hash_file in persistent_path.glob(f"{pck_stem}_*.hash"):
                 hash_file.unlink()
@@ -1002,7 +987,6 @@ class SettingsConnector:
             settings["mod_creation_mode"] = (mode == "maker")
             settings["first_launch_complete"] = True
 
-            # Read multi-game selections from the welcome dialog
             # QML var properties arrive as QJSValue; call toVariant() first.
             selected_games = []
             game_dirs_map = {}
@@ -1016,12 +1000,10 @@ class SettingsConnector:
                     gd = gd.toVariant()
                 game_dirs_map = dict(gd) if gd else {}
 
-            # Primary game = first selected game
             primary_game = normalize_game_id(selected_games[0]) if selected_games else None
             if primary_game:
                 settings["selected_game"] = primary_game
 
-            # Store directories for every selected game
             for gid in selected_games:
                 gid = normalize_game_id(gid)
                 gdir = game_dirs_map.get(gid, "")
@@ -1155,7 +1137,6 @@ class SettingsConnector:
 
         from src.gui.main_qml import AutoDetectWorker
         self.auto_detect_worker = AutoDetectWorker(
-            platform.system(),
             install_dir_name=game.install_dir_name,
             data_dir_name=game.data_dir_name,
         )

@@ -126,10 +126,7 @@ class ModPackageManager:
             logger.error(f"Warning: Failed to save mod config: {e}")
 
     def _normalize_metadata_replacements(self, metadata):
-        # Convert v1.0 or v2.0 replacements to flat internal format:
-        # {pck_name: {file_id_str: {wem_file, sound_name, lang_id, bnk_id, file_type}}}
-        # v1.0: {pck: {file_id: {bnk_id, ...}}}   (already flat)
-        # v2.0: {pck: {"bnk_id.bnk" | "direct": {file_id: {...}}}}
+        # v1.0 is already flat; v2.0+ nests per-bnk and gets flattened here.
         format_version = metadata.get('format_version', '1.0')
         replacements = metadata.get('replacements', {})
 
@@ -148,8 +145,7 @@ class ModPackageManager:
                     except ValueError:
                         bnk_id = None
                 for file_id, file_info in files.items():
-                    # Use compound key for BNK entries so the same WEM ID in
-                    # multiple BNKs doesn't overwrite itself in the flat dict.
+                    # Compound key needed because the same WEM ID can appear in multiple BNKs.
                     internal_key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
                     entry = {
                         'wem_file': file_info.get('wem_file', ''),
@@ -423,8 +419,7 @@ class ModPackageManager:
 
                     bnk_id = file_info.get('bnk_id')
                     actual_wem_id = file_info.get('file_id') or file_id
-                    # Normalize conflict key to "bnk_id|wem_id" (or plain wem_id for direct)
-                    # so v1.0 and v2.0 mods targeting the same sound share the same key
+                    # Compound key so v1.0 and v2.0 mods targeting the same sound collide correctly.
                     conflict_key = f"{bnk_id}|{actual_wem_id}" if bnk_id is not None else str(actual_wem_id)
 
                     replacement_info = {
@@ -560,10 +555,8 @@ class ModPackageManager:
 
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
 
-        # Remap entries that target protected override PCKs (Patch.pck / Hotfix.pck)
-        # to their corresponding SoundBank/Streamed PCK in StreamingAssets and
-        # pre-extract pristine BNK content from the overrides so the main loop
-        # can merge mod + pristine in a single pass.
+        # Remap entries from protected override PCKs to their StreamingAssets target,
+        # and pre-extract pristine BNK content for the main loop to merge.
         patch_bnk_content = {}
         try:
             from src.wwise.patch_target_resolver import resolve_and_extract
@@ -712,7 +705,6 @@ class ModPackageManager:
                         logger.warning(f"Warning: WEM file not found: {wem_path}, skipping...")
                         continue
 
-                    # key is always compound "bnk_id|wem_id" now; file_info['file_id'] has plain wem_id for v2.0
                     raw_id = file_info.get('file_id') or (str(key).split('|')[-1] if '|' in str(key) else key)
                     actual_wem_id = int(raw_id)
                     lang_id = file_info.get('lang_id', 0)
@@ -727,10 +719,8 @@ class ModPackageManager:
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
 
-                # Also schedule a BNK merge for any bnk_id that is in an
-                # override PCK and ALSO present in this PCK but not directly
-                # touched by a mod. This transports pristine Patch.pck WEMs
-                # that would otherwise be lost when the override BNK is nulled.
+                # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs
+                # aren't lost when the override BNK is nulled.
                 touched_bnks = set(bnk_wems.keys())
                 for patch_bnk_id in list(patch_bnk_content.keys()):
                     if patch_bnk_id in touched_bnks:
@@ -764,9 +754,8 @@ class ModPackageManager:
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")
             finally:
-                # Explicit close: on Windows the file handles PCKPacker holds
-                # on original_pck + replacement WEMs would otherwise linger in
-                # the exception traceback and block the mod swap-in.
+                # On Windows the file handles must be released explicitly or they
+                # linger in the traceback and block the mod swap-in.
                 if 'packer' in locals():
                     packer.close()
 
