@@ -2628,8 +2628,32 @@ class AudioBrowserBridge(QObject):
             from src.audio.matcher import AudioMatcher
             from src.audio import constellation
 
-            ffmpeg_path = AudioConverter()._find_ffmpeg() or 'ffmpeg'
-            matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=self.fingerprint_db)
+            converter = AudioConverter()
+            ffmpeg_path = converter._find_ffmpeg()
+            vgmstream_path = converter._find_vgmstream()
+
+            missing = []
+            if not ffmpeg_path:
+                missing.append("FFmpeg")
+            if not vgmstream_path:
+                missing.append("vgmstream-cli")
+            if missing:
+                msg = QCoreApplication.translate(
+                    "Application",
+                    "%1 not found. Install audio tools from Settings first.",
+                ).replace("%1", " and ".join(missing))
+                QMetaObject.invokeMethod(
+                    self, "_onMatchError",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, msg),
+                )
+                return
+
+            matcher = AudioMatcher(
+                ffmpeg_path=ffmpeg_path,
+                vgmstream_path=vgmstream_path,
+                fingerprint_db=self.fingerprint_db,
+            )
 
             QMetaObject.invokeMethod(
                 self, "_onMatchStatus", Qt.QueuedConnection,
@@ -2679,17 +2703,23 @@ class AudioBrowserBridge(QObject):
             active_lang_name = (self.current_language_folder or "").strip().lower()
 
             constellation_idx = self.constellation_index
+            index_stats = {"indexed": 0, "skipped": 0}
 
             def _index_wem_bytes(wem_bytes):
                 if constellation_idx is None or constellation_idx.has_file(wem_bytes):
                     return
                 try:
-                    audio = constellation.decode_wem_bytes(ffmpeg_path, wem_bytes)
+                    audio = constellation.decode_wem_bytes(
+                        ffmpeg_path, wem_bytes, vgmstream_path,
+                    )
                     if audio is None or len(audio) == 0:
+                        index_stats["skipped"] += 1
                         return
                     h = constellation.extract_hashes(audio)
                     constellation_idx.add_file(wem_bytes, h)
+                    index_stats["indexed"] += 1
                 except Exception as e:
+                    index_stats["skipped"] += 1
                     logger.debug(f"[AudioMatch] Failed to index wem: {e}")
 
             QMetaObject.invokeMethod(
@@ -2701,6 +2731,12 @@ class AudioBrowserBridge(QObject):
             for pck_idx, pck_file in enumerate(pck_files):
                 if cancel_event.is_set():
                     return
+
+                QMetaObject.invokeMethod(
+                    self, "_onMatchProgress",
+                    Qt.QueuedConnection,
+                    Q_ARG(int, pck_idx + 1), Q_ARG(int, total_pcks),
+                )
 
                 try:
                     indexer = PCKIndexer(str(pck_file))
@@ -2790,6 +2826,18 @@ class AudioBrowserBridge(QObject):
                     Q_ARG(str, QCoreApplication.translate("Application", "No audio files found in the current directory.")),
                 )
                 return
+
+            if index_stats["indexed"] > 0 or index_stats["skipped"] > 0:
+                summary = QCoreApplication.translate(
+                    "Application",
+                    "Indexed %1 new sounds (%2 skipped)",
+                ).replace("%1", str(index_stats["indexed"])).replace("%2", str(index_stats["skipped"]))
+                logger.info(f"[AudioMatch] {summary}")
+                QMetaObject.invokeMethod(
+                    self, "_onMatchStatus",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, summary),
+                )
 
             shortlist_candidates = candidates
             if constellation_idx is not None and recording_hashes:

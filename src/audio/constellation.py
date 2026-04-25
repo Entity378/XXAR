@@ -13,6 +13,7 @@ HOP = 2048
 PEAK_TIME_WINDOW = 21
 PEAK_FREQ_WINDOW = 3
 PEAK_PERCENTILE = 85
+PEAKS_PER_SECOND = 8
 
 FAN_OUT = 3
 DT_MIN_S = 0.1
@@ -50,6 +51,21 @@ def extract_hashes(audio_data, sample_rate=SAMPLE_RATE):
     f_idx, t_idx = np.nonzero(peak_mask)
     if len(f_idx) == 0:
         return []
+
+    if PEAKS_PER_SECOND > 0:
+        mags = Sxx[f_idx, t_idx]
+        bucket = t[t_idx].astype(int)
+        keep = np.ones(len(f_idx), dtype=bool)
+        for b in np.unique(bucket):
+            idx_in = np.where(bucket == b)[0]
+            if len(idx_in) > PEAKS_PER_SECOND:
+                bucket_mags = mags[idx_in]
+                drop = idx_in[np.argsort(-bucket_mags)[PEAKS_PER_SECOND:]]
+                keep[drop] = False
+        f_idx = f_idx[keep]
+        t_idx = t_idx[keep]
+        if len(f_idx) == 0:
+            return []
 
     order = np.lexsort((f_idx, t_idx))
     f_idx = f_idx[order]
@@ -128,7 +144,7 @@ def decode_file(ffmpeg_path, audio_path, sample_rate=SAMPLE_RATE):
         return None
 
 
-def decode_wem_bytes(ffmpeg_path, wem_bytes, sample_rate=SAMPLE_RATE):
+def decode_wem_bytes(ffmpeg_path, wem_bytes, vgmstream_path, sample_rate=SAMPLE_RATE):
     import subprocess
     import tempfile
     from pathlib import Path
@@ -151,15 +167,15 @@ def decode_wem_bytes(ffmpeg_path, wem_bytes, sample_rate=SAMPLE_RATE):
 
         try:
             subprocess.run(
-                ['vgmstream-cli', '-o', str(tmp_wav_path), str(tmp_wem_path)],
+                [vgmstream_path, '-o', str(tmp_wav_path), str(tmp_wem_path)],
                 capture_output=True, check=True, timeout=10,
                 **_subprocess_kwargs,
             )
-            input_path = tmp_wav_path
-        except Exception:
-            input_path = tmp_wem_path
+        except Exception as e:
+            logger.debug(f"[Constellation] vgmstream skipped wem: {e}")
+            return None
 
-        return _ffmpeg_to_pcm(ffmpeg_path, input_path, sample_rate)
+        return _ffmpeg_to_pcm(ffmpeg_path, tmp_wav_path, sample_rate)
     except Exception as e:
         logger.error(f"[Constellation] Failed to decode wem bytes: {e}")
         return None

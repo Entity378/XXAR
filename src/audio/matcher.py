@@ -59,8 +59,9 @@ DEFAULT_WEIGHTS = {
 
 class AudioMatcher:
 
-    def __init__(self, ffmpeg_path='ffmpeg', fingerprint_db=None):
+    def __init__(self, ffmpeg_path, vgmstream_path, fingerprint_db=None):
         self.ffmpeg_path = ffmpeg_path
+        self.vgmstream_path = vgmstream_path
         self.fingerprint_db = fingerprint_db
 
     def extract_fingerprint(self, audio_path, sample_rate=48000):
@@ -76,16 +77,20 @@ class AudioMatcher:
 
             try:
                 subprocess.run(
-                    ['vgmstream-cli', '-o', str(intermediate_wav), str(audio_path)],
+                    [self.vgmstream_path, '-o', str(intermediate_wav), str(audio_path)],
                     capture_output=True,
                     check=True,
                     timeout=10,
                     **_subprocess_kwargs
                 )
-                input_file = intermediate_wav
-            except Exception:
-
-                input_file = audio_path
+            except Exception as e:
+                if intermediate_wav.exists():
+                    try:
+                        intermediate_wav.unlink()
+                    except Exception:
+                        pass
+                raise Exception(f"vgmstream failed to decode .wem: {e}")
+            input_file = intermediate_wav
         else:
             input_file = audio_path
 

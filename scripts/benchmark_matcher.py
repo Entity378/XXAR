@@ -100,7 +100,7 @@ def _collect_candidates(audio_dir: Path):
                 continue
 
 
-def _populate_index(audio_dir: Path, idx: ConstellationIndex, ffmpeg_path: str):
+def _populate_index(audio_dir: Path, idx: ConstellationIndex, ffmpeg_path: str, vgmstream_path: str):
     print(f"Populating constellation index from {audio_dir} (cold cache is slow)...")
     count = 0
     t0 = time.time()
@@ -108,7 +108,7 @@ def _populate_index(audio_dir: Path, idx: ConstellationIndex, ffmpeg_path: str):
         count += 1
         if idx.has_file(wem_bytes):
             continue
-        audio = constellation.decode_wem_bytes(ffmpeg_path, wem_bytes)
+        audio = constellation.decode_wem_bytes(ffmpeg_path, wem_bytes, vgmstream_path)
         if audio is None or len(audio) == 0:
             continue
         idx.add_file(wem_bytes, constellation.extract_hashes(audio))
@@ -195,7 +195,9 @@ def main():
         cases = json.load(f)
     print(f"Loaded {len(cases)} cases from {manifest_path}")
 
-    ffmpeg_path = AudioConverter()._find_ffmpeg() or "ffmpeg"
+    converter = AudioConverter()
+    ffmpeg_path = converter._find_ffmpeg()
+    vgmstream_path = converter._find_vgmstream()
 
     fp_db = FingerprintDatabase(db_path=get_game_fingerprint_database_file(args.game_id))
     idx_path = get_game_constellation_index_file(args.game_id)
@@ -205,7 +207,7 @@ def main():
     idx = ConstellationIndex(sqlite_path=idx_path)
 
     if idx.stats()["files"] == 0:
-        _populate_index(audio_dir, idx, ffmpeg_path)
+        _populate_index(audio_dir, idx, ffmpeg_path, vgmstream_path)
 
     # Prefetch candidates once (shared across cases) to avoid re-extracting per case
     print("Loading candidate catalog into memory...")
@@ -213,7 +215,7 @@ def main():
     all_candidates = list(_collect_candidates(audio_dir))
     print(f"  {len(all_candidates)} candidates in {time.time()-t0:.1f}s")
 
-    matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=fp_db)
+    matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=fp_db, vgmstream_path=vgmstream_path)
 
     ranks = []
     times = []

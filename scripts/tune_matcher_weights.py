@@ -113,7 +113,9 @@ def main():
         cases = json.load(f)
     print(f"Loaded {len(cases)} cases from {manifest_path}")
 
-    ffmpeg_path = AudioConverter()._find_ffmpeg() or "ffmpeg"
+    converter = AudioConverter()
+    ffmpeg_path = converter._find_ffmpeg()
+    vgmstream_path = converter._find_vgmstream()
     fp_db = FingerprintDatabase(db_path=get_game_fingerprint_database_file(args.game_id))
     idx_path = get_game_constellation_index_file(args.game_id)
     if args.reset_index and idx_path.exists():
@@ -122,9 +124,13 @@ def main():
     idx = ConstellationIndex(sqlite_path=idx_path)
 
     if idx.stats()["files"] == 0:
-        _populate_index(audio_dir, idx, ffmpeg_path)
+        _populate_index(audio_dir, idx, ffmpeg_path, vgmstream_path)
 
-    matcher = AudioMatcher(ffmpeg_path=ffmpeg_path, fingerprint_db=fp_db)
+    matcher = AudioMatcher(
+        ffmpeg_path=ffmpeg_path,
+        vgmstream_path=vgmstream_path,
+        fingerprint_db=fp_db,
+    )
 
     print("Prefetching candidate catalog + fingerprints...")
     t0 = time.time()
