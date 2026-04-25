@@ -124,7 +124,7 @@ class SoundDatabase:
 
         try:
             with open(self.db_path, 'w', encoding='utf-8') as f:
-                json.dump(self.database, f, indent=2)
+                json.dump(self.database, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.error(f"Warning: Failed to save sound database: {e}")
 
@@ -132,7 +132,7 @@ class SoundDatabase:
 
         export_path = Path(export_path)
         with open(export_path, 'w', encoding='utf-8') as f:
-            json.dump(self.database, f, indent=2)
+            json.dump(self.database, f, indent=2, ensure_ascii=False)
 
     def import_from_file(self, import_path, merge=True):
 

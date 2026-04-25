@@ -152,7 +152,7 @@ class FetchModsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
-    def __init__(self, page=1, per_page=50, sort="default", category=None, gamebanana_game_id=app_config.GAMEBANANA_GAME_ID):
+    def __init__(self, page=1, per_page=50, sort="default", category=None, gamebanana_game_id=None):
         super().__init__()
         self.page = page
         self.per_page = per_page
@@ -276,7 +276,7 @@ class FetchMiscModsWorker(QThread):
 
     CONCURRENT_CHECKS = 5
 
-    def __init__(self, page=1, per_page=50, sort="default", gamebanana_game_id=app_config.GAMEBANANA_GAME_ID):
+    def __init__(self, page=1, per_page=50, sort="default", gamebanana_game_id=None):
         super().__init__()
         self.page = page
         self.per_page = per_page

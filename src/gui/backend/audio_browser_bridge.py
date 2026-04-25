@@ -51,8 +51,6 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-OFFICIAL_TAG_DB_URL = f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
-
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
 def _get_tag_db_url():
@@ -60,7 +58,7 @@ def _get_tag_db_url():
     if DEV_MODE:
         dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
-    return OFFICIAL_TAG_DB_URL
+    return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
 
 class _WorkerThread(QThread):
 
