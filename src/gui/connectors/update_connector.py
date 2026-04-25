@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import QApplication
 
 from src.core.config_manager import get_cache_dir
 from src.core.app_config import APP_NAME, FLATPAK_ENV_VAR
+import src.core.app_config as app_config
+from src.gui.backend.update_manager_bridge import _get_real_exe_path
 
 
 from src.core.logger import get_logger
@@ -186,7 +188,7 @@ class UpdateConnector:
         if sys.platform.startswith("win"):
             QApplication.quit()
         else:
-            exe = self.update_manager_bridge._get_real_exe_path()
+            exe = _get_real_exe_path()
             logger.info(f"[{APP_NAME}]Launching updated binary: {exe}")
             import subprocess
             subprocess.Popen(
@@ -209,7 +211,7 @@ class UpdateConnector:
                     Qt.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Successful!")),
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "XXAR has been updated to version %1.").replace("%1", new_version)),
-                    Q_ARG("QVariant", f"../assets/{ASSETS_DIR}/VivianHappy.png"),
+                    Q_ARG("QVariant", f"../assets/{app_config.ASSETS_DIR}/VivianHappy.png"),
                 )
         except Exception as e:
             logger.error(f"[{APP_NAME}]Error checking update success flag: {e}")

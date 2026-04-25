@@ -43,10 +43,41 @@ def _read_msi_install_location():
         return None
 
 
+def _get_real_exe_path():
+    # pyinstaller onefile: sys.executable is inside the temp _MEI dir,
+    # not the actual exe on disk
+    if hasattr(sys, '_MEIPASS'):
+        if sys.platform.startswith("win"):
+            import ctypes
+            buf = ctypes.create_unicode_buffer(260)
+            ctypes.windll.kernel32.GetModuleFileNameW(None, buf, 260)
+            real_path = buf.value
+            if real_path and Path(real_path).exists():
+                return real_path
+        # linux/macOS: sys.argv[0] is the real binary path
+        resolved = str(Path(sys.argv[0]).resolve())
+        if Path(resolved).exists():
+            return resolved
+    return sys.executable
+
+
 def _is_msi_install():
     if os.environ.get("XXAR_UPDATE_FORCE_PORTABLE") == "1":
         return False
-    return _read_msi_install_location() is not None
+    msi_root = _read_msi_install_location()
+    if msi_root is None:
+        return False
+    # If the running exe is not under the registered root,
+    # fall back to the ZIP flow — otherwise the MSI flow would silently
+    # upgrade a different install than the one the user is actually running.
+    try:
+        exe = Path(_get_real_exe_path()).resolve()
+        msi_resolved = msi_root.resolve()
+        exe_norm = os.path.normcase(str(exe))
+        root_norm = os.path.normcase(str(msi_resolved))
+        return exe_norm.startswith(root_norm + os.sep)
+    except OSError:
+        return False
 
 
 def _get_ssl_context():
@@ -383,24 +414,6 @@ class UpdateManagerBridge(QObject):
         self.updateError.emit(message)
 
     @staticmethod
-    def _get_real_exe_path():
-        # pyinstaller onefile: sys.executable is inside the temp _MEI dir,
-        # not the actual exe on disk
-        if hasattr(sys, '_MEIPASS'):
-            if sys.platform.startswith("win"):
-                import ctypes
-                buf = ctypes.create_unicode_buffer(260)
-                ctypes.windll.kernel32.GetModuleFileNameW(None, buf, 260)
-                real_path = buf.value
-                if real_path and Path(real_path).exists():
-                    return real_path
-            # linux/macOS: sys.argv[0] is the real binary path
-            resolved = str(Path(sys.argv[0]).resolve())
-            if Path(resolved).exists():
-                return resolved
-        return sys.executable
-
-    @staticmethod
     def _get_install_root(current_exe):
         # Onefolder layout: <root>/Resources/Bin/XXAR.exe.
         # The install root is the grand-grandparent of the exe.
@@ -429,7 +442,7 @@ class UpdateManagerBridge(QObject):
             return
 
         try:
-            current_exe = self._get_real_exe_path()
+            current_exe = _get_real_exe_path()
             logger.info(f"[Updater] Applying update ({self._downloaded_kind})...")
             logger.info(f"[Updater] Real exe path: {current_exe}")
             logger.info(f"[Updater] Source: {self._downloaded_path}")
@@ -459,7 +472,7 @@ class UpdateManagerBridge(QObject):
         args = [
             "msiexec", "/i", str(msi_path),
             "/qr", "/norestart",
-            f"APPDIR={install_root}",
+            f'APPDIR="{install_root}"',
         ]
         # Same reason as _apply_zip_update: the parent's cwd is Resources/Bin
         # and msiexec must be able to delete/rename that dir during upgrade.
