@@ -15,6 +15,11 @@ runtime-version: '5.15-24.08'
 sdk: org.kde.Sdk
 command: xxar
 
+# KDE 5.15 SDK doesn't ship `appstream-compose`, so the automatic AppStream
+# validation step at the end of the build crashes with "No such file or
+# directory". The metainfo XML is still installed under /app/share/metainfo/.
+appstream-compose: false
+
 add-extensions:
   org.freedesktop.Platform.ffmpeg-full:
     directory: lib/ffmpeg
