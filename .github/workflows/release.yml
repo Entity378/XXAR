@@ -1,13 +1,9 @@
 name: Release
 
-# Tag push: build + upload artifacts to the run (no draft release).
-# Manual trigger (Actions -> Run workflow): build + create a draft release
+# Manual trigger only (Actions -> Run workflow): build + create a draft release
 # with artifacts attached, ready to be edited and published.
 
 on:
-  push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+*"
   workflow_dispatch:
     inputs:
       version:
