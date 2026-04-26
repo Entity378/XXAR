@@ -47,6 +47,20 @@ _AUDIO_SETTING_KEYS = (
 )
 
 
+def count_replacements(metadata):
+    # Total file replacements across all PCKs. Handles both the legacy v1.0
+    # flat layout `{pck: {file_id: info}}` and the v2.0/v3.0 per-bnk layout
+    # `{pck: {bnk_key: {file_id: info}}}`.
+    replacements = metadata.get('replacements', {}) if isinstance(metadata, dict) else {}
+    fmt = metadata.get('format_version', '1.0') if isinstance(metadata, dict) else '1.0'
+    if fmt in ('2.0', '3.0'):
+        return sum(
+            sum(len(files) for files in bnks.values())
+            for bnks in replacements.values()
+        )
+    return sum(len(files) for files in replacements.values())
+
+
 def _extract_audio_settings(file_info):
     # Pick only non-default fields so old mods and unchanged settings
     # stay absent from metadata.json (backwards-compatible).

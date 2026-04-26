@@ -478,9 +478,8 @@ class ModManagerBridge(QObject):
             logger.info(f"[Mod Manager]   Version: {metadata.get('version', '1.0.0')}")
             logger.info(f"[Mod Manager]   Description: {metadata.get('description', 'N/A')}")
 
-            replacement_count = sum(
-                len(files) for files in metadata.get("replacements", {}).values()
-            )
+            from src.mods.package_manager import count_replacements
+            replacement_count = count_replacements(metadata)
             pck_count = len(metadata.get("replacements", {}))
             logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
 
@@ -825,13 +824,11 @@ class ModManagerBridge(QObject):
                 logger.info(f"[Mod Manager] Mod not found: {mod_uuid}")
                 return None
 
+            from src.mods.package_manager import count_replacements
             mod_info = self.mod_package_manager.mod_config["installed_mods"][mod_uuid]
             metadata = mod_info.get("metadata", {})
             replacements = metadata.get("replacements", {})
-
-            file_count = 0
-            for pck_name, pck_files in replacements.items():
-                file_count += len(pck_files)
+            file_count = count_replacements(metadata)
 
             thumbnail_path = ""
             if metadata.get("thumbnail"):
@@ -1026,6 +1023,9 @@ class ModManagerBridge(QObject):
                 logger.info("[Mod Manager] Export cancelled by user")
                 return
 
+            if not save_path.lower().endswith(app_config.MOD_FILE_EXT.lower()):
+                save_path += app_config.MOD_FILE_EXT
+
             mod_dir = self.mod_package_manager.mods_dir / mod_uuid
             if not mod_dir.exists():
                 self.errorOccurred.emit("Error", "Mod files not found")
@@ -1053,22 +1053,35 @@ class ModManagerBridge(QObject):
             from src.mods.package_manager import _AUDIO_SETTING_KEYS
 
             current_replacements = {}
-            for pck_name, files in full_metadata.get('replacements', {}).items():
+            for pck_name, bnks in full_metadata.get('replacements', {}).items():
                 current_replacements[pck_name] = {}
-                for file_id, file_info in files.items():
-                    wem_file = wem_dir / f"{file_id}.wem"
-                    if wem_file.exists():
+                for bnk_key, files in bnks.items():
+                    if bnk_key == 'direct':
+                        bnk_id = None
+                        sub_dir = wem_dir / 'direct'
+                    else:
+                        bnk_id_str = bnk_key[:-len('.bnk')] if bnk_key.endswith('.bnk') else bnk_key
+                        try:
+                            bnk_id = int(bnk_id_str)
+                        except ValueError:
+                            bnk_id = bnk_id_str
+                        sub_dir = wem_dir / str(bnk_id)
+                    for file_id, file_info in files.items():
+                        wem_file = sub_dir / f"{file_id}.wem"
+                        if not wem_file.exists():
+                            continue
+                        tracker_key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
                         entry = {
                             'wem_path': str(wem_file),
                             'sound_name': file_info.get('sound_name', ''),
                             'lang_id': file_info.get('lang_id', 0),
-                            'bnk_id': file_info.get('bnk_id'),
-                            'file_type': file_info.get('file_type', 'wem')
+                            'bnk_id': bnk_id,
+                            'file_type': file_info.get('file_type', 'wem'),
                         }
                         for audio_key in _AUDIO_SETTING_KEYS:
                             if audio_key in file_info:
                                 entry[audio_key] = file_info[audio_key]
-                        current_replacements[pck_name][file_id] = entry
+                        current_replacements[pck_name][tracker_key] = entry
 
             export_metadata = {
                 'name': full_metadata.get('name', 'Unknown'),

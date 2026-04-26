@@ -2194,7 +2194,7 @@ class AudioBrowserBridge(QObject):
         if not filename:
             return
 
-        if not filename.endswith(app_config.MOD_FILE_EXT):
+        if not filename.lower().endswith(app_config.MOD_FILE_EXT.lower()):
             filename += app_config.MOD_FILE_EXT
 
         try:

@@ -247,7 +247,8 @@ class ImportWorker(QThread):
                     }
 
                 for pck_name, pck_files_map in replacements.items():
-                    self.progress.emit(f"  {pck_name}: {len(pck_files_map)} file(s)")
+                    file_count = sum(len(files) for files in pck_files_map.values())
+                    self.progress.emit(f"  {pck_name}: {file_count} file(s)")
 
             elif import_mode in ['wem_file', 'wem_folder']:
                 # Normalize 16-char hex IDs to decimal up front.
@@ -397,7 +398,8 @@ class ImportWorker(QThread):
                 self.progress.emit(f"Processed {len(files)} WEM files into {len(replacements)} PCK(s)")
 
                 for pck_name, pck_files in replacements.items():
-                    self.progress.emit(f"  {pck_name}: {len(pck_files)} file(s)")
+                    file_count = sum(len(files) for files in pck_files.values())
+                    self.progress.emit(f"  {pck_name}: {file_count} file(s)")
 
             self.progress.emit(f"Creating {app_config.MOD_FILE_EXT} package...")
             self.progressPercent.emit(70)
