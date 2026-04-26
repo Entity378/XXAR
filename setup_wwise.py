@@ -124,7 +124,7 @@ class WwiseSetup:
                     percent = min(downloaded * 100 / total_size, 100)
                     mb_downloaded = downloaded / 1024 / 1024
                     mb_total = total_size / 1024 / 1024
-                    logger.info(f"\r  Progress: {percent:.1f}% ({mb_downloaded:.1f} / {mb_total:.1f} MB)", end='')
+                    logger.info(f"  Progress: {percent:.1f}% ({mb_downloaded:.1f} / {mb_total:.1f} MB)")
 
             urllib.request.urlretrieve(
                 self.download_url,

@@ -50,7 +50,7 @@
   </requires>
 
   <releases>
-    <release version="0.8.5-alpha" date="2026-04-25">
+    <release version="0.8.6-alpha" date="2026-04-25">
       <description>
         <p>First Flatpak release of XXAR after the fork from ZZAR/SRAR.</p>
         <ul>
