@@ -17,10 +17,11 @@ class ImportWorker(QThread):
     progressPercent = pyqtSignal(int)
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, data, game_audio_dir, mod_package_manager):
+    def __init__(self, data, game_audio_dir, mod_package_manager, persistent_audio_dir=None):
         super().__init__()
         self.data = data
         self.game_audio_dir = game_audio_dir
+        self.persistent_audio_dir = persistent_audio_dir
         self.mod_package_manager = mod_package_manager
         self.game_id = detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID)
         self.game = get_game(self.game_id)
@@ -36,6 +37,8 @@ class ImportWorker(QThread):
     def _priority_label(self, priority):
         if priority == 1:
             return self.game.soundbank_pck_prefix or "Primary"
+        if priority < 0:
+            return "Persistent"
         return self.game.streamed_pck_prefix or "Streamed"
 
     def _priority_suffix(self, priority):
@@ -48,6 +51,29 @@ class ImportWorker(QThread):
         top_dir = rel.parts[0]
         non_language_tabs = set(self.game.non_language_tabs or ())
         return top_dir not in non_language_tabs
+
+    def _build_scan_sources(self, game_audio_dir, name_filter=None):
+        sources = []
+
+        for pck_path in game_audio_dir.rglob('*.pck'):
+            if name_filter is not None and pck_path.name not in name_filter:
+                continue
+            try:
+                logical_name = str(pck_path.relative_to(game_audio_dir)).replace("\\", "/")
+            except ValueError:
+                logical_name = pck_path.name
+            sources.append((pck_path, logical_name, self._get_pck_priority(pck_path.name)))
+
+        if self.persistent_audio_dir:
+            persistent_root = Path(self.persistent_audio_dir)
+            if persistent_root.exists():
+                from src.wwise.patch_target_resolver import find_patch_pck_sources
+                for scan_path, override_name in find_patch_pck_sources(persistent_root, self.game):
+                    if name_filter is not None and override_name not in name_filter:
+                        continue
+                    sources.append((scan_path, override_name, -1))
+
+        return sources
 
     def run(self):
 
@@ -138,33 +164,26 @@ class ImportWorker(QThread):
                 skipped_bnks = 0
                 skipped_wems = 0
 
-                all_game_pcks = list(game_audio_dir.rglob('*.pck'))
-                game_pck_files = [p for p in all_game_pcks if p.name in input_pck_names]
-                total_game_pcks = len(game_pck_files)
+                scan_sources = self._build_scan_sources(game_audio_dir, name_filter=input_pck_names)
+                total_game_pcks = len(scan_sources)
 
                 if total_game_pcks == 0:
-                    self.progress.emit(f"Warning: No matching game PCKs found for {input_pck_names}. Searched {len(all_game_pcks)} game PCKs.")
+                    self.progress.emit(f"Warning: No matching game PCKs found for {input_pck_names}.")
 
                 from XXAR import get_temp_dir
                 with tempfile.TemporaryDirectory(prefix='mod_bnk_scan_', dir=str(get_temp_dir())) as _tbd:
                     temp_bnk_dir = Path(_tbd)
 
-                    for idx, game_pck_path in enumerate(game_pck_files):
+                    for idx, (game_pck_path, game_pck_name, priority) in enumerate(scan_sources):
                         scan_progress = int(30 + ((idx + 1) / max(total_game_pcks, 1)) * 25)
                         self.progressPercent.emit(scan_progress)
 
                         if idx % 5 == 0:
-                            self.progress.emit(f"Scanning {game_pck_path.name} ({idx+1}/{total_game_pcks})...")
+                            self.progress.emit(f"Scanning {Path(game_pck_name).name} ({idx+1}/{total_game_pcks})...")
 
                         try:
                             indexer = PCKIndexer(str(game_pck_path))
                             indexer.build_index()
-
-                            try:
-                                game_pck_name = str(game_pck_path.relative_to(game_audio_dir)).replace("\\", "/")
-                            except ValueError:
-                                game_pck_name = game_pck_path.name
-                            priority = self._get_pck_priority(game_pck_path.name)
 
                             for bnk_info in indexer.index_data['banks']:
                                 bnk_id = bnk_info['id']
@@ -274,29 +293,23 @@ class ImportWorker(QThread):
 
                 file_id_to_pck = {}
 
-                pck_files = list(game_audio_dir.rglob('*.pck'))
-                total_pcks = len(pck_files)
+                scan_sources = self._build_scan_sources(game_audio_dir)
+                total_pcks = len(scan_sources)
 
                 from XXAR import get_temp_dir
                 temp_bnk_dir = Path(tempfile.mkdtemp(prefix='mod_bnk_scan_', dir=str(get_temp_dir())))
 
-                for idx, pck_path in enumerate(pck_files):
+                for idx, (pck_path, pck_name, priority) in enumerate(scan_sources):
                     scan_progress = int(5 + ((idx + 1) / max(total_pcks, 1)) * 50)
                     self.progressPercent.emit(scan_progress)
 
                     if idx % 5 == 0:
-                        self.progress.emit(f"Scanning {pck_path.name} ({idx+1}/{total_pcks})...")
+                        self.progress.emit(f"Scanning {Path(pck_name).name} ({idx+1}/{total_pcks})...")
 
                     try:
 
                         indexer = PCKIndexer(str(pck_path))
                         indexer.build_index()
-
-                        try:
-                            pck_name = str(pck_path.relative_to(game_audio_dir)).replace("\\", "/")
-                        except ValueError:
-                            pck_name = pck_path.name
-                        priority = self._get_pck_priority(pck_path.name)
 
                         bnk_wems = 0
                         for bnk_info in indexer.index_data['banks']:
@@ -367,7 +380,11 @@ class ImportWorker(QThread):
                             pck_name = str(candidates[0])
                         else:
                             pck_name = "Unknown.pck"
-                        bnk_id = wem_path.split('_bnk')[0].split('/')[1] if '_bnk' in wem_path else None
+                        bnk_id = None
+                        for part in Path(wem_path).parts:
+                            if part.endswith('_bnk'):
+                                bnk_id = part[:-len('_bnk')]
+                                break
                         lang_id = 0
                         self.progress.emit(f"Warning: File ID {file_id} not found in any game PCK")
 

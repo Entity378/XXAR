@@ -117,6 +117,7 @@ class ImportWizardConnector:
 
         settings = self.load_settings()
         game_audio_dir = settings.get("game_audio_dir", "")
+        persistent_audio_dir = settings.get("persistent_audio_dir", "")
 
         if not game_audio_dir or not Path(game_audio_dir).exists():
             self.mod_manager_bridge.errorOccurred.emit(
@@ -166,7 +167,10 @@ class ImportWizardConnector:
         from src.gui.backend.import_worker import ImportWorker
 
         self.import_worker = ImportWorker(
-            import_data, game_audio_dir, self.mod_manager_bridge.mod_package_manager
+            import_data,
+            game_audio_dir,
+            self.mod_manager_bridge.mod_package_manager,
+            persistent_audio_dir,
         )
 
         self.import_worker.progress.connect(self.on_import_progress)
