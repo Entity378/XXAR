@@ -271,14 +271,16 @@ class AudioBrowserBridge(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
         self.settings_file = get_settings_file()
 
         self.cache_manager = TempCacheManager(max_cached_files=100)
         self.audio_player = AudioPlayer(AudioConverter(), self.cache_manager)
-        self.sound_db = SoundDatabase()
-        self.fingerprint_db = FingerprintDatabase()
+        # Real DBs are constructed by _set_active_game_databases() at end of __init__.
+        self.sound_db = None
+        self.fingerprint_db = None
         self.constellation_index = None
-        self.mod_manager = PersistentModManager(game_id=DEFAULT_GAME_ID)
+        self.mod_manager = None
 
         self.game_root_dir = None
         self.game_mode = DEFAULT_GAME_ID

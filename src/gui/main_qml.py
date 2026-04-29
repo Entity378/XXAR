@@ -205,7 +205,6 @@ class Application(
         self._startup_update_check = False
 
     def run(self):
-
         logger.info("=" * 50)
         logger.info(f"{APP_NAME} - {app_config.APP_FULL_NAME}")
         logger.info("QML UI Version")

@@ -26,14 +26,24 @@ class FingerprintDatabase:
         self.database = {}
         self.lock = threading.Lock()
         self._pending_saves = 0
-        self.load()
+        self._loaded = False
+
+    def ensure_loaded(self):
+        # JSON can be MB-scale, so we defer the read to first access.
+        if self._loaded:
+            return
+        with self.lock:
+            if self._loaded:
+                return
+            self.load()
+            self._loaded = True
 
     def calculate_hash(self, file_bytes):
 
         return hashlib.sha256(file_bytes).hexdigest()
 
     def add_fingerprint(self, file_bytes, fingerprint):
-        
+        self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
         with self.lock:
             self.database[sound_hash] = {
@@ -48,7 +58,7 @@ class FingerprintDatabase:
                 self._pending_saves = 0
 
     def get_fingerprint(self, file_bytes):
-        
+        self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
 
         entry = self.database.get(sound_hash)
@@ -59,7 +69,7 @@ class FingerprintDatabase:
         return None
 
     def has_fingerprint(self, file_bytes):
-        
+        self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
         entry = self.database.get(sound_hash)
         return entry is not None and entry.get('version') == self.FINGERPRINT_VERSION
@@ -92,7 +102,7 @@ class FingerprintDatabase:
             self._pending_saves = 0
 
     def get_stats(self):
-        
+        self.ensure_loaded()
         total = len(self.database)
         current_version = sum(1 for e in self.database.values()
                              if e.get('version') == self.FINGERPRINT_VERSION)

@@ -8,7 +8,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+_LOG_FORMAT = "%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _CONFIGURED = False

@@ -21,14 +21,21 @@ class SoundDatabase:
             self.db_path = Path(db_path)
 
         self.database = {}
+        self._loaded = False
+
+    def ensure_loaded(self):
+        # Deferred to first access — the JSON read isn't needed at app boot.
+        if self._loaded:
+            return
         self.load()
+        self._loaded = True
 
     def calculate_hash(self, file_bytes):
 
         return hashlib.sha256(file_bytes).hexdigest()
 
     def add_sound(self, file_bytes, name, tags=None, notes="", file_id=None):
-
+        self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
         now = datetime.now().isoformat()
 
@@ -56,12 +63,12 @@ class SoundDatabase:
         return sound_hash
 
     def get_sound_info(self, file_bytes):
-
+        self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
         return self.database.get(sound_hash)
 
     def search_by_name(self, query):
-
+        self.ensure_loaded()
         query_lower = query.lower()
         results = {}
 
@@ -73,7 +80,7 @@ class SoundDatabase:
         return results
 
     def search_by_tag(self, tag):
-
+        self.ensure_loaded()
         tag_lower = tag.lower()
         results = {}
 
@@ -85,7 +92,7 @@ class SoundDatabase:
         return results
 
     def search_by_id(self, file_id):
-
+        self.ensure_loaded()
         results = {}
         variants = {file_id, str(file_id)}
         text = str(file_id).strip()
@@ -103,7 +110,7 @@ class SoundDatabase:
         return results
 
     def delete_sound(self, sound_hash):
-
+        self.ensure_loaded()
         if sound_hash in self.database:
             del self.database[sound_hash]
             self.save()
@@ -129,13 +136,13 @@ class SoundDatabase:
             logger.error(f"Warning: Failed to save sound database: {e}")
 
     def export_to_file(self, export_path):
-
+        self.ensure_loaded()
         export_path = Path(export_path)
         with open(export_path, 'w', encoding='utf-8') as f:
             json.dump(self.database, f, indent=2, ensure_ascii=False)
 
     def import_from_file(self, import_path, merge=True):
-
+        self.ensure_loaded()
         import_path = Path(import_path)
 
         with open(import_path, 'r', encoding='utf-8') as f:
@@ -157,7 +164,7 @@ class SoundDatabase:
         return count
 
     def get_stats(self):
-
+        self.ensure_loaded()
         total_sounds = len(self.database)
         tagged_sounds = sum(1 for info in self.database.values() if info['tags'])
         total_tags = set()
@@ -172,7 +179,7 @@ class SoundDatabase:
         }
 
     def get_all_tags(self):
-
+        self.ensure_loaded()
         all_tags = set()
         for info in self.database.values():
             all_tags.update(info['tags'])
