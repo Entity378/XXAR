@@ -92,7 +92,7 @@ class ReplaceAudioWorker(QThread):
     progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, custom_file_path, meta, normalize, mod_manager, audio_root=None, normalize_lufs=-9):
+    def __init__(self, custom_file_path, meta, normalize, mod_manager, audio_root=None, persistent_root=None, normalize_lufs=-9):
         super().__init__()
         self.custom_file_path = custom_file_path
         self.meta = meta
@@ -100,6 +100,7 @@ class ReplaceAudioWorker(QThread):
         self.normalize_lufs = normalize_lufs
         self.mod_manager = mod_manager
         self.audio_root = audio_root
+        self.persistent_root = persistent_root
 
     def run(self):
         try:
@@ -135,8 +136,8 @@ class ReplaceAudioWorker(QThread):
                 lang_id, bnk_id,
             )
 
-            streaming_path = pck_file_path.parent
-            persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
+            # Base must be the audio root: pck_filename can already include the lang folder.
+            persistent_path = Path(self.persistent_root) if self.persistent_root else pck_file_path.parent
             self.mod_manager.set_persistent_path(str(persistent_path))
 
             self.finished.emit(True,
@@ -1652,7 +1653,9 @@ class AudioBrowserBridge(QObject):
         self.loadingStarted.emit(QCoreApplication.translate("Application", "Converting audio..."))
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Processing your custom audio..."))
 
-        self._replace_worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, self.normalize_target_lufs)
+        game = self._active_game()
+        persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath) if self.game_root_dir else None
+        self._replace_worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, persistent_root, self.normalize_target_lufs)
         self._replace_worker.progress.connect(self._on_replace_progress)
         self._replace_worker.finished.connect(self._on_replace_finished)
         self._replace_worker.start()
@@ -1797,8 +1800,9 @@ class AudioBrowserBridge(QObject):
                 lang_id, bnk_id,
             )
 
-            streaming_path = pck_file_path.parent
-            persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
+            # Base must be the audio root: pck_filename can already include the lang folder.
+            game = self._active_game()
+            persistent_path = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath) if self.game_root_dir else pck_file_path.parent
             self.mod_manager.set_persistent_path(str(persistent_path))
 
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Audio muted: %1 (ID: %2) - Click 'Apply Changes' to activate").replace("%1", pck_filename).replace("%2", str(file_id)))
@@ -2011,11 +2015,8 @@ class AudioBrowserBridge(QObject):
             patch_bnk_content = {}
             try:
                 from src.wwise.patch_target_resolver import resolve_and_extract
-                persistent_base_for_resolver = Path(
-                    str(streaming_base).replace("StreamingAssets", "Persistent")
-                )
                 patch_info = resolve_and_extract(
-                    replacements, streaming_base, persistent_base_for_resolver, game,
+                    replacements, streaming_base, persistent_path, game,
                 )
                 patch_bnk_content = patch_info.get("patch_bnk_content", {})
                 if patch_info.get("remapped"):
@@ -2048,8 +2049,7 @@ class AudioBrowserBridge(QObject):
                     self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", pck_filename))
                     continue
 
-                streaming_path = pck_file_path.parent
-                persistent_path = Path(str(streaming_path).replace("StreamingAssets", "Persistent"))
+                # Base must be the audio root: pck_filename can already include the lang folder.
                 persistent_path.mkdir(parents=True, exist_ok=True)
                 self.mod_manager.set_persistent_path(str(persistent_path))
 
@@ -2128,9 +2128,8 @@ class AudioBrowserBridge(QObject):
 
             try:
                 from src.wwise.override_pck_patcher import patch_override_pcks
-                persistent_base = Path(str(streaming_base).replace("StreamingAssets", "Persistent"))
                 patch_override_pcks(
-                    persistent_base,
+                    persistent_path,
                     replacements,
                     streaming_root=streaming_base,
                     progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),

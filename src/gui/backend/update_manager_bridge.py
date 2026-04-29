@@ -469,16 +469,15 @@ class UpdateManagerBridge(QObject):
         msi_path = Path(self._downloaded_path)
         install_root = self._get_install_root(current_exe)
 
-        # /qr = reduced UI (progress bar only), /norestart = leave reboot to us
-        args = [
-            "msiexec", "/i", str(msi_path),
-            "/qr", "/norestart",
-            f'APPDIR="{install_root}"',
-        ]
+        # Build the cmdline as a string and pass it directly
+        cmd_line = (
+            f'msiexec /i "{msi_path}" /qr /norestart '
+            f'APPDIR="{install_root}"'
+        )
         # Same reason as _apply_zip_update: the parent's cwd is Resources/Bin
         # and msiexec must be able to delete/rename that dir during upgrade.
-        logger.info(f"[Updater] Running: {' '.join(args)}")
-        subprocess.Popen(args, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
+        logger.info(f"[Updater] Running: {cmd_line}")
+        subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
 
     def _apply_zip_update(self, current_exe):
         staging_dir = Path(self._downloaded_path)

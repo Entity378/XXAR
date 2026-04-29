@@ -395,11 +395,15 @@ class BaseBrowserHandler:
         if not duration_ms_by_track and not volume_db_by_track:
             return {"patched_files": 0, "patched_ids": 0}
 
-        streaming_root = (
-            Path(self.bridge._audio_root)
-            if self.bridge and self.bridge._audio_root
+        game_root = (
+            Path(self.bridge.game_root_dir)
+            if self.bridge and self.bridge.game_root_dir
             else None
         )
+
+        streaming_root = game_root.joinpath(*self.game.game_audio_subpath) if game_root else None
+        persistent_root = game_root.joinpath(*self.game.persistent_audio_subpath) if game_root else None
+        
         if not streaming_root or not streaming_root.exists():
             raise FileNotFoundError(
                 QCoreApplication.translate(
@@ -418,9 +422,8 @@ class BaseBrowserHandler:
         patched_track_ids = set()
 
         for bank_source in bank_files:
-            bank_target_dir = Path(
-                str(bank_source.parent).replace("StreamingAssets", "Persistent")
-            )
+            rel_parent = bank_source.parent.relative_to(streaming_root)
+            bank_target_dir = persistent_root / rel_parent
             bank_target_dir.mkdir(parents=True, exist_ok=True)
             bank_target = bank_target_dir / bank_source.name
 
@@ -438,9 +441,6 @@ class BaseBrowserHandler:
             if did_patch:
                 patched_file_count += 1
 
-        persistent_root = Path(
-            str(streaming_root).replace("StreamingAssets", "Persistent")
-        )
 
         for titlescreen_pck in titlescreen_pcks:
             titlescreen_target = self._persistent_overlay_path(

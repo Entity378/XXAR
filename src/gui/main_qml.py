@@ -12,10 +12,10 @@ logger = get_logger(__name__)
 
 if IS_WINDOWS:
     os.environ["QT_QPA_PLATFORM"] = "windows:fontengine=freetype"
-from PyQt5.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase
+from PyQt5.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase, QPixmap
 from PyQt5.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
 from PyQt5.QtCore import QUrl, QObject, QCoreApplication, QMetaObject, Q_ARG, Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QSplashScreen
 
 class ClipboardHelper(QObject):
     @pyqtSlot(str)
@@ -234,6 +234,19 @@ class Application(
         if icon_path.exists():
             self.app.setWindowIcon(QIcon(str(icon_path)))
 
+        # Splash so the user sees branding immediately
+        self._splash = None
+        # try:
+        #     splash_path = ui_path / "assets" / "XXAR" / "XXAR-Logo2-512.png"
+        #     if splash_path.exists():
+        #         pixmap = QPixmap(str(splash_path))
+        #         self._splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
+        #         self._splash.show()
+        #         self.app.processEvents()
+        # except Exception as e:
+        #     logger.warning(f"[{APP_NAME}] Splash unavailable: {e}")
+        #     self._splash = None
+
         fonts_dir = ui_path / "assets" / "fonts"
 
         audiowide_font = fonts_dir / "Audiowide" / "Audiowide-Regular.ttf"
@@ -356,6 +369,9 @@ class Application(
         root.setProperty("y", win_y)
         logger.info(f"[{APP_NAME}] Window positioned: {win_w}x{win_h} at ({win_x},{win_y}), available: {avail_w}x{avail_h}")
 
+        if self._splash is not None:
+            self._splash.close()
+            self._splash = None
 
         self._connect_mod_manager()
         self._connect_audio_browser()
