@@ -403,12 +403,20 @@ class BaseBrowserHandler:
 
         streaming_root = game_root.joinpath(*self.game.game_audio_subpath) if game_root else None
         persistent_root = game_root.joinpath(*self.game.persistent_audio_subpath) if game_root else None
-        
+
         if not streaming_root or not streaming_root.exists():
             raise FileNotFoundError(
                 QCoreApplication.translate(
                     "Application",
                     "Could not locate Streaming AudioAssets folder.",
+                )
+            )
+        
+        if not persistent_root or not persistent_root.exists():
+            raise FileNotFoundError(
+                QCoreApplication.translate(
+                    "Application",
+                    "Could not locate Persistent AudioAssets folder.",
                 )
             )
 
