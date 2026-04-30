@@ -32,6 +32,7 @@ logger = get_logger(__name__)
 
 class SettingsConnector:
     _swap_in_progress = False
+    _settings_target_game_id = None
 
     def _set_root_active_game_props(self, game_id):
         if not self.root:
@@ -185,6 +186,7 @@ class SettingsConnector:
             next_game = self._cycle_game_id(current)
             active_game_id, game_data_dir = self._switch_active_game(next_game)
             active_game = get_game(active_game_id)
+            self._set_settings_target_game(active_game_id)
 
             message = QCoreApplication.translate(
                 "Application", "Active game: %1"
@@ -218,17 +220,21 @@ class SettingsConnector:
     def _unlock_swap(self):
         self._swap_in_progress = False
 
-    def _store_game_data_dir_settings(self, settings, game_data_dir, set_active=False):
-        if not game_data_dir:
+    def _store_game_data_dir_settings(
+        self, settings, game_data_dir, target_game_id, set_active=False
+    ):
+        if not game_data_dir or not target_game_id:
             return None
 
         normalized = normalize_game_data_dir(game_data_dir)
         if not is_valid_game_data_dir(normalized):
             return None
 
-        game_id = normalize_game_id(
-            detect_game_id_from_path(normalized, default=DEFAULT_GAME_ID)
-        )
+        game_id = normalize_game_id(target_game_id)
+        expected_data_dir_name = get_game(game_id).data_dir_name
+        if normalized.name != expected_data_dir_name:
+            return None
+
         game_audio_key, persistent_audio_key = get_audio_settings_keys(game_id)
         audio_dir, persistent_dir = build_audio_paths(game_id, normalized)
         settings[game_audio_key] = str(audio_dir)
@@ -249,6 +255,23 @@ class SettingsConnector:
             audio_dir = settings.get("game_audio_dir", "")
         return extract_game_data_dir_from_audio_path(audio_dir)
 
+    def _set_settings_target_game(self, game_id, settings=None):
+        target = normalize_game_id(game_id)
+        self._settings_target_game_id = target
+        if not self.settings_page:
+            return target
+        if settings is None:
+            settings = self.load_settings()
+        saved_dir = self._get_saved_game_data_dir(settings, target) or ""
+        game = get_game(target)
+        self.settings_page.setProperty("gameDataFolderName", game.data_dir_name)
+        self.settings_page.setProperty("targetGameId", target)
+        self.settings_page.setGameDirectory(saved_dir)
+        return target
+
+    def on_settings_target_game_changed(self, game_id):
+        self._set_settings_target_game(game_id)
+
     @staticmethod
     def _get_custom_mods_dir_for_game(settings, game_id):
         custom_key = get_custom_mod_library_settings_key(game_id)
@@ -267,6 +290,7 @@ class SettingsConnector:
         self.settings_page.browseModsDirClicked.connect(self.on_browse_mods_dir)
         self.settings_page.resetModsDirClicked.connect(self.on_reset_mods_dir)
         self.settings_page.saveSettingsClicked.connect(self.on_save_settings)
+        self.settings_page.targetGameChanged.connect(self.on_settings_target_game_changed)
 
         self.settings_page.modCreationModeToggled.connect(
             self.mod_manager_bridge.setModCreationMode
@@ -407,6 +431,7 @@ class SettingsConnector:
         if selected_data_dir:
             self.settings_page.setGameDirectory(selected_data_dir)
         self._set_root_active_game_props(selected_game)
+        self._set_settings_target_game(selected_game, settings=settings)
 
         self.settings_page.setProperty(
             "defaultModsDirectory", str(get_game_mod_library_dir(selected_game))
@@ -532,7 +557,7 @@ class SettingsConnector:
     def on_browse_game_dir(self):
         current = self.settings_page.property("gameDirectory")
         start_dir = current if current and Path(current).exists() else str(Path.home())
-        game_id = self._get_selected_or_detected_game_id(current or "")
+        game_id = self._settings_target_game_id or self._get_selected_or_detected_game_id(current or "")
         game_data_folder = get_game(game_id).data_dir_name
 
         dirname = NativeDialogs.get_directory(
@@ -541,7 +566,7 @@ class SettingsConnector:
 
         if dirname:
             selected_path = normalize_game_data_dir(dirname)
-            if not is_valid_game_data_dir(selected_path):
+            if not is_valid_game_data_dir(selected_path) or selected_path.name != game_data_folder:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
@@ -578,7 +603,7 @@ class SettingsConnector:
         if self.settings_page:
             self.settings_page.setProperty("isAutoDetecting", True)
 
-        game_id = self._get_selected_or_detected_game_id(
+        game_id = self._settings_target_game_id or self._get_selected_or_detected_game_id(
             self.settings_page.property("gameDirectory") if self.settings_page else ""
         )
         game = get_game(game_id)
@@ -607,7 +632,7 @@ class SettingsConnector:
     def on_auto_detect_not_found_settings(self):
         if self.settings_page:
             self.settings_page.setProperty("isAutoDetecting", False)
-        game_id = self._get_selected_or_detected_game_id(
+        game_id = self._settings_target_game_id or self._get_selected_or_detected_game_id(
             self.settings_page.property("gameDirectory") if self.settings_page else ""
         )
         game_data_folder = get_game(game_id).data_dir_name
@@ -657,8 +682,9 @@ class SettingsConnector:
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
             gb_page.setProperty("thumbnailsEnabled", bool(enable_gb_thumbnails))
+        target_game_id = self._settings_target_game_id or current_game
         saved_game = self._store_game_data_dir_settings(
-            settings, game_path, set_active=True
+            settings, game_path, target_game_id, set_active=True
         )
         if saved_game:
             current_game = saved_game
@@ -668,6 +694,7 @@ class SettingsConnector:
                 settings["custom_mod_library_dir"] = custom_mods_dir
             logger.info(f"[Settings] Active game saved: {saved_game}")
         elif game_path:
+            expected_folder = get_game(target_game_id).data_dir_name
             QMetaObject.invokeMethod(
                 self.root,
                 "showAlertDialog",
@@ -675,7 +702,10 @@ class SettingsConnector:
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                 Q_ARG(
                     "QVariant",
-                    QCoreApplication.translate("Application", "The game directory is invalid, so it was not saved. All other settings have been saved."),
+                    QCoreApplication.translate(
+                        "Application",
+                        "The selected folder does not match the chosen game (%1). Pick the '%2' folder or switch to a different game tab.",
+                    ).replace("%1", get_game(target_game_id).display_name).replace("%2", expected_folder),
                 ),
                 Q_ARG("QVariant", ""),
             )
@@ -707,6 +737,7 @@ class SettingsConnector:
                 settings.get("selected_game", DEFAULT_GAME_ID)
             )
             self._set_root_active_game_props(active_game)
+            self._set_settings_target_game(active_game, settings=settings)
             active_data_dir = self._get_saved_game_data_dir(settings, active_game)
             if active_data_dir and self.audio_page:
                 QMetaObject.invokeMethod(
@@ -1010,7 +1041,7 @@ class SettingsConnector:
                 if gdir:
                     is_primary = (gid == primary_game)
                     self._store_game_data_dir_settings(
-                        settings, gdir, set_active=is_primary
+                        settings, gdir, gid, set_active=is_primary
                     )
 
             active_game_id = primary_game or normalize_game_id(

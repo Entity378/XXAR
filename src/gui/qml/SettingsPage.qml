@@ -12,6 +12,7 @@ Item {
     signal browseModsDirClicked()
     signal resetModsDirClicked()
     signal saveSettingsClicked(string gamePath)
+    signal targetGameChanged(string gameId)
     signal modCreationModeToggled(bool enabled)
     signal checkWwiseClicked()
     signal runWwiseSetupClicked()
@@ -29,6 +30,7 @@ Item {
 
     property string gameDirectory: ""
     property string gameDataFolderName: gameDataFolder
+    property string targetGameId: ""
     property string currentLanguage: "en"
     property real uiScale: 1.0
     property string modsDirectory: ""
@@ -607,6 +609,56 @@ Item {
                                 font.family: "Alatsi"
                                 font.pixelSize: 24
                                 font.weight: Font.Normal
+                            }
+
+                            Row {
+                                id: gameTargetPills
+                                spacing: 8
+                                visible: (typeof supportedGames !== "undefined") && supportedGames && supportedGames.length > 1
+
+                                Repeater {
+                                    model: (typeof supportedGames !== "undefined") ? supportedGames : []
+
+                                    delegate: Item {
+                                        width: pillLabel.implicitWidth + 28
+                                        height: 32
+
+                                        property bool isActive: settingsPage.targetGameId === modelData.id
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: 16
+                                            color: parent.isActive ? Theme.primaryAccent : "#1a1a1a"
+                                            border.color: parent.isActive ? Theme.primaryAccent : "#555555"
+                                            border.width: 1
+                                            scale: pillMouse.pressed ? 0.97 : (pillMouse.containsMouse ? 1.03 : 1.0)
+                                            Behavior on scale { NumberAnimation { duration: Theme.animationDuration } }
+                                            Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                                        }
+
+                                        Text {
+                                            id: pillLabel
+                                            anchors.centerIn: parent
+                                            text: modelData.shortLabel
+                                            color: parent.isActive ? Theme.textOnAccent : "#dddddd"
+                                            font.family: "Alatsi"
+                                            font.pixelSize: 13
+                                            font.weight: Font.Medium
+                                        }
+
+                                        MouseArea {
+                                            id: pillMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (settingsPage.targetGameId !== modelData.id) {
+                                                    settingsPage.targetGameChanged(modelData.id)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             Text {
@@ -2393,6 +2445,10 @@ Item {
     function setGameDirectory(path) {
         gameDirectory = path
         gameDirInput.text = path
+    }
+
+    function setTargetGameId(gameId) {
+        targetGameId = gameId
     }
 
     function setModsDirectory(path) {

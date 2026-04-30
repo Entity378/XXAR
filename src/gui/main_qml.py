@@ -36,7 +36,7 @@ from src.gui.backend.gamebanana_bridge import GameBananaBridge
 from src.gui.backend.ui_theme_bridge import UIThemeBridge
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
-from src.core.game_registry import DEFAULT_GAME_ID
+from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
 import src.core.app_config as app_config
 from src.core.app_config import (
     APP_NAME, APP_VERSION,
@@ -314,6 +314,19 @@ class Application(
         context.setContextProperty("accentColor", app_config.ACCENT_COLOR)
         context.setContextProperty("accentColorLight", app_config.ACCENT_COLOR_LIGHT)
         context.setContextProperty("accentColorDark", app_config.ACCENT_COLOR_DARK)
+
+        context.setContextProperty(
+            "supportedGames",
+            [
+                {
+                    "id": g.id,
+                    "displayName": g.display_name,
+                    "shortLabel": g.short_label,
+                    "dataDirName": g.data_dir_name,
+                }
+                for g in get_supported_games()
+            ],
+        )
 
         self.translation_manager = TranslationManager(self.engine)
         context.setContextProperty("translationManager", self.translation_manager)
