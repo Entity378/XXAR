@@ -51,16 +51,30 @@ class WwiseSetupWorker(QThread):
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
                     text=True,
-                    stdin=subprocess.PIPE,
+                    bufsize=1,
                     **SUBPROCESS_KWARGS,
                 )
-                stdout, _ = process.communicate(input="y\n")
+
+                output_lines = []
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        line_stripped = line.rstrip()
+                        output_lines.append(line_stripped)
+                        logger.info(f"[Wwise Setup] {line_stripped}")
+
+                process.wait()
 
                 if process.returncode == 0:
                     self.finished.emit(True, "Wwise setup completed successfully!")
                 else:
-                    self.finished.emit(False, f"Setup failed:\n{stdout}")
+                    error_preview = '\n'.join(output_lines[-10:]) if len(output_lines) > 10 else '\n'.join(output_lines)
+                    logger.error(f"[Wwise Setup] ERROR: Process failed with code {process.returncode}")
+                    logger.info("[Wwise Setup] Full output:")
+                    for line in output_lines:
+                        logger.info(f"  {line}")
+                    self.finished.emit(False, f"Setup failed (see logs for details):\n\n{error_preview}")
 
         except Exception as e:
             self.finished.emit(False, str(e))
@@ -94,20 +108,13 @@ class WindowsAudioToolsSetupWorker(QThread):
                 )
 
                 output_lines = []
-                try:
-                    for line in iter(process.stdout.readline, ''):
-                        if line:
-                            line_stripped = line.rstrip()
-                            output_lines.append(line_stripped)
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        line_stripped = line.rstrip()
+                        output_lines.append(line_stripped)
+                        logger.info(f"[Audio Tools Setup] {line_stripped}")
 
-                            logger.info(f"[Audio Tools Setup] {line_stripped}")
-
-                    process.wait(timeout=600)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    logger.error("[Audio Tools Setup] ERROR: Timed out after 10 minutes")
-                    self.finished.emit(False, "Setup timed out after 10 minutes")
-                    return
+                process.wait()
 
                 if process.returncode == 0:
                     self.finished.emit(True, "Windows audio tools setup completed successfully!")
@@ -118,7 +125,7 @@ class WindowsAudioToolsSetupWorker(QThread):
                     logger.info("[Audio Tools Setup] Full output:")
                     for line in output_lines:
                         logger.info(f"  {line}")
-                    self.finished.emit(False, f"Setup failed (see console for details):\n\n{error_preview}")
+                    self.finished.emit(False, f"Setup failed (see logs for details):\n\n{error_preview}")
 
         except Exception as e:
             self.finished.emit(False, str(e))
