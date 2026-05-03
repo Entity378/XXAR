@@ -13,6 +13,8 @@ CONFIG_DIR_NAME = "XXAR"
 FLATPAK_ENV_VAR = "XXAR_FLATPAK"
 FLATPAK_BUILD_ENV_VAR = "XXAR_FLATPAK_BUILD"
 
+DEBUG = False
+
 # ── Active game (mutable at runtime) ────────────────────────────
 # Initialised from DEFAULT_GAME_ID; updated by switch_active_game().
 

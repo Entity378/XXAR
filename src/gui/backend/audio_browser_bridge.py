@@ -54,8 +54,8 @@ logger = get_logger(__name__)
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
 def _get_tag_db_url():
-    from XXAR import DEV_MODE, get_base_path
-    if DEV_MODE:
+    if app_config.DEBUG:
+        from XXAR import get_base_path
         dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
     return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"

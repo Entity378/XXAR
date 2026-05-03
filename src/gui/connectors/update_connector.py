@@ -20,8 +20,7 @@ class UpdateConnector:
         if not self.settings_page:
             return
 
-        from XXAR import DEV_MODE
-        self.settings_page.setProperty("devMode", DEV_MODE)
+        self.settings_page.setProperty("devMode", app_config.DEBUG)
 
         settings = self.load_settings()
         self.settings_page.setProperty("githubToken", settings.get("github_token", ""))

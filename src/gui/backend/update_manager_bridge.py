@@ -437,12 +437,12 @@ class UpdateManagerBridge(QObject):
         if getattr(self, "_apply_in_progress", False):
             return
         self._apply_in_progress = True
-
-        if not self._downloaded_path or not Path(self._downloaded_path).exists():
-            self.updateError.emit("Downloaded update not found")
-            return
-
+        handed_off = False
         try:
+            if not self._downloaded_path or not Path(self._downloaded_path).exists():
+                self.updateError.emit("Downloaded update not found")
+                return
+
             current_exe = _get_real_exe_path()
             logger.info(f"[Updater] Applying update ({self._downloaded_kind})...")
             logger.info(f"[Updater] Real exe path: {current_exe}")
@@ -459,11 +459,15 @@ class UpdateManagerBridge(QObject):
                 return
 
             logger.info(f"[Updater] Update handoff complete")
+            handed_off = True
             self.updateApplied.emit()
 
         except Exception as e:
             logger.error(f"[Updater] Failed to apply update: {e}")
             self.updateError.emit(f"Failed to apply update: {e}")
+        finally:
+            if not handed_off:
+                self._apply_in_progress = False
 
     def _apply_msi_update(self, current_exe):
         msi_path = Path(self._downloaded_path)

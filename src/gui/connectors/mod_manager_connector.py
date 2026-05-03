@@ -58,8 +58,7 @@ class ModManagerConnector:
 
         mod_page.setProperty("modManager", self.mod_manager_bridge)
 
-        from XXAR import DEV_MODE
-        mod_page.setProperty("devMode", DEV_MODE)
+        mod_page.setProperty("devMode", app_config.DEBUG)
 
         logger.info(f"[{APP_NAME}] Mod manager page connected")
 

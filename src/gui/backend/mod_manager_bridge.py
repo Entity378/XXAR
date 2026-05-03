@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import src.core.app_config as app_config
 from src.core.app_config import CONFIG_DIR_NAME, APP_NAME
-from src.core.subprocess_utils import IS_WINDOWS
+from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 
 from src.mods.package_manager import ModPackageManager, InvalidModPackageError
 from src.mods.persistent_manager import PersistentModManager
@@ -30,12 +30,11 @@ logger = get_logger(__name__)
 
 
 class WwiseSetupWorker(QThread):
-    progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
 
     def run(self):
         try:
-            if hasattr(sys, '_MEIPASS'):
+            if is_frozen():
 
                 import setup_wwise
 
@@ -54,7 +53,7 @@ class WwiseSetupWorker(QThread):
                     stderr=subprocess.STDOUT,
                     text=True,
                     stdin=subprocess.PIPE,
-                    cwd=str(Path.cwd()),
+                    **SUBPROCESS_KWARGS,
                 )
                 stdout, _ = process.communicate(input="y\n")
 
@@ -68,12 +67,11 @@ class WwiseSetupWorker(QThread):
 
 class WindowsAudioToolsSetupWorker(QThread):
 
-    progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
 
     def run(self):
         try:
-            if hasattr(sys, '_MEIPASS'):
+            if is_frozen():
 
                 import setup_windows_audio_tools
                 success = setup_windows_audio_tools.run_setup_from_gui()
@@ -92,7 +90,7 @@ class WindowsAudioToolsSetupWorker(QThread):
                     stdin=subprocess.DEVNULL,
                     text=True,
                     bufsize=1,
-                    cwd=str(Path.cwd()),
+                    **SUBPROCESS_KWARGS,
                 )
 
                 output_lines = []
@@ -103,8 +101,6 @@ class WindowsAudioToolsSetupWorker(QThread):
                             output_lines.append(line_stripped)
 
                             logger.info(f"[Audio Tools Setup] {line_stripped}")
-
-                            self.progress.emit(line_stripped)
 
                     process.wait(timeout=600)
                 except subprocess.TimeoutExpired:
@@ -325,7 +321,6 @@ class ModManagerBridge(QObject):
             return
 
         self.wwise_worker = WwiseSetupWorker()
-        self.wwise_worker.progress.connect(lambda msg: self.progressUpdate.emit(msg))
         self.wwise_worker.finished.connect(self._on_wwise_setup_finished)
         self.wwise_worker.start()
         self.progressUpdate.emit("Starting Wwise setup...")
@@ -395,7 +390,6 @@ class ModManagerBridge(QObject):
             return
 
         self.audio_tools_worker = WindowsAudioToolsSetupWorker()
-        self.audio_tools_worker.progress.connect(lambda msg: self.progressUpdate.emit(msg))
         self.audio_tools_worker.finished.connect(self._on_audio_tools_setup_finished)
         self.audio_tools_worker.start()
         self.progressUpdate.emit("Starting Windows audio tools setup...")
