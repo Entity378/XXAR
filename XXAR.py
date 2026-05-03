@@ -18,7 +18,7 @@ import sys
 import os
 from pathlib import Path
 
-from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK
+from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK, is_frozen
 
 if IS_LINUX and 'QT_QPA_PLATFORM' not in os.environ:
     os.environ['QT_QPA_PLATFORM'] = 'wayland;xcb'
@@ -79,7 +79,7 @@ def get_temp_dir():
     from src.core.app_config import CONFIG_DIR_NAME
     if IS_FLATPAK:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-    elif hasattr(sys, '_MEIPASS'):
+    elif is_frozen():
         localappdata = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
         base = localappdata / CONFIG_DIR_NAME
     else:

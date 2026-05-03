@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 from src.core.logger import get_logger
-from src.core.subprocess_utils import IS_WINDOWS
+from src.core.subprocess_utils import IS_WINDOWS, is_frozen
 logger = get_logger(__name__)
 
 if IS_WINDOWS:
@@ -442,8 +442,8 @@ class Application(
 
         self._check_update_success_flag()
 
-        if hasattr(sys, '_MEIPASS'):
-            logger.info(f"[{APP_NAME}] PyInstaller build detected, checking for updates...")
+        if is_frozen():
+            logger.info(f"[{APP_NAME}] Frozen build detected, checking for updates...")
             self._startup_update_check = True
             self.update_manager_bridge.checkForUpdates()
 

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
 from src.gui.utils.path_memory import get_last_dir, save_last_dir
-from src.core.subprocess_utils import IS_LINUX
+from src.core.subprocess_utils import IS_LINUX, is_frozen
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -19,7 +19,7 @@ class NativeDialogs:
         # PyInstaller's LD_LIBRARY_PATH points at bundled libs and crashes system GTK
         # apps; restore the original so zenity etc. find their own libs.
         env = os.environ.copy()
-        if hasattr(sys, '_MEIPASS'):
+        if is_frozen():
             orig = env.get('LD_LIBRARY_PATH_ORIG')
             if orig is not None:
                 env['LD_LIBRARY_PATH'] = orig

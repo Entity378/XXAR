@@ -4,7 +4,6 @@ import sys
 import os
 import json
 import shutil
-import ssl
 import tarfile
 import tempfile
 import zipfile
@@ -17,7 +16,7 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 
 from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
-from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK
+from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK, is_frozen
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -45,9 +44,10 @@ def _read_msi_install_location():
 
 
 def _get_real_exe_path():
-    # pyinstaller onefile: sys.executable is inside the temp _MEI dir,
-    # not the actual exe on disk
-    if hasattr(sys, '_MEIPASS'):
+    # In a frozen build sys.executable can point inside the PyInstaller
+    # extraction dir (onefile) instead of the launcher exe on disk;
+    # resolve to the real exe path so the updater hands off to the right binary.
+    if is_frozen():
         if IS_WINDOWS:
             import ctypes
             buf = ctypes.create_unicode_buffer(260)
@@ -81,21 +81,13 @@ def _is_msi_install():
         return False
 
 
-def _get_ssl_context():
-    # pyinstaller doesn't bundle certs, so fall back to unverified if needed
-    try:
-        return ssl.create_default_context()
-    except Exception:
-        return ssl._create_unverified_context()
-
-
 def _urlopen(req, timeout=10):
+    # Fallback to an unverified SSL context
     try:
         return urllib.request.urlopen(req, timeout=timeout)
     except urllib.error.URLError as e:
         if "CERTIFICATE_VERIFY_FAILED" in str(e):
-            ctx = ssl._create_unverified_context()
-            return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+            logger.error(f"[Updater] SSL verification failed for {getattr(req, 'full_url', '?')}; not falling back to unverified.")
         raise
 
 
@@ -139,6 +131,49 @@ def parse_version(version_str):
                 pre_num = 0
             return base_tuple + (rank, pre_num)
     return base_tuple + (-1, 0)
+
+
+def _safe_extract_zip(zf, dest):
+    # Reject any entry whose resolved path falls outside `dest` (path
+    # traversal via "../" or absolute paths). zipfile has no filter API like
+    # tarfile, so we validate names up-front.
+    dest_resolved = Path(dest).resolve()
+    for name in zf.namelist():
+        target = (dest_resolved / name).resolve()
+        try:
+            target.relative_to(dest_resolved)
+        except ValueError:
+            raise RuntimeError(f"Refusing to extract path-traversal entry: {name!r}")
+    zf.extractall(dest)
+
+
+def _safe_extract_tar(tf, dest):
+    # tarfile supports filter='data' since Python 3.11.4 / 3.12 — it blocks
+    # path traversal, absolute paths, symlink escapes (CVE-2007-4559) and
+    # other unsafe members. Older Python: validate names + symlink targets
+    # manually before extracting.
+    try:
+        tf.extractall(dest, filter='data')
+        return
+    except TypeError:
+        pass
+
+    dest_resolved = Path(dest).resolve()
+    for member in tf.getmembers():
+        target = (dest_resolved / member.name).resolve()
+        try:
+            target.relative_to(dest_resolved)
+        except ValueError:
+            raise RuntimeError(f"Refusing to extract path-traversal entry: {member.name!r}")
+        if member.issym() or member.islnk():
+            link_target = (target.parent / member.linkname).resolve()
+            try:
+                link_target.relative_to(dest_resolved)
+            except ValueError:
+                raise RuntimeError(
+                    f"Refusing to extract escaping link: {member.name!r} -> {member.linkname!r}"
+                )
+    tf.extractall(dest)
 
 
 class UpdateCheckWorker(QThread):
@@ -278,7 +313,7 @@ class UpdateDownloadWorker(QThread):
                     shutil.rmtree(str(staging_parent), ignore_errors=True)
                 staging_parent.mkdir(parents=True, exist_ok=True)
                 with zipfile.ZipFile(archive_path, "r") as zf:
-                    zf.extractall(staging_parent)
+                    _safe_extract_zip(zf, staging_parent)
                 archive_path.unlink(missing_ok=True)
 
                 staging_root = staging_parent / "Resources" / "Bin"
@@ -294,7 +329,7 @@ class UpdateDownloadWorker(QThread):
                 # Legacy tar.gz path preserved for existing Linux Flatpak
                 # pipeline that may still stream a .tar.gz.
                 with tarfile.open(archive_path, "r:gz") as tf:
-                    tf.extractall(update_dir)
+                    _safe_extract_tar(tf, update_dir)
                 binary_path = update_dir / APP_NAME
                 if not binary_path.exists():
                     self.errorOccurred.emit("Extracted binary not found")
