@@ -205,27 +205,28 @@ class WwiseSetup:
 
 def main():
     import argparse
+    import textwrap
 
     parser = argparse.ArgumentParser(
         description='Automated Wwise setup for XXAR (HoYoverse audio modding)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Use default download URL
-  python setup_wwise.py
+        epilog=textwrap.dedent("""\
+            Examples:
+              # Use default download URL
+              python setup_wwise.py
 
-  # Use custom Wwise package URL
-  python setup_wwise.py --url https://your-server.com/wwise.zip
+              # Use custom Wwise package URL
+              python setup_wwise.py --url https://your-server.com/wwise.zip
 
-  # Check if Wwise is installed
-  python setup_wwise.py --check
+              # Check if Wwise is installed
+              python setup_wwise.py --check
 
-Notes:
-  - Requires Wine to be installed on Linux
-  - Downloads ~50-100MB (minimal Wwise package)
-  - Installs to %LOCALAPPDATA%/XXAR/tools/wwise/ (Windows)
-  - Installs to $XDG_DATA_HOME/XXAR/tools/wwise/ (Linux/Flatpak)
-        """
+            Notes:
+              - Requires Wine to be installed on Linux
+              - Downloads ~50-100MB (minimal Wwise package)
+              - Installs to %LOCALAPPDATA%/XXAR/tools/wwise/ (Windows)
+              - Installs to $XDG_DATA_HOME/XXAR/tools/wwise/ (Linux/Flatpak)
+        """),
     )
 
     parser.add_argument('--url', help='Custom Wwise download URL')

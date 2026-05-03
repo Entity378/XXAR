@@ -1,39 +1,39 @@
-"""Live end-to-end test of the XXAR updater flow using a real built exe.
+# Live end-to-end test of the XXAR updater flow using a real built exe.
 
-This exercises the one thing the unit harness in scripts/test_updater.py
-cannot: the full behavior of a frozen PyInstaller XXAR.exe releasing its
-lock on Resources/Bin and handing off to the helper for the swap + relaunch.
+# This exercises the one thing the unit harness in scripts/test_updater.py
+# cannot: the full behavior of a frozen PyInstaller XXAR.exe releasing its
+# lock on Resources/Bin and handing off to the helper for the swap + relaunch.
 
-Requires (produced by: pwsh installer_ws\\build_all.ps1 -Version <v> -SkipMsi):
-  - dist/XXAR/XXAR.exe
-  - dist/Updater/XXAR Updater.exe
-  - dist/XXAR-windows-x64.zip
+# Requires (produced by: pwsh installer_ws\\build_all.ps1 -Version <v> -SkipMsi):
+#   - dist/XXAR/XXAR.exe
+#   - dist/Updater/XXAR Updater.exe
+#   - dist/XXAR-windows-x64.zip
 
-Flow:
-  1. Extract dist/XXAR-windows-x64.zip into <temp>/install/        (stages the "installed" portable app)
-  2. Write LIVE_TEST_MARKER.txt = "OLD" inside <temp>/install/Resources/Bin/
-  3. Build a "new release" ZIP = same contents + LIVE_TEST_MARKER.txt = "NEW"
-  4. Start a mock GitHub /releases/latest HTTP server on 127.0.0.1:<port>
-  5. Launch <temp>/install/Resources/Bin/XXAR.exe with env:
-       XXAR_UPDATE_API_URL_OVERRIDE=http://127.0.0.1:<port>/repos/.../releases/latest
-       XXAR_UPDATE_FORCE_PORTABLE=1
-  6. YOU click "Download" in the update dialog that appears at startup.
-  7. The script watches for:
-       a) original XXAR.exe process exit
-       b) LIVE_TEST_MARKER.txt flips from OLD to NEW
-       c) a new XXAR.exe alive (helper relaunched it)
-       d) Bin.old cleaned up
-  8. Reports PASS/FAIL, kills the relaunched exe, cleans up temp dir.
+# Flow:
+#   1. Extract dist/XXAR-windows-x64.zip into <temp>/install/        (stages the "installed" portable app)
+#   2. Write LIVE_TEST_MARKER.txt = "OLD" inside <temp>/install/Resources/Bin/
+#   3. Build a "new release" ZIP = same contents + LIVE_TEST_MARKER.txt = "NEW"
+#   4. Start a mock GitHub /releases/latest HTTP server on 127.0.0.1:<port>
+#   5. Launch <temp>/install/Resources/Bin/XXAR.exe with env:
+#        XXAR_UPDATE_API_URL_OVERRIDE=http://127.0.0.1:<port>/repos/.../releases/latest
+#        XXAR_UPDATE_FORCE_PORTABLE=1
+#   6. YOU click "Download" in the update dialog that appears at startup.
+#   7. The script watches for:
+#        a) original XXAR.exe process exit
+#        b) LIVE_TEST_MARKER.txt flips from OLD to NEW
+#        c) a new XXAR.exe alive (helper relaunched it)
+#        d) Bin.old cleaned up
+#   8. Reports PASS/FAIL, kills the relaunched exe, cleans up temp dir.
 
-Run:
-    python scripts/test_updater_live.py
-    python scripts/test_updater_live.py --keep-artifacts
-    python scripts/test_updater_live.py --timeout 600
+# Run:
+#     python scripts/test_updater_live.py
+#     python scripts/test_updater_live.py --keep-artifacts
+#     python scripts/test_updater_live.py --timeout 600
 
-Note: XXAR_UPDATE_API_URL_OVERRIDE and XXAR_UPDATE_FORCE_PORTABLE are
-read by src/gui/backend/update_manager_bridge.py. They have no effect on
-normal (non-test) runs because they're unset.
-"""
+# Note: XXAR_UPDATE_API_URL_OVERRIDE and XXAR_UPDATE_FORCE_PORTABLE are
+# read by src/gui/backend/update_manager_bridge.py. They have no effect on
+# normal (non-test) runs because they're unset.
+
 
 from __future__ import annotations
 
@@ -67,8 +67,8 @@ MARKER_NAME = "LIVE_TEST_MARKER.txt"
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_new_release_zip(src_zip: Path, dest_zip: Path, marker_value: str) -> None:
-    """Copy `src_zip` to `dest_zip` with LIVE_TEST_MARKER.txt inside Resources/Bin/
-    set to `marker_value`. Everything else is byte-identical."""
+    # Copy `src_zip` to `dest_zip` with LIVE_TEST_MARKER.txt inside Resources/Bin/
+    # set to `marker_value`. Everything else is byte-identical.
     with zipfile.ZipFile(src_zip, "r") as src:
         names = src.namelist()
         marker_paths = [n for n in names if n.endswith(MARKER_NAME)]
@@ -87,7 +87,7 @@ def build_new_release_zip(src_zip: Path, dest_zip: Path, marker_value: str) -> N
 
 
 class MockServer(socketserver.TCPServer):
-    """TCPServer subclass that counts hits to the release endpoints."""
+    # TCPServer subclass that counts hits to the release endpoints.
     allow_reuse_address = True
 
     def __init__(self, *a, served_zip: Path, version: str, **kw):
@@ -149,10 +149,9 @@ def start_mock_server(workdir: Path, zip_to_serve: Path, version: str) -> tuple[
 # ─────────────────────────────────────────────────────────────────────────────
 
 def list_xxar_processes_under(path: Path) -> list[int]:
-    """Return PIDs of running XXAR.exe whose image path is inside `path`.
+    # Return PIDs of running XXAR.exe whose image path is inside `path`.
 
-    Uses PowerShell's CIM WMI. Returns [] if anything goes wrong (best effort).
-    """
+    # Uses PowerShell's CIM WMI. Returns [] if anything goes wrong (best effort).
     if sys.platform != "win32":
         return []
     ps = (
@@ -233,7 +232,7 @@ def preflight() -> None:
 
 
 def stage_install(install_root: Path) -> None:
-    """Extract the portable ZIP to form an 'installed' layout."""
+    # Extract the portable ZIP to form an 'installed' layout.
     install_root.mkdir(parents=True, exist_ok=True)
     print(f"  Extracting {DIST_ZIP.name} into {install_root}...")
     with zipfile.ZipFile(DIST_ZIP, "r") as zf:

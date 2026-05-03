@@ -1,12 +1,12 @@
-"""Standalone folder-swap helper for XXAR portable/ZIP installs.
+# Standalone folder-swap helper for XXAR portable/ZIP installs.
 
-The main XXAR.exe, once onefolder-packaged, cannot overwrite its own
-Resources/Bin while running. It downloads a new build into a staging
-folder and spawns this helper, which waits for the main to exit, swaps
-Bin atomically (rename-then-move), and relaunches the app.
+# The main XXAR.exe, once onefolder-packaged, cannot overwrite its own
+# Resources/Bin while running. It downloads a new build into a staging
+# folder and spawns this helper, which waits for the main to exit, swaps
+# Bin atomically (rename-then-move), and relaunches the app.
 
-MSI installs go through msiexec instead and do not use this helper.
-"""
+# MSI installs go through msiexec instead and do not use this helper.
+
 
 import argparse
 import logging

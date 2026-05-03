@@ -1,23 +1,23 @@
-"""End-to-end test harness for the XXAR updater.
+# End-to-end test harness for the XXAR updater.
 
-What this exercises (in order):
+# What this exercises (in order):
 
-1. Version parsing + comparison rules in update_manager_bridge.
-2. MSI-install detection helper (smoke).
-3. UpdateCheckWorker against a local mock of the GitHub /releases/latest API,
-   covering both the ZIP code path and the MSI code path (asset selection).
-4. UpdateDownloadWorker: real HTTP download against the mock, real ZIP
-   extraction into a staging folder, resulting staging root is validated.
-5. XXAR_Updater helper: real subprocess that swaps Resources/Bin with a
-   pre-extracted staging folder. Includes edge cases:
-     - leftover Bin.old from a prior failed run is cleaned up;
-     - missing staging dir fails non-zero without touching Bin.
+# 1. Version parsing + comparison rules in update_manager_bridge.
+# 2. MSI-install detection helper (smoke).
+# 3. UpdateCheckWorker against a local mock of the GitHub /releases/latest API,
+#    covering both the ZIP code path and the MSI code path (asset selection).
+# 4. UpdateDownloadWorker: real HTTP download against the mock, real ZIP
+#    extraction into a staging folder, resulting staging root is validated.
+# 5. XXAR_Updater helper: real subprocess that swaps Resources/Bin with a
+#    pre-extracted staging folder. Includes edge cases:
+#      - leftover Bin.old from a prior failed run is cleaned up;
+#      - missing staging dir fails non-zero without touching Bin.
 
-Run:
-    python scripts/test_updater.py
-    python scripts/test_updater.py --helper-exe "dist/Updater/XXAR Updater.exe"
-    python scripts/test_updater.py --keep-artifacts   # keep temp dir for inspection
-"""
+# Run:
+#     python scripts/test_updater.py
+#     python scripts/test_updater.py --helper-exe "dist/Updater/XXAR Updater.exe"
+#     python scripts/test_updater.py --keep-artifacts   # keep temp dir for inspection
+
 
 from __future__ import annotations
 
@@ -126,8 +126,8 @@ def test_msi_detection_smoke(r: TestResult) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_fake_release_zip(dest_dir: Path, version: str) -> Path:
-    """Build a ZIP with the shape produced by installer_ws/build_all.ps1:
-    Resources/Bin/XXAR.exe + Resources/Updater/XXAR Updater.exe at the root."""
+    # Build a ZIP with the shape produced by installer_ws/build_all.ps1:
+    # Resources/Bin/XXAR.exe + Resources/Updater/XXAR Updater.exe at the root.
     dest_dir.mkdir(parents=True, exist_ok=True)
     scratch = dest_dir / f"_scratch_{version}"
     bin_dir = scratch / "Resources" / "Bin"
@@ -151,7 +151,7 @@ def build_fake_release_zip(dest_dir: Path, version: str) -> Path:
 
 
 def build_fake_msi(dest_dir: Path, version: str) -> Path:
-    """A tiny stand-in MSI blob (not an actual MSI — we only test asset selection)."""
+    # A tiny stand-in MSI blob (not an actual MSI — we only test asset selection).
     dest_dir.mkdir(parents=True, exist_ok=True)
     path = dest_dir / f"XXAR-Installer-v{version}.msi"
     path.write_bytes(b"FAKE MSI BYTES v" + version.encode())
@@ -164,7 +164,7 @@ def start_mock_github_server(
     zip_path: Path,
     msi_path: Path | None = None,
 ) -> tuple[int, socketserver.TCPServer]:
-    """Mock of GitHub REST: /releases/latest + asset download endpoints."""
+    # Mock of GitHub REST: /releases/latest + asset download endpoints.
     workdir.mkdir(parents=True, exist_ok=True)
     served_zip = workdir / zip_path.name
     shutil.copy2(zip_path, served_zip)
@@ -467,8 +467,8 @@ def test_helper_missing_staging(r: TestResult, temp_dir: Path, helper_cmd: list[
 
 
 def test_helper_locked_retry(r: TestResult, temp_dir: Path, helper_cmd: list[str], staging_source: Path) -> None:
-    """Hold an open read handle on a file inside Bin, start the helper, release the handle
-    mid-retry — verifies the rename-retry loop actually recovers. Windows-only."""
+    # Hold an open read handle on a file inside Bin, start the helper, release the handle
+    # mid-retry — verifies the rename-retry loop actually recovers. Windows-only.
     if sys.platform != "win32":
         r.ok("Helper[lock retry]: skipped (non-Windows)")
         return

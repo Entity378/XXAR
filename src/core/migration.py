@@ -137,8 +137,8 @@ def _copy_one(src_file: Path, dst_file: Path) -> bool:
 
 
 def _per_file_copy(src: Path, dst: Path) -> int:
-    """Copy every file under src to dst, skipping files already at dst with
-    the same size. Returns count of failed files (0 on full success)."""
+    # Copy every file under src to dst, skipping files already at dst with
+    # the same size. Returns count of failed files (0 on full success).
     try:
         src_files = [p for p in src.rglob("*") if p.is_file()]
     except OSError as e:
@@ -249,9 +249,9 @@ def _migrate_legacy_mod_config(legacy: Path, target: Path, game: str) -> None:
 
 
 def _migrate_legacy_mod_tracker(legacy: Path, target: Path, game: str, roaming: Path) -> None:
-    """Move top-level mod_tracker.json to games/<game>/, rewriting absolute
-    wem_path values from Local/XXAR/games/... to Roaming/XXAR/games/... to
-    follow the games/ directory move."""
+    # Move top-level mod_tracker.json to games/<game>/, rewriting absolute
+    # wem_path values from Local/XXAR/games/... to Roaming/XXAR/games/... to
+    # follow the games/ directory move.
     if not legacy.exists():
         return
     if target.exists():

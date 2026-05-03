@@ -239,30 +239,31 @@ class WindowsAudioToolsSetup:
 
 def main():
     import argparse
+    import textwrap
 
     parser = argparse.ArgumentParser(
         description='Install ffmpeg and vgmstream for Windows',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Install all tools
-  python setup_windows_audio_tools.py
+        epilog=textwrap.dedent("""\
+            Examples:
+              # Install all tools
+              python setup_windows_audio_tools.py
 
-  # Check installation status
-  python setup_windows_audio_tools.py --check
+              # Check installation status
+              python setup_windows_audio_tools.py --check
 
-  # Install only ffmpeg
-  python setup_windows_audio_tools.py --ffmpeg-only
+              # Install only ffmpeg
+              python setup_windows_audio_tools.py --ffmpeg-only
 
-  # Install only vgmstream
-  python setup_windows_audio_tools.py --vgmstream-only
+              # Install only vgmstream
+              python setup_windows_audio_tools.py --vgmstream-only
 
-Note:
-  - Windows only
-  - Downloads ~100-150MB total
-  - Installs to %LOCALAPPDATA%/XXAR/tools/audio/ (Windows)
-  - Installs to $XDG_DATA_HOME/XXAR/tools/audio/ (Linux/Flatpak)
-        """
+            Note:
+              - Windows only
+              - Downloads ~100-150MB total
+              - Installs to %LOCALAPPDATA%/XXAR/tools/audio/ (Windows)
+              - Installs to $XDG_DATA_HOME/XXAR/tools/audio/ (Linux/Flatpak)
+        """),
     )
 
     parser.add_argument('--check', action='store_true', help='Check installation status')
