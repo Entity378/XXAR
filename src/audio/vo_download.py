@@ -130,8 +130,7 @@ def _hpatchz_install_dir() -> Path:
 
 
 def _find_hpatchz() -> str | None:
-    # The upstream zip layout varies between releases (flat vs. nested under
-    # windows64/), so recurse rather than probing a single path.
+    # The upstream zip layout varies between releases (flat vs. nested under windows64/), so recurse rather than probing a single path.
     exe_name = "hpatchz.exe" if IS_WINDOWS else "hpatchz"
     hpatchz_root = _hpatchz_install_dir()
     if hpatchz_root.is_dir():
@@ -142,8 +141,7 @@ def _find_hpatchz() -> str | None:
 
 
 def _resolve_hpatchz_url() -> str | None:
-    # Asset names vary between releases (hpatchz_v*_windows_x64.zip vs
-    # hdiffpatch_v*_bin_windows64.zip), so match on substrings.
+    # Asset names vary between releases (hpatchz_v*_windows_x64.zip vs hdiffpatch_v*_bin_windows64.zip), so match on substrings.
     try:
         req = urllib.request.Request(
             HPATCHZ_API_URL,
@@ -205,9 +203,8 @@ def _download_hpatchz(progress_cb=None) -> str | None:
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    # zipfile.extractall does not preserve the +x bit, so the Linux binary
-    # comes out non-executable. Mark it executable now or hpatchz will fail
-    # with EACCES when invoked.
+    # zipfile.extractall does not preserve the +x bit, so the Linux binary comes out non-executable.
+    # Mark it executable now or hpatchz will fail with EACCES when invoked.
     if not IS_WINDOWS:
         for candidate in install_dir.rglob("hpatchz"):
             if candidate.is_file():
@@ -298,8 +295,8 @@ def _apply_hdiff_patches(
     folder_name: str,
     progress_cb=None,
 ) -> bool:
-    # working_dir holds copies of old cached PCKs; hdiff_dir holds .hdiff files
-    # and optionally deletefiles.txt. Returns True only if every patch applies.
+    # working_dir holds copies of old cached PCKs, while hdiff_dir holds .hdiff files and optionally deletefiles.txt.
+    # Returns True only if every patch applies.
     hpatchz = _ensure_hpatchz(progress_cb)
     if not hpatchz:
         logger.info("[VO Download] hpatchz binary not found, cannot apply hdiff")
@@ -496,8 +493,8 @@ def restore_language_from_api(
     cached_version: str | None = None,
     progress_cb=None,
 ) -> bool:
-    # Ensures persistent_path/folder_name contains original PCKs. Tries cache,
-    # then hdiff patching when cached_version is given, then full API download.
+    # Ensures persistent_path/folder_name contains original PCKs.
+    # Tries cache, then hdiff patching when cached_version is given, then full API download.
     cache_lang_dir = game_cache_root / folder_name
 
     if is_language_cached(game_cache_root, version, folder_name):
@@ -515,8 +512,7 @@ def restore_language_from_api(
         logger.info(f"[VO Download] Cannot restore {folder_name}: API unavailable")
         return False
 
-    # hpatchz is downloaded on-demand inside _apply_hdiff_patches, so we only
-    # pay that cost when an hdiff is actually available.
+    # hpatchz is downloaded on-demand inside _apply_hdiff_patches, so we only pay that cost when an hdiff is actually available.
     if (
         cached_version is not None
         and cache_lang_dir.is_dir()
@@ -687,8 +683,8 @@ def _copy_to_persistent(src_dir: Path, dest_dir: Path):
 def cleanup_stale_cache(
     game_cache_root: Path, current_version: str
 ) -> str | None:
-    # Returns the old cached version (for hdiff use) or None. Does NOT delete —
-    # caller decides whether to hdiff-patch or do a full download.
+    # Returns the old cached version (for hdiff use) or None.
+    # Does NOT delete — caller decides whether to hdiff-patch or do a full download.
     meta = _load_cache_meta(game_cache_root)
     if not meta:
         return None

@@ -260,16 +260,15 @@ class PCKPacker:
         logger.info(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
     def merge_bnk_wems(self, bnk_id, mod_wem_map, patch_bnk_wems=None, lang_id=0):
-        # Load BNK bnk_id from the original (pristine) PCK, transport any WEMs
-        # from patch_bnk_wems whose ids are NOT already in the BNK (Patch.pck
-        # override WEMs that must move to the destination so the override-null
-        # trick doesn't drop audio), then apply mod replacements on top.
-        #
-        # mod_wem_map:    {wem_id: wem_path_or_bytes}  — mod replacements
-        # patch_bnk_wems: {wem_id: wem_bytes}          — pristine WEMs from the
-        #                                                 override BNK in Patch.pck
-        #
-        # Precedence: mod > streaming pristine > Patch.pck pristine (missing only)
+        # Load BNK bnk_id from the original (pristine) PCK.
+        # Transport any WEMs from patch_bnk_wems whose ids are NOT already in the BNK.
+        # Those are Patch.pck override WEMs that must move to the destination so the override-null trick doesn't drop audio.
+        # Then apply mod replacements on top.
+
+        # mod_wem_map is {wem_id: wem_path_or_bytes} carrying the mod replacements.
+        # patch_bnk_wems is {wem_id: wem_bytes} carrying the pristine WEMs from the override BNK in Patch.pck.
+
+        # Precedence: mod > streaming pristine > Patch.pck pristine (missing only).
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
         logger.info(f"\n  Merging BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
 

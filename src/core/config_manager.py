@@ -67,8 +67,8 @@ class ConfigManager:
         if self._games_dir:
             return self._games_dir
 
-        # User content (mod library + per-game databases) lives in Roaming
-        # on Windows so it follows the user across machines.
+        # User content (mod library + per-game databases) lives in Roaming on Windows.
+        # That location follows the user across machines.
         self._games_dir = self.config_dir / "games"
         self._games_dir.mkdir(parents=True, exist_ok=True)
         return self._games_dir
@@ -108,8 +108,8 @@ class ConfigManager:
         if self._tools_dir:
             return self._tools_dir
 
-        # Machine-local binaries (Wwise, FFmpeg, vgmstream, hpatchz): never
-        # roam these, they're architecture-specific and big.
+        # Machine-local binaries (Wwise, FFmpeg, vgmstream, hpatchz) must never roam.
+        # They are architecture-specific and large.
         self._tools_dir = self.data_dir / "tools"
         self._tools_dir.mkdir(parents=True, exist_ok=True)
         return self._tools_dir

@@ -4,19 +4,15 @@
 
 # 1. Version parsing + comparison rules in update_manager_bridge.
 # 2. MSI-install detection helper (smoke).
-# 3. UpdateCheckWorker against a local mock of the GitHub /releases/latest API,
-#    covering both the ZIP code path and the MSI code path (asset selection).
-# 4. UpdateDownloadWorker: real HTTP download against the mock, real ZIP
-#    extraction into a staging folder, resulting staging root is validated.
-# 5. XXAR_Updater helper: real subprocess that swaps Resources/Bin with a
-#    pre-extracted staging folder. Includes edge cases:
-#      - leftover Bin.old from a prior failed run is cleaned up;
-#      - missing staging dir fails non-zero without touching Bin.
+# 3. UpdateCheckWorker against a local mock of the GitHub /releases/latest API, covering both the ZIP code path and the MSI code path (asset selection).
+# 4. UpdateDownloadWorker: real HTTP download against the mock, real ZIP extraction into a staging folder, with the resulting staging root validated.
+# 5. XXAR_Updater helper: real subprocess that swaps Resources/Bin with a pre-extracted staging folder.
+#    Edge case: leftover Bin.old from a prior failed run is cleaned up.
+#    Edge case: missing staging dir fails non-zero without touching Bin.
 
-# Run:
-#     python scripts/test_updater.py
-#     python scripts/test_updater.py --helper-exe "dist/Updater/XXAR Updater.exe"
-#     python scripts/test_updater.py --keep-artifacts   # keep temp dir for inspection
+# Run via: python scripts/test_updater.py.
+# Or with a helper exe: python scripts/test_updater.py --helper-exe "dist/Updater/XXAR Updater.exe".
+# Or keep temp dir for inspection: python scripts/test_updater.py --keep-artifacts.
 
 
 from __future__ import annotations
@@ -39,7 +35,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tiny result recorder
+# Tiny result recorder.
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestResult:
@@ -59,7 +55,7 @@ class TestResult:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: version parsing
+# Test: version parsing.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_version_parsing(r: TestResult) -> None:
@@ -103,7 +99,7 @@ def test_version_parsing(r: TestResult) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: MSI detection smoke (only verifies it returns a bool cleanly)
+# Test: MSI detection smoke (only verifies it returns a bool cleanly).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_msi_detection_smoke(r: TestResult) -> None:
@@ -122,12 +118,12 @@ def test_msi_detection_smoke(r: TestResult) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fake release ZIP + mock GitHub server
+# Fake release ZIP + mock GitHub server.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_fake_release_zip(dest_dir: Path, version: str) -> Path:
-    # Build a ZIP with the shape produced by installer_ws/build_all.ps1:
-    # Resources/Bin/XXAR.exe + Resources/Updater/XXAR Updater.exe at the root.
+    # Build a ZIP with the shape produced by installer_ws/build_all.ps1.
+    # That shape is Resources/Bin/XXAR.exe + Resources/Updater/XXAR Updater.exe at the root.
     dest_dir.mkdir(parents=True, exist_ok=True)
     scratch = dest_dir / f"_scratch_{version}"
     bin_dir = scratch / "Resources" / "Bin"
@@ -226,7 +222,7 @@ def start_mock_github_server(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: UpdateCheckWorker (ZIP path + MSI path)
+# Test: UpdateCheckWorker (ZIP path + MSI path).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _run_check_worker(current_version: str, api_url: str, is_msi: bool, timeout_ms: int = 15000) -> dict:
@@ -307,7 +303,7 @@ def test_check_worker_up_to_date(r: TestResult, port: int) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: UpdateDownloadWorker (real HTTP + real ZIP extraction)
+# Test: UpdateDownloadWorker (real HTTP + real ZIP extraction).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | None:
@@ -367,7 +363,7 @@ def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | Non
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: helper (folder swap)
+# Test: helper (folder swap).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _run_helper(helper_cmd: list[str], dist_dir: Path, staging_dir: Path) -> subprocess.CompletedProcess:
@@ -467,8 +463,9 @@ def test_helper_missing_staging(r: TestResult, temp_dir: Path, helper_cmd: list[
 
 
 def test_helper_locked_retry(r: TestResult, temp_dir: Path, helper_cmd: list[str], staging_source: Path) -> None:
-    # Hold an open read handle on a file inside Bin, start the helper, release the handle
-    # mid-retry — verifies the rename-retry loop actually recovers. Windows-only.
+    # Hold an open read handle on a file inside Bin, start the helper, then release the handle mid-retry.
+    # This verifies the rename-retry loop actually recovers.
+    # Windows-only.
     if sys.platform != "win32":
         r.ok("Helper[lock retry]: skipped (non-Windows)")
         return
@@ -519,7 +516,7 @@ def test_helper_locked_retry(r: TestResult, temp_dir: Path, helper_cmd: list[str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# main
+# Main entry point.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> int:

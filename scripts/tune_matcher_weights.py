@@ -1,23 +1,20 @@
 # Dev-only: tune the mean/std re-rank weights on a benchmark set.
 
-# Usage:
-#     python scripts/tune_matcher_weights.py <manifest.json> <audio_dir> [options]
+# Usage: python scripts/tune_matcher_weights.py <manifest.json> <audio_dir> [options].
 
-# Options:
-#     --game-id ID       Default: zzz
-#     --samples N        Random simplex samples to evaluate (default 200)
-#     --reset-index      Wipe constellation index before running
-#     --top K            Report top K weight vectors (default 5)
-#     --seed S           RNG seed (default 0)
+# Options.
+# --game-id ID: default is zzz.
+# --samples N: random simplex samples to evaluate (default 200).
+# --reset-index: wipe constellation index before running.
+# --top K: report top K weight vectors (default 5).
+# --seed S: RNG seed (default 0).
 
-# Reuses the benchmark harness to populate constellation + fingerprint caches
-# once, then performs random-simplex sampling over the 9 scorer weights. The
-# default weights are evaluated first as baseline. Output is a list of the best
-# weight dicts by median rank (found cases only), ties broken by recall@20 and
-# mean rank.
+# Reuses the benchmark harness to populate constellation + fingerprint caches once, then performs random-simplex sampling over the 9 scorer weights.
+# The default weights are evaluated first as baseline.
+# Output is a list of the best weight dicts by median rank (found cases only), ties broken by recall@20 and mean rank.
 
-# The script does NOT modify matcher.py. Copy the chosen weights into
-# DEFAULT_WEIGHTS at the top of src/audio/matcher.py manually.
+# The script does NOT modify matcher.py.
+# Copy the chosen weights into DEFAULT_WEIGHTS at the top of src/audio/matcher.py manually.
 
 
 from __future__ import annotations

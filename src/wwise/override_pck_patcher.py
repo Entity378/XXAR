@@ -27,8 +27,8 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
 
-    # Collect BNK IDs targeted by any mod — these are the ones whose override
-    # entry (if present) must be nulled so Wwise falls back to the modded PCK.
+    # Collect BNK IDs targeted by any mod.
+    # These are the ones whose override entry (if present) must be nulled so Wwise falls back to the modded PCK.
     target_bnk_ids = set()
     for pck_name, files in (replacements or {}).items():
         for tracker_key, repl_info in files.items():
@@ -63,8 +63,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
                 logger.error(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
                 continue
 
-        # Restore from clean backup before patching so repeated applies are
-        # idempotent.
+        # Restore from clean backup before patching so repeated applies are idempotent.
         try:
             if override_pck.exists():
                 override_pck.chmod(0o644)

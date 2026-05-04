@@ -10,13 +10,13 @@ END_MARKER_ID = 0x5BBBD648
 
 VOLUME_PROP_ID = 0x00
 
-# AkTrackSrcInfo layout (44 bytes per item):
-#   trackID(4) + sourceID(4) + eventID(4) + fPlayAt(8) + fBeginTrimOffset(8) + fEndTrimOffset(8) + fSrcDuration(8)
+# AkTrackSrcInfo layout (44 bytes per item).
+# Fields: trackID(4) + sourceID(4) + eventID(4) + fPlayAt(8) + fBeginTrimOffset(8) + fEndTrimOffset(8) + fSrcDuration(8).
 _TRACK_SRC_INFO_SIZE = 44
 _TRACK_SRC_DURATION_OFFSET_IN_ITEM = 36  # offset of fSrcDuration within a playlist item
 
-# AkBankSourceData layout (14 bytes per source):
-#   pluginID(4) + streamType(1) + sourceID(4) + mediaSize(4) + sourceBits(1)
+# AkBankSourceData layout (14 bytes per source).
+# Fields: pluginID(4) + streamType(1) + sourceID(4) + mediaSize(4) + sourceBits(1).
 _SOURCE_DATA_SIZE = 14
 _SOURCE_ID_OFFSET_IN_SOURCE = 5  # after pluginID(4) + streamType(1)
 
@@ -51,10 +51,8 @@ class BankPatchTargets:
 
 
 def scan_bank_for_patch_targets(content, source_ids):
-    # Scan a PCK/BNK file for MusicTrack and MusicSegment HIRC objects
-    # referencing the given WEM source IDs.
-    # Returns a BankPatchTargets with precise absolute file offsets for all
-    # duration fields that need patching.
+    # Scan a PCK/BNK file for MusicTrack and MusicSegment HIRC objects referencing the given WEM source IDs.
+    # Returns a BankPatchTargets with precise absolute file offsets for all duration fields that need patching.
     if not source_ids:
         return BankPatchTargets()
 
@@ -105,8 +103,7 @@ def scan_bank_for_patch_targets(content, source_ids):
         if not section_tracks:
             continue
 
-        # Link segments to tracks: check if the MusicNodeParams region
-        # (before fDuration) contains any matching track obj_id bytes.
+        # Link segments to tracks: check if the MusicNodeParams region (before fDuration) contains any matching track obj_id bytes.
 
         track_id_bytes_map = {
             struct.pack("<I", tid): tid for tid in track_obj_to_sources
@@ -132,8 +129,7 @@ def scan_bank_for_patch_targets(content, source_ids):
 
 
 def apply_volume_patches(content, volume_patches, volume_db_by_source):
-    # In-place overwrite only: tracks without an existing Volume property in
-    # their AkPropBundle are skipped to avoid shifting offsets/corrupting.
+    # In-place overwrite only: tracks without an existing Volume property in their AkPropBundle are skipped to avoid shifting offsets/corrupting.
     patched = 0
     skipped = 0
 
@@ -208,8 +204,7 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
 
 
 def _adjust_hirc_sizes(content, offset_inside_object, delta):
-    # Walk back to the enclosing HIRC header, bump its section size and the
-    # containing object's size by `delta`.
+    # Walk back to the enclosing HIRC header, bump its section size and the containing object's size by `delta`.
     search_start = max(0, offset_inside_object - 0x100000)
     chunk = bytes(content[search_start : offset_inside_object])
     hirc_pos = chunk.rfind(b"HIRC")
@@ -238,8 +233,8 @@ def _adjust_hirc_sizes(content, offset_inside_object, delta):
 
 def _find_hirc_sections(content):
     # Yield (data_start, data_size) for each HIRC section in raw bytes.
-    # data_start points to the first byte after the 8-byte header (HIRC + u32 size),
-    # i.e. the numItems u32.  data_size is the section payload size.
+    # data_start points to the first byte after the 8-byte header (HIRC + u32 size), i.e. the numItems u32.
+    # data_size is the section payload size.
     results = []
     flen = len(content)
     pos = -1
@@ -257,8 +252,7 @@ def _find_hirc_sections(content):
 
 
 def _parse_music_track(content, data_start, obj_size, source_ids):
-    # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track
-    # references any id in `source_ids`, else None.
+    # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track references any id in `source_ids`, else None.
     d = data_start
     end = d + obj_size
     if d + 9 > end:
@@ -318,8 +312,8 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
 
 
 def _parse_volume_from_track(content, p, end, track_patches):
-    # Post-playlist section of a MusicTrack; walks NodeBaseParams to find the
-    # AkPropBundle Volume entry. Layout reference: parse_hirc_examples.py.
+    # Post-playlist section of a MusicTrack; walks NodeBaseParams to find the AkPropBundle Volume entry.
+    # Layout reference: parse_hirc_examples.py.
     try:
         return _parse_volume_from_track_inner(content, p, end, track_patches)
     except Exception:
@@ -420,8 +414,8 @@ def _parse_volume_from_track_inner(content, p, end, track_patches):
 
 def _parse_music_segment(content, data_start, obj_size):
     # Parse a MusicSegment (0x0A) HIRC object.
-    # Uses marker-scanning heuristic to locate fDuration and the end marker's
-    # fPosition.  Returns SegmentPatchInfo or None.
+    # Uses marker-scanning heuristic to locate fDuration and the end marker's fPosition.
+    # Returns SegmentPatchInfo or None.
     data = content[data_start : data_start + obj_size]
 
     for try_off in range(40, obj_size - 15):

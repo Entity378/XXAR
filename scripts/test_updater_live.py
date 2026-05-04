@@ -1,38 +1,33 @@
 # Live end-to-end test of the XXAR updater flow using a real built exe.
 
-# This exercises the one thing the unit harness in scripts/test_updater.py
-# cannot: the full behavior of a frozen PyInstaller XXAR.exe releasing its
-# lock on Resources/Bin and handing off to the helper for the swap + relaunch.
+# This exercises the one thing the unit harness in scripts/test_updater.py cannot.
+# It tests the full behavior of a frozen PyInstaller XXAR.exe releasing its lock on Resources/Bin and handing off to the helper for the swap + relaunch.
 
-# Requires (produced by: pwsh installer_ws\\build_all.ps1 -Version <v> -SkipMsi):
-#   - dist/XXAR/XXAR.exe
-#   - dist/Updater/XXAR Updater.exe
-#   - dist/XXAR-windows-x64.zip
+# Requires the artifacts produced by `pwsh installer_ws\\build_all.ps1 -Version <v> -SkipMsi`.
+# Required artifact: dist/XXAR/XXAR.exe.
+# Required artifact: dist/Updater/XXAR Updater.exe.
+# Required artifact: dist/XXAR-windows-x64.zip.
 
-# Flow:
-#   1. Extract dist/XXAR-windows-x64.zip into <temp>/install/        (stages the "installed" portable app)
-#   2. Write LIVE_TEST_MARKER.txt = "OLD" inside <temp>/install/Resources/Bin/
-#   3. Build a "new release" ZIP = same contents + LIVE_TEST_MARKER.txt = "NEW"
-#   4. Start a mock GitHub /releases/latest HTTP server on 127.0.0.1:<port>
-#   5. Launch <temp>/install/Resources/Bin/XXAR.exe with env:
-#        XXAR_UPDATE_API_URL_OVERRIDE=http://127.0.0.1:<port>/repos/.../releases/latest
-#        XXAR_UPDATE_FORCE_PORTABLE=1
+# Flow steps:
+#   1. Extract dist/XXAR-windows-x64.zip into <temp>/install/, which stages the "installed" portable app.
+#   2. Write LIVE_TEST_MARKER.txt = "OLD" inside <temp>/install/Resources/Bin/.
+#   3. Build a "new release" ZIP with the same contents plus LIVE_TEST_MARKER.txt = "NEW".
+#   4. Start a mock GitHub /releases/latest HTTP server on 127.0.0.1:<port>.
+#   5. Launch <temp>/install/Resources/Bin/XXAR.exe with env XXAR_UPDATE_API_URL_OVERRIDE=http://127.0.0.1:<port>/repos/.../releases/latest and XXAR_UPDATE_FORCE_PORTABLE=1.
 #   6. YOU click "Download" in the update dialog that appears at startup.
-#   7. The script watches for:
-#        a) original XXAR.exe process exit
-#        b) LIVE_TEST_MARKER.txt flips from OLD to NEW
-#        c) a new XXAR.exe alive (helper relaunched it)
-#        d) Bin.old cleaned up
-#   8. Reports PASS/FAIL, kills the relaunched exe, cleans up temp dir.
+#   7. The script then watches for the events listed below.
+#       a) Original XXAR.exe process exit.
+#       b) LIVE_TEST_MARKER.txt flips from OLD to NEW.
+#       c) A new XXAR.exe alive (helper relaunched it).
+#       d) Bin.old cleaned up.
+#   8. Reports PASS/FAIL, kills the relaunched exe, and cleans up the temp dir.
 
-# Run:
-#     python scripts/test_updater_live.py
-#     python scripts/test_updater_live.py --keep-artifacts
-#     python scripts/test_updater_live.py --timeout 600
+# Run with: python scripts/test_updater_live.py.
+# Run keeping artifacts with: python scripts/test_updater_live.py --keep-artifacts.
+# Run with a custom timeout via: python scripts/test_updater_live.py --timeout 600.
 
-# Note: XXAR_UPDATE_API_URL_OVERRIDE and XXAR_UPDATE_FORCE_PORTABLE are
-# read by src/gui/backend/update_manager_bridge.py. They have no effect on
-# normal (non-test) runs because they're unset.
+# Note: XXAR_UPDATE_API_URL_OVERRIDE and XXAR_UPDATE_FORCE_PORTABLE are read by src/gui/backend/update_manager_bridge.py.
+# They have no effect on normal (non-test) runs because they are unset.
 
 
 from __future__ import annotations
@@ -63,12 +58,12 @@ MARKER_NAME = "LIVE_TEST_MARKER.txt"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Mock GitHub release server
+# Mock GitHub release server.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_new_release_zip(src_zip: Path, dest_zip: Path, marker_value: str) -> None:
-    # Copy `src_zip` to `dest_zip` with LIVE_TEST_MARKER.txt inside Resources/Bin/
-    # set to `marker_value`. Everything else is byte-identical.
+    # Copy `src_zip` to `dest_zip` with LIVE_TEST_MARKER.txt inside Resources/Bin/ set to `marker_value`.
+    # Everything else is byte-identical.
     with zipfile.ZipFile(src_zip, "r") as src:
         names = src.namelist()
         marker_paths = [n for n in names if n.endswith(MARKER_NAME)]
@@ -145,7 +140,7 @@ def start_mock_server(workdir: Path, zip_to_serve: Path, version: str) -> tuple[
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Process helpers
+# Process helpers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def list_xxar_processes_under(path: Path) -> list[int]:
@@ -178,7 +173,7 @@ def kill_pids(pids: list[int]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main flow
+# Main flow.
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Phase:
@@ -218,8 +213,8 @@ def preflight() -> None:
               file=sys.stderr)
         sys.exit(2)
 
-    # Heuristic: if update_manager_bridge.py is newer than the built exe, the
-    # env-var overrides this test relies on aren't baked in. Warn loudly.
+    # Heuristic: if update_manager_bridge.py is newer than the built exe, the env-var overrides this test relies on are not baked in.
+    # Warn loudly.
     bridge_src = REPO_ROOT / "src" / "gui" / "backend" / "update_manager_bridge.py"
     exe = DIST_APP_DIR / APP_EXE_NAME
     if bridge_src.exists() and exe.exists():
@@ -344,9 +339,8 @@ def main() -> int:
         print()
 
         # ── Verify env-var override took effect ──────────────────────
-        # If the built exe doesn't read XXAR_UPDATE_API_URL_OVERRIDE, it'll
-        # silently hit api.github.com instead - catch that before the user
-        # can interact with what would become a real (dangerous) update.
+        # If the built exe does not read XXAR_UPDATE_API_URL_OVERRIDE, it will silently hit api.github.com instead.
+        # Catch that before the user can interact with what would become a real (dangerous) update.
         p = Phase("Built exe reaches the mock server (env-var override active)")
         hit = wait_for(lambda: server.api_hits > 0, timeout_s=60)
         if hit:

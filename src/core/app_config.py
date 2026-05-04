@@ -15,7 +15,7 @@ FLATPAK_BUILD_ENV_VAR = "XXAR_FLATPAK_BUILD"
 
 DEBUG = False
 
-# ── Active game (mutable at runtime) ────────────────────────────
+# ── Active game (mutable at runtime). ────────────────────────────
 # Initialised from DEFAULT_GAME_ID; updated by switch_active_game().
 
 _active_game = get_game(DEFAULT_GAME_ID)

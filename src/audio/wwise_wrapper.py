@@ -17,8 +17,7 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-# Wwise writes cache/temp files inside the project dir, so when the bundle is
-# read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
+# Wwise writes cache/temp files inside the project dir, so when the bundle is read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
 _BUNDLED_RESOURCE_DIR = get_bundled_resources_dir()
 
 if IS_FLATPAK or is_frozen():

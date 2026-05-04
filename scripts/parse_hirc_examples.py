@@ -219,8 +219,7 @@ def main():
     d = data[o:]; sl = struct.unpack_from('<I', d, 1)[0]; d = d[:5 + sl]; off = 5
     oid = struct.unpack_from('<I', d, off)[0]; off += 4
     print('  objID=0x%08X  secLen=%d' % (oid, sl))
-    # MusicSegment has complex MusicNodeParams (NodeBase + positioning + aux +
-    # stateChunk + RTPC + children + grid/tempo info) before fDuration/markers.
+    # MusicSegment has complex MusicNodeParams (NodeBase + positioning + aux + stateChunk + RTPC + children + grid/tempo info) before fDuration/markers.
     # Use heuristic scanning to find fDuration and markers (same as hirc_patcher).
     em = struct.pack('<I', 0x5BBBD648)
     empos = d.find(em)

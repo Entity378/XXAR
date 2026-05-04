@@ -1,9 +1,8 @@
 # Standalone folder-swap helper for XXAR portable/ZIP installs.
 
-# The main XXAR.exe, once onefolder-packaged, cannot overwrite its own
-# Resources/Bin while running. It downloads a new build into a staging
-# folder and spawns this helper, which waits for the main to exit, swaps
-# Bin atomically (rename-then-move), and relaunches the app.
+# The main XXAR.exe, once onefolder-packaged, cannot overwrite its own Resources/Bin while running.
+# It downloads a new build into a staging folder and spawns this helper.
+# The helper waits for the main to exit, swaps Bin atomically (rename-then-move), and relaunches the app.
 
 # MSI installs go through msiexec instead and do not use this helper.
 
@@ -24,9 +23,8 @@ if sys.platform != "win32":
 
 
 LOCK_RETRY_SECONDS = 1.0
-# Empirically, Windows Defender's real-time scan of the freshly-extracted
-# staging Bin dir can hold a directory handle for ~30-60 s; a worst-case
-# budget of 3 min is safer than failing updates on slow machines.
+# Empirically, Windows Defender's real-time scan of the freshly-extracted staging Bin dir can hold a directory handle for ~30-60 s.
+# A worst-case budget of 3 min is safer than failing updates on slow machines.
 LOCK_RETRY_MAX = 180
 APP_EXE_NAME = "XXAR.exe"
 
@@ -48,8 +46,8 @@ def _setup_logging(dist_dir: Path) -> Path:
 
 
 def _rename_with_retry(src: Path, dst: Path) -> None:
-    # Rename fails while the target or source is locked by the still-exiting
-    # XXAR process. Retry until Windows releases the handles.
+    # Rename fails while the target or source is locked by the still-exiting XXAR process.
+    # Retry until Windows releases the handles.
     for attempt in range(1, LOCK_RETRY_MAX + 1):
         try:
             src.rename(dst)
@@ -75,7 +73,7 @@ def _remove_tree_best_effort(path: Path) -> None:
 
 def _swap_folder(dist_dir: Path, staging_dir: Path) -> Path:
     # Swap <dist>/Resources/Bin with the pre-extracted staging folder.
-    # Returns the path to the new app exe for relaunch.
+    # Return the path to the new app exe for relaunch.
     bin_dir = dist_dir / "Resources" / "Bin"
     bin_old = dist_dir / "Resources" / "Bin.old"
 
@@ -101,8 +99,7 @@ def _swap_folder(dist_dir: Path, staging_dir: Path) -> Path:
 
 
 def _relaunch(app_exe: Path) -> None:
-    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP so the new app does not
-    # die with us when the updater exits.
+    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP so the new app does not die with us when the updater exits.
     DETACHED_PROCESS = 0x00000008
     CREATE_NEW_PROCESS_GROUP = 0x00000200
     subprocess.Popen(

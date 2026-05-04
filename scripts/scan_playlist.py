@@ -8,10 +8,8 @@ HIRC_TYPE_MUSIC_SEGMENT = 0x0A
 HIRC_TYPE_MUSIC_TRACK = 0x0B
 HIRC_TYPE_MUSIC_RANSEQ = 0x0D
 
-# PlaylistItem: 30 bytes each
-# segmentID(4) + playlistItemID(4) + numChildren(4) + eRSType(4) +
-# Loop(2) + LoopMin(2) + LoopMax(2) + weight(4) +
-# wAvoidRepeatCount(2) + isUsingWeight(1) + isShuffle(1)
+# PlaylistItem: 30 bytes each.
+# Layout: segmentID(4) + playlistItemID(4) + numChildren(4) + eRSType(4) + Loop(2) + LoopMin(2) + LoopMax(2) + weight(4) + wAvoidRepeatCount(2) + isUsingWeight(1) + isShuffle(1).
 PLAYLIST_ITEM_SIZE = 30
 
 
@@ -137,7 +135,7 @@ def parse_playlist(data, all_segment_ids):
 
 def classify_playlist(items):
     # Classify the playlist pattern based on loop values.
-    # Returns: (pattern_name, intro_segments, loop_segments)
+    # Returns a tuple of (pattern_name, intro_segments, loop_segments).
     leaves = [it for it in items if it["children"] == 0]
     root = items[0]
 

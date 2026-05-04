@@ -48,9 +48,8 @@ _AUDIO_SETTING_KEYS = (
 
 
 def count_replacements(metadata):
-    # Total file replacements across all PCKs. Handles both the legacy v1.0
-    # flat layout `{pck: {file_id: info}}` and the v2.0/v3.0 per-bnk layout
-    # `{pck: {bnk_key: {file_id: info}}}`.
+    # Total file replacements across all PCKs.
+    # Handles both the legacy v1.0 flat layout `{pck: {file_id: info}}` and the v2.0/v3.0 per-bnk layout `{pck: {bnk_key: {file_id: info}}}`.
     replacements = metadata.get('replacements', {}) if isinstance(metadata, dict) else {}
     fmt = metadata.get('format_version', '1.0') if isinstance(metadata, dict) else '1.0'
     if fmt in ('2.0', '3.0'):
@@ -62,8 +61,7 @@ def count_replacements(metadata):
 
 
 def _extract_audio_settings(file_info):
-    # Pick only non-default fields so old mods and unchanged settings
-    # stay absent from metadata.json (backwards-compatible).
+    # Pick only non-default fields so old mods and unchanged settings stay absent from metadata.json (backwards-compatible).
     result = {}
     if not isinstance(file_info, dict):
         return result
@@ -569,8 +567,8 @@ class ModPackageManager:
 
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
 
-        # Remap entries from protected override PCKs to their StreamingAssets target,
-        # and pre-extract pristine BNK content for the main loop to merge.
+        # Remap entries from protected override PCKs to their StreamingAssets target.
+        # Also pre-extract pristine BNK content for the main loop to merge.
         patch_bnk_content = {}
         try:
             from src.wwise.patch_target_resolver import resolve_and_extract
@@ -640,9 +638,9 @@ class ModPackageManager:
             if progress_callback:
                 progress_callback(f"Processing {pck_name}...", idx, total_pcks)
 
-            # Defensive: after resolve_and_extract protected PCKs should have
-            # been remapped. If one slips through (resolver failure) skip it
-            # here — rebuilding a protected override produces a broken stub.
+            # Defensive: after resolve_and_extract, protected PCKs should have been remapped.
+            # If one slips through (resolver failure), skip it here.
+            # Rebuilding a protected override produces a broken stub.
             if pck_name in game.protected_pcks:
                 logger.info(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
                 continue
@@ -733,8 +731,7 @@ class ModPackageManager:
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
 
-                # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs
-                # aren't lost when the override BNK is nulled.
+                # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs aren't lost when the override BNK is nulled.
                 touched_bnks = set(bnk_wems.keys())
                 for patch_bnk_id in list(patch_bnk_content.keys()):
                     if patch_bnk_id in touched_bnks:
@@ -768,8 +765,8 @@ class ModPackageManager:
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")
             finally:
-                # On Windows the file handles must be released explicitly or they
-                # linger in the traceback and block the mod swap-in.
+                # On Windows the file handles must be released explicitly.
+                # Otherwise they linger in the traceback and block the mod swap-in.
                 if 'packer' in locals():
                     packer.close()
 

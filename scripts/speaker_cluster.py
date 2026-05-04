@@ -41,9 +41,9 @@ def _find_speechbrain_site_packages():
     return None
 
 def _patch_speechbrain(site_packages):
-    # Auto-patches two known compat issues after `pipx install speechbrain`:
-    # torchaudio 2.x removed list_audio_backends(); huggingface_hub >=1.0
-    # renamed use_auth_token= to token=.
+    # Auto-patches two known compat issues after `pipx install speechbrain`.
+    # First: torchaudio 2.x removed list_audio_backends().
+    # Second: huggingface_hub >=1.0 renamed use_auth_token= to token=.
     patched = []
 
     # --- Patch 1: torch_audio_backend.py ---
@@ -688,8 +688,8 @@ def find_elbow_threshold(Z):
     diffs = np.diff(merge_distances)
     window = max(5, len(diffs) // 20)
 
-    # Scale sensitivity with dataset size: larger sets need a stricter multiplier
-    # to avoid false elbows in the dense low-distance region
+    # Scale sensitivity with dataset size.
+    # Larger sets need a stricter multiplier to avoid false elbows in the dense low-distance region.
     n = len(merge_distances)
     sensitivity = 2.0 + (n / 500.0)  # 2.0 at ~0 clips, ~4.3 at 1170 clips
     sensitivity = min(sensitivity, 5.0)

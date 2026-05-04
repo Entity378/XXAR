@@ -246,8 +246,8 @@ class BNKFile:
         if self.data is None:
             return
 
-        # Use actual WEM count for DIDX size (12 bytes per entry)
-        # len(DIDX) would return the old buffer size before setdata() updates it
+        # Use actual WEM count for DIDX size (12 bytes per entry).
+        # len(DIDX) would return the old buffer size before setdata() updates it.
         didx_size = len(self.data['DATA'].wem_data) * 0xC
 
         self.data['DATA'].start_pos = (

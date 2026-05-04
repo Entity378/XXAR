@@ -90,8 +90,8 @@ class AutoDetectWorker(QThread):
                     return
         else:
 
-            # Iterate every known Wine prefix (manual, Steam Proton, Lutris,
-            # Bottles, Heroic) — `find /` is slow and can't see the host FS from a Flatpak sandbox.
+            # Iterate every known Wine prefix (manual, Steam Proton, Lutris, Bottles, Heroic).
+            # `find /` is slow and can't see the host FS from a Flatpak sandbox.
             logger.info(f"[{APP_NAME}] Scanning Wine prefixes for {data_dir}...")
 
             home = Path.home()
@@ -219,8 +219,8 @@ class Application(
         format.setSamples(4)
         QSurfaceFormat.setDefaultFormat(format)
 
-        # DO NOT set organizationName — Qt's QStandardPaths would nest cache as
-        # %LOCALAPPDATA%\XXAR\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\cache\.
+        # DO NOT set organizationName.
+        # Qt's QStandardPaths would nest cache as %LOCALAPPDATA%\XXAR\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\cache\.
         QCoreApplication.setOrganizationDomain(f"{APP_NAME.lower()}.local")
         QCoreApplication.setApplicationName(APP_NAME)
 

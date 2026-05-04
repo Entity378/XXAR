@@ -16,8 +16,8 @@ class NativeDialogs:
 
     @staticmethod
     def _get_clean_env():
-        # PyInstaller's LD_LIBRARY_PATH points at bundled libs and crashes system GTK
-        # apps; restore the original so zenity etc. find their own libs.
+        # PyInstaller's LD_LIBRARY_PATH points at bundled libs and crashes system GTK apps.
+        # Restore the original so zenity etc. find their own libs.
         env = os.environ.copy()
         if is_frozen():
             orig = env.get('LD_LIBRARY_PATH_ORIG')

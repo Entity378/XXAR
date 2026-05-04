@@ -304,8 +304,8 @@ class AudioBrowserBridge(QObject):
         self._index_cache = {}
         self._tree_cache = {}
 
-        # {bnk_id: {wem_id: (override_name, lang_id)}} from Patch/Hotfix PCKs.
-        # Cached per game so tab switches don't redo the scan.
+        # Mapping {bnk_id: {wem_id: (override_name, lang_id)}} from Patch/Hotfix PCKs.
+        # The mapping is cached per game so tab switches don't redo the scan.
         self._patch_pck_wems_by_bnk = None
         self._patch_pck_cache_key = None
         self._current_directory = None
@@ -681,8 +681,7 @@ class AudioBrowserBridge(QObject):
 
             if cache_key in self._index_cache:
                 self.file_id_index = self._index_cache[cache_key]
-                # Defensive: stale caches predating Persistent/Patch.pck
-                # would otherwise drop patch-only WEMs from cross-tab search.
+                # Defensive merge: stale caches predating Persistent/Patch.pck would otherwise drop patch-only WEMs from cross-tab search.
                 try:
                     self._merge_patch_entries_into_index(self.file_id_index)
                     self._index_cache[cache_key] = self.file_id_index
@@ -1018,8 +1017,7 @@ class AudioBrowserBridge(QObject):
                     "parentBnk": str(bnk_data["file_id"]),
                 })
 
-            # Surface override-only WEMs (Patch/Hotfix BNKs) under the StreamingAssets
-            # SoundBank so staged replacements target a stable PCK name.
+            # Surface override-only WEMs (Patch/Hotfix BNKs) under the StreamingAssets SoundBank so staged replacements target a stable PCK name.
             existing_wem_ids = {w["wem_id"] for w in wem_list}
             try:
                 if self.game_root_dir:
@@ -2093,8 +2091,7 @@ class AudioBrowserBridge(QObject):
                         bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
                         bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
 
-                # Schedule transport-only merges so pristine override BNKs aren't lost
-                # when patch_override_pcks nulls them.
+                # Schedule transport-only merges so pristine override BNKs aren't lost when patch_override_pcks nulls them.
                 touched_bnks = set(bnk_wem_maps.keys())
                 for patch_bnk_id in list(patch_bnk_content.keys()):
                     if patch_bnk_id in touched_bnks:

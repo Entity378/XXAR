@@ -14,8 +14,7 @@ BACKUP_SUFFIX = ".xxar_backup"
 
 
 def find_patch_pck_sources(persistent_root, game):
-    # Returns [(pristine_path, override_pck_name), ...] preferring .xxar_backup
-    # when present so callers see the pre-mod state.
+    # Returns [(pristine_path, override_pck_name), ...] preferring .xxar_backup when present so callers see the pre-mod state.
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return []
@@ -31,11 +30,9 @@ def find_patch_pck_sources(persistent_root, game):
 
 
 def resolve_and_extract(resolved, streaming_root, persistent_root, game):
-    # Mutates `resolved` in place (removes protected pck_name keys, moves
-    # entries under the resolved dest_pck). Returns stats plus a
-    # patch_bnk_content dict: {bnk_id: {"source": override_pck_name,
-    # "wems": {wem_id: bytes}}} used by the main loop to transport pristine
-    # override WEMs into the dest BNK before applying mod replacements.
+    # Mutates `resolved` in place: removes protected pck_name keys and moves entries under the resolved dest_pck.
+    # Returns stats plus a patch_bnk_content dict shaped as {bnk_id: {"source": override_pck_name, "wems": {wem_id: bytes}}}.
+    # The main loop uses that dict to transport pristine override WEMs into the dest BNK before applying mod replacements.
     streaming_root = Path(streaming_root) if streaming_root else None
     persistent_root = Path(persistent_root) if persistent_root else None
     protected_names = set(getattr(game, "protected_pcks", ()) or ())
@@ -133,9 +130,9 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
             dest[key] = info
             remapped += 1
 
-    # Collect every bnk_id that will be rebuilt so we can extract pristine
-    # content for merging. Includes BNKs targeted by remapped entries AND any
-    # BNK a non-protected mod already targets that also exists in an override.
+    # Collect every bnk_id that will be rebuilt so we can extract pristine content for merging.
+    # Includes BNKs targeted by remapped entries.
+    # Also includes any BNK a non-protected mod already targets that also exists in an override.
     target_bnk_ids = set()
     for pck_name, entries in resolved.items():
         for info in entries.values():

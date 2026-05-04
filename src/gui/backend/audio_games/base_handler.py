@@ -644,8 +644,8 @@ class BaseBrowserHandler:
         duration_ms_by_track, volume_db_by_track,
         patched_track_ids,
     ):
-        # Patch in-memory on a bytearray so volume insertions don't shift
-        # duration offsets mid-pass; single write at the end.
+        # Patch in-memory on a bytearray so volume insertions don't shift duration offsets mid-pass.
+        # A single write happens at the end.
         targets = scan_bank_for_patch_targets(raw, source_ids)
         has_duration = targets.tracks or targets.segments
         has_volume = targets.volume_patches and volume_db_by_track
@@ -683,9 +683,8 @@ class BaseBrowserHandler:
             import shutil
             shutil.copy2(base_file, target_path)
 
-        # Some source PCKs (notably Minimum.pck) are delivered with the
-        # read-only attribute set; shutil.copy2 preserves it and write_bytes
-        # would then raise PermissionError.
+        # Some source PCKs (notably Minimum.pck) are delivered with the read-only attribute set.
+        # shutil.copy2 preserves it, and a subsequent write_bytes would then raise PermissionError.
         try:
             target_path.chmod(0o644)
         except Exception:
@@ -707,9 +706,8 @@ class BaseBrowserHandler:
         ]
 
     def _find_titlescreen_pcks(self, audio_root):
-        # Some games keep the title-screen PCK in a sibling folder of streaming_root
-        # (e.g. ZZZ stores Minimum.pck under Audio/Windows/Min/ while streaming_root is Full/).
-        # Scan streaming_root + its siblings to cover both layouts.
+        # Some games keep the title-screen PCK in a sibling folder of streaming_root (e.g. ZZZ stores Minimum.pck under Audio/Windows/Min/ while streaming_root is Full/).
+        # Scan streaming_root and its siblings to cover both layouts.
         names = getattr(self.game, "titlescreen_pcks", ())
         if not names or not audio_root:
             return []
@@ -739,9 +737,8 @@ class BaseBrowserHandler:
     @staticmethod
     def _persistent_overlay_path(src_pck, streaming_root, persistent_root):
         # Mirror a source PCK path into the persistent overlay tree.
-        # Works whether src_pck is under streaming_root or in a sibling folder
-        # (e.g. ZZZ's Min/Minimum.pck vs Full/ streaming_root) by swapping
-        # the StreamingAssets segment with the Persistent equivalent.
+        # This works whether src_pck is under streaming_root or in a sibling folder (e.g. ZZZ's Min/Minimum.pck vs Full/ streaming_root).
+        # The mapping is performed by swapping the StreamingAssets segment with the Persistent equivalent.
         src_pck = Path(src_pck)
         streaming_root = Path(streaming_root)
         persistent_root = Path(persistent_root)
