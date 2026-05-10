@@ -733,7 +733,7 @@ class FetchModDetailsWorker(QThread):
 class FetchThumbnailsWorker(QThread):
 
 
-    thumbnailReady = pyqtSignal(int, str)
+    thumbnailReady = pyqtSignal("qint64", str)
 
     CONCURRENT_REQUESTS = 5
 
@@ -793,7 +793,7 @@ class FetchThumbnailsWorker(QThread):
 
 class FetchDownloadCountsWorker(QThread):
 
-    downloadCountReady = pyqtSignal(int, int)
+    downloadCountReady = pyqtSignal("qint64", int)
 
     CONCURRENT_REQUESTS = 5
 
@@ -831,7 +831,7 @@ class FetchDownloadCountsWorker(QThread):
 
 class FetchModSupportWorker(QThread):
 
-    modSupportReady = pyqtSignal(int, bool)
+    modSupportReady = pyqtSignal("qint64", bool)
 
     CONCURRENT_REQUESTS = 5
 
@@ -1085,9 +1085,9 @@ class GameBananaBridge(QObject):
     nonNativeDownloadComplete = pyqtSignal(str)
     errorOccurred = pyqtSignal(str, str)
     loadingStateChanged = pyqtSignal(bool)
-    thumbnailUpdated = pyqtSignal(int, str)
-    downloadCountUpdated = pyqtSignal(int, int)
-    modSupportUpdated = pyqtSignal(int, bool)
+    thumbnailUpdated = pyqtSignal("qint64", str)
+    downloadCountUpdated = pyqtSignal("qint64", int)
+    modSupportUpdated = pyqtSignal("qint64", bool)
     installComplete = pyqtSignal(str)
     multipleModsFound = pyqtSignal('QVariantList', str)
     installStateChanged = pyqtSignal(bool)
@@ -1169,7 +1169,7 @@ class GameBananaBridge(QObject):
             self.refresh()
         return True
 
-    @pyqtSlot(int)
+    @pyqtSlot("qint64")
     def fetchThumbnail(self, mod_id):
 
         try:
@@ -1294,7 +1294,7 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Failed to Load Mods", str(data))
             logger.error(f"[GameBanana] Error: {data}")
 
-    @pyqtSlot(int)
+    @pyqtSlot("qint64")
     def fetchModDetails(self, mod_id):
 
         if self.details_worker and self.details_worker.isRunning():
@@ -1332,7 +1332,7 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Failed to Load Mod Details", str(data))
             logger.error(f"[GameBanana] Error: {data}")
 
-    @pyqtSlot(str, str, str, int)
+    @pyqtSlot(str, str, str, "qint64")
     def downloadMod(self, download_url, filename, mod_name, mod_id=0):
 
         if self.download_worker and self.download_worker.isRunning():
