@@ -23,7 +23,7 @@ class GameBananaConnector:
         gb = self.gamebanana_bridge
 
         self.gamebanana_page.loadModsRequested.connect(gb.fetchMods)
-        self.gamebanana_page.modCardClicked.connect(gb.fetchModDetails)
+        self.gamebanana_page.modCardClicked.connect(lambda mod_id: gb.fetchModDetails(mod_id))
         self.gamebanana_page.refreshRequested.connect(gb.refresh)
         self.gamebanana_page.downloadModRequested.connect(
             lambda url, filename, mod_name, mod_id: gb.downloadMod(url, filename, mod_name, mod_id)
