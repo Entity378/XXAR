@@ -1,8 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.15
-import QtGraphicalEffects 1.15
-import Qt.labs.settings 1.0
+import QtQuick.Effects
 import "."
 
 Item {
@@ -28,13 +27,6 @@ Item {
 
     signal testPermissionDialogClicked()
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
-
-    Settings {
-        id: modManagerSettings
-        category: "ModManager"
-        property alias sortMode: mod_Manager.currentSortMode
-        property alias gridViewMode: mod_Manager.gridViewMode
-    }
 
     ListModel {
         id: modsModel
@@ -404,13 +396,12 @@ Item {
                             border.width: 1
 
                             layer.enabled: true
-                            layer.effect: DropShadow {
-                                transparentBorder: true
-                                horizontalOffset: 0
-                                verticalOffset: 4
-                                radius: 8
-                                samples: 16
-                                color: "#80000000"
+                            layer.effect: MultiEffect {
+                                shadowEnabled: true
+                                shadowHorizontalOffset: 0
+                                shadowVerticalOffset: 4
+                                shadowBlur: 0.50
+                                shadowColor: "#80000000"
                             }
                         }
 
@@ -516,11 +507,13 @@ Item {
                                 anchors.fill: parent
                                 radius: 36.44
                                 visible: false
+                                layer.enabled: true
                             }
 
-                            OpacityMask {
+                            MultiEffect {
                                 anchors.fill: thumbnailImage
                                 source: thumbnailImage
+                                maskEnabled: true
                                 maskSource: thumbnailMask
                                 visible: model.thumbnailPath && model.thumbnailPath.length > 0
                             }
@@ -780,10 +773,12 @@ Item {
                                     anchors.fill: parent
                                     radius: 55
                                     visible: false
+                                    layer.enabled: true
                                 }
-                                OpacityMask {
+                                MultiEffect {
                                     anchors.fill: gridThumbImg
                                     source: gridThumbImg
+                                    maskEnabled: true
                                     maskSource: gridThumbMask
                                     visible: model.thumbnailPath && model.thumbnailPath.length > 0
                                 }

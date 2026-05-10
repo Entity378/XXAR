@@ -6,7 +6,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
+from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
 from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id

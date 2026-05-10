@@ -1,6 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtGraphicalEffects 1.15
+import QtQuick.Effects
 
 Item {
     id: modInfoDialog
@@ -109,11 +109,13 @@ Item {
                         anchors.fill: parent
                         radius: 36.44
                         visible: false
+                        layer.enabled: true
                     }
 
-                    OpacityMask {
+                    MultiEffect {
                         anchors.fill: thumbnailImage
                         source: thumbnailImage
+                        maskEnabled: true
                         maskSource: thumbnailMask
                         visible: modThumbnailPath && modThumbnailPath.length > 0
                     }

@@ -2,7 +2,7 @@ import sys
 import subprocess
 import os
 from pathlib import Path
-from PyQt5.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog
 from src.gui.utils.path_memory import get_last_dir, save_last_dir
 from src.core.subprocess_utils import IS_LINUX, is_frozen
 

@@ -1,10 +1,10 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 import sys
 import subprocess
 from pathlib import Path
 from src.core.app_config import APP_NAME
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
@@ -32,7 +32,7 @@ class ModManagerConnector:
         self.mod_manager_bridge.modsLoaded.connect(
             lambda mods: QMetaObject.invokeMethod(
                 mod_page, "loadMods",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", mods)
             )
         )
@@ -89,7 +89,7 @@ class ModManagerConnector:
     def on_import_mod_clicked(self):
         logger.info("[Import Wizard] Opening import wizard...")
         if self.import_wizard:
-            QMetaObject.invokeMethod(self.import_wizard, "show", Qt.QueuedConnection)
+            QMetaObject.invokeMethod(self.import_wizard, "show", Qt.ConnectionType.QueuedConnection)
         else:
             logger.error("[Import Wizard] ERROR: Import wizard not found")
             self.mod_manager_bridge.errorOccurred.emit(
@@ -119,7 +119,7 @@ class ModManagerConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showConfirmDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", "remove_mod"),
@@ -156,7 +156,7 @@ class ModManagerConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showConflictResolutionDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", conflicts),
         )
 
@@ -165,7 +165,7 @@ class ModManagerConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showModConflictDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", mod_conflicts),
             Q_ARG("QVariant", file_conflicts),
         )
@@ -224,9 +224,9 @@ class ModManagerConnector:
             QMetaObject.invokeMethod(
                 self.mod_info_dialog,
                 "setModInfo",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", mod_info),
             )
-            QMetaObject.invokeMethod(self.mod_info_dialog, "show", Qt.QueuedConnection)
+            QMetaObject.invokeMethod(self.mod_info_dialog, "show", Qt.ConnectionType.QueuedConnection)
         else:
             logger.error(f"[Mod Manager] ERROR: Could not find mod info for {mod_uuid}")

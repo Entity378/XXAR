@@ -702,7 +702,7 @@ Item {
                                                             border.width: 1
                                                         }
                                                         Layout.preferredWidth: 130
-                                                        validator: RegExpValidator { regExp: /^[0-9]{1,10}$/ }
+                                                        validator: RegularExpressionValidator { regularExpression: /^[0-9]{1,10}$/ }
                                                         onTextEdited: hircEditorPage.setPending(
                                                                           track.obj_id, "src",
                                                                           modelData.index, text
@@ -756,7 +756,7 @@ Item {
                                                             border.width: 1
                                                         }
                                                         Layout.preferredWidth: 130
-                                                        validator: RegExpValidator { regExp: /^[0-9]{1,10}$/ }
+                                                        validator: RegularExpressionValidator { regularExpression: /^[0-9]{1,10}$/ }
                                                         onTextEdited: hircEditorPage.setPending(
                                                                           track.obj_id, "pl",
                                                                           modelData.index, text
@@ -1024,7 +1024,7 @@ Item {
                                 border.color: Theme.cardBackground
                                 border.width: 1
                             }
-                            validator: RegExpValidator { regExp: /^[0-9]{1,10}$/ }
+                            validator: RegularExpressionValidator { regularExpression: /^[0-9]{1,10}$/ }
                             onTextChanged: hircEditorPage.wemAddIdText = text
                         }
 

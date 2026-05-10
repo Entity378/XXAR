@@ -5,13 +5,13 @@ import subprocess
 import shutil
 import time
 from pathlib import Path
-from PyQt5.QtCore import pyqtSignal, QObject, QTimer
+from PyQt6.QtCore import pyqtSignal, QObject, QTimer
 from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
 
 if not IS_WINDOWS:
-    from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-    from PyQt5.QtCore import QUrl
+    from PyQt6.QtMultimedia import QMediaPlayer, QMediaContent
+    from PyQt6.QtCore import QUrl
 
 class AudioPlayer(QObject):
 

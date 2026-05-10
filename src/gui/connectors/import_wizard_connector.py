@@ -1,7 +1,7 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
 
@@ -50,7 +50,7 @@ class ImportWizardConnector:
             QMetaObject.invokeMethod(
                 self.import_wizard,
                 "setSelectedFiles",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", display_names),
             )
         else:
@@ -82,7 +82,7 @@ class ImportWizardConnector:
             QMetaObject.invokeMethod(
                 self.import_wizard,
                 "setSelectedFolder",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", folder),
                 Q_ARG("QVariant", display_names),
             )
@@ -103,7 +103,7 @@ class ImportWizardConnector:
             QMetaObject.invokeMethod(
                 self.import_wizard,
                 "setThumbnailPath",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", file_path),
             )
         else:
@@ -142,7 +142,7 @@ class ImportWizardConnector:
 
         logger.info(f"[Import Wizard] Saving to: {save_path}")
 
-        QMetaObject.invokeMethod(self.import_wizard, "startImporting", Qt.QueuedConnection)
+        QMetaObject.invokeMethod(self.import_wizard, "startImporting", Qt.ConnectionType.QueuedConnection)
 
         import_mode = wizard_data["importMode"]
         files_dict = {}
@@ -194,7 +194,7 @@ class ImportWizardConnector:
 
     def on_import_finished(self, success, message):
         if self.import_wizard:
-            QMetaObject.invokeMethod(self.import_wizard, "finishImporting", Qt.QueuedConnection)
+            QMetaObject.invokeMethod(self.import_wizard, "finishImporting", Qt.ConnectionType.QueuedConnection)
 
         if success:
             logger.info(f"[Import Worker] Success: {message}")

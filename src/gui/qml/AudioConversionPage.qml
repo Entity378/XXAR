@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import QtGraphicalEffects 1.15
+import QtQuick.Effects
 import "../components"
 import "."
 
@@ -144,13 +144,12 @@ Item {
                             border.width: 1
 
                             layer.enabled: true
-                            layer.effect: DropShadow {
-                                transparentBorder: true
-                                horizontalOffset: 0
-                                verticalOffset: 4
-                                radius: 8
-                                samples: 16
-                                color: "#80000000"
+                            layer.effect: MultiEffect {
+                                shadowEnabled: true
+                                shadowHorizontalOffset: 0
+                                shadowVerticalOffset: 4
+                                shadowBlur: 0.50
+                                shadowColor: "#80000000"
                             }
                         }
 
@@ -496,13 +495,12 @@ Item {
                                 border.width: 1
 
                                 layer.enabled: true
-                                layer.effect: DropShadow {
-                                    transparentBorder: true
-                                    horizontalOffset: 0
-                                    verticalOffset: 4
-                                    radius: 8
-                                    samples: 16
-                                    color: "#80000000"
+                                layer.effect: MultiEffect {
+                                    shadowEnabled: true
+                                    shadowHorizontalOffset: 0
+                                    shadowVerticalOffset: 4
+                                    shadowBlur: 0.50
+                                    shadowColor: "#80000000"
                                 }
                             }
 

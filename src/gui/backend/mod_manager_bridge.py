@@ -1,5 +1,5 @@
 
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QObject,
     pyqtSlot,
     pyqtSignal,
@@ -8,7 +8,7 @@ from PyQt5.QtCore import (
     QTimer,
     QCoreApplication,
 )
-from PyQt5.QtQml import QQmlApplicationEngine
+from PyQt6.QtQml import QQmlApplicationEngine
 from pathlib import Path
 import json
 import os
@@ -875,8 +875,8 @@ class ModManagerBridge(QObject):
                 import winsound
                 winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
             else:
-                from PyQt5.QtCore import QUrl
-                from PyQt5.QtMultimedia import QSoundEffect
+                from PyQt6.QtCore import QUrl
+                from PyQt6.QtMultimedia import QSoundEffect
                 if not hasattr(self, "_sound_effect"):
                     self._sound_effect = QSoundEffect()
                 self._sound_effect.setSource(QUrl.fromLocalFile(path))

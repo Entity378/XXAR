@@ -26,6 +26,9 @@ if IS_LINUX and 'QT_QPA_PLATFORM' not in os.environ:
 if IS_WINDOWS:
     os.environ.setdefault('QT_SCALE_FACTOR_ROUNDING_POLICY', 'PassThrough')
 
+# Force the Basic Qt Quick Controls style so our custom background/contentItem overrides work — the native style refuses customization.
+os.environ.setdefault('QT_QUICK_CONTROLS_STYLE', 'Basic')
+
 def _load_ui_scale():
     import json
     from pathlib import Path

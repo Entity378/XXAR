@@ -13,7 +13,7 @@ def _natural_pck_key(name: str) -> list:
         for chunk in re.split(r"(\d+)", name)
     ]
 
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QObject,
     QThread,
     pyqtSignal,

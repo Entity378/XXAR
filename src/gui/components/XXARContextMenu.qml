@@ -1,7 +1,7 @@
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtGraphicalEffects 1.15
+import QtQuick.Effects
 import "../qml"
 
 Menu {
@@ -56,13 +56,12 @@ Menu {
         radius: Theme.radiusSmall
 
         layer.enabled: true
-        layer.effect: DropShadow {
-            horizontalOffset: 0
-            verticalOffset: 4
-            radius: 12
-            samples: 16
-            color: "#80000000"
-            transparentBorder: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowHorizontalOffset: 0
+            shadowVerticalOffset: 4
+            shadowBlur: 0.75
+            shadowColor: "#80000000"
         }
     }
 

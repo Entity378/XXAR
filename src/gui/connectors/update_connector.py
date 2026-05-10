@@ -1,8 +1,8 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 import os
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
+from PyQt6.QtWidgets import QApplication
 
 from src.core.config_manager import get_cache_dir
 from src.core.app_config import APP_NAME
@@ -64,7 +64,7 @@ class UpdateConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
@@ -76,7 +76,7 @@ class UpdateConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showUpdateDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", version),
                 Q_ARG("QVariant", release_notes),
             )
@@ -93,7 +93,7 @@ class UpdateConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showSuccessToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "You're running the latest version!")),
             )
 
@@ -110,7 +110,7 @@ class UpdateConnector:
             self.settings_page.setProperty("updateDownloaded", True)
         if self.update_dialog and self.update_dialog.property("visible"):
             self.update_dialog.setProperty("isDownloading", False)
-            QMetaObject.invokeMethod(self.update_dialog, "hide", Qt.QueuedConnection)
+            QMetaObject.invokeMethod(self.update_dialog, "hide", Qt.ConnectionType.QueuedConnection)
             self._on_restart_for_update()
 
     def _on_update_error(self, message):
@@ -122,12 +122,12 @@ class UpdateConnector:
             self.settings_page.setProperty("isDownloadingUpdate", False)
         if self.update_dialog and self.update_dialog.property("visible"):
             self.update_dialog.setProperty("isDownloading", False)
-            QMetaObject.invokeMethod(self.update_dialog, "hide", Qt.QueuedConnection)
+            QMetaObject.invokeMethod(self.update_dialog, "hide", Qt.ConnectionType.QueuedConnection)
         if not was_startup:
             QMetaObject.invokeMethod(
                 self.root,
                 "showErrorToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Update error: %1").replace("%1", message)),
             )
 
@@ -136,7 +136,7 @@ class UpdateConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessToast",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "GitHub token saved")),
         )
 
@@ -146,7 +146,7 @@ class UpdateConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showUpdateDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", "99.0.0"),
                 Q_ARG("QVariant", "## Test Release\n\n- This is a test changelog entry\n- Another cool feature\n- Bug fixes and improvements\n\nThis dialog is for testing only."),
             )
@@ -156,7 +156,7 @@ class UpdateConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showMultipleLanguagesWarning",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", "English, Japanese"),
             Q_ARG("QVariant", "English"),
             Q_ARG("QVariant", "External0.pck"),
@@ -206,7 +206,7 @@ class UpdateConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Successful!")),
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "XXAR has been updated to version %1.").replace("%1", new_version)),
                     Q_ARG("QVariant", f"../assets/{app_config.ASSETS_DIR}/VivianHappy.png"),

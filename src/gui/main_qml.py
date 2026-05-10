@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 
 import os
 import sys
@@ -12,10 +12,10 @@ logger = get_logger(__name__)
 
 if IS_WINDOWS:
     os.environ["QT_QPA_PLATFORM"] = "windows:fontengine=freetype"
-from PyQt5.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase, QPixmap
-from PyQt5.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
-from PyQt5.QtCore import QUrl, QObject, QCoreApplication, QMetaObject, Q_ARG, Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt5.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase, QPixmap
+from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
+from PyQt6.QtCore import QUrl, QObject, QCoreApplication, QMetaObject, Q_ARG, Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import QApplication, QSplashScreen
 
 class ClipboardHelper(QObject):
     @pyqtSlot(str)
@@ -215,10 +215,8 @@ class Application(
         logger.info("QML UI Version")
         logger.info("=" * 50)
 
-        QCoreApplication.setAttribute(Qt.AA_DontUseNativeDialogs, False)
+        QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, False)
 
-        QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-        QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
         format = QSurfaceFormat()
         format.setSamples(4)
@@ -244,7 +242,7 @@ class Application(
         #     splash_path = ui_path / "assets" / "XXAR" / "XXAR-Logo2-512.png"
         #     if splash_path.exists():
         #         pixmap = QPixmap(str(splash_path))
-        #         self._splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
+        #         self._splash = QSplashScreen(pixmap, Qt.WindowType.WindowStaysOnTopHint)
         #         self._splash.show()
         #         self.app.processEvents()
         # except Exception as e:
@@ -367,7 +365,7 @@ class Application(
         root = self.engine.rootObjects()[0]
         self.root = root
 
-        from PyQt5.QtGui import QGuiApplication
+        from PyQt6.QtGui import QGuiApplication
 
         screen = QGuiApplication.primaryScreen()
         screen_geo = screen.availableGeometry()
@@ -455,7 +453,7 @@ class Application(
             self._startup_update_check = True
             self.update_manager_bridge.checkForUpdates()
 
-        return self.app.exec_()
+        return self.app.exec()
 
     def _connect_conversion_page(self):
         self.conversion_page = self.root.findChild(QObject, "audioConversionPage")
@@ -478,31 +476,31 @@ class Application(
         ac.inputPathSelected.connect(
             lambda path: QMetaObject.invokeMethod(
                 self.conversion_page, "setInputPath",
-                Qt.QueuedConnection, Q_ARG("QVariant", path)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", path)
             )
         )
         ac.outputPathSelected.connect(
             lambda path: QMetaObject.invokeMethod(
                 self.conversion_page, "setOutputPath",
-                Qt.QueuedConnection, Q_ARG("QVariant", path)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", path)
             )
         )
         ac.conversionStarted.connect(
             lambda: QMetaObject.invokeMethod(
                 self.conversion_page, "setConvertingState",
-                Qt.QueuedConnection, Q_ARG("QVariant", True)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", True)
             )
         )
         ac.conversionFinished.connect(
             lambda: QMetaObject.invokeMethod(
                 self.conversion_page, "setConvertingState",
-                Qt.QueuedConnection, Q_ARG("QVariant", False)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", False)
             )
         )
         ac.logMessage.connect(
             lambda msg: QMetaObject.invokeMethod(
                 self.conversion_page, "appendLog",
-                Qt.QueuedConnection, Q_ARG("QVariant", msg)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", msg)
             )
         )
         ac.errorOccurred.connect(self.on_error_occurred)
@@ -534,7 +532,7 @@ class Application(
             QMetaObject.invokeMethod(
                 self.root,
                 "showSuccessToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", message),
             )
 
@@ -543,7 +541,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showErrorToast",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", full_message),
         )
 
@@ -551,7 +549,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showAlertDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", sticker_path),
@@ -561,7 +559,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Work in Progress")),
             Q_ARG("QVariant", QCoreApplication.translate("Application", "This feature is not yet implemented.\n\nThis will be added in a future update. (i hope)")),
             Q_ARG("QVariant", f"../assets/{app_config.ASSETS_DIR}/YuzuhaSilly.png")
@@ -571,7 +569,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showAlertDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", ""),
@@ -581,7 +579,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", image_path),
@@ -591,7 +589,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", ""),
@@ -601,7 +599,7 @@ class Application(
         QMetaObject.invokeMethod(
             self.root,
             "showAlertDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", ""),

@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)

@@ -3,7 +3,7 @@ import shutil
 import struct
 from pathlib import Path
 
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 
 from src.core.game_registry import get_game
 from src.wwise.hirc_patcher import (

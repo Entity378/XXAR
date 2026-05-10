@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import QtGraphicalEffects 1.15
+import QtQuick.Effects
 import "."
 
 Rectangle {
@@ -361,9 +361,12 @@ Rectangle {
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
                                             layer.enabled: true
-                                            layer.effect: OpacityMask {
+                                            layer.effect: MultiEffect {
+                                                maskEnabled: true
+
                                                 maskSource: Rectangle {
                                                     width: 44; height: 44; radius: 22
+                                                    layer.enabled: true
                                                 }
                                             }
 
@@ -925,13 +928,12 @@ Rectangle {
         }
 
         layer.enabled: true
-        layer.effect: DropShadow {
-            transparentBorder: true
-            horizontalOffset: 0
-            verticalOffset: 8
-            radius: 28
-            samples: 25
-            color: "#a0000000"
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowHorizontalOffset: 0
+            shadowVerticalOffset: 8
+            shadowBlur: 1.00
+            shadowColor: "#a0000000"
         }
     }
 

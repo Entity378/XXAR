@@ -1,9 +1,9 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 import sys
 import subprocess
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.app_config import APP_NAME
@@ -69,19 +69,19 @@ class AudioBrowserConnector:
         ab.playbackStateUpdate.connect(self._on_audio_playback_state)
         ab.progressUpdate.connect(self._on_audio_progress)
         ab.treeCleared.connect(
-            lambda: QMetaObject.invokeMethod(self.audio_page, "clearTree", Qt.QueuedConnection)
+            lambda: QMetaObject.invokeMethod(self.audio_page, "clearTree", Qt.ConnectionType.QueuedConnection)
         )
         ab.treeItemsReady.connect(self._on_audio_tree_items)
         ab.languageTabsReady.connect(
             lambda tabs: QMetaObject.invokeMethod(
                 self.audio_page, "setLanguageTabs",
-                Qt.QueuedConnection, Q_ARG("QVariant", tabs)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", tabs)
             )
         )
         ab.gameDirectoryReady.connect(
             lambda path: QMetaObject.invokeMethod(
                 self.audio_page, "setGameDirectory",
-                Qt.QueuedConnection, Q_ARG("QVariant", path)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", path)
             )
         )
         ab.errorOccurred.connect(self.on_error_occurred)
@@ -112,25 +112,25 @@ class AudioBrowserConnector:
         self.audio_page.openTagDbFolderClicked.connect(self.on_open_tag_db_folder)
         ab.tagDbDownloadStarted.connect(
             lambda: QMetaObject.invokeMethod(
-                self.audio_page, "onTagDbDownloadStarted", Qt.QueuedConnection
+                self.audio_page, "onTagDbDownloadStarted", Qt.ConnectionType.QueuedConnection
             )
         )
         ab.tagDbDownloadReady.connect(
             lambda count: QMetaObject.invokeMethod(
                 self.audio_page, "onTagDbDownloadReady",
-                Qt.QueuedConnection, Q_ARG("QVariant", count)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", count)
             )
         )
         ab.tagDbDownloadError.connect(
             lambda msg: QMetaObject.invokeMethod(
                 self.audio_page, "onTagDbDownloadError",
-                Qt.QueuedConnection, Q_ARG("QVariant", msg)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", msg)
             )
         )
         ab.tagDbImportComplete.connect(
             lambda count: QMetaObject.invokeMethod(
                 self.audio_page, "onTagDbImportComplete",
-                Qt.QueuedConnection, Q_ARG("QVariant", count)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", count)
             )
         )
         ab.newTagDbAvailable.connect(self._on_new_tag_db_available)
@@ -140,18 +140,18 @@ class AudioBrowserConnector:
         self.audio_page.matchResultNavigateClicked.connect(ab.navigateToSearchResult)
         ab.matchStarted.connect(
             lambda: QMetaObject.invokeMethod(
-                self.audio_page, "onMatchStarted", Qt.QueuedConnection
+                self.audio_page, "onMatchStarted", Qt.ConnectionType.QueuedConnection
             )
         )
         ab.matchFinished.connect(
             lambda: QMetaObject.invokeMethod(
-                self.audio_page, "onMatchFinished", Qt.QueuedConnection
+                self.audio_page, "onMatchFinished", Qt.ConnectionType.QueuedConnection
             )
         )
         ab.matchProgressUpdate.connect(
             lambda current, total: QMetaObject.invokeMethod(
                 self.audio_page, "onMatchProgress",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", current),
                 Q_ARG("QVariant", total),
             )
@@ -161,12 +161,12 @@ class AudioBrowserConnector:
         ab.loadingStarted.connect(
             lambda msg: QMetaObject.invokeMethod(
                 self.root, "showLoadingPopup",
-                Qt.QueuedConnection, Q_ARG("QVariant", msg)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", msg)
             )
         )
         ab.loadingFinished.connect(
             lambda: QMetaObject.invokeMethod(
-                self.root, "hideLoadingPopup", Qt.QueuedConnection
+                self.root, "hideLoadingPopup", Qt.ConnectionType.QueuedConnection
             )
         )
 
@@ -193,7 +193,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "setPlaybackState",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", playing),
                 Q_ARG("QVariant", paused),
                 Q_ARG("QVariant", enabled),
@@ -203,7 +203,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "setProgress",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", position),
                 Q_ARG("QVariant", time_str),
             )
@@ -212,7 +212,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "addTreeItems",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", items),
             )
 
@@ -220,7 +220,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "showSearchResults",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", query),
                 Q_ARG("QVariant", results),
             )
@@ -231,7 +231,7 @@ class AudioBrowserConnector:
             logger.info(f"[Connector] audio_page exists, invoking scrollToItem")
             result = QMetaObject.invokeMethod(
                 self.audio_page, "scrollToItem",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", file_id),
                 Q_ARG("QVariant", pck_path),
                 Q_ARG("QVariant", bnk_id),
@@ -244,7 +244,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "showChanges",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", changes),
             )
 
@@ -256,14 +256,14 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "closeChangesDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
             )
 
     def _on_audio_tag_dialog(self, sound_info):
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "showTagDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", sound_info),
             )
 
@@ -271,7 +271,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "updateTreeItemTag",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", item_id),
                 Q_ARG("QVariant", item_type),
                 Q_ARG("QVariant", pck_path),
@@ -282,7 +282,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "showMetadataDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", metadata or {}),
             )
 
@@ -290,7 +290,7 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "setThumbnailPath",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", path),
             )
 
@@ -312,7 +312,7 @@ class AudioBrowserConnector:
         if not folder.exists():
             logger.info(f"[Audio Browser] Folder does not exist: {folder}")
             QMetaObject.invokeMethod(
-                self.root, "showErrorToast", Qt.QueuedConnection,
+                self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder does not exist:\n%1").replace("%1", str(folder))),
             )
             return
@@ -366,6 +366,6 @@ class AudioBrowserConnector:
         if self.audio_page:
             QMetaObject.invokeMethod(
                 self.audio_page, "showMatchResults",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", results),
             )

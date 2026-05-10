@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
 from src.core.subprocess_utils import IS_WINDOWS
@@ -33,35 +33,35 @@ class GameBananaConnector:
         gb.modsLoaded.connect(
             lambda mods: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onModsLoaded",
-                Qt.QueuedConnection, Q_ARG("QVariant", mods)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", mods)
             )
         )
 
         gb.totalModsCount.connect(
             lambda count: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onTotalModsCount",
-                Qt.QueuedConnection, Q_ARG("QVariant", count)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", count)
             )
         )
 
         gb.modDetailsLoaded.connect(
             lambda details: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onModDetailsLoaded",
-                Qt.QueuedConnection, Q_ARG("QVariant", details)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", details)
             )
         )
 
         gb.loadingStateChanged.connect(
             lambda loading: QMetaObject.invokeMethod(
                 self.gamebanana_page, "setLoadingState",
-                Qt.QueuedConnection, Q_ARG("QVariant", loading)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", loading)
             )
         )
 
         gb.downloadProgress.connect(
             lambda progress: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onDownloadProgress",
-                Qt.QueuedConnection, Q_ARG("QVariant", progress)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", progress)
             )
         )
 
@@ -71,35 +71,35 @@ class GameBananaConnector:
         gb.installStateChanged.connect(
             lambda installing: QMetaObject.invokeMethod(
                 self.gamebanana_page, "setInstallState",
-                Qt.QueuedConnection, Q_ARG("QVariant", installing)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", installing)
             )
         )
 
         gb.thumbnailUpdated.connect(
             lambda mod_id, url: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onThumbnailUpdated",
-                Qt.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", url)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", url)
             )
         )
 
         gb.downloadCountUpdated.connect(
             lambda mod_id, count: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onDownloadCountUpdated",
-                Qt.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", count)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", count)
             )
         )
 
         gb.modSupportUpdated.connect(
             lambda mod_id, supported: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onModSupportUpdated",
-                Qt.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", supported)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", mod_id), Q_ARG("QVariant", supported)
             )
         )
 
         gb.installedModsChanged.connect(
             lambda names: QMetaObject.invokeMethod(
                 self.gamebanana_page, "onInstalledModsChanged",
-                Qt.QueuedConnection, Q_ARG("QVariant", names)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", names)
             )
         )
 
@@ -120,7 +120,7 @@ class GameBananaConnector:
         self._non_native_saved_path = file_path
         QMetaObject.invokeMethod(
             self.root, "showConfirmDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", "Download Complete"),
             Q_ARG("QVariant", f"Saved to:\n{file_path}\n\nOpen containing folder?"),
             Q_ARG("QVariant", "open_non_native_folder"),
@@ -143,7 +143,7 @@ class GameBananaConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessToast",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", message)
         )
         self.mod_manager_bridge.refreshMods()
@@ -152,7 +152,7 @@ class GameBananaConnector:
     def on_gamebanana_multiple_mods(self, mod_names, zip_path):
         QMetaObject.invokeMethod(
             self.gamebanana_page, "showModChooser",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", mod_names),
             Q_ARG("QVariant", zip_path)
         )

@@ -9,7 +9,7 @@ import subprocess
 import urllib.request
 import urllib.error
 from pathlib import Path
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QObject, pyqtSlot, pyqtSignal, QMetaObject, Qt, Q_ARG, QThread, QCoreApplication
 )
 
@@ -540,7 +540,7 @@ class AudioBrowserBridge(QObject):
                 logger.warning("[File Check] WARNING: Missing all streamed PCK files!")
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
                     Q_ARG(str,
                         QCoreApplication.translate("Application", "No streamed PCK files were found in the game's audio folder.\n\n"
@@ -611,7 +611,7 @@ class AudioBrowserBridge(QObject):
                 logger.warning(f"[File Check] WARNING: Issues found with streaming PCK files")
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
                     Q_ARG(str,
                         detail + "\n\n" +
@@ -1619,7 +1619,7 @@ class AudioBrowserBridge(QObject):
 
         if needs_delay:
             logger.info(f"[Navigate] Delaying navigation by 500ms to let tree update")
-            from PyQt5.QtCore import QTimer
+            from PyQt6.QtCore import QTimer
             QTimer.singleShot(500, lambda: self._do_navigate(file_id, pck_path, bnk_id))
         else:
             self._do_navigate(file_id, pck_path, bnk_id)
@@ -1831,7 +1831,7 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
 
     def tr(self, text):
-        from PyQt5.QtCore import QCoreApplication
+        from PyQt6.QtCore import QCoreApplication
         return QCoreApplication.translate("Application", text)
 
     def showChanges(self):
@@ -2578,7 +2578,7 @@ class AudioBrowserBridge(QObject):
         if recording_path:
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setSelectedFile",
-                Qt.QueuedConnection, Q_ARG("QVariant", recording_path)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", recording_path)
             )
 
     @pyqtSlot(str, bool)
@@ -2627,7 +2627,7 @@ class AudioBrowserBridge(QObject):
                 ).replace("%1", " and ".join(missing))
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, msg),
                 )
                 return
@@ -2639,7 +2639,7 @@ class AudioBrowserBridge(QObject):
             )
 
             QMetaObject.invokeMethod(
-                self, "_onMatchStatus", Qt.QueuedConnection,
+                self, "_onMatchStatus", Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, QCoreApplication.translate("Application", "Analyzing recording...")),
             )
 
@@ -2647,7 +2647,7 @@ class AudioBrowserBridge(QObject):
             if recording_audio is None or len(recording_audio) == 0:
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "Failed to process the selected audio file.")),
                 )
                 return
@@ -2657,7 +2657,7 @@ class AudioBrowserBridge(QObject):
             if recording_fp is None:
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "Failed to process the selected audio file.")),
                 )
                 return
@@ -2670,7 +2670,7 @@ class AudioBrowserBridge(QObject):
             if not directory:
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "No audio directory loaded.")),
                 )
                 return
@@ -2707,7 +2707,7 @@ class AudioBrowserBridge(QObject):
 
             QMetaObject.invokeMethod(
                 self, "_onMatchStatus",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, QCoreApplication.translate("Application", "Scanning %1 PCK files for sounds...").replace("%1", str(total_pcks))),
             )
 
@@ -2717,7 +2717,7 @@ class AudioBrowserBridge(QObject):
 
                 QMetaObject.invokeMethod(
                     self, "_onMatchProgress",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(int, pck_idx + 1), Q_ARG(int, total_pcks),
                 )
 
@@ -2805,7 +2805,7 @@ class AudioBrowserBridge(QObject):
             if not candidates:
                 QMetaObject.invokeMethod(
                     self, "_onMatchError",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, QCoreApplication.translate("Application", "No audio files found in the current directory.")),
                 )
                 return
@@ -2818,7 +2818,7 @@ class AudioBrowserBridge(QObject):
                 logger.info(f"[AudioMatch] {summary}")
                 QMetaObject.invokeMethod(
                     self, "_onMatchStatus",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, summary),
                 )
 
@@ -2840,7 +2840,7 @@ class AudioBrowserBridge(QObject):
 
             QMetaObject.invokeMethod(
                 self, "_onMatchStatus",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, QCoreApplication.translate("Application", "Matching against %1 sounds...").replace("%1", str(len(shortlist_candidates)))),
             )
 
@@ -2849,7 +2849,7 @@ class AudioBrowserBridge(QObject):
                     return
                 QMetaObject.invokeMethod(
                     self, "_onMatchProgress",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(int, current), Q_ARG(int, total),
                 )
 
@@ -2906,7 +2906,7 @@ class AudioBrowserBridge(QObject):
 
             QMetaObject.invokeMethod(
                 self, "_onMatchResults",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG(object, match_results),
             )
 
@@ -2914,7 +2914,7 @@ class AudioBrowserBridge(QObject):
             logger.exception("unhandled")
             QMetaObject.invokeMethod(
                 self, "_onMatchError",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG(str, QCoreApplication.translate("Application", "Matching failed: %1").replace("%1", str(e))),
             )
 
@@ -2924,7 +2924,7 @@ class AudioBrowserBridge(QObject):
         if hasattr(self, 'audio_match_dialog') and self.audio_match_dialog:
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setStatus",
-                Qt.QueuedConnection, Q_ARG("QVariant", message)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", message)
             )
 
     @pyqtSlot(int, int)
@@ -2934,7 +2934,7 @@ class AudioBrowserBridge(QObject):
         if hasattr(self, 'audio_match_dialog') and self.audio_match_dialog:
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setProgress",
-                Qt.QueuedConnection, Q_ARG("QVariant", current), Q_ARG("QVariant", total)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", current), Q_ARG("QVariant", total)
             )
 
     @pyqtSlot(object)
@@ -2952,16 +2952,16 @@ class AudioBrowserBridge(QObject):
         if hasattr(self, 'audio_match_dialog') and self.audio_match_dialog:
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setMatching",
-                Qt.QueuedConnection, Q_ARG("QVariant", False)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", False)
             )
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setStatus",
-                Qt.QueuedConnection, Q_ARG("QVariant", status_msg)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", status_msg)
             )
 
-            from PyQt5.QtCore import QTimer
+            from PyQt6.QtCore import QTimer
             QTimer.singleShot(1000, lambda: QMetaObject.invokeMethod(
-                self.audio_match_dialog, "hide", Qt.QueuedConnection
+                self.audio_match_dialog, "hide", Qt.ConnectionType.QueuedConnection
             ))
 
     @pyqtSlot(str)
@@ -2972,10 +2972,10 @@ class AudioBrowserBridge(QObject):
         if hasattr(self, 'audio_match_dialog') and self.audio_match_dialog:
             QMetaObject.invokeMethod(
                 self.audio_match_dialog, "setMatching",
-                Qt.QueuedConnection, Q_ARG("QVariant", False)
+                Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", False)
             )
             QMetaObject.invokeMethod(
-                self.audio_match_dialog, "hide", Qt.QueuedConnection
+                self.audio_match_dialog, "hide", Qt.ConnectionType.QueuedConnection
             )
 
     @pyqtSlot()
@@ -3220,7 +3220,7 @@ class AudioBrowserBridge(QObject):
             try:
                 QMetaObject.invokeMethod(
                     self, "_updateIndexProgress",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(int, i + 1), Q_ARG(int, len(pck_paths)),
                 )
 
@@ -3268,7 +3268,7 @@ class AudioBrowserBridge(QObject):
 
         QMetaObject.invokeMethod(
             self, "_finalizeIndex",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG(object, temp_index),
         )
 

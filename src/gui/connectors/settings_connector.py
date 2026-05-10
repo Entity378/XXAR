@@ -1,10 +1,10 @@
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 import json
 import threading
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
+from PyQt6.QtWidgets import QApplication
 
 from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
@@ -125,7 +125,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.audio_page,
                 "setGameDirectory",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", game_data_dir),
             )
 
@@ -172,7 +172,7 @@ class SettingsConnector:
                     QMetaObject.invokeMethod(
                         self.gamebanana_page,
                         "reloadForActiveGame",
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                     )
                 else:
                     self.gamebanana_bridge.refresh()
@@ -186,7 +186,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.hirc_editor_bridge,
                     "refreshBnkList",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                 )
         except Exception as e:
             logger.error(f"[Settings] Background game switch error: {e}")
@@ -221,7 +221,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showSuccessToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", message),
             )
         except Exception as e:
@@ -229,7 +229,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showErrorToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG(
                     "QVariant",
                     QCoreApplication.translate("Application", "Failed to swap game: %1").replace("%1", str(e)),
@@ -510,7 +510,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.hirc_editor_bridge,
                     "refreshBnkList",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                 )
             except Exception as e:
                 logger.warning(f"[{APP_NAME}] HIRC Editor refresh on enable failed: {e}")
@@ -524,7 +524,7 @@ class SettingsConnector:
                 json.dump(settings, f, indent=2)
             logger.info(f"[{APP_NAME}] UI scale changed to: {scale}")
             QMetaObject.invokeMethod(
-                self.root, "showSuccessToast", Qt.QueuedConnection,
+                self.root, "showSuccessToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "UI scale saved. Restart to apply.")),
             )
         except Exception as e:
@@ -555,7 +555,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showConfirmDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", "wwise_setup"),
@@ -566,7 +566,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", ""),
@@ -588,7 +588,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", ""),
@@ -601,7 +601,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", image_path),
@@ -623,7 +623,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                     Q_ARG(
                         "QVariant",
@@ -678,7 +678,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessToast",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Found game directory:\n%1").replace("%1", game_data_dir)),
         )
 
@@ -693,7 +693,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showAlertDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Not Found")),
             Q_ARG(
                 "QVariant",
@@ -751,7 +751,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showAlertDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                 Q_ARG(
                     "QVariant",
@@ -777,7 +777,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showSuccessToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Settings have been saved successfully!")),
             )
 
@@ -796,7 +796,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.audio_page,
                     "setGameDirectory",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", active_data_dir),
                 )
             if active_data_dir and self.audio_browser_bridge:
@@ -807,7 +807,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showAlertDialog",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Error")),
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to save settings:\n\n%1").replace("%1", str(e))),
                 Q_ARG("QVariant", ""),
@@ -820,7 +820,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showWelcomeDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                 )
                 return True
             else:
@@ -907,7 +907,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showMultipleLanguagesWarning",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", languages_text),
                     Q_ARG("QVariant", moveable_text),
                     Q_ARG("QVariant", hash_pcks_text),
@@ -917,7 +917,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "hideLanguageWarningDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                 )
 
         except Exception as e:
@@ -937,7 +937,7 @@ class SettingsConnector:
 
             if not persistent_dir or not streaming_dir:
                 QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Game directories not configured")),
                 )
                 return
@@ -949,14 +949,14 @@ class SettingsConnector:
 
             if not source.exists():
                 QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder '%1' not found in Persistent").replace("%1", folder_name)),
                 )
                 return
 
             if destination.exists() and any(destination.glob("*.pck")):
                 QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder '%1' already exists in StreamingAssets").replace("%1", folder_name)),
                 )
                 return
@@ -982,7 +982,7 @@ class SettingsConnector:
             logger.info(f"[{APP_NAME}] Successfully moved {folder_name} to StreamingAssets")
 
             QMetaObject.invokeMethod(
-                self.root, "showSuccessToast", Qt.QueuedConnection,
+                self.root, "showSuccessToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Moved '%1' to StreamingAssets successfully!").replace("%1", folder_name)),
             )
 
@@ -991,7 +991,7 @@ class SettingsConnector:
         except Exception as e:
             logger.error(f"[{APP_NAME}] Error moving language folder: {e}")
             QMetaObject.invokeMethod(
-                self.root, "showErrorToast", Qt.QueuedConnection,
+                self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", folder_name).replace("%2", str(e))),
             )
 
@@ -1009,7 +1009,7 @@ class SettingsConnector:
 
             if not persistent_dir or not streaming_dir:
                 QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Game directories not configured")),
                 )
                 return
@@ -1021,7 +1021,7 @@ class SettingsConnector:
 
             if not source_pck.exists():
                 QMetaObject.invokeMethod(
-                    self.root, "showErrorToast", Qt.QueuedConnection,
+                    self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "File '%1' not found in Persistent").replace("%1", pck_name)),
                 )
                 return
@@ -1036,7 +1036,7 @@ class SettingsConnector:
 
             logger.info(f"[{APP_NAME}] Successfully moved {pck_name} to StreamingAssets")
             QMetaObject.invokeMethod(
-                self.root, "showSuccessToast", Qt.QueuedConnection,
+                self.root, "showSuccessToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Moved '%1' to StreamingAssets successfully!").replace("%1", pck_name)),
             )
 
@@ -1045,7 +1045,7 @@ class SettingsConnector:
         except Exception as e:
             logger.error(f"[{APP_NAME}] Error moving hash PCK: {e}")
             QMetaObject.invokeMethod(
-                self.root, "showErrorToast", Qt.QueuedConnection,
+                self.root, "showErrorToast", Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to move '%1': %2").replace("%1", pck_name).replace("%2", str(e))),
             )
 
@@ -1117,7 +1117,7 @@ class SettingsConnector:
             if game_dir and self.audio_page:
                 QMetaObject.invokeMethod(
                     self.audio_page, "setGameDirectory",
-                    Qt.QueuedConnection, Q_ARG("QVariant", game_dir),
+                    Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", game_dir),
                 )
                 if self.audio_browser_bridge:
                     self.audio_browser_bridge.scanLanguageFolders(game_dir)
@@ -1131,7 +1131,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showSuccessToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Welcome setup complete! Settings have been saved.")),
             )
 
@@ -1142,7 +1142,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.root,
                 "showErrorToast",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Error saving settings: %1").replace("%1", str(e))),
             )
 
@@ -1152,7 +1152,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showTutorial",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
         )
 
     def on_welcome_browse_game_dir(self):
@@ -1184,7 +1184,7 @@ class SettingsConnector:
                 QMetaObject.invokeMethod(
                     self.root,
                     "showAlertDialog",
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Invalid Directory")),
                     Q_ARG(
                         "QVariant",
@@ -1197,7 +1197,7 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.welcome_dialog,
                 "setGameDirectory",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", str(selected_path)),
             )
 
@@ -1234,14 +1234,14 @@ class SettingsConnector:
             QMetaObject.invokeMethod(
                 self.welcome_dialog,
                 "setGameDirectory",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", game_data_dir),
             )
 
         QMetaObject.invokeMethod(
             self.root,
             "showSuccessToast",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Found game directory!")),
         )
 
@@ -1260,7 +1260,7 @@ class SettingsConnector:
         QMetaObject.invokeMethod(
             self.root,
             "showAlertDialog",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", QCoreApplication.translate("Application", "Not Found")),
             Q_ARG(
                 "QVariant",

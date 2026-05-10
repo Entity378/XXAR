@@ -6,7 +6,7 @@ import zipfile
 import json
 from pathlib import Path
 from datetime import datetime
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 import src.core.app_config as app_config
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 

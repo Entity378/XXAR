@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTranslator, QCoreApplication
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTranslator, QCoreApplication
 from pathlib import Path
 
 from src.core.app_config import APP_NAME

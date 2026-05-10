@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.logger import get_logger
 from src.gui.utils.native_dialogs import NativeDialogs
@@ -29,7 +29,7 @@ class HircEditorConnector:
             lambda data: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "setBnkList",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", data),
             )
         )
@@ -37,7 +37,7 @@ class HircEditorConnector:
             lambda pck, bnk_id, objs: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "setBnkHirc",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", pck),
                 Q_ARG("QVariant", int(bnk_id)),
                 Q_ARG("QVariant", objs),
@@ -47,7 +47,7 @@ class HircEditorConnector:
             lambda msg: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "setStatusText",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", msg),
             )
         )
@@ -56,7 +56,7 @@ class HircEditorConnector:
             lambda pck, off, old, new: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "onPatchApplied",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", pck),
                 Q_ARG("QVariant", int(off)),
                 Q_ARG("QVariant", int(old)),
@@ -67,7 +67,7 @@ class HircEditorConnector:
             lambda pck, bnk_id, track_id, ms: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "onLoopPatched",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", pck),
                 Q_ARG("QVariant", int(bnk_id)),
                 Q_ARG("QVariant", int(track_id)),
@@ -78,7 +78,7 @@ class HircEditorConnector:
             lambda pck, off, db_val: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "onVolumePatched",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", pck),
                 Q_ARG("QVariant", int(off)),
                 Q_ARG("QVariant", float(db_val)),
@@ -88,7 +88,7 @@ class HircEditorConnector:
             lambda data: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "setMusicPckList",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", data),
             )
         )
@@ -96,7 +96,7 @@ class HircEditorConnector:
             lambda pck, wid, src: QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "onWemAdded",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", pck),
                 Q_ARG("QVariant", int(wid)),
                 Q_ARG("QVariant", src),
@@ -129,7 +129,7 @@ class HircEditorConnector:
         QMetaObject.invokeMethod(
             self.hirc_editor_page,
             "setWemAddPath",
-            Qt.QueuedConnection,
+            Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", path),
         )
 
@@ -138,7 +138,7 @@ class HircEditorConnector:
             QMetaObject.invokeMethod(
                 self.hirc_editor_page,
                 "setStatusText",
-                Qt.QueuedConnection,
+                Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", f"ERROR — {title}: {body}"),
             )
         except Exception:

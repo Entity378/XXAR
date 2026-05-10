@@ -3,7 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
 import QtQuick.Shapes 1.15
-import QtGraphicalEffects 1.15
+import QtQuick.Effects
 import "../components"
 import "."
 
@@ -386,13 +386,13 @@ ApplicationWindow {
                                     visible: false
                                 }
 
-                                ColorOverlay {
+                                MultiEffect {
                                     anchors.fill: parent
                                     source: gamebananaImage
-                                    color: currentTab === 0 ? Theme.primaryAccent : (gamebanana.hovered ? Theme.primaryAccent : "#ffffff")
-                                    cached: true
+                                    colorization: 1.0
+                                    colorizationColor: currentTab === 0 ? Theme.primaryAccent : (gamebanana.hovered ? Theme.primaryAccent : "#ffffff")
 
-                                    Behavior on color {
+                                    Behavior on colorizationColor {
                                         ColorAnimation {
                                             duration: Theme.animationDuration
                                             easing.type: Theme.easingStandard
@@ -629,13 +629,13 @@ ApplicationWindow {
                                     visible: false
                                 }
 
-                                ColorOverlay {
+                                MultiEffect {
                                     anchors.fill: parent
                                     source: conversion_image
-                                    color: currentTab === 3 ? Theme.primaryAccent : (conversion.hovered ? Theme.primaryAccent : "#ffffff")
-                                    cached: true
+                                    colorization: 1.0
+                                    colorizationColor: currentTab === 3 ? Theme.primaryAccent : (conversion.hovered ? Theme.primaryAccent : "#ffffff")
 
-                                    Behavior on color {
+                                    Behavior on colorizationColor {
                                         ColorAnimation {
                                             duration: Theme.animationDuration
                                             easing.type: Theme.easingStandard
