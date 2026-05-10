@@ -19,6 +19,7 @@ class GameDefinition:
     streamed_pck_prefix: str = "Streamed"
     soundbank_pck_prefix: str = "SoundBank"
     soundbank_pck_filter_prefix: str = "SoundBank"
+    music_pck_globs: tuple[str, ...] = ()
     language_folders: tuple[tuple[str, str], ...] = ()
     audio_root_friendly_name: str = "Audio"
     subfolder_sort_priority: tuple[tuple[str, int], ...] = ()
@@ -56,6 +57,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed_SFX_",
         soundbank_pck_prefix="SoundBank_SFX_",
         soundbank_pck_filter_prefix="SoundBank_",
+        music_pck_globs=("Streamed_SFX_*.pck",),
         language_folders=(
             ("En", "English"),
             ("Jp", "Japanese"),
@@ -94,6 +96,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed",
         soundbank_pck_prefix="Bank",
         soundbank_pck_filter_prefix="Bank",
+        music_pck_globs=("Music*.pck",),
         language_folders=(
             ("English(US)", "English"),
             ("Japanese", "Japanese"),
@@ -131,6 +134,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed",
         soundbank_pck_prefix="Banks",
         soundbank_pck_filter_prefix="Banks",
+        music_pck_globs=("Music*.pck",),
         language_folders=(
             ("English", "English"),
             ("Japanese", "Japanese"),

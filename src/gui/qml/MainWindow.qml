@@ -19,6 +19,7 @@ ApplicationWindow {
 
     property int currentTab: 1
     property bool modCreationEnabled: false
+    property bool hircEditorTabEnabled: false
     property string activeGameShort: gameShort
     property string activeGameName: gameName
     property string activeAssetsDir: assetsDir
@@ -213,6 +214,7 @@ ApplicationWindow {
                               currentTab === 1 ? qsTranslate("Application", "Mod Manager") :
                               currentTab === 2 ? qsTranslate("Application", "Browser") :
                               currentTab === 3 ? qsTranslate("Application", "Converter") :
+                              currentTab === 5 ? qsTranslate("Application", "HIRC Editor") :
                               qsTranslate("Application", "Settings")
                         color: "#ffffff"
                         font.family: "Audiowide"
@@ -230,6 +232,7 @@ ApplicationWindow {
                               currentTab === 1 ? qsTranslate("Application", "Install and manage %1 mods").replace("%1", activeModFileExt) :
                               currentTab === 2 ? qsTranslate("Application", "Browse and manage audio files") :
                               currentTab === 3 ? qsTranslate("Application", "Convert audio files") :
+                              currentTab === 5 ? qsTranslate("Application", "Inspect and edit Wwise music HIRC sections directly") :
                               qsTranslate("Application", "Configure application settings")
                         color: "#666666"
                         font.family: "Audiowide"
@@ -309,7 +312,7 @@ ApplicationWindow {
                     anchors.rightMargin: 15
                     anchors.verticalCenter: parent.verticalCenter
                     height: 70
-                    width: modCreationEnabled ? 475 : 325
+                    width: (modCreationEnabled ? 475 : 325) + (hircEditorTabEnabled ? 75 : 0)
                     color: "#3c3d3f"
                     radius: 20
 
@@ -337,13 +340,14 @@ ApplicationWindow {
                         radius: 12
                         color: "#5a5b5d"
                         x: {
-                            var slot
-                            if (modCreationEnabled) {
-                                slot = currentTab
-                            } else {
-
-                                slot = currentTab <= 1 ? currentTab : 2
-                            }
+                            // Visible tabs in their on-screen order. The slot
+                            // is just where currentTab sits in this list.
+                            var order = [0, 1]                          // gamebanana, mod-manager
+                            if (modCreationEnabled) order.push(2)       // browser
+                            if (hircEditorTabEnabled) order.push(5)     // hirc editor
+                            if (modCreationEnabled) order.push(3)       // conversion
+                            order.push(4)                               // settings
+                            var slot = Math.max(0, order.indexOf(currentTab))
                             return navbar.x + slot * 75
                         }
                         Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
@@ -531,6 +535,68 @@ ApplicationWindow {
                                 onEntered: parent.hovered = true
                                 onExited: parent.hovered = false
                                 onClicked: currentTab = 2
+                            }
+                        }
+
+                        Item {
+                            id: hircEditorBtn
+                            height: 60
+                            width: 60
+                            visible: hircEditorTabEnabled
+
+                            property bool hovered: false
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "transparent"
+                                radius: 15
+                            }
+
+                            Item {
+                                id: hircEditorIconBox
+                                anchors.centerIn: parent
+                                height: 35
+                                width: 35
+
+                                Shape {
+                                    id: hircEditorWrenchShape
+                                    anchors.centerIn: parent
+                                    height: 26
+                                    width: 26
+
+                                    ShapePath {
+                                        id: hircEditorWrenchPath
+                                        fillColor: currentTab === 5 ? Theme.primaryAccent : (hircEditorBtn.hovered ? Theme.primaryAccent : "#ffffff")
+                                        fillRule: ShapePath.WindingFill
+                                        joinStyle: ShapePath.MiterJoin
+                                        strokeColor: "#00000000"
+                                        strokeStyle: ShapePath.SolidLine
+                                        strokeWidth: 0.03
+
+                                        // Simple wrench / spanner. ~24x24 viewbox; the
+                                        // Shape's height/width 26 gives a small visual
+                                        // padding that matches the other nav glyphs.
+                                        PathSvg {
+                                            path: "M 22.7 19 L 13.6 9.9 C 14.5 7.6 14.0 4.9 12.1 3.0 C 10.1 1.0 7.1 0.6 4.7 1.7 L 9 6 L 6 9 L 1.6 4.7 C 0.4 7.1 0.9 10.1 2.9 12.1 C 4.8 14.0 7.5 14.5 9.8 13.6 L 18.9 22.7 C 19.3 23.1 19.9 23.1 20.3 22.7 L 22.6 20.4 C 23.1 20.0 23.1 19.3 22.7 19 Z"
+                                        }
+
+                                        Behavior on fillColor {
+                                            ColorAnimation {
+                                                duration: Theme.animationDuration
+                                                easing.type: Theme.easingStandard
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                onEntered: parent.hovered = true
+                                onExited: parent.hovered = false
+                                onClicked: currentTab = 5
                             }
                         }
 
@@ -746,6 +812,10 @@ ApplicationWindow {
 
                     SettingsPage {
                         id: settingsPage
+                    }
+
+                    HircEditorPage {
+                        id: hircEditorPage
                     }
                 }
             }

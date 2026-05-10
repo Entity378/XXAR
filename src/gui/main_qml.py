@@ -34,6 +34,7 @@ from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
 from src.gui.backend.update_manager_bridge import UpdateManagerBridge
 from src.gui.backend.gamebanana_bridge import GameBananaBridge
 from src.gui.backend.ui_theme_bridge import UIThemeBridge
+from src.gui.backend.hirc_editor_bridge import HircEditorBridge
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
@@ -49,6 +50,7 @@ from src.gui.connectors.import_wizard_connector import ImportWizardConnector
 from src.gui.connectors.settings_connector import SettingsConnector
 from src.gui.connectors.update_connector import UpdateConnector
 from src.gui.connectors.gamebanana_connector import GameBananaConnector
+from src.gui.connectors.hirc_editor_connector import HircEditorConnector
 from src.gui.translation_manager import TranslationManager
 
 class AutoDetectWorker(QThread):
@@ -172,6 +174,7 @@ class Application(
     SettingsConnector,
     UpdateConnector,
     GameBananaConnector,
+    HircEditorConnector,
     QObject,
 ):
 
@@ -203,6 +206,8 @@ class Application(
         self.update_manager_bridge = None
         self.update_dialog = None
         self._startup_update_check = False
+        self.hirc_editor_bridge = None
+        self.hirc_editor_page = None
 
     def run(self):
         logger.info("=" * 50)
@@ -284,6 +289,7 @@ class Application(
         self.gamebanana_bridge = GameBananaBridge()
         self.update_manager_bridge = UpdateManagerBridge()
         self.update_manager_bridge.setCurrentVersion(QCoreApplication.applicationVersion())
+        self.hirc_editor_bridge = HircEditorBridge()
 
         context = self.engine.rootContext()
         startup_settings = self.load_settings()
@@ -299,6 +305,7 @@ class Application(
         context.setContextProperty("audioConversionBackend", self.audio_conversion_bridge)
         context.setContextProperty("gameBananaBackend", self.gamebanana_bridge)
         context.setContextProperty("uiTheme", self.ui_theme_bridge)
+        context.setContextProperty("hircEditorBackend", self.hirc_editor_bridge)
         self.clipboard_helper = ClipboardHelper()
         context.setContextProperty("clipboardHelper", self.clipboard_helper)
 
@@ -392,6 +399,7 @@ class Application(
         self._connect_settings()
         self._connect_updates()
         self._connect_import_wizard()
+        self._connect_hirc_editor()
 
         self.mod_info_dialog = root.findChild(QObject, "modInfoDialog")
         if self.mod_info_dialog:

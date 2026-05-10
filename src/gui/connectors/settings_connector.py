@@ -131,6 +131,15 @@ class SettingsConnector:
 
         self._set_root_active_game_props(target_game_id)
 
+        # Drop any cached state in the HIRC Editor tab (bnk list is game-specific).
+        # The HircEditorPage will auto-refresh for the new game inside the heavy
+        # thread below.
+        if getattr(self, "hirc_editor_bridge", None) is not None:
+            try:
+                self.hirc_editor_bridge.unloadAll()
+            except Exception as e:
+                logger.warning(f"[Settings] HIRC Editor unload failed: {e}")
+
         threading.Thread(
             target=self._switch_active_game_heavy,
             args=(target_game_id, game_data_dir),
@@ -167,6 +176,18 @@ class SettingsConnector:
                     )
                 else:
                     self.gamebanana_bridge.refresh()
+            hirc_editor_active = bool(self.root.property("hircEditorTabEnabled")) if self.root else False
+            if (
+                hirc_editor_active
+                and getattr(self, "hirc_editor_bridge", None) is not None
+                and game_data_dir
+            ):
+                # Auto-refresh the HIRC Editor bnk list for the new game (background scan).
+                QMetaObject.invokeMethod(
+                    self.hirc_editor_bridge,
+                    "refreshBnkList",
+                    Qt.QueuedConnection,
+                )
         except Exception as e:
             logger.error(f"[Settings] Background game switch error: {e}")
 
@@ -309,6 +330,7 @@ class SettingsConnector:
         )
         self.settings_page.languageChanged.connect(self.on_language_changed)
         self.settings_page.uiScaleSelected.connect(self.on_ui_scale_changed)
+        self.settings_page.hircEditorToggled.connect(self.on_hirc_editor_toggled)
         self.root.swapGameRequested.connect(self.on_swap_game_requested)
 
         self.mod_manager_bridge.modCreationModeChanged.connect(
@@ -422,6 +444,10 @@ class SettingsConnector:
         hsr_vo_local_backup = settings.get("hsr_vo_backup_mode", "local") == "local"
         self.settings_page.setProperty("hsrVoLocalBackup", hsr_vo_local_backup)
 
+        hirc_editor_enabled = bool(settings.get("hirc_editor_enabled", False))
+        self.settings_page.setProperty("hircEditorEnabled", hirc_editor_enabled)
+        self.root.setProperty("hircEditorTabEnabled", hirc_editor_enabled)
+
         if mod_creation_mode:
             self.mod_manager_bridge.checkWwiseInstalled()
 
@@ -461,6 +487,33 @@ class SettingsConnector:
             logger.info(f"[{APP_NAME}] Language changed to: {lang_code}")
         except Exception as e:
             logger.error(f"[{APP_NAME}] Error saving language preference: {e}")
+
+    def on_hirc_editor_toggled(self, enabled):
+        enabled = bool(enabled)
+        self.root.setProperty("hircEditorTabEnabled", enabled)
+        if self.settings_page:
+            self.settings_page.setProperty("hircEditorEnabled", enabled)
+        try:
+            settings = self.load_settings()
+            settings["hirc_editor_enabled"] = enabled
+            self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=2)
+            logger.info(f"[{APP_NAME}] HIRC Editor toggled: {enabled}")
+        except Exception as e:
+            logger.error(f"[{APP_NAME}] Error saving HIRC Editor preference: {e}")
+
+        # Trigger a fresh scan so the user sees populated data the moment they
+        # flip the toggle on (and we avoid scanning while it's off).
+        if enabled and getattr(self, "hirc_editor_bridge", None) is not None:
+            try:
+                QMetaObject.invokeMethod(
+                    self.hirc_editor_bridge,
+                    "refreshBnkList",
+                    Qt.QueuedConnection,
+                )
+            except Exception as e:
+                logger.warning(f"[{APP_NAME}] HIRC Editor refresh on enable failed: {e}")
 
     def on_ui_scale_changed(self, scale):
         try:

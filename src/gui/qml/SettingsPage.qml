@@ -27,6 +27,7 @@ Item {
     signal redoTutorialClicked()
     signal languageChanged(string langCode)
     signal uiScaleSelected(real scale)
+    signal hircEditorToggled(bool enabled)
 
     property string gameDirectory: ""
     property string gameDataFolderName: gameDataFolder
@@ -52,6 +53,7 @@ Item {
     property int downloadPercent: 0
     property bool updateDownloaded: false
     property bool devMode: false
+    property bool hircEditorEnabled: false
     property string githubToken: ""
 
     property int currentCategory: 0
@@ -883,6 +885,7 @@ Item {
                                             height: 26
                                             radius: 13
                                             color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
                                             x: settingsPage.enableGbThumbnails ? parent.width - width - 2 : 2
                                             Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
                                         }
@@ -1182,6 +1185,7 @@ Item {
                                             height: 26
                                             radius: 13
                                             color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
                                             x: settingsPage.modCreationEnabled ? parent.width - width - 2 : 2
                                             Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
                                         }
@@ -1258,6 +1262,89 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: redoTutorialClicked()
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: advancedContent.height + 40
+                        color: "#333333"
+                        radius: 20
+                        visible: currentCategory === 1
+
+                        Column {
+                            id: advancedContent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 20
+                            spacing: 15
+
+                            Text {
+                                text: qsTranslate("Application", "Advanced")
+                                color: Theme.primaryAccent
+                                font.family: "Alatsi"
+                                font.pixelSize: 24
+                                font.weight: Font.Normal
+                            }
+
+                            RowLayout {
+                                width: parent.width
+                                spacing: 20
+
+                                Column {
+                                    Layout.fillWidth: true
+                                    spacing: 5
+
+                                    Text {
+                                        text: qsTranslate("Application", "HIRC Editor")
+                                        color: "#ffffff"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 18
+                                    }
+
+                                    Text {
+                                        text: qsTranslate("Application", "Show the HIRC Editor tab in the navigation bar. Lets you inspect and edit Wwise music HIRC sections directly.")
+                                        color: "#888888"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 14
+                                        wrapMode: Text.WordWrap
+                                        width: parent.width
+                                    }
+                                }
+
+                                Item {
+                                    width: 60
+                                    height: 30
+
+                                    Rectangle {
+                                        id: hircEditorSwitchBg
+                                        anchors.fill: parent
+                                        radius: 15
+                                        color: settingsPage.hircEditorEnabled ? Theme.primaryAccent : "#555555"
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+
+                                        Rectangle {
+                                            width: 26
+                                            height: 26
+                                            radius: 13
+                                            color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: settingsPage.hircEditorEnabled ? parent.width - width - 2 : 2
+                                            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            settingsPage.hircEditorEnabled = !settingsPage.hircEditorEnabled
+                                            hircEditorToggled(settingsPage.hircEditorEnabled)
+                                        }
+                                    }
                                 }
                             }
                         }
