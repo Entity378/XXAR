@@ -11,13 +11,14 @@
 
 id: io.github.Entity378.XXAR
 runtime: org.kde.Platform
-runtime-version: '5.15-24.08'
+runtime-version: '6.8-24.08'
 sdk: org.kde.Sdk
 command: xxar
 
-# KDE 5.15 SDK doesn't ship `appstream-compose`, so the automatic AppStream
-# validation step at the end of the build crashes with "No such file or
-# directory". The metainfo XML is still installed under /app/share/metainfo/.
+# AppStream validation disabled: the older KDE 5.15 SDK lacked
+# `appstream-compose`, so the post-build step crashed with "No such file or
+# directory". Worth retesting on KDE 6.8 — newer SDKs may ship it. The
+# metainfo XML still installs under /app/share/metainfo/.
 appstream-compose: false
 
 add-extensions:
