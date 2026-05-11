@@ -1,7 +1,7 @@
 # XXAR - Audio Mod Tool Dependencies
 
-# GUI (Qt5 + QML, QtMultimedia, QtNetwork)
-PyQt5==5.15.11
+# GUI (Qt6 + QML, QtMultimedia, QtNetwork)
+PyQt6==6.10.2
 
 # Audio processing (fingerprint matching, FFT/DCT, constellation hash)
 numpy==2.2
