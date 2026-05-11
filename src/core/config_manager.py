@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -247,6 +248,41 @@ def resolve_mod_paths_for_game(game_id=DEFAULT_GAME_ID, custom_root=None):
         "mod_config_file": get_game_mod_config_file(game),
         "mod_tracker_file": get_game_mod_tracker_file(game),
     }
+
+
+def _load_settings_for_resolution():
+    # Best-effort: never raise on a malformed/missing settings.json — callers always have a sane default.
+    try:
+        settings_file = get_settings_file()
+        if settings_file.exists():
+            with open(settings_file, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def get_custom_mod_library_root(game_id=DEFAULT_GAME_ID, settings=None):
+    # Single source of truth for "what custom dir has the user picked for this game".
+    # Returns "" when no custom dir is configured (caller should then use the default).
+    # Pre-multi-game installs only had a single key (`custom_mod_library_dir`) — preserve it as fallback for the default game so legacy users keep their setting.
+    game = normalize_game_id(game_id)
+    if settings is None:
+        settings = _load_settings_for_resolution()
+    custom_root = settings.get(get_custom_mod_library_settings_key(game), "")
+    if not custom_root and game == DEFAULT_GAME_ID:
+        custom_root = settings.get("custom_mod_library_dir", "")
+    return custom_root or ""
+
+
+def resolve_mod_library_dir(game_id=DEFAULT_GAME_ID, settings=None):
+    # Returns the effective mod library Path for a game, honoring the user's custom dir from settings.json.
+    # When no custom dir is set, returns the default per-game location.
+    game = normalize_game_id(game_id)
+    custom_root = get_custom_mod_library_root(game, settings=settings)
+    if custom_root:
+        return Path(custom_root)
+    return get_game_mod_library_dir(game)
 
 
 def get_game_sound_database_file(game_id=DEFAULT_GAME_ID):

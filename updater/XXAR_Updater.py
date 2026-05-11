@@ -45,12 +45,12 @@ def _setup_logging(dist_dir: Path) -> Path:
     return log_file
 
 
-def _rename_with_retry(src: Path, dst: Path) -> None:
-    # Rename fails while the target or source is locked by the still-exiting XXAR process.
-    # Retry until Windows releases the handles.
+def _move_with_retry(src: Path, dst: Path) -> None:
+    # shutil.move so cross-drive moves fall back to copy+delete via EXDEV — needed when the user installed XXAR on a non-system drive while staging lives in %LOCALAPPDATA% on C:.
+    # Retry until Windows releases the handles held by the still-exiting XXAR process or by Defender's real-time scan.
     for attempt in range(1, LOCK_RETRY_MAX + 1):
         try:
-            src.rename(dst)
+            shutil.move(str(src), str(dst))
             logging.info("Renamed %s -> %s (attempt %d)", src.name, dst.name, attempt)
             return
         except (PermissionError, OSError) as e:
@@ -84,10 +84,10 @@ def _swap_folder(dist_dir: Path, staging_dir: Path) -> Path:
     _remove_tree_best_effort(bin_old)
 
     if bin_dir.exists():
-        _rename_with_retry(bin_dir, bin_old)
+        _move_with_retry(bin_dir, bin_old)
 
     bin_dir.parent.mkdir(parents=True, exist_ok=True)
-    _rename_with_retry(staging_dir, bin_dir)
+    _move_with_retry(staging_dir, bin_dir)
 
     # Best-effort cleanup; Bin.old may have files Windows still holds briefly.
     _remove_tree_best_effort(bin_old)

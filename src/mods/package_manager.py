@@ -8,9 +8,9 @@ from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
 from src.core.config_manager import (
-    get_mod_library_dir,
-    get_game_mod_library_dir,
+    get_settings_file,
     normalize_game_id,
+    resolve_mod_library_dir,
 )
 from src.core.game_registry import DEFAULT_GAME_ID
 from src.core.logger import get_logger
@@ -20,7 +20,6 @@ logger = get_logger(__name__)
 
 def _get_active_game_id():
     try:
-        from src.core.config_manager import get_settings_file
         settings_file = get_settings_file()
         if settings_file.exists():
             with open(settings_file, 'r') as f:
@@ -101,7 +100,7 @@ class ModPackageManager:
         if mod_library_path:
             self.mod_library_path = Path(mod_library_path)
         else:
-            self.mod_library_path = get_game_mod_library_dir(self.game_id)
+            self.mod_library_path = resolve_mod_library_dir(self.game_id)
         self.mods_dir = self.mod_library_path / 'mods'
         self.config_path = self.mod_library_path / 'mod_config.json'
         self.persistent_mod_manager = persistent_mod_manager

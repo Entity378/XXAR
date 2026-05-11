@@ -218,27 +218,18 @@ class ModManagerBridge(QObject):
                     self.hsr_vo_backup_mode = settings.get("hsr_vo_backup_mode", "local")
 
                     from src.core.config_manager import (
-                        get_custom_mod_library_settings_key,
-                        get_game_mod_library_dir,
-                        get_mod_library_dir,
+                        get_custom_mod_library_root,
+                        resolve_mod_library_dir,
                         set_mod_library_dir,
                     )
-                    custom_mods_key = get_custom_mod_library_settings_key(
-                        self.active_game_id
+                    custom_mods_dir = get_custom_mod_library_root(
+                        self.active_game_id, settings=settings
                     )
-                    custom_mods_dir = settings.get(custom_mods_key, "")
-                    if (
-                        not custom_mods_dir
-                        and self.active_game_id == DEFAULT_GAME_ID
-                    ):
-                        custom_mods_dir = settings.get("custom_mod_library_dir", "")
-
-                    if custom_mods_dir:
-                        set_mod_library_dir(custom_mods_dir)
-                        new_library = get_mod_library_dir()
-                    else:
-                        set_mod_library_dir(None)
-                        new_library = get_game_mod_library_dir(self.active_game_id)
+                    # Keep the global override in sync so any legacy `get_mod_library_dir()` callers still see the custom path.
+                    set_mod_library_dir(custom_mods_dir or None)
+                    new_library = resolve_mod_library_dir(
+                        self.active_game_id, settings=settings
+                    )
 
                     persistent_base = (
                         self.persistent_mod_manager.persistent_base_path

@@ -10,6 +10,7 @@ from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME, switch_active_game
 from src.core.config_manager import (
+    get_custom_mod_library_root,
     get_custom_mod_library_settings_key,
     get_game_mod_library_dir,
     normalize_game_id,
@@ -295,11 +296,8 @@ class SettingsConnector:
 
     @staticmethod
     def _get_custom_mods_dir_for_game(settings, game_id):
-        custom_key = get_custom_mod_library_settings_key(game_id)
-        custom_mods_dir = settings.get(custom_key, "")
-        if not custom_mods_dir and normalize_game_id(game_id) == DEFAULT_GAME_ID:
-            custom_mods_dir = settings.get("custom_mod_library_dir", "")
-        return custom_mods_dir
+        # Thin wrapper around the single source of truth in config_manager so the UI display matches what ModPackageManager / ModManagerBridge resolve.
+        return get_custom_mod_library_root(game_id, settings=settings)
 
     def _connect_settings(self):
         self.settings_page = self.root.findChild(QObject, "settingsPage")
