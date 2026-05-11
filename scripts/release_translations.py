@@ -9,7 +9,7 @@ TRANSLATIONS_DIR = Path(__file__).parent.parent / "src" / "gui" / "translations"
 
 def find_lrelease():
     import shutil
-    for candidate in ["lrelease", "lrelease-qt5"]:
+    for candidate in ["lrelease", "lrelease-qt6"]:
         path = shutil.which(candidate)
         if path:
             return path
@@ -19,8 +19,8 @@ def main():
     lrelease = find_lrelease()
     if not lrelease:
         print("Error: lrelease not found. Install Qt tools:")
-        print("  Arch Linux:    sudo pacman -S qt5-tools")
-        print("  Ubuntu/Debian: sudo apt install qttools5-dev-tools")
+        print("  Arch Linux:    sudo pacman -S qt6-tools")
+        print("  Ubuntu/Debian: sudo apt install qt6-l10n-tools")
         sys.exit(1)
 
     ts_files = sorted(TRANSLATIONS_DIR.glob("*.ts"))

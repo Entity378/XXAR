@@ -24,21 +24,19 @@ if sys.platform.startswith('win'):
 
     extra_binaries = []
     try:
-        import PyQt5
-        pyqt5_dir = os.path.dirname(PyQt5.__file__)
-        qt_qml_dir = os.path.join(pyqt5_dir, 'Qt5', 'qml')
-        qt_plugins_dir = os.path.join(pyqt5_dir, 'Qt5', 'plugins')
-        qt_bin_dir = os.path.join(pyqt5_dir, 'Qt5', 'bin')
+        import PyQt6
+        pyqt6_dir = os.path.dirname(PyQt6.__file__)
+        qt_qml_dir = os.path.join(pyqt6_dir, 'Qt6', 'qml')
 
         if os.path.isdir(qt_qml_dir):
-            added_files.append((qt_qml_dir, 'PyQt5/Qt5/qml'))
+            added_files.append((qt_qml_dir, 'PyQt6/Qt6/qml'))
             print(f"INFO: Bundled Qt QML modules from {qt_qml_dir}")
         else:
             print("WARNING: Qt QML directory not found — QML will fail to load")
 
 
     except ImportError:
-        print("WARNING: PyQt5 not found, skipping QML bundling")
+        print("WARNING: PyQt6 not found, skipping QML bundling")
 
 else:
 
@@ -71,21 +69,21 @@ else:
             print("WARNING: GStreamer path not found. Build might fail to play audio.")
 
     try:
-        import PyQt5
-        pyqt5_dir = os.path.dirname(PyQt5.__file__)
-        qt_plugins_dir = os.path.join(pyqt5_dir, 'Qt5', 'plugins')
-        qt_qml_dir = os.path.join(pyqt5_dir, 'Qt5', 'qml')
+        import PyQt6
+        pyqt6_dir = os.path.dirname(PyQt6.__file__)
+        qt_plugins_dir = os.path.join(pyqt6_dir, 'Qt6', 'plugins')
+        qt_qml_dir = os.path.join(pyqt6_dir, 'Qt6', 'qml')
 
-        qt_plugin_search = [qt_plugins_dir, '/usr/lib/qt/plugins', '/usr/lib/x86_64-linux-gnu/qt5/plugins']
-        qt_qml_search = [qt_qml_dir, '/usr/lib/qt/qml', '/usr/lib/x86_64-linux-gnu/qt5/qml']
+        qt_plugin_search = [qt_plugins_dir, '/usr/lib/qt6/plugins', '/usr/lib/x86_64-linux-gnu/qt6/plugins']
+        qt_qml_search = [qt_qml_dir, '/usr/lib/qt6/qml', '/usr/lib/x86_64-linux-gnu/qt6/qml']
 
         if not is_flatpak_build:
             # Bundle Qt Wayland/platform plugins for standalone binary
             wayland_plugin_dirs = [
-                ('platforms', 'PyQt5/Qt5/plugins/platforms/'),
-                ('wayland-shell-integration', 'PyQt5/Qt5/plugins/wayland-shell-integration/'),
-                ('wayland-graphics-integration-client', 'PyQt5/Qt5/plugins/wayland-graphics-integration-client/'),
-                ('wayland-decoration-client', 'PyQt5/Qt5/plugins/wayland-decoration-client/'),
+                ('platforms', 'PyQt6/Qt6/plugins/platforms/'),
+                ('wayland-shell-integration', 'PyQt6/Qt6/plugins/wayland-shell-integration/'),
+                ('wayland-graphics-integration-client', 'PyQt6/Qt6/plugins/wayland-graphics-integration-client/'),
+                ('wayland-decoration-client', 'PyQt6/Qt6/plugins/wayland-decoration-client/'),
             ]
 
             for subdir, dest in wayland_plugin_dirs:
@@ -101,21 +99,11 @@ else:
                 imageformats_path = os.path.join(search_dir, 'imageformats')
                 if os.path.isdir(imageformats_path):
                     for f in glob.glob(os.path.join(imageformats_path, '*.so*')):
-                        extra_binaries.append((f, 'PyQt5/Qt5/plugins/imageformats/'))
+                        extra_binaries.append((f, 'PyQt6/Qt6/plugins/imageformats/'))
                     print(f"INFO: Bundled imageformats from {imageformats_path}")
                     break
             else:
                 print("WARNING: imageformats plugin dir not found")
-
-        # Always bundle QtGraphicalEffects — it must match the bundled PyQt5 version
-        for search_dir in qt_qml_search:
-            gfx_path = os.path.join(search_dir, 'QtGraphicalEffects')
-            if os.path.isdir(gfx_path):
-                added_files.append((gfx_path, 'PyQt5/Qt5/qml/QtGraphicalEffects'))
-                print(f"INFO: Bundled QtGraphicalEffects from {gfx_path}")
-                break
-        else:
-            print("WARNING: QtGraphicalEffects QML module not found")
 
         if not is_flatpak_build:
             # NOTE: Do NOT bundle libwayland-*.so - they must come from the user's
@@ -126,7 +114,7 @@ else:
                 for lib_path in glob.glob(os.path.join(lib_dir, 'libxkbcommon*.so*')):
                     extra_binaries.append((lib_path, '.'))
     except ImportError:
-        print("WARNING: PyQt5 not found, skipping plugin bundling")
+        print("WARNING: PyQt6 not found, skipping plugin bundling")
 
 a = Analysis(
     ['XXAR.py'],
@@ -144,9 +132,9 @@ a = Analysis(
         'src.gui.backend.update_manager_bridge',
         'PIL',
         'PIL.Image',
-        'PyQt5.QtMultimedia',
-        'PyQt5.QtMultimediaWidgets',
-        'PyQt5.QtNetwork',
+        'PyQt6.QtMultimedia',
+        'PyQt6.QtMultimediaWidgets',
+        'PyQt6.QtNetwork',
     ],
     hookspath=[],
     hooksconfig={},
@@ -177,8 +165,8 @@ a = Analysis(
 # NOTE: libssl/libcrypto are intentionally NOT excluded here. Qt's network
 # module uses dlopen() to load OpenSSL at runtime using the bare filename
 # (e.g. "libssl.so.1.1"). If we exclude these from the bundle, Qt cannot find
-# them next to Qt5Network and TLS fails ("TLS initialization failed").
-# Bundling the CI's OpenSSL 1.x alongside the CI's Qt5Network is correct —
+# them next to Qt6Network and TLS fails ("TLS initialization failed").
+# Bundling the CI's OpenSSL 1.x alongside the CI's Qt6Network is correct —
 # they were built together. The bundled copies live in the dist folder and
 # are found before any system OpenSSL via LD_LIBRARY_PATH set by the
 # PyInstaller bootloader, so there is no conflict with the user's system

@@ -19,7 +19,7 @@ a = Analysis(
     excludes=[
         # This helper uses only stdlib — strip everything heavy that
         # PyInstaller hooks might otherwise auto-collect.
-        'PyQt5',
+        'PyQt6',
         'numpy',
         'scipy',
         'PIL',

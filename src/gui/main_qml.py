@@ -346,7 +346,7 @@ class Application(
         self.engine.addImportPath(str(ui_path / "components"))
 
         if hasattr(sys, '_MEIPASS'):
-            qml_base = Path(sys._MEIPASS) / 'PyQt5' / 'Qt5' / 'qml'
+            qml_base = Path(sys._MEIPASS) / 'PyQt6' / 'Qt6' / 'qml'
             if qml_base.exists():
                 self.engine.addImportPath(str(qml_base))
                 logger.info(f"[{APP_NAME}] Added PyInstaller QML path: {qml_base}")

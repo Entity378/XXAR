@@ -226,7 +226,7 @@ def start_mock_github_server(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _run_check_worker(current_version: str, api_url: str, is_msi: bool, timeout_ms: int = 15000) -> dict:
-    from PyQt5.QtCore import QCoreApplication
+    from PyQt6.QtCore import QCoreApplication
     import src.gui.backend.update_manager_bridge as umb
 
     app = QCoreApplication.instance() or QCoreApplication(sys.argv)
@@ -307,7 +307,7 @@ def test_check_worker_up_to_date(r: TestResult, port: int) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | None:
-    from PyQt5.QtCore import QCoreApplication
+    from PyQt6.QtCore import QCoreApplication
     import src.gui.backend.update_manager_bridge as umb
 
     app = QCoreApplication.instance() or QCoreApplication(sys.argv)

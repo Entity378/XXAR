@@ -38,7 +38,7 @@ finish-args:
   # Audio
   - --socket=pulseaudio
 
-  # GPU (QtGraphicalEffects ColorOverlay/OpacityMask need hardware rendering)
+  # GPU (Qt Quick scene graph needs hardware rendering for layered effects)
   - --device=dri
 
   # Network — Wwise download, GameBanana mod browser, GitHub release polling

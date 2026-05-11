@@ -15,39 +15,39 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo + Python found
 
-REM Check PyQt5
-python -c "import PyQt5" >nul 2>nul
+REM Check PyQt6
+python -c "import PyQt6" >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
-    echo X PyQt5 not found
+    echo X PyQt6 not found
     echo.
-    echo Installing PyQt5...
-    python -m pip install PyQt5
+    echo Installing PyQt6...
+    python -m pip install PyQt6
     if %ERRORLEVEL% NEQ 0 (
         echo.
-        echo Failed to install PyQt5
-        echo Please run: pip install PyQt5
+        echo Failed to install PyQt6
+        echo Please run: pip install PyQt6
         pause
         exit /b 1
     )
 )
-echo + PyQt5 found
+echo + PyQt6 found
 
-REM Check PyQt5.QtQml
-python -c "from PyQt5.QtQml import QQmlApplicationEngine" >nul 2>nul
+REM Check PyQt6.QtQml
+python -c "from PyQt6.QtQml import QQmlApplicationEngine" >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
-    echo ! PyQt5.QtQml not found
+    echo ! PyQt6.QtQml not found
     echo.
-    echo The QML UI requires PyQt5 with QML support.
-    echo Installing full PyQt5 package...
-    python -m pip install --upgrade PyQt5
+    echo The QML UI requires PyQt6 with QML support.
+    echo Installing full PyQt6 package...
+    python -m pip install --upgrade PyQt6
     if %ERRORLEVEL% NEQ 0 (
         echo.
-        echo Failed to install PyQt5
+        echo Failed to install PyQt6
         pause
         exit /b 1
     )
 )
-echo + PyQt5.QtQml found
+echo + PyQt6.QtQml found
 
 echo.
 echo Starting XXAR GUI...
