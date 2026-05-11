@@ -124,8 +124,8 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y flathub \
-            org.kde.Platform//6.8-24.08 \
-            org.kde.Sdk//6.8-24.08 \
+            org.kde.Platform//6.8 \
+            org.kde.Sdk//6.8 \
             org.freedesktop.Platform.ffmpeg-full//24.08
 
       - name: Build Flatpak bundle
