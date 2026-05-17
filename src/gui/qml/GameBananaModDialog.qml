@@ -355,6 +355,14 @@ Rectangle {
                                         radius: 22
                                         color: Theme.backgroundColor
 
+                                        Rectangle {
+                                            id: authorAvatarMask
+                                            anchors.fill: parent
+                                            radius: 22
+                                            visible: false
+                                            layer.enabled: true
+                                        }
+
                                         Image {
                                             anchors.fill: parent
                                             source: modData ? modData.author_avatar : ""
@@ -363,11 +371,7 @@ Rectangle {
                                             layer.enabled: true
                                             layer.effect: MultiEffect {
                                                 maskEnabled: true
-
-                                                maskSource: Rectangle {
-                                                    width: 44; height: 44; radius: 22
-                                                    layer.enabled: true
-                                                }
+                                                maskSource: authorAvatarMask
                                             }
 
                                             Text {

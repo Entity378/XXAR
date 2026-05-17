@@ -665,6 +665,14 @@ Item {
                                     }
 
                                     Rectangle {
+                                        id: cardMaskShape
+                                        anchors.fill: parent
+                                        radius: Theme.radiusMedium
+                                        visible: false
+                                        layer.enabled: true
+                                    }
+
+                                    Rectangle {
                                         id: cardBg
                                         anchors.fill: parent
                                         color: cardMouse.containsMouse ? Qt.lighter(Theme.cardBackground, 1.1) : Theme.cardBackground
@@ -677,13 +685,7 @@ Item {
                                         layer.enabled: true
                                         layer.effect: MultiEffect {
                                             maskEnabled: true
-
-                                            maskSource: Rectangle {
-                                                width: cardBg.width
-                                                height: cardBg.height
-                                                radius: Theme.radiusMedium
-                                                layer.enabled: true
-                                            }
+                                            maskSource: cardMaskShape
                                         }
 
                                         ColumnLayout {
