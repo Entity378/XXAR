@@ -223,8 +223,8 @@ class AudioConverter:
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to convert {input_file}: {e}")
 
-    def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None, normalize=False, normalize_lufs=-9):
-
+    def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None):
+    
         wav_file = Path(wav_file)
 
         if not WWISE_AVAILABLE or not self.wwise_console:
@@ -233,10 +233,7 @@ class AudioConverter:
                 "Please install Wwise from the Settings page to convert WAV files to WEM format."
             )
 
-        if wwise_dir:
-            wwise = WwiseConsole(wwise_dir)
-        else:
-            wwise = self.wwise_console
+        wwise = WwiseConsole(wwise_dir) if wwise_dir else self.wwise_console
 
         if not wwise.is_installed():
             raise RuntimeError(
@@ -251,32 +248,36 @@ class AudioConverter:
             output_dir = output_file.parent
 
         try:
-            if normalize:
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
-                    tmp_path = Path(tmp.name)
-                try:
-                    self.any_to_wav(wav_file, tmp_path, normalize=True, normalize_lufs=normalize_lufs)
-                    result_wem = wwise.convert_to_wem(tmp_path, output_dir)
-                    # Wwise names output after the input stem -- rename to match original
-                    expected = output_dir / (tmp_path.stem + '.wem')
-                    target = output_dir / (wav_file.stem + '.wem')
-                    if expected.exists() and expected != target:
-                        expected.rename(target)
-                        result_wem = target
-                finally:
-                    tmp_path.unlink(missing_ok=True)
-            else:
-                result_wem = wwise.convert_to_wem(wav_file, output_dir)
-
+            result_wem = wwise.convert_to_wem(wav_file, output_dir)
             if output_file and result_wem != output_file:
                 result_wem.rename(output_file)
                 return output_file
-
             return result_wem
-
         except Exception as e:
             raise RuntimeError(f"Failed to convert {wav_file.name} to .wem: {e}")
+
+    def any_to_wem(self, input_file, output_file=None, normalize=False, normalize_lufs=-9):
+        input_file = Path(input_file)
+
+        # Fast path: a plain .wav with no normalization goes straight to Wwise.
+        if input_file.suffix.lower() == '.wav' and not normalize:
+            return self.wav_to_wem(input_file, output_file)
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            tmp_wav = Path(tmp.name)
+        try:
+            self.any_to_wav(input_file, tmp_wav, normalize=normalize, normalize_lufs=normalize_lufs)
+            wem = self.wav_to_wem(tmp_wav, output_file)
+            # Wwise names output after the (temp) input stem; restore the original stem when caller didn't pin a target.
+            if output_file is None:
+                target = input_file.with_suffix('.wem')
+                if wem != target and wem.exists():
+                    wem.rename(target)
+                    wem = target
+            return wem
+        finally:
+            tmp_wav.unlink(missing_ok=True)
 
     def batch_convert_wem_to_wav(self, input_dir, output_dir=None):
 
@@ -363,7 +364,7 @@ class AudioConverter:
         converted = []
         for wav_file in wav_files:
             try:
-                self.wav_to_wem(wav_file, output_dir / wav_file.with_suffix('.wem').name,
+                self.any_to_wem(wav_file, output_dir / wav_file.with_suffix('.wem').name,
                                 normalize=True, normalize_lufs=normalize_lufs)
                 converted.append(output_dir / wav_file.with_suffix('.wem').name)
             except Exception as e:

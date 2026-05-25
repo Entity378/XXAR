@@ -124,8 +124,9 @@ class ReplaceAudioWorker(QThread):
                     QCoreApplication.translate("Application", "Converting %1 to WEM...").replace("%1", custom_file.suffix)
                 )
                 converter = AudioConverter()
-                wav_file = converter.any_to_wav(str(custom_file), normalize=self.normalize, normalize_lufs=self.normalize_lufs)
-                wem_file = converter.wav_to_wem(str(wav_file))
+                wem_file = converter.any_to_wem(
+                    str(custom_file), normalize=self.normalize, normalize_lufs=self.normalize_lufs
+                )
 
             self.progress.emit(
                 QCoreApplication.translate("Application", "Staging replacement...")

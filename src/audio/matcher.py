@@ -7,10 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from scipy import signal
 from scipy.fft import dct
-import subprocess
-import tempfile
-from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
-
 from src.core.logger import get_logger
 logger = get_logger(__name__)
 
@@ -65,89 +61,27 @@ class AudioMatcher:
         self.fingerprint_db = fingerprint_db
 
     def extract_fingerprint(self, audio_path, sample_rate=48000):
-
+        from src.audio import constellation
         audio_path = Path(audio_path)
-
-        intermediate_wav = None
         if audio_path.suffix.lower() == '.wem':
-
-            from XXAR import get_temp_dir
-            with tempfile.NamedTemporaryFile(suffix='_intermediate.wav', delete=False, dir=str(get_temp_dir())) as tmp:
-                intermediate_wav = Path(tmp.name)
-
-            try:
-                subprocess.run(
-                    [self.vgmstream_path, '-o', str(intermediate_wav), str(audio_path)],
-                    capture_output=True,
-                    check=True,
-                    timeout=10,
-                    **_subprocess_kwargs
-                )
-            except Exception as e:
-                if intermediate_wav.exists():
-                    try:
-                        intermediate_wav.unlink()
-                    except Exception:
-                        pass
-                raise Exception(f"vgmstream failed to decode .wem: {e}")
-            input_file = intermediate_wav
+            audio_data = constellation.decode_wem_bytes(
+                self.ffmpeg_path, audio_path.read_bytes(), self.vgmstream_path,
+                sample_rate=sample_rate,
+            )
         else:
-            input_file = audio_path
-
-        from XXAR import get_temp_dir
-        temp_wav = Path(tempfile.mktemp(suffix='.wav', dir=str(get_temp_dir())))
-
-        cmd = [
-            self.ffmpeg_path,
-            '-i', str(input_file),
-            '-ar', str(sample_rate),
-            '-ac', '1',
-            '-acodec', 'pcm_s32le',
-            '-y', str(temp_wav),
-        ]
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True, timeout=120, **_subprocess_kwargs)
-        except subprocess.CalledProcessError as e:
-
-            if intermediate_wav and intermediate_wav.exists():
-                try:
-                    intermediate_wav.unlink()
-                except Exception:
-                    pass
-            raise Exception(f"Failed to process audio: {e.stderr.decode()}")
-        except subprocess.TimeoutExpired:
-
-            if intermediate_wav and intermediate_wav.exists():
-                try:
-                    intermediate_wav.unlink()
-                except Exception:
-                    pass
-            raise Exception(f"Audio processing timed out")
-
-        audio_data = self._read_wav(temp_wav, sample_rate)
-        temp_wav.unlink(missing_ok=True)
-
-        if intermediate_wav and intermediate_wav.exists():
-            try:
-                intermediate_wav.unlink()
-            except Exception:
-                pass
-
+            audio_data = constellation.decode_file(self.ffmpeg_path, audio_path, sample_rate=sample_rate)
         if audio_data is None or len(audio_data) == 0:
             return None
-
         return self._build_fingerprint(audio_data, sample_rate)
 
     def extract_fingerprint_from_bytes(self, wem_bytes, sample_rate=48000):
-
-        from XXAR import get_temp_dir
-        temp_wem = Path(tempfile.mktemp(suffix='.wem', dir=str(get_temp_dir())))
-        try:
-            temp_wem.write_bytes(wem_bytes)
-            return self.extract_fingerprint(temp_wem, sample_rate)
-        finally:
-            temp_wem.unlink(missing_ok=True)
+        from src.audio import constellation
+        audio_data = constellation.decode_wem_bytes(
+            self.ffmpeg_path, wem_bytes, self.vgmstream_path, sample_rate=sample_rate,
+        )
+        if audio_data is None or len(audio_data) == 0:
+            return None
+        return self._build_fingerprint(audio_data, sample_rate)
 
     def _build_fingerprint(self, audio_data, sample_rate):
 
@@ -183,26 +117,6 @@ class AudioMatcher:
         }
 
         return fingerprint
-
-    def _read_wav(self, wav_path, expected_sample_rate):
-
-        try:
-
-            result = subprocess.run([
-                self.ffmpeg_path,
-                '-i', str(wav_path),
-                '-f', 's32le',
-                '-acodec', 'pcm_s32le',
-                '-'
-            ], capture_output=True, check=True, **_subprocess_kwargs)
-
-            audio_data = np.frombuffer(result.stdout, dtype=np.int32)
-
-            audio_data = audio_data.astype(np.float32) / 2147483648.0
-
-            return audio_data
-        except Exception:
-            return None
 
     def _extract_mfcc(self, power_spectrogram, sample_rate, n_fft, n_mfcc=13, n_mels=40):
 

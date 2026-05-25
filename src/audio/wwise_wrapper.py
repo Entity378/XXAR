@@ -154,154 +154,88 @@ class WwiseConsole:
         return wsources_path
 
     def convert_to_wem(self, wav_file, output_dir=None):
-
         wav_file = Path(wav_file).resolve()
-
         if output_dir is None:
             output_dir = wav_file.parent
+        result = self.batch_convert_to_wem([wav_file], output_dir)
+        if not result:
+            raise RuntimeError(f"WEM file not created from {wav_file.name}")
+        return result[0]
+
+    def batch_convert_to_wem(self, wav_files, output_dir):
         output_dir = Path(output_dir).resolve()
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        wav_dir = wav_file.parent
+        wav_paths = [Path(f).resolve() for f in wav_files]
+        if not wav_paths:
+            return []
 
-        wsources_path = self._create_wsources_file([wav_file], wav_dir, output_dir)
+        logger.info(f"\nProcessing {len(wav_paths)} files...")
+
+        # Wwise convert-external-source resolves Source paths against a single Root in the .wsources
+        by_parent: dict[Path, list[Path]] = {}
+        for w in wav_paths:
+            by_parent.setdefault(w.parent, []).append(w)
+
+        converted = []
+        for parent, group in by_parent.items():
+            self._run_wwise_batch(group, parent, output_dir)
+            # Wwise writes WEMs into output_dir/Windows/<name>.wem (platform subfolder)
+            converted.extend(self._collect_wems(group, output_dir))
+            self._cleanup_wwise_artifacts(output_dir)
+
+        return converted
+
+    def _run_wwise_batch(self, wav_files, wav_dir, output_dir):
+        wsources_path = self._create_wsources_file(wav_files, wav_dir, output_dir)
 
         if self.is_windows:
             cmd = [
-                str(self.wwise_console),
-                "convert-external-source",
+                str(self.wwise_console), "convert-external-source",
                 str(self.project_path),
-                "--source-file",
-                str(wsources_path),
-                "--output",
-                str(output_dir)
+                "--source-file", str(wsources_path),
+                "--output", str(output_dir),
             ]
         else:
-
-            wsources_wine_path = "Z:" + str(wsources_path).replace('/', '\\')
-            output_wine_path = "Z:" + str(output_dir).replace('/', '\\')
             cmd = self.wine_cmd + [
-                str(self.wwise_console),
-                "convert-external-source",
+                str(self.wwise_console), "convert-external-source",
                 str(self.project_path),
-                "--source-file",
-                wsources_wine_path,
-                "--output",
-                output_wine_path
+                "--source-file", "Z:" + str(wsources_path).replace('/', '\\'),
+                "--output", "Z:" + str(output_dir).replace('/', '\\'),
             ]
 
         logger.info(f"[WwiseConsole] Running: {' '.join(cmd)}")
-        process = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
+        proc = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
+        if proc.returncode != 0:
+            detail = (proc.stdout + proc.stderr).strip() or f"WwiseConsole exited with code {proc.returncode}"
+            logger.error(f"[WwiseConsole] Batch failed: {detail}")
+        else:
+            if proc.stdout:
+                logger.info(f"[WwiseConsole] {proc.stdout}")
+            if proc.stderr:
+                logger.warning(f"[WwiseConsole] {proc.stderr}")
 
-        if process.returncode != 0:
-            error_detail = (process.stdout + process.stderr).strip()
-            if not error_detail:
-                error_detail = f"Wine/WwiseConsole exited with code {process.returncode}"
-            raise RuntimeError(error_detail)
-
-        if process.stdout:
-            logger.info("WwiseConsole output:", process.stdout)
-        if process.stderr:
-            logger.error("WwiseConsole errors:", process.stderr)
-
-        wem_file = output_dir / wav_file.with_suffix(".wem").name
-
-        if not wem_file.exists():
-
-            project_cache = self.project_path.parent / ".cache"
-            if project_cache.exists():
-                for p in project_cache.rglob("*.wem"):
-                    logger.info(f"Found WEM in cache: {p}")
+    def _collect_wems(self, wav_files, output_dir):
+        project_cache = self.project_path.parent / ".cache"
+        found = []
+        for wav in wav_files:
+            wem_file = output_dir / Path(wav).with_suffix(".wem").name
+            if not wem_file.exists():
+                # Wwise normally writes here:
+                for p in output_dir.rglob(wem_file.name):
+                    if p != wem_file:
+                        shutil.copy(p, wem_file)
+                        break
+            if not wem_file.exists() and project_cache.exists():
+                # Some Wwise versions stash output under the project .cache/ dir.
+                for p in project_cache.rglob(wem_file.name):
                     shutil.copy(p, wem_file)
                     break
-
-            for p in output_dir.rglob("*.wem"):
-                if p.name == wem_file.name:
-                    logger.info(f"Found WEM in subdirectory: {p}")
-                    shutil.copy(p, wem_file)
-                    break
-
-        if not wem_file.exists():
-            raise RuntimeError(f"WEM file not created: {wem_file}")
-
-        self._cleanup_wwise_artifacts(output_dir)
-
-        return wem_file
-
-    def batch_convert_to_wem(self, wav_files, output_dir):
-
-        output_dir = Path(output_dir)
-        output_dir.mkdir(exist_ok=True)
-
-        converted = []
-        failed = []
-
-        logger.info(f"\nProcessing {len(wav_files)} files...")
-
-        wav_files_paths = [Path(f).resolve() for f in wav_files]
-        wav_dir = wav_files_paths[0].parent
-
-        if not all(f.parent == wav_dir for f in wav_files_paths):
-            logger.warning("[!]  Warning: WAV files are in different directories. Converting individually...")
-            for wav in wav_files:
-                try:
-                    out = self.convert_to_wem(wav, output_dir)
-                    converted.append(out)
-                except Exception as e:
-                    logger.error(f"[X] Failed {Path(wav).name}: {e}")
-                    failed.append(wav)
-            return converted
-
-        wsources_path = self._create_wsources_file(wav_files_paths, wav_dir, output_dir)
-
-        if self.is_windows:
-            cmd = [
-                str(self.wwise_console),
-                "convert-external-source",
-                str(self.project_path),
-                "--source-file",
-                str(wsources_path),
-                "--output",
-                str(output_dir)
-            ]
-        else:
-
-            wsources_wine_path = "Z:" + str(wsources_path).replace('/', '\\')
-            output_wine_path = "Z:" + str(output_dir).replace('/', '\\')
-            cmd = self.wine_cmd + [
-                str(self.wwise_console),
-                "convert-external-source",
-                str(self.project_path),
-                "--source-file",
-                wsources_wine_path,
-                "--output",
-                output_wine_path
-            ]
-
-        process = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
-
-        if process.returncode != 0:
-            logger.error(f"[X] Batch conversion failed: {process.stdout + process.stderr}")
-
-            for wav in wav_files:
-                try:
-                    out = self.convert_to_wem(wav, output_dir)
-                    converted.append(out)
-                except Exception as e:
-                    logger.error(f"[X] Failed {Path(wav).name}: {e}")
-                    failed.append(wav)
-        else:
-
-            for wav in wav_files:
-                wem_file = output_dir / Path(wav).with_suffix(".wem").name
-                if wem_file.exists():
-                    converted.append(wem_file)
-                else:
-                    failed.append(wav)
-
-        self._cleanup_wwise_artifacts(output_dir)
-
-        return converted
+            if wem_file.exists():
+                found.append(wem_file)
+            else:
+                logger.error(f"[X] Failed: {Path(wav).name}")
+        return found
 
 def main():
     if len(sys.argv) < 2:

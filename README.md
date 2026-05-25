@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.0-blue"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.2-blue"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey"/>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-green"/>
   <img alt="Status" src="https://img.shields.io/badge/status-Released-green"/>
