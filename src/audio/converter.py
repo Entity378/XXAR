@@ -273,7 +273,7 @@ class AudioConverter:
             if output_file is None:
                 target = input_file.with_suffix('.wem')
                 if wem != target and wem.exists():
-                    wem.rename(target)
+                    shutil.move(wem, target)
                     wem = target
             return wem
         finally:
