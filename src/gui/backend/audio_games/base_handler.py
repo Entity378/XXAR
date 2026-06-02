@@ -692,7 +692,7 @@ class BaseBrowserHandler:
 
         target_path.write_bytes(content)
         patched_track_ids.update(dur_result["patched_source_ids"])
-        logger.info(f"[HIRC Patch] Written {len(content)} bytes to {target_path}")
+        logger.info(f"[HIRC Patch] Wrote {len(content)} bytes to {target_path}")
         return True
 
     def _find_bank_pck_files(self, audio_root):

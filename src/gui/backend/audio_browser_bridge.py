@@ -1399,7 +1399,7 @@ class AudioBrowserBridge(QObject):
         if text.isdigit():
             return int(text)
 
-        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*:\s*(\d{1,3})$", text)
+        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*.\s*(\d{1,3})$", text)
         if m:
             minutes = int(m.group(1))
             seconds = int(m.group(2))
@@ -1435,7 +1435,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(
                 QCoreApplication.translate(
                     "Application",
-                    "Invalid loop duration format. Use mm:ss:mmm.",
+                    "Invalid loop duration format. Use mm:ss.SSS.",
                 )
             )
             return
@@ -1466,7 +1466,7 @@ class AudioBrowserBridge(QObject):
         repl_info = file_changes.get(tracker_key)
         if not repl_info:
             return
-        current = bool(repl_info.get("volume_enabled", False))
+        current = bool(repl_info.get("volume_enabled", True))
         if current == enabled:
             return
         self.mod_manager.update_replacement_fields(
