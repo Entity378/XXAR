@@ -777,7 +777,7 @@ class BaseBrowserHandler:
                     continue
 
                 loop_mode = self.normalize_loop_mode(
-                    repl_info.get("loop_point_mode", "auto")
+                    repl_info.get("loop_point_mode", "disabled")
                 )
                 if loop_mode == "disabled":
                     continue
@@ -837,7 +837,7 @@ class BaseBrowserHandler:
                 if track_id is None:
                     continue
 
-                if not repl_info.get("volume_enabled", True):
+                if not repl_info.get("volume_enabled", False):
                     continue
 
                 volume_db_by_track[track_id] = self.normalize_volume_db(
