@@ -28,7 +28,7 @@ class PersistentModManager:
 
         self.persistent_base_path = Path(path)
 
-    def add_replacement(self, pck_filename, file_id, wem_path, file_type='wem', lang_id=0, bnk_id=None):
+    def add_replacement(self, pck_filename, file_id, wem_path, file_type='wem', lang_id=0, bnk_id=None, loop_point_mode='auto', loop_point_manual_ms=0, volume_enabled=True, volume_db=0.0):
 
         if pck_filename not in self.mod_tracker:
             self.mod_tracker[pck_filename] = {}
@@ -39,6 +39,10 @@ class PersistentModManager:
             'file_type': file_type,
             'lang_id': lang_id,
             'bnk_id': bnk_id,
+            'loop_point_mode': loop_point_mode,
+            'loop_point_manual_ms': loop_point_manual_ms,
+            'volume_enabled': volume_enabled,
+            'volume_db': volume_db,
             'date_modified': datetime.now().isoformat()
         }
 

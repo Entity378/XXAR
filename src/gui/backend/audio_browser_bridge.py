@@ -3074,14 +3074,21 @@ class AudioBrowserBridge(QObject):
                             file_type = file_info.get('file_type', 'wem')
                             lang_id = file_info.get('lang_id', 0)
                             bnk_id = file_info.get('bnk_id')
-
+                            loop_point_mode = file_info.get('loop_point_mode', 'disabled')
+                            loop_point_manual_ms = file_info.get('loop_point_manual_ms', 0)
+                            volume_enabled = file_info.get('volume_enabled', False)
+                            volume_db = file_info.get('volume_db', 0.0)
                             self.mod_manager.add_replacement(
                                 pck_name,
                                 int(file_id),
                                 str(permanent_wem),
                                 file_type,
                                 lang_id,
-                                bnk_id
+                                bnk_id,
+                                loop_point_mode,
+                                loop_point_manual_ms,
+                                volume_enabled,
+                                volume_db
                             )
 
                             replacement_count += 1
