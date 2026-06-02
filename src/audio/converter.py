@@ -187,11 +187,11 @@ class AudioConverter:
                     measured = _json.loads(json_match.group())
                     af = (
                         f"loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true"
-                        f":measured_I={measured['input_i']}"
-                        f":measured_TP={measured['input_tp']}"
+                        f":measured_I={measured['input_i']}" if not 'inf' in measured['input_i'] else ''
+                        f":measured_TP={measured['input_tp']}" if not 'inf' in measured['input_tp'] else ''
                         f":measured_LRA={measured['input_lra']}"
                         f":measured_thresh={measured['input_thresh']}"
-                        f":offset={measured['target_offset']}"
+                        f":offset={measured['target_offset']}" if not 'inf' in measured['target_offset'] else ''
                     )
                 else:
                     # Fallback to single-pass dynamic if parse fails
