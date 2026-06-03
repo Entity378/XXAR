@@ -1,5 +1,3 @@
-
-
 import atexit
 import tempfile
 import shutil
@@ -7,8 +5,7 @@ from pathlib import Path
 from collections import OrderedDict
 
 class TempCacheManager:
-
-
+    
     def __init__(self, max_cached_files=100):
 
         from XXAR import get_temp_dir

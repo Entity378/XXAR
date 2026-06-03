@@ -1,3 +1,5 @@
+from src.core.game_registry import get_game
+
 from .base_handler import BaseBrowserHandler
 
 
@@ -23,7 +25,6 @@ class GIARBrowserHandler(BaseBrowserHandler):
     @classmethod
     def is_loop_entry_applicable(cls, pck_filename, repl_info):
         name = str(pck_filename or "").lower()
-        from src.core.game_registry import get_game
         titlescreen = {
             n.lower() for n in (get_game("genshin").titlescreen_pcks or ())
         }

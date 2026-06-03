@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import os
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import (
@@ -17,7 +18,7 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-# Wwise writes cache/temp files inside the project dir, so when the bundle is read-only (PyInstaller/Flatpak) copy the template to a writable per-user dir.
+# Wwise writes temp files in the project dir; bundle is read-only, so copy template to a writable per-user dir.
 _BUNDLED_RESOURCE_DIR = get_bundled_resources_dir()
 
 if IS_FLATPAK or is_frozen():
@@ -124,8 +125,6 @@ class WwiseConsole:
             shutil.rmtree(windows_dir)
 
     def _create_wsources_file(self, wav_files, wav_dir, output_path):
-
-        import xml.etree.ElementTree as ET
 
         wav_dir_path = Path(wav_dir).resolve()
 

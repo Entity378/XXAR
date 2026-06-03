@@ -1,6 +1,5 @@
 # One-shot folder migrations between XXAR versions.
 
-
 from __future__ import annotations
 
 import json
@@ -137,8 +136,7 @@ def _copy_one(src_file: Path, dst_file: Path) -> bool:
 
 
 def _per_file_copy(src: Path, dst: Path) -> int:
-    # Copy every file under src to dst, skipping files already at dst with the same size.
-    # Returns count of failed files (0 on full success).
+    # Copy src->dst skipping same-size files; returns failed count (0 = success).
     try:
         src_files = [p for p in src.rglob("*") if p.is_file()]
     except OSError as e:
@@ -249,8 +247,7 @@ def _migrate_legacy_mod_config(legacy: Path, target: Path, game: str) -> None:
 
 
 def _migrate_legacy_mod_tracker(legacy: Path, target: Path, game: str, roaming: Path) -> None:
-    # Move top-level mod_tracker.json to games/<game>/.
-    # Rewrite absolute wem_path values from Local/XXAR/games/... to Roaming/XXAR/games/... so they follow the games/ directory move.
+    # Move mod_tracker.json to games/<game>/, rewriting wem_path from Local to Roaming to follow the games/ move.
     if not legacy.exists():
         return
     if target.exists():
@@ -278,7 +275,7 @@ def _migrate_legacy_mod_tracker(legacy: Path, target: Path, game: str, roaming: 
                 wem_path = info.get("wem_path")
                 if not isinstance(wem_path, str):
                     continue
-                # Compare case-insensitively because Windows path casing varies
+                # case-insensitive: Windows path casing varies
                 if wem_path.lower().startswith(local_games_prefix.lower()):
                     info["wem_path"] = roaming_games_prefix + wem_path[len(local_games_prefix):]
                     rewritten += 1
@@ -343,8 +340,7 @@ def run_migrations() -> None:
         # games/ : Local -> Roaming
         _migrate_dir(localappdata / "games", appdata / "games")
 
-        # Top-level mod_config.json + mod_tracker.json (pre-0.8 single-game layout) move to games/<active_game>/.
-        # Run AFTER the games/ move so the rewritten wem_path values point at where games/ now lives.
+        # pre-0.8 top-level mod_config/tracker -> games/<active_game>/; run after games/ move so wem_paths resolve.
         _migrate_legacy_mod_state(appdata)
 
         # tools/ : Roaming -> Local
@@ -353,9 +349,7 @@ def run_migrations() -> None:
         # temp/ : just delete the stale Roaming copy (lazy-recreated on demand).
         _delete_dir(appdata / "temp")
 
-        # Pre-0.8 Qt nested its own paths under %LOCALAPPDATA%\XXAR\XXAR\ because organizationName and applicationName were both "XXAR".
-        # Dropping the org name makes Qt write to %LOCALAPPDATA%\XXAR\ directly.
-        # The old nested dir only holds regenerable QML bytecode cache.
+        # pre-0.8 Qt nested paths under %LOCALAPPDATA%\XXAR\XXAR\ (org+app both "XXAR"); only regenerable QML cache lives there.
         _delete_dir(localappdata / "XXAR")
     finally:
         _release_lock(lock)

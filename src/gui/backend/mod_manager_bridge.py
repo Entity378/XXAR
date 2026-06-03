@@ -19,11 +19,18 @@ import src.core.app_config as app_config
 from src.core.app_config import CONFIG_DIR_NAME, APP_NAME
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 
-from src.mods.package_manager import ModPackageManager, InvalidModPackageError
+from src.mods.package_manager import ModPackageManager, InvalidModPackageError, count_replacements, _AUDIO_SETTING_KEYS
 from src.mods.persistent_manager import PersistentModManager
-from src.core.config_manager import get_settings_file, get_tools_dir
+from src.core.config_manager import (
+    get_settings_file,
+    get_tools_dir,
+    get_custom_mod_library_root,
+    resolve_mod_library_dir,
+    set_mod_library_dir,
+)
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
 from src.gui.backend.audio_games import get_browser_handler_class
+from src.wwise.override_pck_patcher import restore_override_pck_backups
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -217,15 +224,10 @@ class ModManagerBridge(QObject):
                     self.conflict_preferences = settings.get("conflict_preferences", {})
                     self.hsr_vo_backup_mode = settings.get("hsr_vo_backup_mode", "local")
 
-                    from src.core.config_manager import (
-                        get_custom_mod_library_root,
-                        resolve_mod_library_dir,
-                        set_mod_library_dir,
-                    )
                     custom_mods_dir = get_custom_mod_library_root(
                         self.active_game_id, settings=settings
                     )
-                    # Keep the global override in sync so any legacy `get_mod_library_dir()` callers still see the custom path.
+                    # sync global override for legacy get_mod_library_dir() callers
                     set_mod_library_dir(custom_mods_dir or None)
                     new_library = resolve_mod_library_dir(
                         self.active_game_id, settings=settings
@@ -470,7 +472,6 @@ class ModManagerBridge(QObject):
             logger.info(f"[Mod Manager]   Version: {metadata.get('version', '1.0.0')}")
             logger.info(f"[Mod Manager]   Description: {metadata.get('description', 'N/A')}")
 
-            from src.mods.package_manager import count_replacements
             replacement_count = count_replacements(metadata)
             pck_count = len(metadata.get("replacements", {}))
             logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
@@ -747,7 +748,6 @@ class ModManagerBridge(QObject):
                             logger.info(f"[Mod Manager] Cleaned up {cleaned_files} old PCK file(s) from Persistent folder")
 
                         try:
-                            from src.wwise.override_pck_patcher import restore_override_pck_backups
                             restored = restore_override_pck_backups(persistent_path)
                             if restored > 0:
                                 logger.info(f"[Mod Manager] Restored {restored} override PCK backup(s)")
@@ -816,7 +816,6 @@ class ModManagerBridge(QObject):
                 logger.info(f"[Mod Manager] Mod not found: {mod_uuid}")
                 return None
 
-            from src.mods.package_manager import count_replacements
             mod_info = self.mod_package_manager.mod_config["installed_mods"][mod_uuid]
             metadata = mod_info.get("metadata", {})
             replacements = metadata.get("replacements", {})
@@ -1041,8 +1040,6 @@ class ModManagerBridge(QObject):
             if not wem_dir.exists():
                 self.errorOccurred.emit("Error", "Mod audio files not found")
                 return
-
-            from src.mods.package_manager import _AUDIO_SETTING_KEYS
 
             current_replacements = {}
             for pck_name, bnks in full_metadata.get('replacements', {}).items():

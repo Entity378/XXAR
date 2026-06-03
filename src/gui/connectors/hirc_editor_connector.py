@@ -107,8 +107,7 @@ class HircEditorConnector:
         except Exception as e:
             logger.warning(f"[HIRC Editor] Initial pck list failed: {e}")
 
-        # Only kick off the bnk scan when the user actually has the editor on;
-        # otherwise the page is mounted-but-hidden and we'd waste a full scan.
+        # skip the full bnk scan when the editor tab is disabled (mounted-but-hidden)
         if bool(self.root.property("hircEditorTabEnabled")):
             try:
                 db.refreshBnkList()

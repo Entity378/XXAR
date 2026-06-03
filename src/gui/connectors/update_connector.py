@@ -1,4 +1,3 @@
-from PyQt6.QtCore import QCoreApplication
 import os
 
 from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication

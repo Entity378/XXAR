@@ -1,11 +1,10 @@
-# Remaps mod entries that target protected override PCKs (Patch.pck/Hotfix.pck)
-# to the corresponding SoundBank/Streamed PCK in StreamingAssets (where the
-# same bnk_id / wem_id originally lives), and pre-extracts pristine BNK content
-# for the main rebuild loop to merge with mod WEMs.
+# Remaps mod entries targeting protected override PCKs (Patch.pck/Hotfix.pck) to the
+# matching SoundBank/Streamed PCK in StreamingAssets, and pre-extracts pristine BNK content.
 
 from pathlib import Path
 
 from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.bnk_handler import BNKFile
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -14,7 +13,7 @@ BACKUP_SUFFIX = ".xxar_backup"
 
 
 def find_patch_pck_sources(persistent_root, game):
-    # Returns [(pristine_path, override_pck_name), ...] preferring .xxar_backup when present so callers see the pre-mod state.
+    # Returns [(pristine_path, override_pck_name), ...], preferring .xxar_backup for the pre-mod state.
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return []
@@ -30,9 +29,9 @@ def find_patch_pck_sources(persistent_root, game):
 
 
 def resolve_and_extract(resolved, streaming_root, persistent_root, game):
-    # Mutates `resolved` in place: removes protected pck_name keys and moves entries under the resolved dest_pck.
-    # Returns stats plus a patch_bnk_content dict shaped as {bnk_id: {"source": override_pck_name, "wems": {wem_id: bytes}}}.
-    # The main loop uses that dict to transport pristine override WEMs into the dest BNK before applying mod replacements.
+    # Mutates `resolved` in place: removes protected pck_name keys, moves entries under the resolved dest_pck.
+    # Returns stats + patch_bnk_content {bnk_id: {"source": override_pck_name, "wems": {wem_id: bytes}}} so the
+    # main loop can transport pristine override WEMs into the dest BNK before applying mod replacements.
     streaming_root = Path(streaming_root) if streaming_root else None
     persistent_root = Path(persistent_root) if persistent_root else None
     protected_names = set(getattr(game, "protected_pcks", ()) or ())
@@ -130,9 +129,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
             dest[key] = info
             remapped += 1
 
-    # Collect every bnk_id that will be rebuilt so we can extract pristine content for merging.
-    # Includes BNKs targeted by remapped entries.
-    # Also includes any BNK a non-protected mod already targets that also exists in an override.
+    # Collect every bnk_id that will be rebuilt (remapped + non-protected targets) for pristine extraction.
     target_bnk_ids = set()
     for pck_name, entries in resolved.items():
         for info in entries.values():
@@ -146,8 +143,6 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game):
     patch_bnk_content = {}
     if not target_bnk_ids or not persistent_overrides:
         return {"remapped": remapped, "dropped": dropped, "patch_bnk_content": patch_bnk_content}
-
-    from src.wwise.bnk_handler import BNKFile
 
     for override_pck in persistent_overrides:
         backup_path = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)

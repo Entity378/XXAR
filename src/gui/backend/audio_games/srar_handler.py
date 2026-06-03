@@ -1,9 +1,11 @@
+import configparser
 from pathlib import Path
 
 from src.core.config_manager import get_game_backup_dir
 from src.core.game_registry import get_game
 
 from src.audio import vo_download
+from src.audio import vo_local_backup
 from .base_handler import BaseBrowserHandler
 
 
@@ -16,8 +18,6 @@ def _vo_folder_names(game):
 
 
 def _read_game_version(data_folder: Path) -> str | None:
-    import configparser
-
     config_ini = data_folder.parent / "config.ini"
     if not config_ini.is_file():
         return None
@@ -71,8 +71,6 @@ class SRARBrowserHandler(BaseBrowserHandler):
 
 
 def _restore_via_local_hashes(game_cache_root, persistent_path, languages, progress_cb):
-    from src.audio import vo_local_backup
-
     restored = 0
     for lang in sorted(languages):
         ok = vo_local_backup.restore_language_from_hashes(

@@ -1,5 +1,6 @@
 
 
+import sys
 from struct import pack, unpack, error as struct_error
 from collections import OrderedDict
 from io import BytesIO
@@ -246,8 +247,7 @@ class BNKFile:
         if self.data is None:
             return
 
-        # Use actual WEM count for DIDX size (12 bytes per entry).
-        # len(DIDX) would return the old buffer size before setdata() updates it.
+        # DIDX size from actual WEM count, not stale len(DIDX) buffer (12 bytes/entry)
         didx_size = len(self.data['DATA'].wem_data) * 0xC
 
         self.data['DATA'].start_pos = (
@@ -294,8 +294,6 @@ def extract_bnk_wems(bnk_path, output_dir):
     logger.info(f"\n[OK] Extracted {len(wem_ids)} WEM files to {output_dir}")
 
 def main():
-
-    import sys
 
     if len(sys.argv) < 3:
         logger.info("Usage: python bnk_handler.py <command> <bnk_file> [options]")

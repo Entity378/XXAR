@@ -2643,7 +2643,7 @@ Item {
                 anchors.margins: 20
                 spacing: 12
 
-                // ── Column width definitions (single source of truth) ──
+                // Column width definitions
                 // Fixed columns
                 property int colFileId:   86
                 property int colTagged:  150

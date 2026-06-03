@@ -24,8 +24,7 @@ logger = get_logger(__name__)
 _DEFAULT_GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
 GITHUB_API_URL = os.environ.get("XXAR_UPDATE_API_URL_OVERRIDE", _DEFAULT_GITHUB_API_URL)
 
-# Registry key the MSI installer writes (see installer_ws/Setup.cs).
-# If absent we assume a portable/ZIP install and route updates through the helper exe.
+# MSI install marker; absent means portable/ZIP install (route through helper exe).
 _MSI_REGISTRY_PATH = rf"Software\{APP_NAME}"
 _MSI_REGISTRY_VALUE = "InstallLocation"
 
@@ -44,8 +43,7 @@ def _read_msi_install_location():
 
 
 def _get_real_exe_path():
-    # In a frozen build, sys.executable can point inside the PyInstaller extraction dir (onefile) instead of the launcher exe on disk.
-    # Resolve to the real exe path so the updater hands off to the right binary.
+    # Frozen sys.executable can point inside the onefile extraction dir; resolve the real launcher exe.
     if is_frozen():
         if IS_WINDOWS:
             import ctypes
@@ -67,8 +65,7 @@ def _is_msi_install():
     msi_root = _read_msi_install_location()
     if msi_root is None:
         return False
-    # If the running exe is not under the registered root, fall back to the ZIP flow.
-    # Otherwise the MSI flow would silently upgrade a different install than the one the user is actually running.
+    # If the running exe isn't under the registered root, use the ZIP flow so we don't upgrade a different install.
     try:
         exe = Path(_get_real_exe_path()).resolve()
         msi_resolved = msi_root.resolve()
@@ -132,8 +129,7 @@ def parse_version(version_str):
 
 
 def _safe_extract_zip(zf, dest):
-    # Reject any entry whose resolved path falls outside `dest` (path traversal via "../" or absolute paths).
-    # zipfile has no filter API like tarfile, so we validate names up-front.
+    # zipfile has no filter API, so reject any entry resolving outside dest (path traversal).
     dest_resolved = Path(dest).resolve()
     for name in zf.namelist():
         target = (dest_resolved / name).resolve()
@@ -145,9 +141,7 @@ def _safe_extract_zip(zf, dest):
 
 
 def _safe_extract_tar(tf, dest):
-    # tarfile supports filter='data' since Python 3.11.4 / 3.12.
-    # It blocks path traversal, absolute paths, symlink escapes (CVE-2007-4559) and other unsafe members.
-    # On older Python, validate names and symlink targets manually before extracting.
+    # filter='data' (Python 3.11.4+) blocks traversal/symlink escapes; older Python validates manually below.
     try:
         tf.extractall(dest, filter='data')
         return
@@ -208,8 +202,7 @@ class UpdateCheckWorker(QThread):
                 return
 
             if IS_WINDOWS:
-                # Prefer MSI if we know the install came from the MSI, else fall back to the portable ZIP.
-                # Track the raw tag so we can probe version-tagged MSI asset names.
+                # MSI install -> MSI asset (version-tagged), else portable ZIP.
                 version_tag = clean_version_string(tag)
                 if _is_msi_install():
                     asset_candidates = [
@@ -299,8 +292,7 @@ class UpdateDownloadWorker(QThread):
                 # msiexec consumes the .msi directly; no extraction.
                 self.downloadFinished.emit("msi", str(archive_path))
             elif lower.endswith(".zip"):
-                # The portable zip (built by installer_ws/build_all.ps1) carries Resources/Bin/ and Resources/Updater/.
-                # The helper swaps only Bin; Updater stays installed since the running helper exe must not rewrite itself.
+                # Portable zip carries Resources/Bin/ + Resources/Updater/; the helper swaps only Bin (it can't rewrite itself).
                 staging_parent = update_dir / "staging"
                 if staging_parent.exists():
                     shutil.rmtree(str(staging_parent), ignore_errors=True)
@@ -443,8 +435,7 @@ class UpdateManagerBridge(QObject):
 
     @staticmethod
     def _get_install_root(current_exe):
-        # Onefolder layout is <root>/Resources/Bin/XXAR.exe.
-        # The install root is the grand-grandparent of the exe.
+        # Onefolder layout <root>/Resources/Bin/XXAR.exe -> root is exe's grand-grandparent.
         exe = Path(current_exe).resolve()
         parent = exe.parent
         if parent.name.lower() == "bin" and parent.parent.name.lower() == "resources":
@@ -458,8 +449,7 @@ class UpdateManagerBridge(QObject):
 
     @pyqtSlot()
     def applyUpdate(self):
-        # Two helpers fighting over the same Bin rename deadlock each other.
-        # Block the re-entry from the SettingsPage Restart button after the startup dialog's auto-trigger has already fired.
+        # Two helpers fighting the same Bin rename deadlock; block re-entry from the Restart button.
         if getattr(self, "_apply_in_progress", False):
             return
         self._apply_in_progress = True
@@ -504,7 +494,7 @@ class UpdateManagerBridge(QObject):
             f'msiexec /i "{msi_path}" /qr /norestart '
             f'APPDIR="{install_root}"'
         )
-        # Same reason as _apply_zip_update: the parent's cwd is Resources/Bin and msiexec must be able to delete or rename that dir during upgrade.
+        # cwd outside Resources/Bin so msiexec can rename/delete that dir during upgrade (see _apply_zip_update).
         logger.info(f"[Updater] Running: {cmd_line}")
         subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
 
@@ -524,8 +514,7 @@ class UpdateManagerBridge(QObject):
             "--dist-dir", str(install_root),
             "--staging-dir", str(staging_dir),
         ]
-        # The helper's PyInstaller bootstrap is native C and can't chdir itself.
-        # Spawn it with cwd outside Resources/Bin so its inherited handle doesn't block the rename-to-Bin.old we're about to request.
+        # Spawn cwd outside Resources/Bin so the helper's inherited handle doesn't block the rename-to-Bin.old.
         spawn_cwd = tempfile.gettempdir()
         logger.info(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
         subprocess.Popen(
@@ -538,8 +527,7 @@ class UpdateManagerBridge(QObject):
     def _apply_linux_update(self, current_exe):
         bundle = Path(self._downloaded_path)
 
-        # We only ship a .flatpak bundle for Linux, so the only path forward is to hand the bundle to the host's flatpak.
-        # The `--talk-name=org.freedesktop.Flatpak` finish-arg in the manifest is what allows this in-sandbox call to reach the host.
+        # Linux ships only a .flatpak bundle; hand it to the host's flatpak (via the manifest's --talk-name finish-arg).
         if not IS_FLATPAK:
             self.updateError.emit(
                 "Linux auto-update is only supported inside the Flatpak sandbox. "
@@ -548,10 +536,7 @@ class UpdateManagerBridge(QObject):
             )
             return
 
-        # `flatpak install --bundle` reinstalls in place.
-        # --assumeyes skips confirmation and --noninteractive skips the progress UI.
-        # The host rewrites the OSTree ref while the running app keeps using the old commit.
-        # The user re-launches to pick up the new one.
+        # Host reinstalls in place (rewrites the OSTree ref); running app keeps the old commit until relaunch.
         args = [
             "flatpak-spawn", "--host",
             "flatpak", "install", "--user",

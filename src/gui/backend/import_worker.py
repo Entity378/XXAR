@@ -8,7 +8,11 @@ from pathlib import Path
 from datetime import datetime
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 import src.core.app_config as app_config
+from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+from src.wwise.patch_target_resolver import find_patch_pck_sources
+from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.bnk_indexer import BNKIndexer
 
 class ImportWorker(QThread):
 
@@ -67,7 +71,6 @@ class ImportWorker(QThread):
         if self.persistent_audio_dir:
             persistent_root = Path(self.persistent_audio_dir)
             if persistent_root.exists():
-                from src.wwise.patch_target_resolver import find_patch_pck_sources
                 for scan_path, override_name in find_patch_pck_sources(persistent_root, self.game):
                     if name_filter is not None and override_name not in name_filter:
                         continue
@@ -85,8 +88,6 @@ class ImportWorker(QThread):
 
     def _convert_mod(self):
 
-        from src.wwise.pck_indexer import PCKIndexer
-        from src.wwise.bnk_indexer import BNKIndexer
         from PIL import Image
 
         temp_dir = None
@@ -170,7 +171,6 @@ class ImportWorker(QThread):
                 if total_game_pcks == 0:
                     self.progress.emit(f"Warning: No matching game PCKs found for {input_pck_names}.")
 
-                from XXAR import get_temp_dir
                 with tempfile.TemporaryDirectory(prefix='mod_bnk_scan_', dir=str(get_temp_dir())) as _tbd:
                     temp_bnk_dir = Path(_tbd)
 
@@ -296,7 +296,6 @@ class ImportWorker(QThread):
                 scan_sources = self._build_scan_sources(game_audio_dir)
                 total_pcks = len(scan_sources)
 
-                from XXAR import get_temp_dir
                 temp_bnk_dir = Path(tempfile.mkdtemp(prefix='mod_bnk_scan_', dir=str(get_temp_dir())))
 
                 for idx, (pck_path, pck_name, priority) in enumerate(scan_sources):
@@ -421,7 +420,6 @@ class ImportWorker(QThread):
             self.progress.emit(f"Creating {app_config.MOD_FILE_EXT} package...")
             self.progressPercent.emit(70)
 
-            from XXAR import __version__ as app_version
             metadata_content = {
                 'format_version': '3.0',
                 'name': self.data['metadata']['name'],

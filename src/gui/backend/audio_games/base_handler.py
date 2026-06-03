@@ -15,7 +15,6 @@ from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-
 def _natural_sort_key(value):
     text = str(value or "")
     parts = re.split(r"(\d+)", text.lower())
@@ -680,7 +679,6 @@ class BaseBrowserHandler:
             return False
 
         if base_file != target_path:
-            import shutil
             shutil.copy2(base_file, target_path)
 
         # Some source PCKs (notably Minimum.pck) are delivered with the read-only attribute set.

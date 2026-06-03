@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 
 from src.core.game_registry import get_game, DEFAULT_GAME_ID
+from src.wwise.pck_indexer import PCKIndexer
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -75,7 +76,6 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
             continue
 
         try:
-            from src.wwise.pck_indexer import PCKIndexer
             indexer = PCKIndexer(str(override_pck))
             index = indexer.build_index()
         except Exception as e:

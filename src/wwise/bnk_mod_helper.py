@@ -1,5 +1,6 @@
 
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -29,7 +30,6 @@ def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
 
     for wem_file in wem_files:
         dest = bnk_dir / wem_file.name
-        import shutil
         shutil.copy2(wem_file, dest)
         logger.info(f"    Copied: {wem_file.name}")
 
@@ -54,7 +54,6 @@ def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0
     packer.pack(use_patching=True)
     packer.close()
 
-    import shutil
     shutil.rmtree(temp_dir)
 
     logger.info("\n" + "=" * 60)

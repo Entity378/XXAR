@@ -68,8 +68,7 @@ class ConfigManager:
         if self._games_dir:
             return self._games_dir
 
-        # User content (mod library + per-game databases) lives in Roaming on Windows.
-        # That location follows the user across machines.
+        # User content in Roaming so it follows the user across machines
         self._games_dir = self.config_dir / "games"
         self._games_dir.mkdir(parents=True, exist_ok=True)
         return self._games_dir
@@ -109,8 +108,7 @@ class ConfigManager:
         if self._tools_dir:
             return self._tools_dir
 
-        # Machine-local binaries (Wwise, FFmpeg, vgmstream, hpatchz) must never roam.
-        # They are architecture-specific and large.
+        # Local: binaries are arch-specific and large, must not roam
         self._tools_dir = self.data_dir / "tools"
         self._tools_dir.mkdir(parents=True, exist_ok=True)
         return self._tools_dir
@@ -120,7 +118,7 @@ class ConfigManager:
         if self._backup_dir:
             return self._backup_dir
 
-        # Machine-local: backups can be multi-GB (HSR VO originals), must not roam.
+        # Local: backups can be multi-GB (HSR VO originals), must not roam
         self._backup_dir = self.data_dir / "backup"
         self._backup_dir.mkdir(parents=True, exist_ok=True)
         return self._backup_dir
@@ -251,7 +249,7 @@ def resolve_mod_paths_for_game(game_id=DEFAULT_GAME_ID, custom_root=None):
 
 
 def _load_settings_for_resolution():
-    # Best-effort: never raise on a malformed/missing settings.json — callers always have a sane default.
+    # Never raise on a missing/malformed settings.json
     try:
         settings_file = get_settings_file()
         if settings_file.exists():
@@ -263,9 +261,8 @@ def _load_settings_for_resolution():
 
 
 def get_custom_mod_library_root(game_id=DEFAULT_GAME_ID, settings=None):
-    # Single source of truth for "what custom dir has the user picked for this game".
-    # Returns "" when no custom dir is configured (caller should then use the default).
-    # Pre-multi-game installs only had a single key (`custom_mod_library_dir`) — preserve it as fallback for the default game so legacy users keep their setting.
+    # Custom mod dir picked for this game, or "" if none.
+    # Legacy installs had a single `custom_mod_library_dir` key; fall back to it for the default game.
     game = normalize_game_id(game_id)
     if settings is None:
         settings = _load_settings_for_resolution()
@@ -276,8 +273,7 @@ def get_custom_mod_library_root(game_id=DEFAULT_GAME_ID, settings=None):
 
 
 def resolve_mod_library_dir(game_id=DEFAULT_GAME_ID, settings=None):
-    # Returns the effective mod library Path for a game, honoring the user's custom dir from settings.json.
-    # When no custom dir is set, returns the default per-game location.
+    # Effective mod library Path, honoring the user's custom dir or the per-game default
     game = normalize_game_id(game_id)
     custom_root = get_custom_mod_library_root(game, settings=settings)
     if custom_root:

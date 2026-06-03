@@ -265,10 +265,7 @@ def _download_hdiff_archive(
 
     except Exception as e:
         logger.error(f"[VO Download] Error downloading hdiff for {folder_name}: {e}")
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        tmp_path.unlink(missing_ok=True)
         return None
 
 
@@ -458,10 +455,7 @@ def download_and_extract(
         logger.error(f"[VO Download] Error downloading {folder_name}: {e}")
         return False
     finally:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        tmp_path.unlink(missing_ok=True)
 
 
 def _extract_pcks_from_7z(archive_path: Path, dest_dir: Path):

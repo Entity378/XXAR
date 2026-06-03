@@ -4,6 +4,7 @@ import json
 import uuid
 import shutil
 import zipfile
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
@@ -12,7 +13,14 @@ from src.core.config_manager import (
     normalize_game_id,
     resolve_mod_library_dir,
 )
-from src.core.game_registry import DEFAULT_GAME_ID
+from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+from src.core.app_config import APP_VERSION as app_version
+from src.wwise.pck_packer import PCKPacker
+from src.wwise.bnk_mod_helper import prepare_bnk_structure
+from src.wwise.patch_target_resolver import resolve_and_extract
+from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.override_pck_patcher import patch_override_pcks
+from src.gui.backend.audio_games import get_browser_handler_class
 from src.core.logger import get_logger
 logger = get_logger(__name__)
 
@@ -47,8 +55,7 @@ _AUDIO_SETTING_KEYS = (
 
 
 def count_replacements(metadata):
-    # Total file replacements across all PCKs.
-    # Handles both the legacy v1.0 flat layout `{pck: {file_id: info}}` and the v2.0/v3.0 per-bnk layout `{pck: {bnk_key: {file_id: info}}}`.
+    # Total replacements; handles v1.0 flat and v2.0/v3.0 per-bnk layouts.
     replacements = metadata.get('replacements', {}) if isinstance(metadata, dict) else {}
     fmt = metadata.get('format_version', '1.0') if isinstance(metadata, dict) else '1.0'
     if fmt in ('2.0', '3.0'):
@@ -60,7 +67,7 @@ def count_replacements(metadata):
 
 
 def _extract_audio_settings(file_info):
-    # Pick only non-default fields so old mods and unchanged settings stay absent from metadata.json (backwards-compatible).
+    # Only non-default fields, so old mods stay absent from metadata.json.
     result = {}
     if not isinstance(file_info, dict):
         return result
@@ -535,16 +542,6 @@ class ModPackageManager:
 
     def apply_mods(self, game_audio_dir, persistent_audio_dir, progress_callback=None, conflict_preferences=None):
 
-        import tempfile
-
-        try:
-            from src.wwise.pck_packer import PCKPacker
-            from src.wwise.bnk_mod_helper import prepare_bnk_structure
-        except ImportError as e:
-            raise ModApplicationError(f"Failed to import required modules: {e}")
-
-        from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
-
         game_audio_dir = Path(game_audio_dir)
         persistent_audio_dir = Path(persistent_audio_dir)
         game = get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
@@ -563,7 +560,6 @@ class ModPackageManager:
         # Also pre-extract pristine BNK content for the main loop to merge.
         patch_bnk_content = {}
         try:
-            from src.wwise.patch_target_resolver import resolve_and_extract
             patch_info = resolve_and_extract(
                 resolved, game_audio_dir, persistent_audio_dir, game,
             )
@@ -630,9 +626,7 @@ class ModPackageManager:
             if progress_callback:
                 progress_callback(f"Processing {pck_name}...", idx, total_pcks)
 
-            # Defensive: after resolve_and_extract, protected PCKs should have been remapped.
-            # If one slips through (resolver failure), skip it here.
-            # Rebuilding a protected override produces a broken stub.
+            # Skip protected PCKs that slipped past remapping; rebuilding them produces a broken stub.
             if pck_name in game.protected_pcks:
                 logger.info(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
                 continue
@@ -663,7 +657,6 @@ class ModPackageManager:
 
                     chosen_subdir, chosen_candidate = candidates[0]
                     if target_int_ids and len(candidates) > 1:
-                        from src.wwise.pck_indexer import PCKIndexer
                         for subdir, candidate in candidates:
                             try:
                                 idx = PCKIndexer(str(candidate))
@@ -757,8 +750,7 @@ class ModPackageManager:
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")
             finally:
-                # On Windows the file handles must be released explicitly.
-                # Otherwise they linger in the traceback and block the mod swap-in.
+                # Release file handles on Windows or they block the mod swap-in.
                 if 'packer' in locals():
                     packer.close()
 
@@ -766,8 +758,6 @@ class ModPackageManager:
                     shutil.rmtree(temp_dir)
 
         try:
-            from src.wwise.override_pck_patcher import patch_override_pcks
-
             override_cb = None
             if progress_callback:
                 override_cb = lambda msg: progress_callback(
@@ -782,9 +772,6 @@ class ModPackageManager:
             logger.error(f"[Mod Manager] Warning: Override PCK patching failed: {e}")
 
         try:
-            from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path
-            from src.gui.backend.audio_games import get_browser_handler_class
-
             active_game_id = detect_game_id_from_path(
                 game_audio_dir, default=DEFAULT_GAME_ID
             )
@@ -835,12 +822,11 @@ class ModPackageManager:
 
     def create_mod_package(self, output_path, metadata, current_replacements, thumbnail_path=None):
 
-        import tempfile
         from PIL import Image
 
         output_path = Path(output_path)
 
-        from XXAR import get_temp_dir, __version__ as app_version
+        from XXAR import get_temp_dir
         temp_dir = Path(tempfile.mkdtemp(prefix='mod_export_', dir=str(get_temp_dir())))
 
         try:

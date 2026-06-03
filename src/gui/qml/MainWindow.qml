@@ -340,8 +340,7 @@ ApplicationWindow {
                         radius: 12
                         color: "#5a5b5d"
                         x: {
-                            // Visible tabs in their on-screen order. The slot
-                            // is just where currentTab sits in this list.
+                            // visible tabs in on-screen order; slot = currentTab's position
                             var order = [0, 1]                          // gamebanana, mod-manager
                             if (modCreationEnabled) order.push(2)       // browser
                             if (hircEditorTabEnabled) order.push(5)     // hirc editor
@@ -573,9 +572,7 @@ ApplicationWindow {
                                         strokeStyle: ShapePath.SolidLine
                                         strokeWidth: 0.03
 
-                                        // Simple wrench / spanner. ~24x24 viewbox; the
-                                        // Shape's height/width 26 gives a small visual
-                                        // padding that matches the other nav glyphs.
+                                        // wrench glyph, ~24x24 viewbox (26 px adds padding to match other nav icons)
                                         PathSvg {
                                             path: "M 22.7 19 L 13.6 9.9 C 14.5 7.6 14.0 4.9 12.1 3.0 C 10.1 1.0 7.1 0.6 4.7 1.7 L 9 6 L 6 9 L 1.6 4.7 C 0.4 7.1 0.9 10.1 2.9 12.1 C 4.8 14.0 7.5 14.5 9.8 13.6 L 18.9 22.7 C 19.3 23.1 19.9 23.1 20.3 22.7 L 22.6 20.4 C 23.1 20.0 23.1 19.3 22.7 19 Z"
                                         }

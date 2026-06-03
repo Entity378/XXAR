@@ -51,8 +51,7 @@ class BankPatchTargets:
 
 
 def scan_bank_for_patch_targets(content, source_ids):
-    # Scan a PCK/BNK file for MusicTrack and MusicSegment HIRC objects referencing the given WEM source IDs.
-    # Returns a BankPatchTargets with precise absolute file offsets for all duration fields that need patching.
+    # Find MusicTrack/MusicSegment HIRC objects referencing source_ids; return absolute duration-field offsets.
     if not source_ids:
         return BankPatchTargets()
 
@@ -304,7 +303,7 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
     if not patches:
         return None
 
-    # --- Continue parsing to find AkPropBundle for volume ---
+    # parse AkPropBundle for volume
     try:
         volume_patches = _parse_volume_from_track(content, p, end, patches)
     except Exception:

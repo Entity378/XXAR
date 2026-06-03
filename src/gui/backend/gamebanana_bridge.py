@@ -2,15 +2,18 @@ import json
 import os
 import re
 import ssl
+import traceback
 import urllib.request
 import urllib.error
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
 from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
 from src.core.subprocess_utils import IS_WINDOWS, get_bundled_resource
+from src.gui.utils.native_dialogs import NativeDialogs
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -781,8 +784,6 @@ class FetchThumbnailsWorker(QThread):
         return None
 
     def run(self):
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
             futures = {pool.submit(self._fetch_one, mid): mid for mid in self.mod_ids}
             for future in as_completed(futures):
@@ -819,8 +820,6 @@ class FetchDownloadCountsWorker(QThread):
         return None
 
     def run(self):
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
             futures = {pool.submit(self._fetch_one, mid): mid for mid in self.mod_ids}
             for future in as_completed(futures):
@@ -900,8 +899,6 @@ class FetchModSupportWorker(QThread):
         return False
 
     def run(self):
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
             futures = {pool.submit(self._check_one, mid): mid for mid in self.mod_ids}
             for future in as_completed(futures):
@@ -971,8 +968,6 @@ class InstallModWorker(QThread):
         self.game_id = game_id
 
     def run(self):
-        import traceback
-
         try:
             from XXAR import get_temp_dir
             from src.mods.package_manager import ModPackageManager, InvalidModPackageError
@@ -1355,7 +1350,6 @@ class GameBananaBridge(QObject):
     @pyqtSlot(str, str)
     def downloadModToPath(self, download_url, filename):
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         save_path = NativeDialogs.get_save_file(
             title="Save Mod File",
             filter_str="All Files (*)",

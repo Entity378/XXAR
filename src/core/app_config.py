@@ -15,8 +15,7 @@ FLATPAK_BUILD_ENV_VAR = "XXAR_FLATPAK_BUILD"
 
 DEBUG = False
 
-# ── Active game (mutable at runtime). ────────────────────────────
-# Initialised from DEFAULT_GAME_ID; updated by switch_active_game().
+# active game (mutable at runtime, updated by switch_active_game)
 
 _active_game = get_game(DEFAULT_GAME_ID)
 
@@ -54,7 +53,7 @@ ACCENT_COLOR, ACCENT_COLOR_LIGHT, ACCENT_COLOR_DARK = GAME_THEME_PALETTES.get(
     GAME_THEME_PALETTES["zzz"],
 )
 
-# ── Game-specific branding (updates with active game) ───────────
+# game-specific branding (updates with active game)
 APP_FULL_NAME = _active_game.app_full_name
 MOD_FILE_EXT = _active_game.mod_file_ext
 MOD_FILE_EXT_UPPER = _active_game.mod_file_ext_upper

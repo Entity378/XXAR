@@ -1,3 +1,5 @@
+import subprocess
+import tempfile
 import numpy as np
 from scipy import signal
 from scipy.ndimage import maximum_filter
@@ -116,7 +118,6 @@ def extract_hashes(audio_data, sample_rate=SAMPLE_RATE):
 
 
 def _ffmpeg_to_pcm(ffmpeg_path, input_path, sample_rate):
-    import subprocess
     from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
     result = subprocess.run(
@@ -145,8 +146,6 @@ def decode_file(ffmpeg_path, audio_path, sample_rate=SAMPLE_RATE):
 
 
 def decode_wem_bytes(ffmpeg_path, wem_bytes, vgmstream_path, sample_rate=SAMPLE_RATE):
-    import subprocess
-    import tempfile
     from pathlib import Path
     from XXAR import get_temp_dir
     from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs

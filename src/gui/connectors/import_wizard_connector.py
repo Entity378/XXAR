@@ -1,11 +1,11 @@
-from PyQt6.QtCore import QCoreApplication
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import QCoreApplication, QObject, QMetaObject, Q_ARG, Qt
 
 from src.core.app_config import APP_NAME
 
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.gui.backend.import_worker import ImportWorker
 import src.core.app_config as app_config
 
 
@@ -163,8 +163,6 @@ class ImportWizardConnector:
             "thumbnail": wizard_data.get("thumbnailPath", ""),
             "save_path": save_path,
         }
-
-        from src.gui.backend.import_worker import ImportWorker
 
         self.import_worker = ImportWorker(
             import_data,

@@ -222,8 +222,7 @@ class Application(
         format.setSamples(4)
         QSurfaceFormat.setDefaultFormat(format)
 
-        # DO NOT set organizationName.
-        # Qt's QStandardPaths would nest cache as %LOCALAPPDATA%\XXAR\XXAR\cache\ instead of %LOCALAPPDATA%\XXAR\cache\.
+        # don't set organizationName: Qt would nest cache as XXAR\XXAR\cache\
         QCoreApplication.setOrganizationDomain(f"{APP_NAME.lower()}.local")
         QCoreApplication.setApplicationName(APP_NAME)
 
@@ -236,18 +235,8 @@ class Application(
         if icon_path.exists():
             self.app.setWindowIcon(QIcon(str(icon_path)))
 
-        # Splash so the user sees branding immediately
+        # splash disabled
         self._splash = None
-        # try:
-        #     splash_path = ui_path / "assets" / "XXAR" / "XXAR-Logo2-512.png"
-        #     if splash_path.exists():
-        #         pixmap = QPixmap(str(splash_path))
-        #         self._splash = QSplashScreen(pixmap, Qt.WindowType.WindowStaysOnTopHint)
-        #         self._splash.show()
-        #         self.app.processEvents()
-        # except Exception as e:
-        #     logger.warning(f"[{APP_NAME}] Splash unavailable: {e}")
-        #     self._splash = None
 
         fonts_dir = ui_path / "assets" / "fonts"
 

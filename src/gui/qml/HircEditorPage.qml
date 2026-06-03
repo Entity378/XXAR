@@ -9,7 +9,7 @@ Item {
     objectName: "hircEditorPage"
     clip: true
 
-    // ── Public signals ──────────────────────────────────────────────────
+    // Public signals
     signal refreshRequested()
     signal bnkSelected(string pckName, var bnkId)
     signal patchSourceRequested(string pckName, var absOffsetInPck, var oldWem, var newWem)
@@ -19,7 +19,7 @@ Item {
     signal browseWemFileRequested()
     signal addWemRequested(string pckName, var wemId, string wemFilePath)
 
-    // ── Public state (set from connector) ───────────────────────────────
+    // Public state (set from connector)
     property var bnkList: []
     property var hircObjects: []
     property string statusText: qsTranslate("Application", "Idle")
@@ -29,10 +29,7 @@ Item {
     property string objectFilter: ""
     // Map { pck_name: true } for currently-expanded pck nodes in the tree.
     property var expandedPcks: ({})
-    // Cached flat tree model fed to the ListView. Only rebuilt when one of
-    // (bnkList, expandedPcks, search text) changes — assigning a fresh JS
-    // array directly to ListView.model resets the scroll position, which is
-    // disruptive when the user just clicked a bnk row.
+    // Cached flat tree model; rebuilt only on (bnkList, expandedPcks, search) change so reassigning ListView.model doesn't reset scroll.
     property var bnkTreeModel: []
 
     // Add-WEM panel state
@@ -41,10 +38,9 @@ Item {
     property string wemAddTargetPck: ""
     property string wemAddIdText: ""
 
-    // ── Pending edits (per MusicTrack) ──────────────────────────────────
-    // Flat dict: keys "<obj_id>:<kind>[:<idx>]" -> string value typed by user.
+    // Pending edits per MusicTrack: keys "<obj_id>:<kind>[:<idx>]" -> typed string.
     // Kinds: "src" (AkBankSourceData), "pl" (TrackSrcInfo), "loop", "vol".
-    // Values are kept as strings to avoid lossy float round-trips while editing.
+    // Strings avoid lossy float round-trips while editing.
     property var pending: ({})
 
     function pendingKey(objId, kind, idx) {
@@ -68,8 +64,7 @@ Item {
         for (var k in pending) {
             if (k.indexOf(objId + ":") !== 0) continue
             var val = pending[k]
-            // Compare against current modelData; if the typed value matches the
-            // existing one we treat it as no-op (button stays disabled).
+            // Typed value matching the existing one is a no-op (button stays disabled).
             var parts = k.split(":")
             var kind = parts[1]
             if (kind === "src" && modelData.sources) {
@@ -157,8 +152,7 @@ Item {
                         .replace("%1", wid).replace("%2", pck).replace("%3", src)
         wemAddPath = ""
         wemAddIdText = ""
-        // Refresh: pck size changed → re-list pcks; if currently inspecting a
-        // bnk in that pck, re-fetch HIRC too.
+        // pck size changed: re-list pcks, and re-fetch HIRC if inspecting a bnk in it.
         hircEditorPage.refreshMusicPcksRequested()
         if (selectedPck) {
             hircEditorPage.bnkSelected(selectedPck, selectedBnkId)
@@ -219,8 +213,7 @@ Item {
             if (!pckMatches && childMatches.length === 0) continue
             var totalMusic = 0
             for (var t = 0; t < children.length; t++) totalMusic += children[t].music_object_count
-            // children share the same pck_name AND is_override (we deduped
-            // upstream), so we can take the flag from the first child.
+            // Children share pck_name and is_override (deduped upstream), so take the flag from the first.
             var isOverride = !!(children[0] && children[0].is_override)
             var pckRow = {
                 row_type: "pck",
@@ -248,7 +241,7 @@ Item {
         return rows
     }
 
-    // ── Setters used by HircEditorConnector via QMetaObject.invokeMethod ─────
+    // Setters used by HircEditorConnector via QMetaObject.invokeMethod
     function setBnkList(data) {
         bnkList = data || []
         statusText = qsTranslate("Application", "Loaded %1 bnks").replace("%1", bnkList.length)

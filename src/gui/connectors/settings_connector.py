@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QCoreApplication
 import json
+import shutil
 import threading
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from src.core.game_registry import (
     get_game,
     get_audio_settings_keys,
     get_supported_game_ids,
+    get_supported_games,
     is_valid_game_data_dir,
     normalize_game_data_dir,
 )
@@ -397,7 +399,6 @@ class SettingsConnector:
         if hasattr(self.welcome_dialog, 'startTutorialClicked'):
             self.welcome_dialog.startTutorialClicked.connect(self.on_start_tutorial)
 
-        from src.core.game_registry import get_supported_games
         logo_map = {}
         for g in get_supported_games():
             if g.assets_dir and g.logo_256:
@@ -922,8 +923,6 @@ class SettingsConnector:
             logger.error(f"[{APP_NAME}] Error checking multiple languages: {e}")
 
     def on_move_language_to_streaming(self, folder_name):
-        import shutil
-
         try:
             settings = self.load_settings()
             selected_game = normalize_game_id(
@@ -994,8 +993,6 @@ class SettingsConnector:
             )
 
     def on_move_hash_pck_to_streaming(self, pck_name):
-        import shutil
-
         try:
             settings = self.load_settings()
             selected_game = normalize_game_id(

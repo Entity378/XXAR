@@ -1,5 +1,3 @@
-
-
 import os
 import numpy as np
 import threading
@@ -7,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from scipy import signal
 from scipy.fft import dct
+from src.audio import constellation
 from src.core.logger import get_logger
 logger = get_logger(__name__)
 
@@ -61,7 +60,6 @@ class AudioMatcher:
         self.fingerprint_db = fingerprint_db
 
     def extract_fingerprint(self, audio_path, sample_rate=48000):
-        from src.audio import constellation
         audio_path = Path(audio_path)
         if audio_path.suffix.lower() == '.wem':
             audio_data = constellation.decode_wem_bytes(
@@ -75,7 +73,6 @@ class AudioMatcher:
         return self._build_fingerprint(audio_data, sample_rate)
 
     def extract_fingerprint_from_bytes(self, wem_bytes, sample_rate=48000):
-        from src.audio import constellation
         audio_data = constellation.decode_wem_bytes(
             self.ffmpeg_path, wem_bytes, self.vgmstream_path, sample_rate=sample_rate,
         )

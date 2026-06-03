@@ -2,9 +2,12 @@
 
 import struct
 import os
+import shutil
+import sys
 from pathlib import Path
 from io import BytesIO
 from src.wwise.bnk_handler import BNKFile
+from src.wwise.pck_indexer import PCKIndexer
 
 from src.core.logger import get_logger
 logger = get_logger(__name__)
@@ -260,14 +263,8 @@ class PCKPacker:
         logger.info(f"[OK] Modified BNK {bnk_id}: replaced {replaced_count} WEM(s), new size: {len(modified_bnk_bytes)} bytes")
 
     def merge_bnk_wems(self, bnk_id, mod_wem_map, patch_bnk_wems=None, lang_id=0):
-        # Load BNK bnk_id from the original (pristine) PCK.
-        # Transport any WEMs from patch_bnk_wems whose ids are NOT already in the BNK.
-        # Those are Patch.pck override WEMs that must move to the destination so the override-null trick doesn't drop audio.
-        # Then apply mod replacements on top.
-
-        # mod_wem_map is {wem_id: wem_path_or_bytes} carrying the mod replacements.
-        # patch_bnk_wems is {wem_id: wem_bytes} carrying the pristine WEMs from the override BNK in Patch.pck.
-
+        # mod_wem_map {wem_id: path_or_bytes}; patch_bnk_wems {wem_id: bytes} = pristine override WEMs from Patch.pck.
+        # Transport override WEMs missing from the BNK so the override-null trick doesn't drop audio, then apply mods.
         # Precedence: mod > streaming pristine > Patch.pck pristine (missing only).
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
         logger.info(f"\n  Merging BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
@@ -408,7 +405,6 @@ class PCKPacker:
 
         logger.info(f"\nBuilding PCK file (patching mode): {self.output_pck_path}")
 
-        import shutil
         shutil.copy2(self.original_pck_path, self.output_pck_path)
         self.output_pck_path.chmod(0o644)
         logger.info(f"  Copied original PCK: {self.output_pck_path.stat().st_size:,} bytes")
@@ -441,7 +437,6 @@ class PCKPacker:
 
         logger.info(f"  Applying {len(patches)} replacement(s)...")
 
-        from src.wwise.pck_indexer import PCKIndexer
         indexer = PCKIndexer(self.original_pck_path)
         index = indexer.build_index()
 
@@ -651,8 +646,6 @@ class PCKPacker:
         self.close()
 
 def main():
-
-    import sys
 
     if len(sys.argv) < 4:
         logger.info("Usage: python pck_packer.py <original_pck> <replacements_dir> <output_pck>")

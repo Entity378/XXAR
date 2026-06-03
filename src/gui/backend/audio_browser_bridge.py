@@ -47,6 +47,11 @@ from src.gui.backend.audio_games import (
     build_browser_handlers,
 )
 from src.gui.backend.update_manager_bridge import _urlopen
+from src.wwise.patch_target_resolver import find_patch_pck_sources, resolve_and_extract
+from src.wwise.override_pck_patcher import patch_override_pcks, restore_override_pck_backups
+from src.gui.utils.native_dialogs import NativeDialogs
+from src.audio.matcher import AudioMatcher
+from src.audio import constellation
 from src.core.logger import get_logger
 logger = get_logger(__name__)
 
@@ -1025,7 +1030,6 @@ class AudioBrowserBridge(QObject):
                     persistent_root = Path(self.game_root_dir).joinpath(
                         *self._active_game().persistent_audio_subpath
                     )
-                    from src.wwise.patch_target_resolver import find_patch_pck_sources
                     for patch_path, override_name in find_patch_pck_sources(
                         persistent_root, self._active_game()
                     ):
@@ -1642,7 +1646,6 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Could not find item data"))
             return
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Custom Audio",
             filter_str="Audio Files (*.mp3 *.wav *.wem *.flac *.ogg *.m4a);;All Files (*)",
@@ -1693,7 +1696,6 @@ class AudioBrowserBridge(QObject):
 
         file_id = meta.get("file_id", meta.get("wem_id"))
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Export as WAV",
             filter_str="WAV Files (*.wav)",
@@ -1979,7 +1981,6 @@ class AudioBrowserBridge(QObject):
                         logger.error(f"[Audio Browser] Failed to delete {pck_file}: {e}")
 
                 try:
-                    from src.wwise.override_pck_patcher import restore_override_pck_backups
                     restored = restore_override_pck_backups(persistent_path)
                     if restored > 0:
                         logger.info(f"[Audio Browser] Restored {restored} override PCK backup(s)")
@@ -2015,7 +2016,6 @@ class AudioBrowserBridge(QObject):
             # Remap protected-PCK entries to StreamingAssets and pre-extract pristine BNK content.
             patch_bnk_content = {}
             try:
-                from src.wwise.patch_target_resolver import resolve_and_extract
                 patch_info = resolve_and_extract(
                     replacements, streaming_base, persistent_path, game,
                 )
@@ -2127,7 +2127,6 @@ class AudioBrowserBridge(QObject):
                 os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
             try:
-                from src.wwise.override_pck_patcher import patch_override_pcks
                 patch_override_pcks(
                     persistent_path,
                     replacements,
@@ -2164,7 +2163,6 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseThumbnail(self):
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
             filter_str="Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
@@ -2183,7 +2181,6 @@ class AudioBrowserBridge(QObject):
 
         default_name = f"{name.replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         filename = NativeDialogs.get_save_file(
             "Save Mod Package",
             filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
@@ -2402,7 +2399,6 @@ class AudioBrowserBridge(QObject):
                             logger.error(f"[Audio Browser] Failed to delete {pck_file}: {e}")
 
                     try:
-                        from src.wwise.override_pck_patcher import restore_override_pck_backups
                         restore_override_pck_backups(persistent_path)
                     except Exception:
                         pass
@@ -2540,7 +2536,6 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             filter_str="Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
@@ -2570,7 +2565,6 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def selectRecordingFile(self):
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         recording_path = NativeDialogs.get_open_file(
             "Select Audio Recording",
             filter_str="Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac);;All Files (*)",
@@ -2609,8 +2603,6 @@ class AudioBrowserBridge(QObject):
     def _run_matching_threaded(self, recording_path, cancel_event, language_only=False):
 
         try:
-            from src.audio.matcher import AudioMatcher
-            from src.audio import constellation
 
             converter = AudioConverter()
             ffmpeg_path = converter._find_ffmpeg()
@@ -2982,7 +2974,6 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def browseAndImportMod(self):
 
-        from src.gui.utils.native_dialogs import NativeDialogs
         mod_path = NativeDialogs.get_open_file(
             f"Select {app_config.MOD_FILE_EXT} Mod to Import for Editing",
             filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
@@ -3143,7 +3134,6 @@ class AudioBrowserBridge(QObject):
             persistent_root = Path(self.game_root_dir).joinpath(
                 *self._active_game().persistent_audio_subpath
             )
-            from src.wwise.patch_target_resolver import find_patch_pck_sources
             for patch_path, override_name in find_patch_pck_sources(
                 persistent_root, self._active_game()
             ):

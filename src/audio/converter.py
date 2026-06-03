@@ -1,6 +1,6 @@
-
-
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 import shutil
 from src.core.config_manager import get_tools_dir
@@ -278,7 +278,6 @@ class AudioConverter:
         if input_file.suffix.lower() == '.wav' and not normalize:
             return self.wav_to_wem(input_file, output_file)
 
-        import tempfile
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
             tmp_wav = Path(tmp.name)
         try:
@@ -387,8 +386,6 @@ class AudioConverter:
         return converted
 
 def main():
-
-    import sys
 
     if len(sys.argv) < 2:
         logger.info("Usage: python audio_converter.py <input_file_or_dir> [output] [--mode=MODE]")

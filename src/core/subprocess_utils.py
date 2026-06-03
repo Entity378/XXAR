@@ -3,16 +3,12 @@ import sys
 import subprocess
 from pathlib import Path
 
-# ── Platform identification (single source of truth) ────────────────────
-# Every gating check in the app should import from here, not compute its own `platform.system()` / `sys.platform` / `os.name` comparison.
-# The previous scattered checks drifted out of sync (see `os.name == "nt"`, `sys.platform == "win32"`, `sys.platform.startswith("win")`, `platform.system() == "Windows"` all coexisting in the codebase).
-# Use `platform.system()` only for human-readable strings (logs, settings page, telemetry).
+# Platform identification
 IS_WINDOWS = sys.platform == "win32"
 IS_LINUX = sys.platform.startswith("linux")
 
-# Flatpak sandbox detection uses two independent signals so neither a missing env var (e.g. when the wrapper is bypassed) nor a stripped /.flatpak-info (e.g. inside a nested subprocess) produces a false negative.
-#   - XXAR_FLATPAK=1 is set by xxar-wrapper.sh in the Flatpak manifest.
-#   - /.flatpak-info is injected by the Flatpak runtime into every sandbox.
+# Two independent signals so neither a missing env var nor a stripped
+# /.flatpak-info gives a false negative.
 IS_FLATPAK = (
     os.environ.get("XXAR_FLATPAK") == "1"
     or Path("/.flatpak-info").exists()
@@ -23,8 +19,7 @@ if IS_WINDOWS:
     _si = subprocess.STARTUPINFO()
     _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     SUBPROCESS_KWARGS = {"startupinfo": _si}
-    # Strip PyInstaller's _MEIPASS temp dir from PATH so Windows doesn't scan it when resolving child executables.
-    # Leaving it on PATH causes a ~5 s delay.
+    # Drop PyInstaller's _MEIPASS from PATH — Windows scans it when resolving
     if hasattr(sys, '_MEIPASS'):
         _clean_env = os.environ.copy()
         _meipass = sys._MEIPASS
@@ -37,31 +32,24 @@ else:
     SUBPROCESS_KWARGS = {}
 
 
-# ── Bundled (read-only) asset path resolution ───────────────────
-# The `resources/` directory lives in different places depending on how XXAR was invoked.
-#   - Source location: <project_root>/src/resources/.
-#   - PyInstaller onefile location: <sys._MEIPASS>/resources/.
-#   - PyInstaller onedir location: <exe_dir>/resources/.
-# Any code that needs to read a bundled asset should go through the helpers below instead of computing paths from `__file__` / `sys.executable`.
+# Bundled resources live in different places depending on how XXAR was launched.
+# Resolve through the helpers below.
 
 def is_frozen() -> bool:
     return hasattr(sys, '_MEIPASS') or getattr(sys, 'frozen', False)
 
 
 def get_bundle_root() -> Path:
-    # Top-level directory containing bundled assets (NOT user-writable state).
     meipass = getattr(sys, '_MEIPASS', None)
     if meipass:
         return Path(meipass)
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).resolve().parent
-    # Source tree: src/core/subprocess_utils.py → project root
+    # src/core/subprocess_utils.py → project root
     return Path(__file__).resolve().parent.parent.parent
 
 
 def get_bundled_resources_dir() -> Path:
-    # Path to the bundled `resources/` dir.
-    # May not exist if the caller is running in an environment where the dir wasn't shipped.
     root = get_bundle_root()
     if is_frozen():
         return root / "resources"
@@ -69,7 +57,6 @@ def get_bundled_resources_dir() -> Path:
 
 
 def get_bundled_resource(*parts: str):
-    # Return the existing path under `resources/<parts...>` or None.
-    # Prefer this over manual joins when the caller needs to handle missing assets.
+    # Existing path under resources/<parts...>, or None if it wasn't shipped.
     path = get_bundled_resources_dir().joinpath(*parts)
     return path if path.exists() else None

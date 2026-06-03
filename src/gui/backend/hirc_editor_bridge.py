@@ -1,7 +1,9 @@
 import json
+import os
 import re
 import shutil
 import struct
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -21,6 +23,12 @@ from PyQt6.QtCore import (
 )
 
 import src.core.app_config as app_config
+from src.core.config_manager import get_settings_file
+from src.core.game_registry import (
+    DEFAULT_GAME_ID,
+    get_audio_settings_keys,
+    get_game,
+)
 from src.core.logger import get_logger
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
@@ -547,8 +555,6 @@ class HircEditorBridge(QObject):
         self.musicPckListReady.emit(data)
 
     def _list_music_pcks(self) -> List[dict]:
-        from fnmatch import fnmatch
-        from src.core.game_registry import get_game
         game = get_game(self._current_game_id())
         music_globs = game.music_pck_globs
         soundbank_glob = game.soundbank_pck_glob
@@ -637,8 +643,7 @@ class HircEditorBridge(QObject):
         packer.pack(use_patching=False)
         packer.close()
 
-        import os as _os
-        _os.replace(str(tmp_pck), str(target_pck))
+        os.replace(str(tmp_pck), str(target_pck))
         size = src_wem.stat().st_size
         self.statusUpdate.emit(
             f"Added WEM {wem_id} to {pck_name} ({size:,} B from {src_wem.name})"
@@ -721,79 +726,9 @@ class HircEditorBridge(QObject):
                 )
             f.seek(abs_offset)
             f.write(struct.pack("<I", new_wem))
-        # Diagnostic: dump volume bytes for every track in the touched bnk.
-        # Used to correlate any volume drift with this source patch.
-        self._dump_volume_diag(target_pck, "after source_id patch")
         self.statusUpdate.emit(
             f"Patched {pck_name} @{abs_offset}: {old_wem} -> {new_wem}"
         )
-
-    def _dump_volume_diag(self, pck_path: Path, tag: str):
-        # For each MusicTrack in each bnk of the pck, log obj_id + volume_value_offset + raw bytes + parsed dB.
-        # Use to track unexpected volume drift across patches.
-        try:
-            indexer = PCKIndexer(str(pck_path))
-            indexer.build_index()
-        except Exception as e:
-            logger.warning(f"[HIRC Editor-diag] index failed: {e}")
-            return
-        with open(pck_path, "rb") as f:
-            for binfo in indexer.index_data["banks"]:
-                f.seek(binfo["offset"])
-                content = f.read(binfo["size"])
-                # Collect all music track source ids.
-                sids: set = set()
-                for hs, hsz in _find_hirc_sections(content):
-                    se = hs + hsz
-                    n_obj = struct.unpack_from("<I", content, hs)[0]
-                    op = hs + 4
-                    for _ in range(n_obj):
-                        if op + 5 > se:
-                            break
-                        ot = content[op]
-                        osz = struct.unpack_from("<I", content, op + 1)[0]
-                        ds = op + 5
-                        de = ds + osz
-                        if de > len(content):
-                            break
-                        if ot == HIRC_TYPE_MUSIC_TRACK and ds + 9 <= de:
-                            ns = struct.unpack_from("<I", content, ds + 5)[0]
-                            if 0 <= ns <= 100:
-                                p = ds + 9
-                                for _ in range(ns):
-                                    if p + _SOURCE_DATA_SIZE > de:
-                                        break
-                                    sids.add(struct.unpack_from(
-                                        "<I", content,
-                                        p + _SOURCE_ID_OFFSET_IN_SOURCE)[0])
-                                    p += _SOURCE_DATA_SIZE
-                        op = de
-                if not sids:
-                    continue
-                try:
-                    targets = scan_bank_for_patch_targets(content, sids)
-                except Exception:
-                    continue
-                # Group volume patches per (obj_id ~ source_id since ours mirrors).
-                seen_offsets = set()
-                for vp in targets.volume_patches:
-                    if not vp.has_existing_volume:
-                        continue
-                    if vp.volume_value_offset in seen_offsets:
-                        continue
-                    seen_offsets.add(vp.volume_value_offset)
-                    if 0 <= vp.volume_value_offset + 4 <= len(content):
-                        bts = bytes(content[vp.volume_value_offset:
-                                            vp.volume_value_offset + 4])
-                        try:
-                            val = struct.unpack("<f", bts)[0]
-                        except Exception:
-                            val = float("nan")
-                        logger.info(
-                            f"[HIRC Editor-diag {tag}] bnk={binfo['id']} "
-                            f"src={vp.source_id} vol_off={vp.volume_value_offset} "
-                            f"bytes={bts.hex(' ')} dB={val:.4f}"
-                        )
 
     def _patch_loop_ms(self, pck_name: str, bnk_id: int,
                        track_obj_id: int, loop_ms: float):
@@ -819,63 +754,7 @@ class HircEditorBridge(QObject):
         targets = scan_bank_for_patch_targets(bnk_content, track_source_ids)
         duration_map = {sid: loop_ms for sid in track_source_ids}
 
-        # ── diagnostic: snapshot volume bytes for ALL music tracks ──
-        all_sids = set()
-        for hs, hsz in _find_hirc_sections(bnk_content):
-            se = hs + hsz
-            n_obj = struct.unpack_from("<I", bnk_content, hs)[0]
-            op = hs + 4
-            for _ in range(n_obj):
-                if op + 5 > se:
-                    break
-                ot = bnk_content[op]
-                osz = struct.unpack_from("<I", bnk_content, op + 1)[0]
-                ds = op + 5
-                de = ds + osz
-                if de > len(bnk_content):
-                    break
-                if ot == HIRC_TYPE_MUSIC_TRACK and ds + 9 <= de:
-                    n_src = struct.unpack_from("<I", bnk_content, ds + 5)[0]
-                    if 0 <= n_src <= 100:
-                        psid = ds + 9
-                        for _ in range(n_src):
-                            if psid + _SOURCE_DATA_SIZE > de:
-                                break
-                            all_sids.add(struct.unpack_from(
-                                "<I", bnk_content, psid + _SOURCE_ID_OFFSET_IN_SOURCE)[0])
-                            psid += _SOURCE_DATA_SIZE
-                op = de
-        try:
-            full_targets = scan_bank_for_patch_targets(bnk_content, all_sids)
-            before_vols = {}
-            for vp in full_targets.volume_patches:
-                if vp.has_existing_volume:
-                    bts = bytes(bnk_content[vp.volume_value_offset:
-                                            vp.volume_value_offset + 4])
-                    before_vols[vp.source_id] = (vp.volume_value_offset, bts)
-        except Exception:
-            before_vols = {}
-
         result = apply_duration_patches(bnk_content, targets, duration_map)
-
-        # Diff after patch.
-        try:
-            full_targets2 = scan_bank_for_patch_targets(bnk_content, all_sids)
-            for vp in full_targets2.volume_patches:
-                if not vp.has_existing_volume:
-                    continue
-                aft = bytes(bnk_content[vp.volume_value_offset:
-                                        vp.volume_value_offset + 4])
-                bef = before_vols.get(vp.source_id)
-                if bef is not None and bef[1] != aft:
-                    logger.warning(
-                        f"[HIRC Editor] VOLUME DRIFT for source {vp.source_id} "
-                        f"@offset {vp.volume_value_offset}: "
-                        f"before={bef[1].hex(' ')} after={aft.hex(' ')}"
-                    )
-        except Exception:
-            pass
-        # ── end diagnostic ──
 
         with open(target_pck, "r+b") as f:
             f.seek(bnk_info["offset"])
@@ -934,7 +813,6 @@ class HircEditorBridge(QObject):
         return roots
 
     def _load_settings(self) -> dict:
-        from src.core.config_manager import get_settings_file
         settings_file = get_settings_file()
         if not settings_file.exists():
             return {}
@@ -944,11 +822,9 @@ class HircEditorBridge(QObject):
             return {}
 
     def _audio_settings_keys(self) -> Tuple[str, str]:
-        from src.core.game_registry import get_audio_settings_keys
         return get_audio_settings_keys(self._current_game_id())
 
     def _current_game_id(self) -> str:
-        from src.core.game_registry import DEFAULT_GAME_ID
         if hasattr(app_config, "_active_game") and app_config._active_game:
             return app_config._active_game.id
         return DEFAULT_GAME_ID
