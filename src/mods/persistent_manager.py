@@ -1,16 +1,15 @@
-
-
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from src.core.config_manager import get_game_mod_tracker_file
 from src.core.game_registry import DEFAULT_GAME_ID
-
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
-class PersistentModManager:
 
+class PersistentModManager:
 
     def __init__(self, persistent_base_path=None, tracker_path=None, game_id=None):
 

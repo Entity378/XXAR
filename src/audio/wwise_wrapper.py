@@ -1,20 +1,22 @@
-
-
-import subprocess
-import shutil
 import os
+import shutil
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
 from src.core.config_manager import get_tools_dir
+from src.core.logger import get_logger
 from src.core.subprocess_utils import (
-    IS_WINDOWS,
     IS_FLATPAK,
-    SUBPROCESS_KWARGS as _subprocess_kwargs,
+    IS_WINDOWS,
+)
+from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import (
     get_bundled_resources_dir,
     is_frozen,
 )
-from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -30,8 +32,8 @@ if IS_FLATPAK or is_frozen():
 else:
     _RESOURCE_DIR = _BUNDLED_RESOURCE_DIR
 
-class WwiseConsole:
 
+class WwiseConsole:
 
     def __init__(self, wwise_dir=None, project_path=None):
 
@@ -236,6 +238,7 @@ class WwiseConsole:
                 logger.error(f"[X] Failed: {Path(wav).name}")
         return found
 
+
 def main():
     if len(sys.argv) < 2:
         logger.info("Usage: python wwise_wrapper.py <input.wav or folder> [output_folder]")
@@ -253,6 +256,7 @@ def main():
         if not output_path:
             output_path = input_path / "wem"
         wwise.batch_convert_to_wem(wavs, output_path)
+
 
 if __name__ == "__main__":
     main()

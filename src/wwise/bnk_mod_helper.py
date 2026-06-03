@@ -1,15 +1,13 @@
-
-
 import shutil
 import sys
 from pathlib import Path
 
+import src.core.app_config as app_config
+from src.core.logger import get_logger
 from src.wwise.pck_packer import PCKPacker
 
-import src.core.app_config as app_config
-
-from src.core.logger import get_logger
 logger = get_logger(__name__)
+
 
 def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
 
@@ -35,6 +33,7 @@ def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
 
     logger.info(f"\n[OK] Structure created: {output_structure_dir}")
     return output_structure_dir
+
 
 def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0):
 
@@ -65,6 +64,7 @@ def mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck, lang_id=0
     logger.info("\nInstall to:")
     logger.info(f"  {app_config.GAME_DATA_FOLDER}/Persistent/Audio/Windows/Full/")
 
+
 def main():
 
     if len(sys.argv) < 5:
@@ -85,6 +85,7 @@ def main():
     output_pck = sys.argv[4]
 
     mod_soundbank_pck(original_pck, wem_files_dir, bnk_id, output_pck)
+
 
 if __name__ == "__main__":
     main()

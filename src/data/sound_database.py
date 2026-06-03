@@ -1,17 +1,15 @@
-
-
-import json
 import hashlib
-from pathlib import Path
+import json
 from datetime import datetime
+from pathlib import Path
 
 from src.core.config_manager import get_sound_database_file
-
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
-class SoundDatabase:
 
+class SoundDatabase:
 
     def __init__(self, db_path=None):
 

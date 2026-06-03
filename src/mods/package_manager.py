@@ -1,29 +1,28 @@
-
-
 import json
-import uuid
 import shutil
-import zipfile
 import tempfile
-from pathlib import Path
-from datetime import datetime
+import uuid
+import zipfile
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
+
+from src.core.app_config import APP_VERSION as app_version
 from src.core.config_manager import (
     get_settings_file,
     normalize_game_id,
     resolve_mod_library_dir,
 )
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
-from src.core.app_config import APP_VERSION as app_version
-from src.wwise.pck_packer import PCKPacker
+from src.core.logger import get_logger
+from src.gui.backend.audio_games import get_browser_handler_class
 from src.wwise.bnk_mod_helper import prepare_bnk_structure
+from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
-from src.wwise.override_pck_patcher import patch_override_pcks
-from src.gui.backend.audio_games import get_browser_handler_class
-from src.core.logger import get_logger
-logger = get_logger(__name__)
+from src.wwise.pck_packer import PCKPacker
 
+logger = get_logger(__name__)
 
 
 def _get_active_game_id():
@@ -42,9 +41,11 @@ class InvalidModPackageError(Exception):
 
     pass
 
+
 class ModApplicationError(Exception):
 
     pass
+
 
 _AUDIO_SETTING_KEYS = (
     'loop_point_mode',
@@ -79,7 +80,7 @@ def _extract_audio_settings(file_info):
     manual_ms = int(file_info.get('loop_point_manual_ms', 0))
     if manual_ms > 0 and loop_point_mode == 'manual':
         result['loop_point_manual_ms'] = manual_ms
-    
+
     volume_enabled = file_info.get('volume_enabled', False)
     if volume_enabled:
         result['volume_enabled'] = True
@@ -92,7 +93,6 @@ def _extract_audio_settings(file_info):
 
 
 class ModPackageManager:
-
 
     def __init__(self, mod_library_path=None, persistent_mod_manager=None, game_id=None):
 
@@ -251,7 +251,6 @@ class ModPackageManager:
 
     def install_mod(self, mod_path):
 
-
         metadata = self.validate_mod_package(mod_path)
 
         mod_name = metadata.get('name', '')
@@ -357,7 +356,6 @@ class ModPackageManager:
 
     def remove_mod(self, mod_uuid):
 
-
         if mod_uuid in self.mod_config['installed_mods']:
             del self.mod_config['installed_mods'][mod_uuid]
 
@@ -371,7 +369,6 @@ class ModPackageManager:
         self.save_config()
 
     def update_load_order(self, ordered_uuids):
-
 
         for mod_uuid in ordered_uuids:
             if mod_uuid not in self.mod_config['installed_mods']:

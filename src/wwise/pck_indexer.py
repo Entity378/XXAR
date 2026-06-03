@@ -2,10 +2,11 @@ import struct
 from pathlib import Path
 
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
-class PCKIndexer:
 
+class PCKIndexer:
 
     MAGIC = b'AKPK'
 
@@ -163,7 +164,6 @@ class PCKIndexer:
             raise ValueError(f"Invalid file_type: {file_type}")
 
     def extract_single_file(self, file_id, file_type='wem', lang_id=None):
-
 
         file_info = None
 

@@ -1,26 +1,39 @@
-from PyQt6.QtCore import QCoreApplication
-
-import os
-import sys
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
+
+from PyQt6.QtCore import QCoreApplication
 
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, is_frozen
+
 logger = get_logger(__name__)
 
 if IS_WINDOWS:
     os.environ["QT_QPA_PLATFORM"] = "windows:fontengine=freetype"
-from PyQt6.QtGui import QGuiApplication, QIcon, QSurfaceFormat, QFontDatabase, QPixmap
+from PyQt6.QtCore import (
+    Q_ARG,
+    QCoreApplication,
+    QMetaObject,
+    QObject,
+    Qt,
+    QThread,
+    QUrl,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap, QSurfaceFormat
 from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
-from PyQt6.QtCore import QUrl, QObject, QCoreApplication, QMetaObject, Q_ARG, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QSplashScreen
+
 
 class ClipboardHelper(QObject):
     @pyqtSlot(str)
     def setText(self, text):
         QApplication.clipboard().setText(text)
+
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -28,30 +41,31 @@ sys.path.insert(
     0, str(project_root / "src")
 )
 
-from src.gui.backend.mod_manager_bridge import ModManagerBridge
-from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
-from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
-from src.gui.backend.update_manager_bridge import UpdateManagerBridge
-from src.gui.backend.gamebanana_bridge import GameBananaBridge
-from src.gui.backend.ui_theme_bridge import UIThemeBridge
-from src.gui.backend.hirc_editor_bridge import HircEditorBridge
-from src.gui.utils.native_dialogs import NativeDialogs
-from src.core.config_manager import get_settings_file, get_cache_dir, normalize_game_id
-from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
 import src.core.app_config as app_config
 from src.core.app_config import (
-    APP_NAME, APP_VERSION,
+    APP_NAME,
+    APP_VERSION,
     switch_active_game,
 )
-
-from src.gui.connectors.mod_manager_connector import ModManagerConnector
+from src.core.config_manager import get_cache_dir, get_settings_file, normalize_game_id
+from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
+from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
+from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
+from src.gui.backend.gamebanana_bridge import GameBananaBridge
+from src.gui.backend.hirc_editor_bridge import HircEditorBridge
+from src.gui.backend.mod_manager_bridge import ModManagerBridge
+from src.gui.backend.ui_theme_bridge import UIThemeBridge
+from src.gui.backend.update_manager_bridge import UpdateManagerBridge
 from src.gui.connectors.audio_browser_connector import AudioBrowserConnector
-from src.gui.connectors.import_wizard_connector import ImportWizardConnector
-from src.gui.connectors.settings_connector import SettingsConnector
-from src.gui.connectors.update_connector import UpdateConnector
 from src.gui.connectors.gamebanana_connector import GameBananaConnector
 from src.gui.connectors.hirc_editor_connector import HircEditorConnector
+from src.gui.connectors.import_wizard_connector import ImportWizardConnector
+from src.gui.connectors.mod_manager_connector import ModManagerConnector
+from src.gui.connectors.settings_connector import SettingsConnector
+from src.gui.connectors.update_connector import UpdateConnector
 from src.gui.translation_manager import TranslationManager
+from src.gui.utils.native_dialogs import NativeDialogs
+
 
 class AutoDetectWorker(QThread):
 
@@ -163,9 +177,11 @@ class AutoDetectWorker(QThread):
 
         self.notFound.emit()
 
+
 def theme_singleton_provider(engine, script_engine):
 
     return None
+
 
 class Application(
     ModManagerConnector,
@@ -216,7 +232,6 @@ class Application(
         logger.info("=" * 50)
 
         QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, False)
-
 
         format = QSurfaceFormat()
         format.setSamples(4)
@@ -633,10 +648,12 @@ class Application(
         if dirname:
             self.audio_conversion_bridge.outputPathSelected.emit(dirname)
 
+
 def main():
 
     app = Application(version=APP_VERSION)
     return app.run()
+
 
 if __name__ == "__main__":
     sys.exit(main())

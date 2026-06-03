@@ -1,10 +1,10 @@
-
-
 import sys
 from pathlib import Path
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
+
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 project_root = Path(__file__).parent.parent.parent.parent
@@ -13,8 +13,8 @@ sys.path.insert(0, str(project_root / "src"))
 
 from src.audio.converter import AudioConverter
 
-class ConversionWorker(QThread):
 
+class ConversionWorker(QThread):
 
     progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
@@ -107,8 +107,8 @@ class ConversionWorker(QThread):
             error_msg = str(e)
             self.finished.emit(False, f"Conversion failed:\n{error_msg}")
 
-class AudioConversionBridge(QObject):
 
+class AudioConversionBridge(QObject):
 
     inputPathSelected = pyqtSignal(str)
     outputPathSelected = pyqtSignal(str)

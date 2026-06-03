@@ -3,10 +3,10 @@
 
 from pathlib import Path
 
-from src.wwise.pck_indexer import PCKIndexer
-from src.wwise.bnk_handler import BNKFile
-
 from src.core.logger import get_logger
+from src.wwise.bnk_handler import BNKFile
+from src.wwise.pck_indexer import PCKIndexer
+
 logger = get_logger(__name__)
 
 BACKUP_SUFFIX = ".xxar_backup"

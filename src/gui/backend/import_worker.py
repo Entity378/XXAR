@@ -1,21 +1,21 @@
-
-
-import tempfile
-import shutil
-import zipfile
 import json
-from pathlib import Path
+import shutil
+import tempfile
+import zipfile
 from datetime import datetime
+from pathlib import Path
+
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
+
 import src.core.app_config as app_config
 from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
-from src.wwise.bnk_indexer import BNKIndexer
+
 
 class ImportWorker(QThread):
-
 
     progress = pyqtSignal(str)
     progressPercent = pyqtSignal(int)

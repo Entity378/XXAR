@@ -138,7 +138,7 @@ Item {
                                 fullImagePopup.open()
                             }
                         }
-                        
+
                         Rectangle {
                             anchors.fill: parent
                             radius: 36.44
@@ -416,14 +416,14 @@ Item {
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        
+
         enter: Transition {
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200 }
                 NumberAnimation { property: "scale"; from: 0.9; to: 1.0; duration: 200; easing.type: Easing.OutBack }
             }
         }
-        
+
         exit: Transition {
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 200 }
@@ -437,14 +437,14 @@ Item {
             border.color: "#3c3d3f"
             border.width: 1
         }
-        
+
         Image {
             anchors.fill: parent
             anchors.margins: 10
             source: thumbnailImage.source
             fillMode: Image.PreserveAspectFit
             mipmap: true
-            
+
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor

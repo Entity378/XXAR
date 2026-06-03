@@ -3,26 +3,34 @@ import os
 import re
 import ssl
 import traceback
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
+
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
-from src.core.game_registry import DEFAULT_GAME_ID, get_gamebanana_game_id, normalize_game_id
+from src.core.game_registry import (
+    DEFAULT_GAME_ID,
+    get_gamebanana_game_id,
+    normalize_game_id,
+)
+from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, get_bundled_resource
 from src.gui.utils.native_dialogs import NativeDialogs
 
-from src.core.logger import get_logger
 logger = get_logger(__name__)
+
 
 def _find_bundled_unrar():
     if not IS_WINDOWS:
         return None
     path = get_bundled_resource("windows", "unrar.exe")
     return str(path) if path else None
+
 
 def _urlopen(req, timeout=10):
     try:
@@ -33,9 +41,11 @@ def _urlopen(req, timeout=10):
             return urllib.request.urlopen(req, timeout=timeout, context=ctx)
         raise
 
+
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg')
 VIDEO_EXTENSIONS = ('.mp4', '.webm')
 AUDIO_EXTENSIONS = ('.mp3', '.ogg', '.wav', '.flac', '.aac', '.m4a')
+
 
 def _cache_path():
     try:
@@ -43,6 +53,7 @@ def _cache_path():
         return get_temp_dir() / "gamebanana_cache.json"
     except Exception:
         return Path(__file__).parent / "gamebanana_cache.json"
+
 
 def _thumb_dir():
     try:
@@ -53,8 +64,10 @@ def _thumb_dir():
     d.mkdir(parents=True, exist_ok=True)
     return d
 
+
 _cache: dict = {}
 _cache_dirty = False
+
 
 def _load_cache():
     global _cache
@@ -64,6 +77,7 @@ def _load_cache():
             _cache = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         _cache = {}
+
 
 def _save_cache():
     global _cache_dirty
@@ -75,15 +89,19 @@ def _save_cache():
     except Exception:
         pass
 
+
 def _cache_get(section: str, mod_id: int):
     return _cache.get(section, {}).get(str(mod_id))
+
 
 def _cache_set(section: str, mod_id: int, value):
     global _cache_dirty
     _cache.setdefault(section, {})[str(mod_id)] = value
     _cache_dirty = True
 
+
 _load_cache()
+
 
 def extract_media_from_html(html_text):
 
@@ -135,11 +153,13 @@ def extract_media_from_html(html_text):
 
     return clean, images, videos
 
+
 def is_visual_media(url):
     if not url:
         return False
     lower = url.lower().split('?')[0]
     return lower.endswith(IMAGE_EXTENSIONS + VIDEO_EXTENSIONS)
+
 
 def is_audio_media(url):
     if not url:
@@ -147,10 +167,11 @@ def is_audio_media(url):
     lower = url.lower().split('?')[0]
     return lower.endswith(AUDIO_EXTENSIONS)
 
+
 GAMEBANANA_API_BASE = "https://gamebanana.com/apiv11"
 
-class FetchModsWorker(QThread):
 
+class FetchModsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
@@ -271,8 +292,8 @@ class FetchModsWorker(QThread):
             'item_type': 'Sound',
         }
 
-class FetchMiscModsWorker(QThread):
 
+class FetchMiscModsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
@@ -478,8 +499,8 @@ class FetchMiscModsWorker(QThread):
                     return True
         return False
 
-class FetchModDetailsWorker(QThread):
 
+class FetchModDetailsWorker(QThread):
 
     finished = pyqtSignal(bool, object)
 
@@ -600,7 +621,6 @@ class FetchModDetailsWorker(QThread):
         }
 
     def _parse_mod_details(self, data):
-
 
         if not isinstance(data, list) or len(data) < 9:
             logger.info(f"[GameBanana] Invalid data format: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
@@ -733,8 +753,8 @@ class FetchModDetailsWorker(QThread):
                     return True
         return False
 
-class FetchThumbnailsWorker(QThread):
 
+class FetchThumbnailsWorker(QThread):
 
     thumbnailReady = pyqtSignal("qint64", str)
 
@@ -792,6 +812,7 @@ class FetchThumbnailsWorker(QThread):
                     self.thumbnailReady.emit(result[0], result[1])
         _save_cache()
 
+
 class FetchDownloadCountsWorker(QThread):
 
     downloadCountReady = pyqtSignal("qint64", int)
@@ -827,6 +848,7 @@ class FetchDownloadCountsWorker(QThread):
                 if result:
                     self.downloadCountReady.emit(result[0], result[1])
         _save_cache()
+
 
 class FetchModSupportWorker(QThread):
 
@@ -907,6 +929,7 @@ class FetchModSupportWorker(QThread):
                     self.modSupportReady.emit(result[0], result[1])
         _save_cache()
 
+
 def _open_archive(path):
 
     suffix = path.suffix.lower()
@@ -939,9 +962,11 @@ def _open_archive(path):
             import py7zr
         except ImportError:
             raise RuntimeError("py7zr is not installed. Run: pip install py7zr")
-        import tempfile, os
+        import os
+        import tempfile
         sz = py7zr.SevenZipFile(path, 'r')
         names = sz.getnames()
+
         def read_7z(name):
             with tempfile.TemporaryDirectory() as tmp:
                 with py7zr.SevenZipFile(path, 'r') as archive:
@@ -952,6 +977,7 @@ def _open_archive(path):
         return sz, lambda: names, read_7z
     else:
         raise RuntimeError(f"Unsupported archive format: {suffix}")
+
 
 class InstallModWorker(QThread):
 
@@ -969,8 +995,11 @@ class InstallModWorker(QThread):
 
     def run(self):
         try:
+            from src.mods.package_manager import (
+                InvalidModPackageError,
+                ModPackageManager,
+            )
             from XXAR import get_temp_dir
-            from src.mods.package_manager import ModPackageManager, InvalidModPackageError
         except ImportError:
             self.finished.emit(False, "Could not import XXAR modules")
             return
@@ -1025,8 +1054,8 @@ class InstallModWorker(QThread):
         except Exception as e:
             self.finished.emit(False, f"Install failed: {str(e)}\n{traceback.format_exc()}")
 
-class DownloadModWorker(QThread):
 
+class DownloadModWorker(QThread):
 
     progress = pyqtSignal(int)
     finished = pyqtSignal(bool, str)
@@ -1069,8 +1098,8 @@ class DownloadModWorker(QThread):
             import traceback
             self.finished.emit(False, f"Download failed: {str(e)}\n{traceback.format_exc()}")
 
-class GameBananaBridge(QObject):
 
+class GameBananaBridge(QObject):
 
     modsLoaded = pyqtSignal('QVariantList')
     totalModsCount = pyqtSignal(int)
@@ -1168,8 +1197,9 @@ class GameBananaBridge(QObject):
     def fetchThumbnail(self, mod_id):
 
         try:
-            from src.core.config_manager import get_settings_file
             import json
+
+            from src.core.config_manager import get_settings_file
             settings_file = get_settings_file()
             if settings_file.exists():
                 with open(settings_file, "r") as f:
@@ -1394,6 +1424,7 @@ class GameBananaBridge(QObject):
         self.install_worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type, game_id=self._active_game_id)
         self.install_worker.finished.connect(self._on_install_finished)
         captured_url = download_url
+
         def _on_multiple_found(names):
             if captured_url:
                 _cache_set("mod_totals_by_url", captured_url, len(names))

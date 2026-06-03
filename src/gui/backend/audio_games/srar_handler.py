@@ -1,16 +1,15 @@
 import configparser
 from pathlib import Path
 
+from src.audio import vo_download, vo_local_backup
 from src.core.config_manager import get_game_backup_dir
 from src.core.game_registry import get_game
+from src.core.logger import get_logger
 
-from src.audio import vo_download
-from src.audio import vo_local_backup
 from .base_handler import BaseBrowserHandler
 
-
-from src.core.logger import get_logger
 logger = get_logger(__name__)
+
 
 def _vo_folder_names(game):
     non_lang = set(game.non_language_tabs or ())

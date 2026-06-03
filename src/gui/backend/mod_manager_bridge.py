@@ -1,38 +1,49 @@
-
-from PyQt6.QtCore import (
-    QObject,
-    pyqtSlot,
-    pyqtSignal,
-    pyqtProperty,
-    QThread,
-    QTimer,
-    QCoreApplication,
-)
-from PyQt6.QtQml import QQmlApplicationEngine
-from pathlib import Path
 import json
 import os
-import sys
 import shutil
 import subprocess
-import src.core.app_config as app_config
-from src.core.app_config import CONFIG_DIR_NAME, APP_NAME
-from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
+import sys
+from pathlib import Path
 
-from src.mods.package_manager import ModPackageManager, InvalidModPackageError, count_replacements, _AUDIO_SETTING_KEYS
-from src.mods.persistent_manager import PersistentModManager
+from PyQt6.QtCore import (
+    QCoreApplication,
+    QObject,
+    QThread,
+    QTimer,
+    pyqtProperty,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtQml import QQmlApplicationEngine
+
+import src.core.app_config as app_config
+from src.core.app_config import APP_NAME, CONFIG_DIR_NAME
 from src.core.config_manager import (
+    get_custom_mod_library_root,
     get_settings_file,
     get_tools_dir,
-    get_custom_mod_library_root,
     resolve_mod_library_dir,
     set_mod_library_dir,
 )
-from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game, normalize_game_id
-from src.gui.backend.audio_games import get_browser_handler_class
-from src.wwise.override_pck_patcher import restore_override_pck_backups
-from src.gui.utils.native_dialogs import NativeDialogs
+from src.core.game_registry import (
+    DEFAULT_GAME_ID,
+    detect_game_id_from_path,
+    get_game,
+    normalize_game_id,
+)
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
+from src.gui.backend.audio_games import get_browser_handler_class
+from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.package_manager import (
+    _AUDIO_SETTING_KEYS,
+    InvalidModPackageError,
+    ModPackageManager,
+    count_replacements,
+)
+from src.mods.persistent_manager import PersistentModManager
+from src.wwise.override_pck_patcher import restore_override_pck_backups
+
 logger = get_logger(__name__)
 
 
@@ -86,6 +97,7 @@ class WwiseSetupWorker(QThread):
         except Exception as e:
             self.finished.emit(False, str(e))
 
+
 class WindowsAudioToolsSetupWorker(QThread):
 
     finished = pyqtSignal(bool, str)
@@ -137,8 +149,8 @@ class WindowsAudioToolsSetupWorker(QThread):
         except Exception as e:
             self.finished.emit(False, str(e))
 
-class ModManagerBridge(QObject):
 
+class ModManagerBridge(QObject):
 
     modsLoaded = pyqtSignal(list, arguments=["modList"])
     modInstalled = pyqtSignal(str, arguments=["modUuid"])
@@ -726,7 +738,6 @@ class ModManagerBridge(QObject):
                                     logger.info(f"[Mod Manager] Skipping language folder "
                                         f"{lang_folder.name} (has {pck_count} PCK files)")
 
-
                         cleaned_files = 0
                         for pck_file in persistent_path.rglob("*.pck"):
 
@@ -854,8 +865,8 @@ class ModManagerBridge(QObject):
     @pyqtSlot(str)
     def playSound(self, path):
         try:
-            from urllib.request import url2pathname
             from urllib.parse import urlparse
+            from urllib.request import url2pathname
             parsed = urlparse(path)
             if parsed.scheme == 'file':
                 path = url2pathname(parsed.path)
@@ -877,7 +888,6 @@ class ModManagerBridge(QObject):
     @pyqtSlot(str, result=list)
     def browseImportFiles(self, mode):
 
-
         if "pck" in mode:
             filter_str = "PCK Files (*.pck);;All Files (*)"
             title = "Select PCK File(s)"
@@ -896,7 +906,6 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot(str, result=list)
     def browseImportFolder(self, mode):
-
 
         dirname = NativeDialogs.get_directory(
             "Select Folder", remember_key="import_folder"
@@ -948,7 +957,6 @@ class ModManagerBridge(QObject):
     @pyqtSlot(result=str)
     def browseImportThumbnail(self):
 
-
         filename = NativeDialogs.get_open_file(
             "Select Thumbnail Image",
             filter_str="Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
@@ -963,12 +971,10 @@ class ModManagerBridge(QObject):
     @pyqtSlot(str, result=str)
     def getDetectedFilesSummary(self, mode):
 
-
         return ""
 
     @pyqtSlot(str, result=str)
     def askSavePath(self, mod_name):
-
 
         default_name = mod_name.replace(" ", "_") + app_config.MOD_FILE_EXT
         save_path = NativeDialogs.get_save_file(

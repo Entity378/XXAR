@@ -6,12 +6,13 @@ from pathlib import Path
 from PyQt6.QtCore import QCoreApplication
 
 from src.core.game_registry import get_game
+from src.core.logger import get_logger
 from src.wwise.hirc_patcher import (
     apply_duration_patches,
     apply_volume_patches,
     scan_bank_for_patch_targets,
 )
-from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -410,7 +411,7 @@ class BaseBrowserHandler:
                     "Could not locate Streaming AudioAssets folder.",
                 )
             )
-        
+
         if not persistent_root or not persistent_root.exists():
             raise FileNotFoundError(
                 QCoreApplication.translate(
@@ -447,7 +448,6 @@ class BaseBrowserHandler:
             )
             if did_patch:
                 patched_file_count += 1
-
 
         for titlescreen_pck in titlescreen_pcks:
             titlescreen_target = self._persistent_overlay_path(

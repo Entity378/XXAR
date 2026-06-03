@@ -1,10 +1,9 @@
 from src.core.game_registry import (
+    DEFAULT_GAME_ID,
     get_game,
     get_game_language_folders,
     get_game_subfolder_sort_priority,
-    DEFAULT_GAME_ID,
 )
-
 
 APP_NAME = "XXAR"
 APP_VERSION = "0.9.2"

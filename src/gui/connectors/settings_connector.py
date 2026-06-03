@@ -1,13 +1,11 @@
-from PyQt6.QtCore import QCoreApplication
 import json
 import shutil
 import threading
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QTimer
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt, QTimer
 from PyQt6.QtWidgets import QApplication
 
-from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME, switch_active_game
 from src.core.config_manager import (
@@ -21,16 +19,17 @@ from src.core.game_registry import (
     build_audio_paths,
     detect_game_id_from_path,
     extract_game_data_dir_from_audio_path,
-    get_game,
     get_audio_settings_keys,
+    get_game,
     get_supported_game_ids,
     get_supported_games,
     is_valid_game_data_dir,
     normalize_game_data_dir,
 )
 from src.core.logger import get_logger
-logger = get_logger(__name__)
+from src.gui.utils.native_dialogs import NativeDialogs
 
+logger = get_logger(__name__)
 
 
 class SettingsConnector:
@@ -957,7 +956,6 @@ class SettingsConnector:
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Folder '%1' already exists in StreamingAssets").replace("%1", folder_name)),
                 )
                 return
-
 
             logger.info(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
             destination.mkdir(parents=True, exist_ok=True)

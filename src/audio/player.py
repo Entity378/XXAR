@@ -1,18 +1,21 @@
-import tempfile
-import subprocess
 import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
-from PyQt6.QtCore import pyqtSignal, QObject, QTimer
+
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+
 from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import IS_WINDOWS
+from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
 if not IS_WINDOWS:
-    from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PyQt6.QtCore import QUrl
+    from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+
 
 class AudioPlayer(QObject):
-
 
     state_changed = pyqtSignal(str)
     position_changed = pyqtSignal('qint64')

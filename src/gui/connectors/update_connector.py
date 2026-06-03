@@ -1,17 +1,17 @@
 import os
 
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QCoreApplication
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 from PyQt6.QtWidgets import QApplication
 
-from src.core.config_manager import get_cache_dir
-from src.core.app_config import APP_NAME
-from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK
 import src.core.app_config as app_config
+from src.core.app_config import APP_NAME
+from src.core.config_manager import get_cache_dir
+from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS
 from src.gui.backend.update_manager_bridge import _get_real_exe_path
 
-
-from src.core.logger import get_logger
 logger = get_logger(__name__)
+
 
 class UpdateConnector:
 

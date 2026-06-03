@@ -1,18 +1,17 @@
-from PyQt6.QtCore import QCoreApplication
-import sys
 import subprocess
+import sys
 from pathlib import Path
-from src.core.app_config import APP_NAME
 
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 
-from src.gui.utils.native_dialogs import NativeDialogs
 import src.core.app_config as app_config
-from src.core.subprocess_utils import IS_WINDOWS
-
-
+from src.core.app_config import APP_NAME
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS
+from src.gui.utils.native_dialogs import NativeDialogs
+
 logger = get_logger(__name__)
+
 
 class ModManagerConnector:
 

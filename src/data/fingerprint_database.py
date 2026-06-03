@@ -1,18 +1,16 @@
-
-
-import json
 import hashlib
+import json
 import threading
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from src.core.config_manager import get_fingerprint_database_file
-
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
+
 class FingerprintDatabase:
-    
 
     FINGERPRINT_VERSION = "2.0"
 
@@ -75,7 +73,7 @@ class FingerprintDatabase:
         return entry is not None and entry.get('version') == self.FINGERPRINT_VERSION
 
     def load(self):
-        
+
         try:
             if self.db_path.exists():
                 with open(self.db_path, 'r') as f:
@@ -85,7 +83,7 @@ class FingerprintDatabase:
             self.database = {}
 
     def _save_unlocked(self):
-        
+
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -96,7 +94,7 @@ class FingerprintDatabase:
             logger.error(f"[FingerprintDB] Failed to save: {e}")
 
     def save(self):
-        
+
         with self.lock:
             self._save_unlocked()
             self._pending_saves = 0

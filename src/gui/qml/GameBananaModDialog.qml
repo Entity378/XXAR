@@ -155,7 +155,6 @@ Rectangle {
                             }
                         }
 
-
                     }
 
                     Flickable {

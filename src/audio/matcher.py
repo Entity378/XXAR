@@ -1,19 +1,25 @@
 import os
-import numpy as np
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import numpy as np
 from scipy import signal
 from scipy.fft import dct
+
 from src.audio import constellation
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
+
 
 def _hz_to_mel(hz):
     return 2595.0 * np.log10(1.0 + hz / 700.0)
 
+
 def _mel_to_hz(mel):
     return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
+
 
 def _mel_filterbank(sample_rate, n_fft, n_mels=40):
     low_mel = _hz_to_mel(0)
@@ -38,6 +44,7 @@ def _mel_filterbank(sample_rate, n_fft, n_mels=40):
                 filterbank[i, j] = (right - j) / (right - center)
 
     return filterbank
+
 
 DEFAULT_WEIGHTS = {
     'mfcc':     0.30,

@@ -15,6 +15,7 @@ def _natural_pck_key(name: str) -> list:
         for chunk in re.split(r"(\d+)", name)
     ]
 
+
 from PyQt6.QtCore import (
     QObject,
     QThread,
@@ -30,12 +31,12 @@ from src.core.game_registry import (
     get_game,
 )
 from src.core.logger import get_logger
+from src.wwise.hirc_patcher import (
+    apply_duration_patches,
+    scan_bank_for_patch_targets,
+)
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
-from src.wwise.hirc_patcher import (
-    scan_bank_for_patch_targets,
-    apply_duration_patches,
-)
 
 logger = get_logger(__name__)
 

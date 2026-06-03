@@ -1,24 +1,22 @@
-
-
-import sys
-import os
 import json
+import os
 import shutil
+import subprocess
+import sys
 import tarfile
 import tempfile
-import zipfile
-import subprocess
-import urllib.request
 import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
-from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.app_config import APP_NAME
-from src.core.subprocess_utils import IS_WINDOWS, IS_FLATPAK, is_frozen
-
+from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS, is_frozen
+
 logger = get_logger(__name__)
 
 _DEFAULT_GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"

@@ -277,7 +277,6 @@ Item {
         if (selectedPck) { hircEditorPage.bnkSelected(selectedPck, selectedBnkId) }
     }
 
-
     // ── Outer / inner frames matching Browser/ModManager pages ──────────
     Rectangle {
         id: outerFrame

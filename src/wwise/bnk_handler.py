@@ -1,17 +1,19 @@
-
-
 import sys
-from struct import pack, unpack, error as struct_error
 from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
+from struct import error as struct_error
+from struct import pack, unpack
 
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
+
 
 def align16(x):
 
     return (16 - (x % 16)) % 16
+
 
 class WEM:
 
@@ -24,6 +26,7 @@ class WEM:
     def getdata(self):
         return self.data
 
+
 class BKHD:
 
     def __init__(self, data):
@@ -35,6 +38,7 @@ class BKHD:
 
     def getdata(self):
         return self.tag + pack('<I', len(self)) + self.data.getvalue()
+
 
 class DIDX:
 
@@ -66,6 +70,7 @@ class DIDX:
 
     def getdata(self):
         return self.tag + pack('<I', len(self)) + self.data.getvalue()
+
 
 class DATA:
 
@@ -118,6 +123,7 @@ class DATA:
     def getdata(self):
         return self.tag + pack('<I', len(self)) + self.data.getvalue()
 
+
 class HIRC:
 
     def __init__(self, data):
@@ -132,8 +138,8 @@ class HIRC:
     def getdata(self):
         return self.tag + pack('<I', len(self)) + pack('<I', self.entries) + self.data.getvalue()
 
-class BNKFile:
 
+class BNKFile:
 
     def __init__(self, bnk_path=None, bnk_bytes=None):
 
@@ -146,7 +152,6 @@ class BNKFile:
             self._parse_bnk(BytesIO(bnk_bytes))
 
     def _parse_bnk(self, stream):
-
 
         magic = stream.read(4)
         if magic != b'BKHD':
@@ -275,6 +280,7 @@ class BNKFile:
             result.extend(section.getdata())
         return bytes(result)
 
+
 def extract_bnk_wems(bnk_path, output_dir):
 
     bnk_path = Path(bnk_path)
@@ -292,6 +298,7 @@ def extract_bnk_wems(bnk_path, output_dir):
         logger.info(f"  Extracted: {wem_id}.wem")
 
     logger.info(f"\n[OK] Extracted {len(wem_ids)} WEM files to {output_dir}")
+
 
 def main():
 
@@ -338,6 +345,7 @@ def main():
     else:
         logger.info(f"Unknown command: {command}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

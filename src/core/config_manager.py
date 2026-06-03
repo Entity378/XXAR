@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 from src.core.app_config import CONFIG_DIR_NAME
-from src.core.subprocess_utils import IS_WINDOWS
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
-    normalize_game_id as normalize_game_id_from_registry,
 )
+from src.core.game_registry import normalize_game_id as normalize_game_id_from_registry
+from src.core.subprocess_utils import IS_WINDOWS
 
 
 class ConfigManager:
@@ -140,6 +140,7 @@ class ConfigManager:
     @property
     def constellation_index_file(self):
         return self.game_data_dir(DEFAULT_GAME_ID) / "constellation_index.sqlite"
+
 
 _config_manager = ConfigManager()
 

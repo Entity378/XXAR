@@ -2,6 +2,7 @@ import struct
 from dataclasses import dataclass, field
 
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 HIRC_TYPE_MUSIC_SEGMENT = 0x0A

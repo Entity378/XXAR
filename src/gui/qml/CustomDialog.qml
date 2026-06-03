@@ -16,7 +16,7 @@ Item {
     property string actionId: ""
     property bool closing: false
     property string customStickerPath: ""
-    
+
     property bool showCheckbox: false
     property string checkboxText: ""
     property bool isChecked: false
@@ -237,7 +237,7 @@ Item {
 
                 Item { Layout.fillWidth: true }
             }
-            
+
             Item { height: 5; width: 1 }
         }
     }

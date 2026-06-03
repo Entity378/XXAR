@@ -1,11 +1,19 @@
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTranslator, QCoreApplication
 from pathlib import Path
 
+from PyQt6.QtCore import (
+    QCoreApplication,
+    QObject,
+    QTranslator,
+    pyqtProperty,
+    pyqtSignal,
+    pyqtSlot,
+)
+
 from src.core.app_config import APP_NAME
-
-
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
+
 
 class TranslationManager(QObject):
 

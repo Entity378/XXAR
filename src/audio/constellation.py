@@ -1,10 +1,12 @@
 import subprocess
 import tempfile
+
 import numpy as np
 from scipy import signal
 from scipy.ndimage import maximum_filter
 
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -147,8 +149,9 @@ def decode_file(ffmpeg_path, audio_path, sample_rate=SAMPLE_RATE):
 
 def decode_wem_bytes(ffmpeg_path, wem_bytes, vgmstream_path, sample_rate=SAMPLE_RATE):
     from pathlib import Path
-    from XXAR import get_temp_dir
+
     from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
+    from XXAR import get_temp_dir
 
     tmp_wem_path = None
     tmp_wav_path = None

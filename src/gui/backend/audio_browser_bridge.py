@@ -3,18 +3,38 @@ import json
 import os
 import re
 import struct
-import threading
-import tempfile
 import subprocess
-import urllib.request
+import tempfile
+import threading
 import urllib.error
+import urllib.request
 from pathlib import Path
+
 from PyQt6.QtCore import (
-    QObject, pyqtSlot, pyqtSignal, QMetaObject, Qt, Q_ARG, QThread, QCoreApplication
+    Q_ARG,
+    QCoreApplication,
+    QMetaObject,
+    QObject,
+    Qt,
+    QThread,
+    pyqtSignal,
+    pyqtSlot,
 )
 
 import src.core.app_config as app_config
+from src.audio import constellation
+from src.audio.converter import AudioConverter
+from src.audio.matcher import AudioMatcher
+from src.audio.player import AudioPlayer
 from src.core.app_config import APP_NAME
+from src.core.config_manager import (
+    get_config_dir,
+    get_game_constellation_index_file,
+    get_game_fingerprint_database_file,
+    get_game_mod_tracker_file,
+    get_game_sound_database_file,
+    get_settings_file,
+)
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -24,39 +44,32 @@ from src.core.game_registry import (
     get_game,
     normalize_game_mode,
 )
-from src.wwise.pck_indexer import PCKIndexer
-from src.wwise.bnk_indexer import BNKIndexer
+from src.core.logger import get_logger
 from src.core.temp_cache_manager import TempCacheManager
-from src.audio.player import AudioPlayer
-from src.audio.converter import AudioConverter
-from src.data.sound_database import SoundDatabase
-from src.data.fingerprint_database import FingerprintDatabase
 from src.data.constellation_index import ConstellationIndex
-from src.mods.persistent_manager import PersistentModManager
-from src.wwise.pck_packer import PCKPacker
-from src.mods.package_manager import ModPackageManager
-from src.core.config_manager import (
-    get_config_dir,
-    get_game_constellation_index_file,
-    get_game_fingerprint_database_file,
-    get_game_mod_tracker_file,
-    get_game_sound_database_file,
-    get_settings_file,
-)
+from src.data.fingerprint_database import FingerprintDatabase
+from src.data.sound_database import SoundDatabase
 from src.gui.backend.audio_games import (
     build_browser_handlers,
 )
 from src.gui.backend.update_manager_bridge import _urlopen
-from src.wwise.patch_target_resolver import find_patch_pck_sources, resolve_and_extract
-from src.wwise.override_pck_patcher import patch_override_pcks, restore_override_pck_backups
 from src.gui.utils.native_dialogs import NativeDialogs
-from src.audio.matcher import AudioMatcher
-from src.audio import constellation
-from src.core.logger import get_logger
+from src.mods.package_manager import ModPackageManager
+from src.mods.persistent_manager import PersistentModManager
+from src.wwise.bnk_indexer import BNKIndexer
+from src.wwise.override_pck_patcher import (
+    patch_override_pcks,
+    restore_override_pck_backups,
+)
+from src.wwise.patch_target_resolver import find_patch_pck_sources, resolve_and_extract
+from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.pck_packer import PCKPacker
+
 logger = get_logger(__name__)
 
 
 _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
+
 
 def _get_tag_db_url():
     if app_config.DEBUG:
@@ -64,6 +77,7 @@ def _get_tag_db_url():
         dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
     return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
+
 
 class _WorkerThread(QThread):
 
@@ -81,6 +95,7 @@ class _WorkerThread(QThread):
         except Exception as e:
             import traceback
             self.finished.emit(False, f"{e}\n{traceback.format_exc()}")
+
 
 def _pck_rel_key(pck_file_path, audio_root):
     # Return relative path like 'English/Banks0.pck' from audio_root, falling back to filename.
@@ -201,6 +216,7 @@ class TagDatabaseDownloadWorker(QThread):
         except Exception as e:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Download failed: %1").replace("%1", str(e)))
 
+
 class TagDatabaseCheckWorker(QThread):
 
     newTagsFound = pyqtSignal(int, str)
@@ -236,6 +252,7 @@ class TagDatabaseCheckWorker(QThread):
 
         except Exception:
             pass
+
 
 class AudioBrowserBridge(QObject):
 
@@ -1763,8 +1780,8 @@ class AudioBrowserBridge(QObject):
 
                 logger.info(f"[DEBUG] muteAudio: Detected lang_id={lang_id} for pck: {pck_filename}")
 
-            import wave
             import struct
+            import wave
 
             from XXAR import get_temp_dir
             silent_wav = Path(tempfile.mktemp(suffix=".wav", dir=str(get_temp_dir())))
@@ -2059,7 +2076,8 @@ class AudioBrowserBridge(QObject):
                 output_pck.parent.mkdir(parents=True, exist_ok=True)
 
                 if output_pck.exists():
-                    import os, stat
+                    import os
+                    import stat
                     os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
 
                 packer = PCKPacker(str(pck_file_path), str(output_pck))
@@ -2123,7 +2141,8 @@ class AudioBrowserBridge(QObject):
                 packer.pack(use_patching=False)
                 packer.close()
 
-                import os, stat
+                import os
+                import stat
                 os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
             try:
@@ -3004,8 +3023,8 @@ class AudioBrowserBridge(QObject):
 
             logger.info(f"[Audio Browser] Importing mod: {mod_name} v{mod_version} by {mod_author}")
 
-            import zipfile
             import tempfile
+            import zipfile
 
             with zipfile.ZipFile(mod_path, 'r') as zf:
 
@@ -3289,7 +3308,6 @@ class AudioBrowserBridge(QObject):
             p = data.get("pck_path", "")
             if p and Path(p).name == Path(pck_filename).name:
                 return p
-
 
         for loaded_path in self._pck_loaded:
             if Path(loaded_path).name == Path(pck_filename).name:

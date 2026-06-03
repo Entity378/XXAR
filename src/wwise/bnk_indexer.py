@@ -1,11 +1,9 @@
-
-
-from struct import unpack
-from io import BytesIO
 from collections import OrderedDict
+from io import BytesIO
+from struct import unpack
+
 
 class BNKIndexer:
-
 
     def __init__(self, bnk_bytes):
 
@@ -66,7 +64,6 @@ class BNKIndexer:
         return self.wem_list
 
     def extract_wem(self, wem_id):
-
 
         wem_info = None
         for wem in self.wem_list:

@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
 
 from src.core.logger import get_logger
 from src.gui.utils.native_dialogs import NativeDialogs

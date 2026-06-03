@@ -1,20 +1,19 @@
-
-
 import os
 import subprocess
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
+
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
 
 from src.core.app_config import APP_NAME
+from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS
 
-from src.core.logger import get_logger
 logger = get_logger(__name__)
 
+
 class GameBananaConnector:
-    
 
     def _connect_gamebanana(self):
-        
+
         self.gamebanana_page = self.root.findChild(QObject, "gameBananaPage")
         if not self.gamebanana_page:
             logger.info(f"[{APP_NAME}] GameBanana page not found")
@@ -156,4 +155,3 @@ class GameBananaConnector:
             Q_ARG("QVariant", mod_names),
             Q_ARG("QVariant", zip_path)
         )
-

@@ -3,20 +3,22 @@
 import hashlib
 import json
 import shutil
+import ssl
 import subprocess
 import tempfile
-import urllib.request
 import urllib.error
-import ssl
-import py7zr
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS
+import py7zr
+
 from src.core.config_manager import get_tools_dir
 
 # Constants
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS
+
 logger = get_logger(__name__)
 
 API_URL = (

@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
-from src.core.config_manager import get_settings_file
 
+from src.core.config_manager import get_settings_file
 from src.core.logger import get_logger
+
 logger = get_logger(__name__)
 
 _SETTINGS_KEY = "last_dirs"

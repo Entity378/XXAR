@@ -1,19 +1,18 @@
-from PyQt6.QtCore import QCoreApplication
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 
-from src.gui.utils.native_dialogs import NativeDialogs
 from src.core.app_config import APP_NAME
 from src.core.config_manager import get_game_sound_database_file
 from src.core.game_registry import DEFAULT_GAME_ID, build_audio_paths, normalize_game_id
-from src.core.subprocess_utils import IS_WINDOWS
-
-
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS
+from src.gui.utils.native_dialogs import NativeDialogs
+
 logger = get_logger(__name__)
+
 
 class AudioBrowserConnector:
 
@@ -173,7 +172,6 @@ class AudioBrowserConnector:
         ab.loadFromSettings()
         ab.checkForNewTagDb()
         logger.info(f"[{APP_NAME}] Audio browser page connected")
-
 
     def _on_new_tag_db_available(self, count):
         self.root.setProperty("pendingTagDbCount", count)

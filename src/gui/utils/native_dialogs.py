@@ -1,13 +1,16 @@
-import sys
-import subprocess
 import os
+import subprocess
+import sys
 from pathlib import Path
+
 from PyQt6.QtWidgets import QFileDialog
-from src.gui.utils.path_memory import get_last_dir, save_last_dir
-from src.core.subprocess_utils import IS_LINUX, is_frozen
 
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_LINUX, is_frozen
+from src.gui.utils.path_memory import get_last_dir, save_last_dir
+
 logger = get_logger(__name__)
+
 
 class NativeDialogs:
     @staticmethod
@@ -63,7 +66,6 @@ class NativeDialogs:
 
     @staticmethod
     def _parse_qt_filters(filter_str):
-
 
         zenity_args = []
         if not filter_str:

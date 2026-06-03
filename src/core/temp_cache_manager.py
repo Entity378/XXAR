@@ -1,11 +1,12 @@
 import atexit
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from collections import OrderedDict
+from pathlib import Path
+
 
 class TempCacheManager:
-    
+
     def __init__(self, max_cached_files=100):
 
         from XXAR import get_temp_dir
@@ -37,7 +38,6 @@ class TempCacheManager:
         return None
 
     def add_to_cache(self, cache_key, file_data, extension='.wav'):
-
 
         if len(self.cache_index) >= self.max_cached_files:
             oldest_key, oldest_path = self.cache_index.popitem(last=False)

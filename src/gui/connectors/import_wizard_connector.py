@@ -1,16 +1,15 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QObject, QMetaObject, Q_ARG, Qt
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 
-from src.core.app_config import APP_NAME
-
-from src.gui.utils.native_dialogs import NativeDialogs
-from src.gui.backend.import_worker import ImportWorker
 import src.core.app_config as app_config
-
-
+from src.core.app_config import APP_NAME
 from src.core.logger import get_logger
+from src.gui.backend.import_worker import ImportWorker
+from src.gui.utils.native_dialogs import NativeDialogs
+
 logger = get_logger(__name__)
+
 
 class ImportWizardConnector:
 

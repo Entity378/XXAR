@@ -10,14 +10,14 @@
 # File size of override PCKs stays identical (only 4 bytes changed per BNK).
 # Originals are backed up as .xxar_backup and restored on mod removal.
 
-import struct
 import shutil
+import struct
 from pathlib import Path
 
-from src.core.game_registry import get_game, DEFAULT_GAME_ID
+from src.core.game_registry import DEFAULT_GAME_ID, get_game
+from src.core.logger import get_logger
 from src.wwise.pck_indexer import PCKIndexer
 
-from src.core.logger import get_logger
 logger = get_logger(__name__)
 
 BACKUP_SUFFIX = ".xxar_backup"

@@ -1,12 +1,14 @@
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-import shutil
-from src.core.config_manager import get_tools_dir
-from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
 
+from src.core.config_manager import get_tools_dir
 from src.core.logger import get_logger
+from src.core.subprocess_utils import IS_WINDOWS
+from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
+
 logger = get_logger(__name__)
 
 try:
@@ -15,8 +17,8 @@ try:
 except ImportError:
     WWISE_AVAILABLE = False
 
-class AudioConverter:
 
+class AudioConverter:
 
     def __init__(self):
 
@@ -25,7 +27,6 @@ class AudioConverter:
         self.wwise_console = WwiseConsole() if WWISE_AVAILABLE else None
 
     def _find_ffmpeg(self):
-
 
         if IS_WINDOWS:
 
@@ -54,7 +55,6 @@ class AudioConverter:
         return ffmpeg
 
     def _find_vgmstream(self):
-
 
         if IS_WINDOWS:
 
@@ -239,7 +239,7 @@ class AudioConverter:
                 output_file.unlink(missing_ok=True)
 
     def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None):
-    
+
         wav_file = Path(wav_file)
 
         if not WWISE_AVAILABLE or not self.wwise_console:
@@ -385,6 +385,7 @@ class AudioConverter:
                 logger.error(f"Error converting {wav_file.name}: {e}")
         return converted
 
+
 def main():
 
     if len(sys.argv) < 2:
@@ -432,6 +433,7 @@ def main():
     except Exception as e:
         logger.error(f"\n[X] Error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

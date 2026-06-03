@@ -1,19 +1,18 @@
-
-
-import struct
 import os
 import shutil
+import struct
 import sys
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
+
+from src.core.logger import get_logger
 from src.wwise.bnk_handler import BNKFile
 from src.wwise.pck_indexer import PCKIndexer
 
-from src.core.logger import get_logger
 logger = get_logger(__name__)
 
-class PCKPacker:
 
+class PCKPacker:
 
     MAGIC = b'AKPK'
 
@@ -39,7 +38,6 @@ class PCKPacker:
         self.file_list = []
 
     def create_minimal_pck(self):
-
 
         self.soundbank_titles = {}
         self.soundbank_files = {}
@@ -645,6 +643,7 @@ class PCKPacker:
 
         self.close()
 
+
 def main():
 
     if len(sys.argv) < 4:
@@ -669,6 +668,7 @@ def main():
 
     packer.pack(use_patching=True)
     packer.close()
+
 
 if __name__ == "__main__":
     main()

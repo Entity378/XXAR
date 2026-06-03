@@ -1,6 +1,11 @@
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
-from src.core.app_config import ACCENT_COLOR, ACCENT_COLOR_DARK, ACCENT_COLOR_LIGHT, GAME_THEME_PALETTES
+from src.core.app_config import (
+    ACCENT_COLOR,
+    ACCENT_COLOR_DARK,
+    ACCENT_COLOR_LIGHT,
+    GAME_THEME_PALETTES,
+)
 from src.core.game_registry import DEFAULT_GAME_ID, normalize_game_id
 
 
