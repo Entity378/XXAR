@@ -139,6 +139,7 @@ class AudioConverter:
     def any_to_wav(self, input_file, output_file=None, sample_rate=48000, channels=2, normalize=True, normalize_lufs=-9):
 
         input_file = Path(input_file)
+        tmp_generated = False
         if output_file is None:
             candidate = input_file.with_suffix('.wav')
             if candidate == input_file:
@@ -146,6 +147,7 @@ class AudioConverter:
                 tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
                 tmp.close()
                 output_file = Path(tmp.name)
+                tmp_generated = True
             else:
                 output_file = candidate
         else:
@@ -165,6 +167,7 @@ class AudioConverter:
                     "  Ubuntu/Debian: sudo apt install ffmpeg"
                 )
 
+        wrote_output = False
         try:
             if normalize:
                 # Pass 1: measure integrated loudness
@@ -185,14 +188,21 @@ class AudioConverter:
                 if json_match:
                     import json as _json
                     measured = _json.loads(json_match.group())
-                    af = (
-                        f"loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true"
-                        f":measured_I={measured['input_i']}" if not 'inf' in measured['input_i'] else ''
-                        f":measured_TP={measured['input_tp']}" if not 'inf' in measured['input_tp'] else ''
-                        f":measured_LRA={measured['input_lra']}"
-                        f":measured_thresh={measured['input_thresh']}"
-                        f":offset={measured['target_offset']}" if not 'inf' in measured['target_offset'] else ''
-                    )
+                    measured_values = [
+                        measured['input_i'], measured['input_tp'], measured['input_lra'],
+                        measured['input_thresh'], measured['target_offset'],
+                    ]
+                    if any('inf' in str(v) for v in measured_values):
+                        af = f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11'
+                    else:
+                        af = (
+                            f"loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true"
+                            f":measured_I={measured['input_i']}"
+                            f":measured_TP={measured['input_tp']}"
+                            f":measured_LRA={measured['input_lra']}"
+                            f":measured_thresh={measured['input_thresh']}"
+                            f":offset={measured['target_offset']}"
+                        )
                 else:
                     # Fallback to single-pass dynamic if parse fails
                     af = f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11'
@@ -219,9 +229,14 @@ class AudioConverter:
                 raise RuntimeError(f"FFmpeg failed to convert {input_file.name}: {short_reason}")
             norm_msg = f" (normalized to {normalize_lufs} LUFS)" if normalize else ""
             logger.info(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
+            wrote_output = True
             return output_file
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to convert {input_file}: {e}")
+        finally:
+            # Remove the auto-created temp .wav if the conversion didn't finish.
+            if tmp_generated and not wrote_output:
+                output_file.unlink(missing_ok=True)
 
     def wav_to_wem(self, wav_file, output_file=None, wwise_dir=None):
     
@@ -250,7 +265,7 @@ class AudioConverter:
         try:
             result_wem = wwise.convert_to_wem(wav_file, output_dir)
             if output_file and result_wem != output_file:
-                result_wem.rename(output_file)
+                shutil.move(str(result_wem), str(output_file))
                 return output_file
             return result_wem
         except Exception as e:

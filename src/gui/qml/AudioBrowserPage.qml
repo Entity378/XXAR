@@ -1246,22 +1246,102 @@ Item {
                             }
 
                             XXARButton {
-                                text: "\u25B6 Play"
+                                id: playerBtnPlay
+                                text: "Play"
                                 enabled: playbackEnabled
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
                                 onClicked: playClicked()
+                                contentItem: Item {
+                                    implicitWidth: playRow.implicitWidth
+                                    implicitHeight: playRow.implicitHeight
+                                    RowLayout {
+                                        id: playRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+                                        Canvas {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            implicitWidth: 11
+                                            implicitHeight: 13
+                                            onPaint: {
+                                                var ctx = getContext("2d")
+                                                ctx.reset()
+                                                ctx.fillStyle = playerBtnPlay.textColor
+                                                ctx.beginPath()
+                                                ctx.moveTo(0, 0)
+                                                ctx.lineTo(width, height / 2)
+                                                ctx.lineTo(0, height)
+                                                ctx.closePath()
+                                                ctx.fill()
+                                            }
+                                        }
+                                        Text {
+                                            text: playerBtnPlay.text
+                                            color: playerBtnPlay.textColor
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: playerBtnPlay.fontSize
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+                                }
                             }
                             XXARButton {
-                                text: "\u23F8 Pause"
+                                id: playerBtnPause
+                                text: "Pause"
                                 enabled: isPlaying
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
                                 onClicked: pauseClicked()
+                                contentItem: Item {
+                                    implicitWidth: pauseRow.implicitWidth
+                                    implicitHeight: pauseRow.implicitHeight
+                                    RowLayout {
+                                        id: pauseRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+                                        Row {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            spacing: 3
+                                            Rectangle { width: 4; height: 13; radius: 1; color: playerBtnPause.textColor }
+                                            Rectangle { width: 4; height: 13; radius: 1; color: playerBtnPause.textColor }
+                                        }
+                                        Text {
+                                            text: playerBtnPause.text
+                                            color: playerBtnPause.textColor
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: playerBtnPause.fontSize
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+                                }
                             }
                             XXARButton {
-                                text: "\u23F9 Stop"
+                                id: playerBtnStop
+                                text: "Stop"
                                 enabled: isPlaying || isPaused
                                 buttonColor: enabled ? Theme.primaryAccent : Theme.disabledAccent
                                 onClicked: stopClicked()
+                                contentItem: Item {
+                                    implicitWidth: stopRow.implicitWidth
+                                    implicitHeight: stopRow.implicitHeight
+                                    RowLayout {
+                                        id: stopRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            width: 13
+                                            height: 13
+                                            radius: 1
+                                            color: playerBtnStop.textColor
+                                        }
+                                        Text {
+                                            text: playerBtnStop.text
+                                            color: playerBtnStop.textColor
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: playerBtnStop.fontSize
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+                                }
                             }
                         }
 
