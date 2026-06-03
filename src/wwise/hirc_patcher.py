@@ -253,18 +253,17 @@ def _find_hirc_sections(content):
 
 def _parse_music_track(content, data_start, obj_size, source_ids):
     # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track references any id in `source_ids`, else None.
-    d = data_start
-    end = d + obj_size
-    if d + 9 > end:
+    end = data_start + obj_size
+    if data_start + 9 > end:
         return None
 
-    obj_id = struct.unpack_from("<I", content, d)[0]
+    obj_id = struct.unpack_from("<I", content, data_start)[0]
     # flags: 1 byte at d+4
-    num_sources = struct.unpack_from("<I", content, d + 5)[0]
+    num_sources = struct.unpack_from("<I", content, data_start + 5)[0]
     if num_sources > 100:
         return None
 
-    p = d + 9
+    p = data_start + 9
     source_end = p + num_sources * _SOURCE_DATA_SIZE
     if source_end > end:
         return None
@@ -306,22 +305,17 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
         return None
 
     # --- Continue parsing to find AkPropBundle for volume ---
-    volume_patches = _parse_volume_from_track(content, p, end, patches)
-
+    try:
+        volume_patches = _parse_volume_from_track(content, p, end, patches)
+    except Exception:
+        # If parsing fails (unexpected layout), skip volume for this track.
+        volume_patches = []
     return (obj_id, patches, volume_patches)
 
 
 def _parse_volume_from_track(content, p, end, track_patches):
     # Post-playlist section of a MusicTrack; walks NodeBaseParams to find the AkPropBundle Volume entry.
     # Layout reference: parse_hirc_examples.py.
-    try:
-        return _parse_volume_from_track_inner(content, p, end, track_patches)
-    except Exception:
-        # If parsing fails (unexpected layout), skip volume for this track.
-        return []
-
-
-def _parse_volume_from_track_inner(content, p, end, track_patches):
     if p + 8 > end:
         return []
 

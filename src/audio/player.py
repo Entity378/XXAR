@@ -10,7 +10,7 @@ from src.core.config_manager import get_tools_dir
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS as _subprocess_kwargs
 
 if not IS_WINDOWS:
-    from PyQt6.QtMultimedia import QMediaPlayer, QMediaContent
+    from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PyQt6.QtCore import QUrl
 
 class AudioPlayer(QObject):
@@ -45,10 +45,12 @@ class AudioPlayer(QObject):
             self._poll_timer.timeout.connect(self._poll_ffplay_status)
         else:
             self.player = QMediaPlayer()
-            self.player.stateChanged.connect(self._on_state_changed)
+            self.audio_output = QAudioOutput()
+            self.player.setAudioOutput(self.audio_output)
+            self.player.playbackStateChanged.connect(self._on_state_changed)
             self.player.positionChanged.connect(self.position_changed)
             self.player.durationChanged.connect(self.duration_changed)
-            self.player.error.connect(self._on_error)
+            self.player.errorOccurred.connect(self._on_error)
 
     def refresh_tools(self):
 
@@ -219,7 +221,7 @@ class AudioPlayer(QObject):
                 self._start_ffplay_at(0)
             else:
                 url = QUrl.fromLocalFile(str(cached_wav))
-                self.player.setMedia(QMediaContent(url))
+                self.player.setSource(url)
                 self.player.play()
 
         except Exception as e:
@@ -236,7 +238,7 @@ class AudioPlayer(QObject):
             self._duration_ms = 0
             self._start_ffplay_at(0)
         else:
-            self.player.setMedia(QMediaContent(QUrl(url_str)))
+            self.player.setSource(QUrl(url_str))
             self.player.play()
 
     def play(self):
@@ -283,7 +285,7 @@ class AudioPlayer(QObject):
                 elapsed = self._pause_elapsed_ms + int((time.monotonic() - self._play_start_time) * 1000)
                 self._start_ffplay_at(elapsed)
         else:
-            self.player.setVolume(volume)
+            self.audio_output.setVolume(volume / 100)
 
     def set_position(self, position):
 
@@ -299,24 +301,24 @@ class AudioPlayer(QObject):
             return self._state
         else:
             state_map = {
-                QMediaPlayer.PlayingState: "playing",
-                QMediaPlayer.PausedState: "paused",
-                QMediaPlayer.StoppedState: "stopped"
+                QMediaPlayer.PlaybackState.PlayingState: "playing",
+                QMediaPlayer.PlaybackState.PausedState: "paused",
+                QMediaPlayer.PlaybackState.StoppedState: "stopped"
             }
             return state_map.get(self.player.state(), "stopped")
 
     def _on_state_changed(self, state):
 
         state_map = {
-            QMediaPlayer.PlayingState: "playing",
-            QMediaPlayer.PausedState: "paused",
-            QMediaPlayer.StoppedState: "stopped"
+            QMediaPlayer.PlaybackState.PlayingState: "playing",
+            QMediaPlayer.PlaybackState.PausedState: "paused",
+            QMediaPlayer.PlaybackState.StoppedState: "stopped"
         }
         self.state_changed.emit(state_map.get(state, "stopped"))
 
     def _on_error(self, error):
 
-        if error != QMediaPlayer.NoError:
+        if error != QMediaPlayer.Error.NoError:
             error_msg = self.player.errorString()
             self.error_occurred.emit(error_msg)
 

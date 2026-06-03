@@ -65,27 +65,20 @@ def _extract_audio_settings(file_info):
     if not isinstance(file_info, dict):
         return result
 
-    loop_mode = file_info.get('loop_point_mode')
-    if loop_mode is not None:
-        normalized = str(loop_mode).strip().lower()
-        if normalized and normalized != 'auto':
-            result['loop_point_mode'] = normalized
+    loop_point_mode = file_info.get('loop_point_mode', 'disabled')
+    if loop_point_mode != 'disabled':
+        result['loop_point_mode'] = loop_point_mode
 
-    try:
-        manual_ms = int(file_info.get('loop_point_manual_ms', 0) or 0)
-    except (TypeError, ValueError):
-        manual_ms = 0
-    if manual_ms > 0:
+    manual_ms = int(file_info.get('loop_point_manual_ms', 0))
+    if manual_ms > 0 and loop_point_mode == 'manual':
         result['loop_point_manual_ms'] = manual_ms
+    
+    volume_enabled = file_info.get('volume_enabled', False)
+    if volume_enabled:
+        result['volume_enabled'] = True
 
-    if 'volume_enabled' in file_info and file_info.get('volume_enabled') is False:
-        result['volume_enabled'] = False
-
-    try:
-        volume_db = round(float(file_info.get('volume_db', 0.0) or 0.0), 1)
-    except (TypeError, ValueError):
-        volume_db = 0.0
-    if volume_db != 0.0:
+    volume_db = round(float(file_info.get('volume_db', 0.0)), 1)
+    if volume_db != 0.0 and volume_enabled:
         result['volume_db'] = volume_db
 
     return result

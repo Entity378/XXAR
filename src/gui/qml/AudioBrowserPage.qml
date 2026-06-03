@@ -92,34 +92,24 @@ Item {
     property bool sortBySizeAsc: false
     property bool sortByDurationAsc: false
 
-    function loopModeToIndex(mode) {
-        if (mode === "manual") return 1
-        if (mode === "disabled") return 2
-        return 0
+    readonly property var loopModeToIndex: {
+        'auto': 0,
+        'manual': 1,
+        'disabled': 2
     }
 
-    function loopIndexToMode(index) {
-        if (index === 1) return "manual"
-        if (index === 2) return "disabled"
-        return "auto"
-    }
-
-    function pad2(n) {
-        return n < 10 ? "0" + n : "" + n
-    }
-
-    function pad3(n) {
-        if (n < 10) return "00" + n
-        if (n < 100) return "0" + n
-        return "" + n
-    }
+    readonly property var loopIndexToMode: [
+        'auto',
+        'manual',
+        'disabled'
+    ]
 
     function formatDurationMs(totalMs) {
         var ms = Math.max(0, Math.floor(Number(totalMs) || 0))
         var minutes = Math.floor(ms / 60000)
         var seconds = Math.floor((ms % 60000) / 1000)
         var millis = ms % 1000
-        return pad2(minutes) + ":" + pad2(seconds) + ":" + pad3(millis)
+        return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}.${millis.toString().padStart(3,'0')}`
     }
 
     ListModel { id: languageTabsModel }
@@ -2728,7 +2718,7 @@ Item {
                                         ]
                                         width: 130
                                         implicitHeight: 28
-                                        currentIndex: loopModeToIndex(loopPointMode || "auto")
+                                        currentIndex: loopModeToIndex[loopPointMode]
 
                                         background: Rectangle {
                                             HoverHandler { id: loopModeBgHover }
@@ -2815,7 +2805,7 @@ Item {
                                         }
 
                                         onActivated: function(selectedIndex) {
-                                            var selectedMode = loopIndexToMode(selectedIndex)
+                                            var selectedMode = loopIndexToMode[selectedIndex]
                                             if (selectedMode !== (loopPointMode || "auto")) {
                                                 changesModel.setProperty(rowIndex, "loopPointMode", selectedMode)
                                                 changeLoopPointModeSet(pckFile, trackerKey, selectedMode)
@@ -2850,7 +2840,7 @@ Item {
                                         }
                                         valueFromText: function(text, locale) {
                                             var raw = String(text || "").trim()
-                                            var m = raw.match(/^(\d+)\s*:\s*([0-5]?\d)\s*:\s*(\d{1,3})$/)
+                                            var m = raw.match(/^(\d+)\s*:\s*([0-5]?\d)\s*.\s*(\d{1,3})$/)
                                             if (m) {
                                                 var mm = parseInt(m[1], 10)
                                                 var ss = parseInt(m[2], 10)
@@ -2925,7 +2915,7 @@ Item {
                                         }
 
                                         onValueChanged: {
-                                            if ((loopPointMode || "auto") === "manual"
+                                            if (loopPointMode === "manual"
                                                     && value !== (loopPointManualMs || 0)) {
                                                 changesModel.setProperty(rowIndex, "loopPointManualMs", value)
                                                 changeLoopPointManualMsSet(

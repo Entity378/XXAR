@@ -692,7 +692,7 @@ class BaseBrowserHandler:
 
         target_path.write_bytes(content)
         patched_track_ids.update(dur_result["patched_source_ids"])
-        logger.info(f"[HIRC Patch] Written {len(content)} bytes to {target_path}")
+        logger.info(f"[HIRC Patch] Wrote {len(content)} bytes to {target_path}")
         return True
 
     def _find_bank_pck_files(self, audio_root):
@@ -777,7 +777,7 @@ class BaseBrowserHandler:
                     continue
 
                 loop_mode = self.normalize_loop_mode(
-                    repl_info.get("loop_point_mode", "auto")
+                    repl_info.get("loop_point_mode", "disabled")
                 )
                 if loop_mode == "disabled":
                     continue
@@ -837,7 +837,7 @@ class BaseBrowserHandler:
                 if track_id is None:
                     continue
 
-                if not repl_info.get("volume_enabled", True):
+                if not repl_info.get("volume_enabled", False):
                     continue
 
                 volume_db_by_track[track_id] = self.normalize_volume_db(

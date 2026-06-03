@@ -1399,7 +1399,7 @@ class AudioBrowserBridge(QObject):
         if text.isdigit():
             return int(text)
 
-        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*:\s*(\d{1,3})$", text)
+        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*.\s*(\d{1,3})$", text)
         if m:
             minutes = int(m.group(1))
             seconds = int(m.group(2))
@@ -1435,7 +1435,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(
                 QCoreApplication.translate(
                     "Application",
-                    "Invalid loop duration format. Use mm:ss:mmm.",
+                    "Invalid loop duration format. Use mm:ss.SSS.",
                 )
             )
             return
@@ -1466,7 +1466,7 @@ class AudioBrowserBridge(QObject):
         repl_info = file_changes.get(tracker_key)
         if not repl_info:
             return
-        current = bool(repl_info.get("volume_enabled", False))
+        current = bool(repl_info.get("volume_enabled", True))
         if current == enabled:
             return
         self.mod_manager.update_replacement_fields(
@@ -3074,14 +3074,21 @@ class AudioBrowserBridge(QObject):
                             file_type = file_info.get('file_type', 'wem')
                             lang_id = file_info.get('lang_id', 0)
                             bnk_id = file_info.get('bnk_id')
-
+                            loop_point_mode = file_info.get('loop_point_mode', 'disabled')
+                            loop_point_manual_ms = file_info.get('loop_point_manual_ms', 0)
+                            volume_enabled = file_info.get('volume_enabled', False)
+                            volume_db = file_info.get('volume_db', 0.0)
                             self.mod_manager.add_replacement(
                                 pck_name,
                                 int(file_id),
                                 str(permanent_wem),
                                 file_type,
                                 lang_id,
-                                bnk_id
+                                bnk_id,
+                                loop_point_mode,
+                                loop_point_manual_ms,
+                                volume_enabled,
+                                volume_db
                             )
 
                             replacement_count += 1
