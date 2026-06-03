@@ -1,10 +1,7 @@
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
-
-from PyQt6.QtCore import QCoreApplication
 
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, is_frozen
@@ -24,9 +21,9 @@ from PyQt6.QtCore import (
     pyqtSignal,
     pyqtSlot,
 )
-from PyQt6.QtGui import QFontDatabase, QGuiApplication, QIcon, QPixmap, QSurfaceFormat
-from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType
-from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtGui import QFontDatabase, QGuiApplication, QIcon, QSurfaceFormat
+from PyQt6.QtQml import QQmlApplicationEngine
+from PyQt6.QtWidgets import QApplication
 
 
 class ClipboardHelper(QObject):
@@ -47,7 +44,7 @@ from src.core.app_config import (
     APP_VERSION,
     switch_active_game,
 )
-from src.core.config_manager import get_cache_dir, get_settings_file, normalize_game_id
+from src.core.config_manager import get_settings_file, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
 from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
 from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
@@ -176,11 +173,6 @@ class AutoDetectWorker(QThread):
             )
 
         self.notFound.emit()
-
-
-def theme_singleton_provider(engine, script_engine):
-
-    return None
 
 
 class Application(
@@ -368,8 +360,6 @@ class Application(
 
         root = self.engine.rootObjects()[0]
         self.root = root
-
-        from PyQt6.QtGui import QGuiApplication
 
         screen = QGuiApplication.primaryScreen()
         screen_geo = screen.availableGeometry()

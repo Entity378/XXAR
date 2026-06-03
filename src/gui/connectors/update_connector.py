@@ -1,6 +1,6 @@
-import os
+import subprocess
 
-from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
+from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, Qt
 from PyQt6.QtWidgets import QApplication
 
 import src.core.app_config as app_config
@@ -187,7 +187,6 @@ class UpdateConnector:
         else:
             exe = _get_real_exe_path()
             logger.info(f"[{APP_NAME}]Launching updated binary: {exe}")
-            import subprocess
             subprocess.Popen(
                 [exe],
                 start_new_session=True,

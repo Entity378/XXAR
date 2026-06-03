@@ -4,12 +4,13 @@ import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
+from src.core.paths import get_temp_dir
+
 
 class TempCacheManager:
 
     def __init__(self, max_cached_files=100):
 
-        from XXAR import get_temp_dir
         self.cache_dir = Path(tempfile.mkdtemp(prefix='xxar_audio_cache_', dir=str(get_temp_dir())))
         self.max_cached_files = max_cached_files
         self.cache_index = OrderedDict()

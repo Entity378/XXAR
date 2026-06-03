@@ -7,6 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from src.core.config_manager import get_tools_dir
+from src.core.paths import get_temp_dir
 from src.core.subprocess_utils import IS_WINDOWS
 from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
@@ -183,7 +184,6 @@ class AudioPlayer(QObject):
 
             if not cached_wav:
 
-                from XXAR import get_temp_dir
                 temp_wem = Path(tempfile.mktemp(suffix='.wem', dir=str(get_temp_dir())))
                 temp_wem.write_bytes(wem_bytes)
                 self.temp_files.append(temp_wem)

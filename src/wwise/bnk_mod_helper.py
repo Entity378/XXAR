@@ -22,7 +22,7 @@ def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
     if not wem_files:
         raise FileNotFoundError(f"No .wem files found in {wem_files_dir}")
 
-    logger.info(f"\nPreparing BNK structure...")
+    logger.info("\nPreparing BNK structure...")
     logger.info(f"  BNK ID: {bnk_id}")
     logger.info(f"  WEM files: {len(wem_files)}")
 

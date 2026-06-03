@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 from PyQt6.QtWidgets import QFileDialog

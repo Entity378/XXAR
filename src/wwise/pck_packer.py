@@ -1,8 +1,8 @@
-import os
 import shutil
 import struct
 import sys
 from io import BytesIO
+from math import ceil
 from pathlib import Path
 
 from src.core.logger import get_logger
@@ -484,7 +484,7 @@ class PCKPacker:
                 else:
 
                     logger.warning(f"[!] Warning: ID {file_id} is larger than original ({new_size} > {original_size})")
-                    logger.info(f"Truncating to fit original size. Audio may be incomplete!")
+                    logger.info("Truncating to fit original size. Audio may be incomplete!")
                     f.seek(original_offset)
                     f.write(new_data[:original_size])
 
@@ -604,7 +604,6 @@ class PCKPacker:
             for lang_id, file_info in lang_items:
                 package_id, file_size, origin_offset = file_info
 
-                from math import ceil
                 offset_multiplicand = (init_offset >> 32) + 1
                 offset_multiplier = ceil(init_offset / offset_multiplicand)
                 fill_bytes = init_offset % offset_multiplicand

@@ -1,21 +1,18 @@
+import json
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+from src.audio.wwise_wrapper import WwiseConsole
 from src.core.config_manager import get_tools_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS
 from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
 logger = get_logger(__name__)
-
-try:
-    from src.audio.wwise_wrapper import WwiseConsole
-    WWISE_AVAILABLE = True
-except ImportError:
-    WWISE_AVAILABLE = False
 
 
 class AudioConverter:
@@ -24,7 +21,7 @@ class AudioConverter:
 
         self.ffmpeg_path = self._find_ffmpeg()
         self.vgmstream_path = self._find_vgmstream()
-        self.wwise_console = WwiseConsole() if WWISE_AVAILABLE else None
+        self.wwise_console = WwiseConsole()
 
     def _find_ffmpeg(self):
 
@@ -101,8 +98,8 @@ class AudioConverter:
                 ], check=True, capture_output=True, **_subprocess_kwargs)
                 logger.info(f"Converted (vgmstream): {wem_file.name} -> {output_file.name}")
                 return output_file
-            except subprocess.CalledProcessError as e:
-                logger.error(f"vgmstream failed, trying FFmpeg...")
+            except subprocess.CalledProcessError:
+                logger.error("vgmstream failed, trying FFmpeg...")
 
         if self.ffmpeg_path:
             try:
@@ -116,7 +113,7 @@ class AudioConverter:
                 ], check=True, capture_output=True, text=True, **_subprocess_kwargs)
                 logger.info(f"Converted (ffmpeg): {wem_file.name} -> {output_file.name}")
                 return output_file
-            except subprocess.CalledProcessError as e:
+            except subprocess.CalledProcessError:
                 pass
 
         if IS_WINDOWS:
@@ -143,7 +140,6 @@ class AudioConverter:
         if output_file is None:
             candidate = input_file.with_suffix('.wav')
             if candidate == input_file:
-                import tempfile
                 tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
                 tmp.close()
                 output_file = Path(tmp.name)
@@ -183,11 +179,9 @@ class AudioConverter:
                 )
                 stderr_text = result.stderr.decode('utf-8', errors='replace')
                 # Extract measured values from JSON block in stderr
-                import re as _re
-                json_match = _re.search(r'\{[^{}]+\}', stderr_text, _re.DOTALL)
+                json_match = re.search(r'\{[^{}]+\}', stderr_text, re.DOTALL)
                 if json_match:
-                    import json as _json
-                    measured = _json.loads(json_match.group())
+                    measured = json.loads(json_match.group())
                     measured_values = [
                         measured['input_i'], measured['input_tp'], measured['input_lra'],
                         measured['input_thresh'], measured['target_offset'],
@@ -242,7 +236,7 @@ class AudioConverter:
 
         wav_file = Path(wav_file)
 
-        if not WWISE_AVAILABLE or not self.wwise_console:
+        if not self.wwise_console:
             raise RuntimeError(
                 "Wwise is not installed.\n\n"
                 "Please install Wwise from the Settings page to convert WAV files to WEM format."
@@ -360,7 +354,7 @@ class AudioConverter:
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        if not WWISE_AVAILABLE or not self.wwise_console or not self.wwise_console.is_installed():
+        if not self.wwise_console or not self.wwise_console.is_installed():
             raise RuntimeError(
                 "Wwise is not installed.\n\n"
                 "Please install Wwise from the Settings page to convert WAV files to WEM format."

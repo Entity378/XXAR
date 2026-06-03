@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -196,7 +197,6 @@ def _download_hpatchz(progress_cb=None) -> str | None:
                     break
                 f.write(chunk)
 
-        import zipfile
         with zipfile.ZipFile(tmp_path, "r") as zf:
             zf.extractall(install_dir)
     except Exception as e:

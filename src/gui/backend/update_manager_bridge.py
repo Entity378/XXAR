@@ -472,7 +472,7 @@ class UpdateManagerBridge(QObject):
                 self.updateError.emit(f"Unknown update kind: {self._downloaded_kind}")
                 return
 
-            logger.info(f"[Updater] Update handoff complete")
+            logger.info("[Updater] Update handoff complete")
             handed_off = True
             self.updateApplied.emit()
 

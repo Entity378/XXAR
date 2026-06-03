@@ -185,7 +185,6 @@ class AudioBrowserConnector:
     def on_audio_context_menu(self, item_id, item_type, pck_path, x, y):
         if "WEM" not in item_type and "wem" not in item_type.lower():
             return
-        pass
 
     def _on_audio_playback_state(self, playing, paused, enabled):
         if self.audio_page:
@@ -226,7 +225,7 @@ class AudioBrowserConnector:
     def _on_audio_navigate_to_item(self, file_id, pck_path, bnk_id=""):
         logger.info(f"[Connector] _on_audio_navigate_to_item called: file_id={file_id}, pck_path={pck_path}, bnk_id={bnk_id}")
         if self.audio_page:
-            logger.info(f"[Connector] audio_page exists, invoking scrollToItem")
+            logger.info("[Connector] audio_page exists, invoking scrollToItem")
             result = QMetaObject.invokeMethod(
                 self.audio_page, "scrollToItem",
                 Qt.ConnectionType.QueuedConnection,
@@ -236,7 +235,7 @@ class AudioBrowserConnector:
             )
             logger.info(f"[Connector] invokeMethod returned: {result}")
         else:
-            logger.info(f"[Connector] audio_page is None!")
+            logger.info("[Connector] audio_page is None!")
 
     def _on_audio_changes(self, changes):
         if self.audio_page:

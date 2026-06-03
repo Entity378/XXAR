@@ -1,23 +1,22 @@
 import json
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from PyQt6.QtCore import (
     QCoreApplication,
     QObject,
     QThread,
     QTimer,
-    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
-from PyQt6.QtQml import QQmlApplicationEngine
 
 import src.core.app_config as app_config
-from src.core.app_config import APP_NAME, CONFIG_DIR_NAME
+from src.core.app_config import APP_NAME
 from src.core.config_manager import (
     get_custom_mod_library_root,
     get_settings_file,
@@ -270,7 +269,7 @@ class ModManagerBridge(QObject):
                     self.modCreationModeChanged.emit(self.mod_creation_mode)
 
                     if self.game_audio_dir or self.persistent_dir:
-                        logger.info(f"[Mod Manager] Loaded game directories from settings")
+                        logger.info("[Mod Manager] Loaded game directories from settings")
                         logger.info(f"[Mod Manager]   Active game: {self.active_game_id}")
                         if self.game_audio_dir:
                             logger.info(f"[Mod Manager]   Game audio: {self.game_audio_dir}")
@@ -478,7 +477,7 @@ class ModManagerBridge(QObject):
 
             metadata = self.mod_package_manager.validate_mod_package(file_path)
 
-            logger.info(f"[Mod Manager] Package valid:")
+            logger.info("[Mod Manager] Package valid:")
             logger.info(f"[Mod Manager]   Name: {metadata['name']}")
             logger.info(f"[Mod Manager]   Author: {metadata.get('author', 'Unknown')}")
             logger.info(f"[Mod Manager]   Version: {metadata.get('version', '1.0.0')}")
@@ -493,7 +492,7 @@ class ModManagerBridge(QObject):
 
             if install_result is None:
 
-                logger.info(f"[Mod Manager] Installation skipped: newer version already installed")
+                logger.info("[Mod Manager] Installation skipped: newer version already installed")
                 self.errorOccurred.emit(
                     "Installation Skipped",
                     f"A newer version of '{metadata['name']}' is already installed."
@@ -547,7 +546,7 @@ class ModManagerBridge(QObject):
         try:
             logger.info(f"[Mod Manager] Removing mod: {mod_uuid}")
             self.mod_package_manager.remove_mod(mod_uuid)
-            logger.info(f"[Mod Manager] Mod removed successfully")
+            logger.info("[Mod Manager] Mod removed successfully")
             self.progressUpdate.emit("Mod removed")
             self.modRemoved.emit(mod_uuid)
             self.refreshMods()
@@ -865,8 +864,6 @@ class ModManagerBridge(QObject):
     @pyqtSlot(str)
     def playSound(self, path):
         try:
-            from urllib.parse import urlparse
-            from urllib.request import url2pathname
             parsed = urlparse(path)
             if parsed.scheme == 'file':
                 path = url2pathname(parsed.path)

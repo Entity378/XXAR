@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image
+
 from src.core.app_config import APP_VERSION as app_version
 from src.core.config_manager import (
     get_settings_file,
@@ -15,8 +17,8 @@ from src.core.config_manager import (
 )
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 from src.core.logger import get_logger
+from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
-from src.wwise.bnk_mod_helper import prepare_bnk_structure
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
@@ -680,7 +682,6 @@ class ModPackageManager:
                 except Exception as e:
                     logger.error(f"Warning: Failed to remove read-only from {output_pck}: {e}")
 
-            from XXAR import get_temp_dir
             temp_dir = Path(tempfile.mkdtemp(prefix='mod_apply_', dir=str(get_temp_dir())))
 
             try:
@@ -819,11 +820,8 @@ class ModPackageManager:
 
     def create_mod_package(self, output_path, metadata, current_replacements, thumbnail_path=None):
 
-        from PIL import Image
-
         output_path = Path(output_path)
 
-        from XXAR import get_temp_dir
         temp_dir = Path(tempfile.mkdtemp(prefix='mod_export_', dir=str(get_temp_dir())))
 
         try:

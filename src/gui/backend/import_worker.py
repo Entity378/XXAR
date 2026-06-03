@@ -5,11 +5,13 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PIL import Image
+from PyQt6.QtCore import QThread, pyqtSignal
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
+from src.core.paths import get_temp_dir
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
@@ -88,13 +90,10 @@ class ImportWorker(QThread):
 
     def _convert_mod(self):
 
-        from PIL import Image
-
         temp_dir = None
 
         try:
 
-            from XXAR import get_temp_dir
             temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
 
             wem_dir = temp_dir / 'wem_files'

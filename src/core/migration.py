@@ -179,7 +179,7 @@ def _migrate_dir(src: Path, dst: Path) -> None:
     _log(f"Migrating {src} -> {dst}")
 
     if dst.exists() and _has_files(dst):
-        _log(f"  destination has files, resuming with per-file copy")
+        _log("  destination has files, resuming with per-file copy")
         if _per_file_copy(src, dst) == 0:
             try:
                 shutil.rmtree(str(src))
@@ -193,7 +193,7 @@ def _migrate_dir(src: Path, dst: Path) -> None:
             shutil.rmtree(str(dst))
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
-        _log(f"  atomic move ok")
+        _log("  atomic move ok")
         return
     except OSError as e:
         _log(f"  atomic move failed: {e} (falling back to per-file copy)")

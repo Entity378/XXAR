@@ -2,25 +2,32 @@ import json
 import os
 import re
 import ssl
+import tempfile
 import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import py7zr
+import rarfile
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
+from src.core.config_manager import ConfigManager, get_settings_file
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     get_gamebanana_game_id,
     normalize_game_id,
 )
 from src.core.logger import get_logger
+from src.core.paths import get_temp_dir
 from src.core.subprocess_utils import IS_WINDOWS, get_bundled_resource
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.package_manager import ModPackageManager
 
 logger = get_logger(__name__)
 
@@ -49,7 +56,6 @@ AUDIO_EXTENSIONS = ('.mp3', '.ogg', '.wav', '.flac', '.aac', '.m4a')
 
 def _cache_path():
     try:
-        from XXAR import get_temp_dir
         return get_temp_dir() / "gamebanana_cache.json"
     except Exception:
         return Path(__file__).parent / "gamebanana_cache.json"
@@ -57,7 +63,6 @@ def _cache_path():
 
 def _thumb_dir():
     try:
-        from src.core.config_manager import ConfigManager
         d = ConfigManager().data_dir / "gamebanana_thumbs"
     except Exception:
         d = Path(__file__).parent / "gamebanana_thumbs"
@@ -233,7 +238,6 @@ class FetchModsWorker(QThread):
         except urllib.error.URLError as e:
             self.finished.emit(False, f"Network Error: {e.reason}")
         except Exception as e:
-            import traceback
             self.finished.emit(False, f"Error: {str(e)}\n{traceback.format_exc()}")
 
     def _parse_mod_data(self, data):
@@ -336,7 +340,6 @@ class FetchMiscModsWorker(QThread):
                 except Exception as e:
                     logger.error(f"[GameBanana] Error parsing misc mod: {e}")
 
-            from concurrent.futures import ThreadPoolExecutor, as_completed
             native_mods = []
             with ThreadPoolExecutor(max_workers=self.CONCURRENT_CHECKS) as pool:
                 futures = {pool.submit(self._check_mod, mod['id']): mod for mod in candidates}
@@ -361,7 +364,6 @@ class FetchMiscModsWorker(QThread):
         except urllib.error.URLError as e:
             self.finished.emit(False, f"Network Error: {e.reason}")
         except Exception as e:
-            import traceback
             self.finished.emit(False, f"Error: {str(e)}\n{traceback.format_exc()}")
 
     def _parse_mod_data(self, data):
@@ -521,7 +523,6 @@ class FetchModDetailsWorker(QThread):
         except urllib.error.URLError as e:
             self.finished.emit(False, f"Network Error: {e.reason}")
         except Exception as e:
-            import traceback
             self.finished.emit(False, f"Error: {str(e)}\n{traceback.format_exc()}")
 
     def _run_sound_type(self):
@@ -934,15 +935,9 @@ def _open_archive(path):
 
     suffix = path.suffix.lower()
     if suffix == '.zip':
-        import zipfile
         zf = zipfile.ZipFile(path, 'r')
         return zf, lambda: zf.namelist(), lambda name: zf.read(name)
     elif suffix == '.rar':
-        try:
-            import rarfile
-        except ImportError:
-            raise RuntimeError("rarfile is not installed. Run: pip install rarfile")
-
         unrar_path = _find_bundled_unrar()
         if unrar_path:
             rarfile.UNRAR_TOOL = unrar_path
@@ -958,12 +953,6 @@ def _open_archive(path):
             raise
         return rf, lambda: rf.namelist(), lambda name: rf.read(name)
     elif suffix in ('.7z', '.7zip'):
-        try:
-            import py7zr
-        except ImportError:
-            raise RuntimeError("py7zr is not installed. Run: pip install py7zr")
-        import os
-        import tempfile
         sz = py7zr.SevenZipFile(path, 'r')
         names = sz.getnames()
 
@@ -994,16 +983,6 @@ class InstallModWorker(QThread):
         self.game_id = game_id
 
     def run(self):
-        try:
-            from src.mods.package_manager import (
-                InvalidModPackageError,
-                ModPackageManager,
-            )
-            from XXAR import get_temp_dir
-        except ImportError:
-            self.finished.emit(False, "Could not import XXAR modules")
-            return
-
         try:
             archive, namelist_fn, read_fn = _open_archive(self.archive_path)
             with archive:
@@ -1095,7 +1074,6 @@ class DownloadModWorker(QThread):
             self.finished.emit(True, str(self.save_path))
 
         except Exception as e:
-            import traceback
             self.finished.emit(False, f"Download failed: {str(e)}\n{traceback.format_exc()}")
 
 
@@ -1197,9 +1175,6 @@ class GameBananaBridge(QObject):
     def fetchThumbnail(self, mod_id):
 
         try:
-            import json
-
-            from src.core.config_manager import get_settings_file
             settings_file = get_settings_file()
             if settings_file.exists():
                 with open(settings_file, "r") as f:
@@ -1211,7 +1186,6 @@ class GameBananaBridge(QObject):
 
         cached = _cache_get("thumbnails", mod_id)
         if cached and cached.startswith("file://"):
-            from pathlib import Path
             if Path(cached[7:]).exists():
                 self.thumbnailUpdated.emit(mod_id, cached)
                 return
@@ -1364,7 +1338,6 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
             return
 
-        from XXAR import get_temp_dir
         temp_dir = get_temp_dir() / "gamebanana_downloads"
         save_path = temp_dir / filename
 
@@ -1461,7 +1434,6 @@ class GameBananaBridge(QObject):
     @pyqtSlot(result='QVariantList')
     def getInstalledModNames(self):
         try:
-            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager(game_id=self._active_game_id)
             return [
                 mod['metadata'].get('name', '')
@@ -1480,7 +1452,6 @@ class GameBananaBridge(QObject):
     def getInstalledModIds(self):
 
         try:
-            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager(game_id=self._active_game_id)
             mod_ids = []
             for mod in manager.get_installed_mods():
@@ -1495,7 +1466,6 @@ class GameBananaBridge(QObject):
     def getInstalledDownloadUrls(self):
 
         try:
-            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager(game_id=self._active_game_id)
             totals = dict(_cache.get("mod_totals_by_url", {}))
             mods_by_url = {}
@@ -1527,7 +1497,6 @@ class GameBananaBridge(QObject):
     def getInstalledModsByUrl(self):
 
         try:
-            from src.mods.package_manager import ModPackageManager
             manager = ModPackageManager(game_id=self._active_game_id)
             result = {}
             for mod in manager.get_installed_mods():
@@ -1546,7 +1515,6 @@ class GameBananaBridge(QObject):
     def getModTotalsByUrl(self):
 
         try:
-            from src.mods.package_manager import ModPackageManager
             totals = dict(_cache.get("mod_totals_by_url", {}))
             for mod in ModPackageManager(game_id=self._active_game_id).get_installed_mods():
                 url = mod['metadata'].get('gamebanana_download_url')

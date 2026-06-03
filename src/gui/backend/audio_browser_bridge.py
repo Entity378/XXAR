@@ -2,12 +2,16 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import stat
 import struct
-import subprocess
 import tempfile
 import threading
+import traceback
 import urllib.error
 import urllib.request
+import wave
+import zipfile
 from pathlib import Path
 
 from PyQt6.QtCore import (
@@ -17,6 +21,7 @@ from PyQt6.QtCore import (
     QObject,
     Qt,
     QThread,
+    QTimer,
     pyqtSignal,
     pyqtSlot,
 )
@@ -45,6 +50,7 @@ from src.core.game_registry import (
     normalize_game_mode,
 )
 from src.core.logger import get_logger
+from src.core.paths import get_base_path, get_temp_dir
 from src.core.temp_cache_manager import TempCacheManager
 from src.data.constellation_index import ConstellationIndex
 from src.data.fingerprint_database import FingerprintDatabase
@@ -73,7 +79,6 @@ _DATA_DIR_TO_GAME_MODE = get_data_dir_to_game_id_map()
 
 def _get_tag_db_url():
     if app_config.DEBUG:
-        from XXAR import get_base_path
         dev_path = get_base_path() / "data" / app_config.DATA_SUBDIR / "dev_sound_database.json"
         return dev_path.as_uri()
     return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
@@ -93,7 +98,6 @@ class _WorkerThread(QThread):
             result = self.func(*self.args)
             self.finished.emit(True, result)
         except Exception as e:
-            import traceback
             self.finished.emit(False, f"{e}\n{traceback.format_exc()}")
 
 
@@ -631,7 +635,7 @@ class AudioBrowserBridge(QObject):
 
             if problems:
                 detail = "\n\n".join(problems)
-                logger.warning(f"[File Check] WARNING: Issues found with streaming PCK files")
+                logger.warning("[File Check] WARNING: Issues found with streaming PCK files")
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
                     Qt.ConnectionType.QueuedConnection,
@@ -818,11 +822,11 @@ class AudioBrowserBridge(QObject):
         logger.info(f"[ExpandPCK] expandPckItem called: {pck_path}")
 
         if pck_path in self._pck_loaded:
-            logger.info(f"[ExpandPCK] PCK already loaded, returning")
+            logger.info("[ExpandPCK] PCK already loaded, returning")
             return
 
         self._pck_loaded[pck_path] = True
-        logger.info(f"[ExpandPCK] Marking PCK as loaded and indexing")
+        logger.info("[ExpandPCK] Marking PCK as loaded and indexing")
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Indexing %1...").replace("%1", Path(pck_path).name))
 
         try:
@@ -924,7 +928,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(
                 QCoreApplication.translate("Application", "Loaded %1 files from %2").replace("%1", str(len(items))).replace("%2", Path(pck_path).name)
             )
-            logger.info(f"[ExpandPCK] expandPckItem completed successfully")
+            logger.info("[ExpandPCK] expandPckItem completed successfully")
 
         except Exception as e:
             logger.error(f"[ExpandPCK] Error during expansion: {e}")
@@ -933,11 +937,9 @@ class AudioBrowserBridge(QObject):
     def _expand_bnk_item(self, bnk_id):
 
         bnk_data = None
-        bnk_key = None
         for key, data in self._item_data.items():
             if key.startswith("bnk:") and str(data.get("file_id")) == bnk_id:
                 bnk_data = data
-                bnk_key = key
                 break
 
         if not bnk_data:
@@ -1133,14 +1135,14 @@ class AudioBrowserBridge(QObject):
 
         meta = self._find_item_meta(item_id, item_type, pck_path)
         if not meta:
-            logger.info(f"[PlayButton] No meta found in _item_data, checking match metadata")
+            logger.info("[PlayButton] No meta found in _item_data, checking match metadata")
 
             meta_key = f"{item_id}:{pck_path}"
             if meta_key in self._match_metadata:
                 meta = self._match_metadata[meta_key]
                 logger.info(f"[PlayButton] Found in match metadata: {meta}")
             else:
-                logger.info(f"[PlayButton] Not in match metadata either")
+                logger.info("[PlayButton] Not in match metadata either")
 
                 if not pck_path or not Path(pck_path).exists():
                     logger.info(f"[PlayButton] Invalid pck_path: {pck_path}")
@@ -1602,7 +1604,7 @@ class AudioBrowserBridge(QObject):
         logger.info(f"[Navigate] navigateToSearchResult called: id={file_id}, type={item_type}, pck={pck_path}, bnk={bnk_id}")
 
         if not pck_path:
-            logger.info(f"[Navigate] No pck_path provided")
+            logger.info("[Navigate] No pck_path provided")
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Cannot navigate to file %1").replace("%1", str(file_id)))
             return
 
@@ -1624,7 +1626,7 @@ class AudioBrowserBridge(QObject):
                 item_type = "wem_embedded"
                 logger.info(f"[Navigate] Redirected to: pck={pck_path}, bnk={bnk_id}, type={item_type}")
             else:
-                logger.info(f"[Navigate] No alternative location found in file_id_index")
+                logger.info("[Navigate] No alternative location found in file_id_index")
 
         needs_delay = False
         if pck_path not in self._pck_loaded:
@@ -1640,8 +1642,7 @@ class AudioBrowserBridge(QObject):
                 needs_delay = True
 
         if needs_delay:
-            logger.info(f"[Navigate] Delaying navigation by 500ms to let tree update")
-            from PyQt6.QtCore import QTimer
+            logger.info("[Navigate] Delaying navigation by 500ms to let tree update")
             QTimer.singleShot(500, lambda: self._do_navigate(file_id, pck_path, bnk_id))
         else:
             self._do_navigate(file_id, pck_path, bnk_id)
@@ -1741,7 +1742,6 @@ class AudioBrowserBridge(QObject):
                     bnk_indexer.parse_didx()
                     wem_bytes = bnk_indexer.extract_wem(meta["wem_id"])
 
-            from XXAR import get_temp_dir
             temp_wem = Path(tempfile.mktemp(suffix=".wem", dir=str(get_temp_dir())))
             temp_wem.write_bytes(wem_bytes)
 
@@ -1780,10 +1780,6 @@ class AudioBrowserBridge(QObject):
 
                 logger.info(f"[DEBUG] muteAudio: Detected lang_id={lang_id} for pck: {pck_filename}")
 
-            import struct
-            import wave
-
-            from XXAR import get_temp_dir
             silent_wav = Path(tempfile.mktemp(suffix=".wav", dir=str(get_temp_dir())))
             sample_rate = 48000
             duration_samples = int(0.1 * sample_rate)
@@ -1851,7 +1847,6 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
 
     def tr(self, text):
-        from PyQt6.QtCore import QCoreApplication
         return QCoreApplication.translate("Application", text)
 
     def showChanges(self):
@@ -2076,8 +2071,6 @@ class AudioBrowserBridge(QObject):
                 output_pck.parent.mkdir(parents=True, exist_ok=True)
 
                 if output_pck.exists():
-                    import os
-                    import stat
                     os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
 
                 packer = PCKPacker(str(pck_file_path), str(output_pck))
@@ -2141,8 +2134,6 @@ class AudioBrowserBridge(QObject):
                 packer.pack(use_patching=False)
                 packer.close()
 
-                import os
-                import stat
                 os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
             try:
@@ -2971,7 +2962,6 @@ class AudioBrowserBridge(QObject):
                 Qt.ConnectionType.QueuedConnection, Q_ARG("QVariant", status_msg)
             )
 
-            from PyQt6.QtCore import QTimer
             QTimer.singleShot(1000, lambda: QMetaObject.invokeMethod(
                 self.audio_match_dialog, "hide", Qt.ConnectionType.QueuedConnection
             ))
@@ -3023,12 +3013,8 @@ class AudioBrowserBridge(QObject):
 
             logger.info(f"[Audio Browser] Importing mod: {mod_name} v{mod_version} by {mod_author}")
 
-            import tempfile
-            import zipfile
-
             with zipfile.ZipFile(mod_path, 'r') as zf:
 
-                from XXAR import get_temp_dir
                 temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
 
                 try:
@@ -3047,7 +3033,6 @@ class AudioBrowserBridge(QObject):
                             thumbnail_ext = source_thumbnail.suffix
                             permanent_thumbnail = permanent_storage / f"thumbnail_{mod_name.replace(' ', '_')}{thumbnail_ext}"
 
-                            import shutil
                             shutil.copy2(source_thumbnail, permanent_thumbnail)
                             thumbnail_path = str(permanent_thumbnail)
                             logger.info(f"[Audio Browser] Saved thumbnail to: {thumbnail_path}")
@@ -3078,7 +3063,6 @@ class AudioBrowserBridge(QObject):
                             permanent_storage.mkdir(parents=True, exist_ok=True)
 
                             permanent_wem = permanent_storage / f"imported_{pck_name.replace('/','_')}_{file_id}_{replacement_count}.wem"
-                            import shutil
                             shutil.copy2(wem_path, permanent_wem)
 
                             file_type = file_info.get('file_type', 'wem')
@@ -3126,10 +3110,9 @@ class AudioBrowserBridge(QObject):
                         f"../assets/{app_config.ASSETS_DIR}/YanagiSmug.png"
                     )
 
-                except Exception as e:
+                except Exception:
 
                     if temp_dir.exists():
-                        import shutil
                         shutil.rmtree(temp_dir, ignore_errors=True)
                     raise
 

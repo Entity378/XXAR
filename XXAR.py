@@ -14,11 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import sys
 import os
+import sys
 from pathlib import Path
 
-from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK, is_frozen
+from src.core.subprocess_utils import IS_FLATPAK, IS_LINUX, IS_WINDOWS, is_frozen
 
 if IS_LINUX and 'QT_QPA_PLATFORM' not in os.environ:
     os.environ['QT_QPA_PLATFORM'] = 'wayland;xcb'
@@ -28,6 +28,7 @@ if IS_WINDOWS:
 
 # Force the Basic Qt Quick Controls style so our custom background/contentItem overrides work — the native style refuses customization.
 os.environ.setdefault('QT_QUICK_CONTROLS_STYLE', 'Basic')
+
 
 def _load_ui_scale():
     import json
@@ -46,6 +47,7 @@ def _load_ui_scale():
                 os.environ['QT_SCALE_FACTOR'] = str(scale)
     except Exception:
         pass
+
 
 _load_ui_scale()
 
@@ -68,27 +70,10 @@ _redirect_qml_disk_cache()
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false;qt.text.font.db=false;qt.network.ssl=false'
 
 from src.core.app_config import APP_VERSION
+
 __version__ = APP_VERSION
 
-def get_base_path():
-
-    if hasattr(sys, '_MEIPASS'):
-
-        return Path(sys._MEIPASS)
-    return Path(__file__).parent
-
-def get_temp_dir():
-    from src.core.app_config import CONFIG_DIR_NAME
-    if IS_FLATPAK:
-        base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-    elif is_frozen():
-        localappdata = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
-        base = localappdata / CONFIG_DIR_NAME
-    else:
-        base = Path(__file__).parent
-    temp = base / 'temp'
-    temp.mkdir(parents=True, exist_ok=True)
-    return temp
+from src.core.paths import get_base_path, get_temp_dir
 
 base_dir = get_base_path()
 
@@ -109,9 +94,11 @@ except ModuleNotFoundError as e:
     print(f"Current sys.path: {sys.path}")
     raise e
 
+
 def main():
     app = Application(version=__version__)
     sys.exit(app.run())
+
 
 if __name__ == '__main__':
     main()
