@@ -7,6 +7,9 @@ PyQt6==6.10.2
 numpy==2.2
 scipy==1.13.0
 
+# Loudness normalization (EBU R128 two-pass; wraps the bundled ffmpeg)
+ffmpeg-normalize==1.37.8
+
 # Image processing (mod preview/thumbnail handling)
 Pillow==12.2.0
 

@@ -46,13 +46,7 @@ class ConversionWorker(QThread):
                     self.finished.emit(True, f"Converted {len(result)} WEM files to WAV")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
-
-                    output_file = None
-                    if output_p:
-                        if output_p.is_dir():
-                            output_file = str(output_p / input_p.with_suffix('.wav').name)
-                        else:
-                            output_file = str(output_p)
+                    output_file = self._single_output(input_p, output_p, '.wav')
                     result = self.converter.wem_to_wav(str(input_p), output_file)
                     self.finished.emit(True, f"Converted to: {result}")
 
@@ -67,13 +61,7 @@ class ConversionWorker(QThread):
                     self.finished.emit(True, f"Converted {len(result)} files to WAV")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
-
-                    output_file = None
-                    if output_p:
-                        if output_p.is_dir():
-                            output_file = str(output_p / input_p.with_suffix('.wav').name)
-                        else:
-                            output_file = str(output_p)
+                    output_file = self._single_output(input_p, output_p, '.wav')
                     result = self.converter.any_to_wav(
                         str(input_p), output_file, sample_rate=self.sample_rate,
                         normalize=self.normalize, normalize_lufs=self.normalize_lufs
@@ -91,21 +79,23 @@ class ConversionWorker(QThread):
                     self.finished.emit(True, f"Converted {len(result)} WAV files to WEM")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
-
-                    output_file = None
-                    if output_p:
-                        if output_p.is_dir():
-                            output_file = str(output_p / input_p.with_suffix('.wem').name)
-                        else:
-                            output_file = str(output_p)
-                    result = self.converter.wav_to_wem(str(input_p), output_file,
-                                                       normalize=self.normalize,
-                                                       normalize_lufs=self.normalize_lufs)
+                    output_file = self._single_output(input_p, output_p, '.wem')
+                    result = self.converter.any_to_wem(
+                        str(input_p), output_file,
+                        normalize=self.normalize, normalize_lufs=self.normalize_lufs
+                    )
                     self.finished.emit(True, f"Converted to: {result}")
 
         except Exception as e:
             error_msg = str(e)
             self.finished.emit(False, f"Conversion failed:\n{error_msg}")
+
+    def _single_output(self, input_p, output_p, suffix):
+        if not output_p:
+            return None
+        if output_p.is_dir():
+            return str(output_p / input_p.with_suffix(suffix).name)
+        return str(output_p)
 
 
 class AudioConversionBridge(QObject):

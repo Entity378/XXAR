@@ -1,10 +1,11 @@
-import json
-import re
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from ffmpeg_normalize import FFmpegNormalize
 
 from src.audio.wwise_wrapper import WwiseConsole
 from src.core.config_manager import get_tools_dir
@@ -166,67 +167,40 @@ class AudioConverter:
         wrote_output = False
         try:
             if normalize:
-                # Pass 1: measure integrated loudness
-                measure_cmd = [
-                    self.ffmpeg_path,
-                    '-i', str(input_file),
-                    '-af', f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:print_format=json',
-                    '-f', 'null', '-'
-                ]
-                result = subprocess.run(
-                    measure_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                    **_subprocess_kwargs
+                # EBU R128 two-pass loudness normalization
+                os.environ["FFMPEG_PATH"] = self.ffmpeg_path
+                normalizer = FFmpegNormalize(
+                    normalization_type="ebu",
+                    target_level=normalize_lufs,
+                    true_peak=-1.5,
+                    loudness_range_target=11.0,
+                    sample_rate=sample_rate,
+                    audio_channels=channels,
+                    audio_codec="pcm_f32le",
+                    progress=False,
                 )
-                stderr_text = result.stderr.decode('utf-8', errors='replace')
-                # Extract measured values from JSON block in stderr
-                json_match = re.search(r'\{[^{}]+\}', stderr_text, re.DOTALL)
-                if json_match:
-                    measured = json.loads(json_match.group())
-                    measured_values = [
-                        measured['input_i'], measured['input_tp'], measured['input_lra'],
-                        measured['input_thresh'], measured['target_offset'],
-                    ]
-                    if any('inf' in str(v) for v in measured_values):
-                        af = f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11'
-                    else:
-                        af = (
-                            f"loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11:linear=true"
-                            f":measured_I={measured['input_i']}"
-                            f":measured_TP={measured['input_tp']}"
-                            f":measured_LRA={measured['input_lra']}"
-                            f":measured_thresh={measured['input_thresh']}"
-                            f":offset={measured['target_offset']}"
-                        )
-                else:
-                    # Fallback to single-pass dynamic if parse fails
-                    af = f'loudnorm=I={normalize_lufs}:TP=-1.5:LRA=11'
+                normalizer.add_media_file(str(input_file), str(output_file))
+                normalizer.run_normalization()
             else:
-                af = None
+                cmd = [
+                    self.ffmpeg_path, '-i', str(input_file),
+                    '-acodec', 'pcm_f32le',
+                    '-ar', str(sample_rate),
+                    '-ac', str(channels),
+                    '-y', str(output_file),
+                ]
+                result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **_subprocess_kwargs)
+                if result.returncode != 0:
+                    stderr_msg = result.stderr.decode('utf-8', errors='replace').strip()
+                    # Extract the last meaningful line from ffmpeg stderr
+                    lines = [l for l in stderr_msg.splitlines() if l.strip()]
+                    short_reason = lines[-1] if lines else "unknown error"
+                    raise RuntimeError(f"FFmpeg failed to convert {input_file.name}: {short_reason}")
 
-            cmd = [self.ffmpeg_path, '-i', str(input_file)]
-            if af:
-                cmd.extend(['-af', af])
-            cmd.extend([
-                '-acodec', 'pcm_f32le',
-                '-ar', str(sample_rate),
-                '-ac', str(channels),
-                '-y',
-                str(output_file)
-            ])
-
-            result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **_subprocess_kwargs)
-            if result.returncode != 0:
-                stderr_msg = result.stderr.decode('utf-8', errors='replace').strip()
-                # Extract the last meaningful line from ffmpeg stderr
-                lines = [l for l in stderr_msg.splitlines() if l.strip()]
-                short_reason = lines[-1] if lines else "unknown error"
-                raise RuntimeError(f"FFmpeg failed to convert {input_file.name}: {short_reason}")
             norm_msg = f" (normalized to {normalize_lufs} LUFS)" if normalize else ""
             logger.info(f"Converted: {input_file.name} -> {output_file.name}{norm_msg}")
             wrote_output = True
             return output_file
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to convert {input_file}: {e}")
         finally:
             # Remove the auto-created temp .wav if the conversion didn't finish.
             if tmp_generated and not wrote_output:
