@@ -50,6 +50,16 @@
   </requires>
 
   <releases>
+    <release version="0.9.4" date="2026-06-04">
+      <description>
+        <p>Installer fixes.</p>
+        <ul>
+          <li>Fixed the desktop shortcut failing to be created during install/update</li>
+          <li>Updates keep a user-chosen install folder and show a styled progress bar</li>
+          <li>Cancel during install is now responsive</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.3" date="2026-06-03">
       <description>
         <p>Maintenance release.</p>
