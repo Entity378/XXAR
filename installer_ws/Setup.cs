@@ -6,21 +6,10 @@ using WixSharp.Controls;
 
 namespace XXAR.Installer
 {
-    /// <summary>
-    /// Build entry point. Produces dist/XXAR-Installer-v&lt;version&gt;.msi.
-    ///
-    /// Usage (from repo root):
-    ///   dotnet run --project installer_ws -- --version 0.7.0 \
-    ///              --bin-dir dist\XXAR --updater-dir dist\Updater \
-    ///              --output-dir dist
-    /// </summary>
+    // Build entry point. Produces dist/XXAR-Installer-v<version>.msi.
     public class Setup
     {
-        // Fixed GUID — must stay stable across versions for upgrade to work.
-        // Rotated for v0.8.0-alpha: install target moved from %APPDATA%\XXAR
-        // to %LOCALAPPDATA%\XXAR. A new UpgradeCode prevents the old MSI
-        // from auto-upgrading in place; users with v0.7 MSI installed must
-        // uninstall it manually before installing v0.8.
+        // Stable across versions, or upgrades break. Rotated for 0.8 (install root moved to LocalAppData).
         private static readonly Guid UpgradeCode = new Guid("607A2141-7C0A-415B-9A7C-0C3D214DADF3");
 
         public static int Main(string[] args)
@@ -40,9 +29,7 @@ namespace XXAR.Installer
             if (!System.IO.File.Exists(licencePath))
                 throw new FileNotFoundException($"License file missing: {licencePath}");
 
-            // MSI ProductVersion is Major.Minor.Build[.Revision] only —
-            // strip any SemVer prerelease suffix (e.g. "-alpha") before
-            // handing the string to System.Version.
+            // Strip SemVer prerelease suffix — MSI version is Major.Minor.Build only.
             var msiVersion = new Version(opts.Version.Split('-')[0]);
 
             var project = new ManagedProject("XXAR")
@@ -81,8 +68,9 @@ namespace XXAR.Installer
                             Description = "Cross-game Audio Replacer",
                             WorkingDirectory = "BIN_DIR",
                         }),
-                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1 — default on)
-                    new Dir(new Id("DesktopFolderDir"), @"%Desktop%",
+                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1). 
+                    // No custom Id: it would break %Desktop% mapping and cause Warning 1909.
+                    new Dir(@"%Desktop%",
                         new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
                         {
                             IconFile = appExe,
@@ -100,7 +88,13 @@ namespace XXAR.Installer
                 },
                 Properties = new[]
                 {
+                    // Restore the install folder from the previous install so updates keep a custom location.
+                    new Property("INSTALLDIR",
+                        new RegistrySearch(RegistryHive.CurrentUser, @"Software\XXAR",
+                                           "InstallLocation", RegistrySearchType.raw)),
                     new Property("INSTALLDESKTOPSHORTCUT", "1") { AttributesDefinition = "Secure=yes" },
+                    // Set to "1" by the in-app updater to show only the progress dialog.
+                    new Property("XXAR_SILENT", "0") { AttributesDefinition = "Secure=yes" },
                     new Property("ARPHELPLINK", "https://github.com/Entity378/XXAR"),
                     new Property("ARPURLINFOABOUT", "https://github.com/Entity378/XXAR"),
                 },

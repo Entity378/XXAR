@@ -485,13 +485,9 @@ class UpdateManagerBridge(QObject):
 
     def _apply_msi_update(self, current_exe):
         msi_path = Path(self._downloaded_path)
-        install_root = self._get_install_root(current_exe)
 
         # Build the cmdline as a string and pass it directly
-        cmd_line = (
-            f'msiexec /i "{msi_path}" /qr /norestart '
-            f'APPDIR="{install_root}"'
-        )
+        cmd_line = f'msiexec /i "{msi_path}" /norestart XXAR_SILENT=1'
         # cwd outside Resources/Bin so msiexec can rename/delete that dir during upgrade (see _apply_zip_update).
         logger.info(f"[Updater] Running: {cmd_line}")
         subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS

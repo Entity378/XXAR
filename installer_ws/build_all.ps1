@@ -69,8 +69,7 @@ try {
     $zipPath = Join-Path $repo "dist\XXAR-windows-x64.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
-    # Compress-Archive trips over Defender's post-copy scan on the freshly
-    # staged exe. Use .NET's ZipFile directly and retry on sharing violation.
+    # Use .NET ZipFile with retries — Compress-Archive trips over Defender's scan lock.
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $releaseAbs = (Resolve-Path $release).Path
     $zipped = $false

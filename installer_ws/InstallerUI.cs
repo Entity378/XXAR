@@ -8,21 +8,13 @@ using XXAR.Installer.Dialogs;
 
 namespace XXAR.Installer
 {
-    /// <summary>
-    /// Attaches the WPF ManagedUI to the project and applies the dark theme
-    /// to the persistent WinForms shell + DWM chrome so nothing near-white
-    /// flashes between dialog transitions.
-    /// </summary>
+    // Attaches the WPF ManagedUI and applies the dark theme so no white flashes between dialogs.
     public static class InstallerUI
     {
-        // XXARBgTopColor = #10123A (matches the HwndSourceHook brush and
-        // XAML Background — every transition-time paint uses this one
-        // color so the seam with WPF's final gradient render is invisible).
+        // Dark host color (#10123A) used everywhere to avoid white flashes.
         private static readonly Color DarkHostColor = Color.FromArgb(0x10, 0x12, 0x3A);
 
-        // Unique AppUserModelID so the shell form doesn't get collapsed under
-        // msiexec's (hidden) taskbar group — that grouping is what makes the
-        // installer icon invisible until the user clicks the window.
+        // Own AppUserModelID so the installer shows its own taskbar entry, not msiexec's hidden group.
         private const string AppUserModelID = "Entity378.XXAR.Installer";
 
         private static Icon _cachedIcon;
@@ -30,8 +22,7 @@ namespace XXAR.Installer
 
         public static void Attach(ManagedProject project)
         {
-            // Must be called once, before any window is shown. Ignored on
-            // failure (msiexec may already have set its own ID).
+            // Set before any window is shown; ignored on failure.
             TrySetAppUserModelID(AppUserModelID);
 
             project.ManagedUI = new ManagedUI
@@ -59,11 +50,7 @@ namespace XXAR.Installer
             RecolorTree(shellForm);
             EnableImmersiveDarkMode(shellForm.Handle);
 
-            // The shell form is shown via ShowDialog owned by a hidden
-            // msiexec HWND, which suppresses its taskbar entry. Fix:
-            //   1. Pre-Show: strip owner + force WS_EX_APPWINDOW.
-            //   2. Post-Show: ITaskbarList::AddTab as a belt-and-suspenders —
-            //      explicitly tells the shell to register the HWND.
+            // Force a taskbar entry (msiexec's hidden owner suppresses it).
             ForceTaskbarPresence(shellForm);
             shellForm.Shown += (s, ea) =>
             {
@@ -72,11 +59,7 @@ namespace XXAR.Installer
             };
             shellForm.Activated += (s, ea) => TryAddTabToTaskbar(shellForm.Handle);
 
-            // ControlAdded fires when WixSharp does `form.Parent = shellView`
-            // in UIShell.CurrentDialogIndex setter — BEFORE `form.Visible = true`,
-            // so setting BackColor here beats Windows' default SystemColors.Control
-            // (≈ #F3F3F3 "white-latte" on Windows 11 light theme) ever being
-            // painted during the first WM_ERASEBKGND of the new dialog form.
+            // Recolor each dialog as it's added, before it's painted white.
             shellForm.ControlAdded += (s, ea) =>
             {
                 if (ea.Control is Form f)
@@ -103,8 +86,7 @@ namespace XXAR.Installer
             var icon = TryLoadAppIcon();
             if (icon != null) form.Icon = icon;
 
-            // Detach from msiexec's hidden owner window so WS_EX_APPWINDOW
-            // is honored by the shell. GWLP_HWNDPARENT = -8.
+            // Detach from msiexec's owner window so WS_EX_APPWINDOW is honored.
             SetWindowLongPtrCompat(form.Handle, GWLP_HWNDPARENT, IntPtr.Zero);
 
             var ex = GetWindowLong(form.Handle, GWL_EXSTYLE);
@@ -139,10 +121,7 @@ namespace XXAR.Installer
             if (_cachedIcon != null) return _cachedIcon;
             try
             {
-                // The .ico is embedded as a WPF <Resource> (see csproj).
-                // GetResourceStream needs a WPF Application; if one isn't
-                // up yet (UILoaded can fire before the first WpfDialog),
-                // bail silently — taskbar fix still applies, just no icon.
+                // Icon is an embedded WPF resource; needs a live WPF Application to load.
                 if (System.Windows.Application.Current == null) return null;
                 var uri = new Uri(
                     "pack://application:,,,/XXAR.Installer.Build;component/Assets/XXAR-Logo2.ico",
@@ -191,9 +170,7 @@ namespace XXAR.Installer
 
         private static IntPtr SetWindowLongPtrCompat(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
         {
-            // 32-bit process calls the old SetWindowLong (still 4-byte ptr);
-            // 64-bit needs SetWindowLongPtr. Running under WiX+msiexec is x64
-            // so the latter wins, but keep the fallback for safety.
+            // Pick the right SetWindowLong variant for the process bitness.
             return IntPtr.Size == 8
                 ? SetWindowLongPtr64(hWnd, nIndex, dwNewLong)
                 : SetWindowLong32(hWnd, nIndex, dwNewLong);
@@ -213,8 +190,7 @@ namespace XXAR.Installer
             catch { }
         }
 
-        // ITaskbarList COM interop — AddTab force-registers an HWND in the
-        // taskbar, bypassing the usual WS_EX_APPWINDOW / owner checks.
+        // ITaskbarList COM interop — AddTab force-registers an HWND in the taskbar.
         [ComImport]
         [Guid("56FDF344-FD6D-11D0-958A-006097C9A090")]
         [ClassInterface(ClassInterfaceType.None)]

@@ -10,11 +10,7 @@ using WixSharp.UI.Forms;
 
 namespace XXAR.Installer.Dialogs
 {
-    /// <summary>
-    /// Shared navigation view-model for every XXAR-branded WPF dialog.
-    /// Exposes Host (ManagedForm), the WiX shell, and the three nav methods
-    /// the XAML buttons bind their Click handlers to.
-    /// </summary>
+    // Shared nav view-model for the WPF dialogs: host, shell, and back/next/cancel.
     public class XXARDialogViewModel : INotifyPropertyChanged
     {
         public ManagedForm Host { get; set; }
@@ -30,19 +26,23 @@ namespace XXAR.Installer.Dialogs
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    /// <summary>
-    /// Paints every surface that would otherwise flash light-colored
-    /// during dialog Next/Back transitions. Covers three independent
-    /// paint layers that each need their own fix:
-    ///   - WinForms ManagedForm.BackColor (via ApplyDarkHost)
-    ///   - WPF HwndSource.CompositionTarget.BackgroundColor (via
-    ///     RegisterDarkWpfCompositionTarget → OnSourceChanged)
-    ///   - The HwndSource's native HWND WM_ERASEBKGND, which bypasses
-    ///     both of the above because WPF uses DirectComposition (via
-    ///     HwndSource.AddHook → HwndSourceHook GDI FillRect)
-    /// Every path uses XXARBgTopColor (#10123A) so the one-frame pre-
-    /// render fill seamlessly meets WPF's actual gradient render.
-    /// </summary>
+    // True when the in-app updater set XXAR_SILENT=1: dialogs auto-advance, only progress shows.
+    internal static class XXARSilentUpdate
+    {
+        public static bool IsActive(ManagedForm host)
+        {
+            try { return host?.Runtime?.Session?.Property("XXAR_SILENT") == "1"; }
+            catch { return false; }
+        }
+
+        // Skip a dialog. Must be deferred: calling Shell.GoNext()/Exit() synchronously from
+        // Init() reenters the shell, overshoots past the progress dialog, and trips
+        // CancelRequestHandler during InstallFinalize → the install rolls back (1602).
+        public static void SkipTo(System.Windows.Threading.DispatcherObject dialog, System.Action navigate)
+            => dialog.Dispatcher.BeginInvoke(navigate, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    // Paints WinForms host, WPF composition target, and the native HWND dark to avoid white flashes.
     internal static class XXARHostStyling
     {
         private static readonly Color DarkHostColor = Color.FromArgb(0x10, 0x12, 0x3A);
@@ -74,10 +74,7 @@ namespace XXAR.Installer.Dialogs
             if (src.CompositionTarget != null)
                 src.CompositionTarget.BackgroundColor = DarkWpfColor;
             src.AddHook(HwndSourceHook);
-            // Force a repaint so the first WM_ERASEBKGND goes through our
-            // hook — otherwise Windows may have already cleared the HWND
-            // to its class brush (pure white) between HWND creation and
-            // SourceChanged firing.
+            // Repaint so the first erase goes through our hook, not the white class brush.
             if (src.Handle != IntPtr.Zero)
                 InvalidateRect(src.Handle, IntPtr.Zero, true);
         }

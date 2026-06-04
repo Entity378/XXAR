@@ -60,7 +60,12 @@ namespace XXAR.Installer.Dialogs
             if (model != null) model.ProgressValue = progressPercentage;
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e) => model?.Cancel();
+        private void Cancel_Click(object sender, RoutedEventArgs e)
+        {
+            // Immediate feedback — MSI cancellation is cooperative and takes a moment.
+            if (sender is System.Windows.Controls.Button b) b.IsEnabled = false;
+            model?.Cancel();
+        }
 
         private class Model : INotifyPropertyChanged
         {
@@ -71,6 +76,7 @@ namespace XXAR.Installer.Dialogs
             private string currentAction;
             private int progressValue;
             private bool uacPromptActioned;
+            private bool cancelRequested;
 
             public string CurrentAction
             {
@@ -103,12 +109,17 @@ namespace XXAR.Installer.Dialogs
 
             public void Cancel()
             {
-                if (shell != null && shell.IsDemoMode) shell.GoNext();
-                else shell?.Cancel();
+                if (shell != null && shell.IsDemoMode) { shell.GoNext(); return; }
+                cancelRequested = true;
+                CurrentAction = "Canceling…";
+                shell?.Cancel();
             }
 
             public MessageResult ProcessMessage(InstallMessage messageType, Record messageRecord)
             {
+                // Cancel clicked: abort the running install now instead of waiting for
+                // InstallFinalize (WixSharp's default only cancels via a mutex read there).
+                if (cancelRequested) return MessageResult.Cancel;
                 switch (messageType)
                 {
                     case InstallMessage.InstallStart:

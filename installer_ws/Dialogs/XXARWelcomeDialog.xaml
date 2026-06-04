@@ -19,7 +19,7 @@
             <RowDefinition Height="53" />
         </Grid.RowDefinitions>
 
-        <!-- Content: stock Welcome layout — 156px side banner + text -->
+        <!-- Content -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="156" />

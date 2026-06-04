@@ -20,6 +20,7 @@ namespace XXAR.Installer.Dialogs
 
         public void Init()
         {
+            if (XXARSilentUpdate.IsActive(ManagedFormHost)) { XXARSilentUpdate.SkipTo(this, ManagedFormHost.Shell.GoNext); return; }
             XXARHostStyling.ApplyDarkHost(ManagedFormHost);
             model = new Model { Host = ManagedFormHost };
             DataContext = model;
@@ -59,10 +60,7 @@ namespace XXAR.Installer.Dialogs
                 }
             }
 
-            // WixSharp hands us a human-readable symbolic form of the install
-            // path (e.g. "LocalApp\XXAR") rather than a fully-resolved one
-            // until the user opens the browse dialog. Resolve the common
-            // SpecialFolder prefixes so the TextBox shows an absolute path.
+            // Resolve WixSharp's symbolic path (e.g. "LocalApp\XXAR") to an absolute one for display.
             private static string ResolveSymbolicPath(string path)
             {
                 if (string.IsNullOrEmpty(path) || Path.IsPathRooted(path))

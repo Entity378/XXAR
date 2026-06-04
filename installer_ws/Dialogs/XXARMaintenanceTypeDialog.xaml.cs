@@ -22,8 +22,7 @@ namespace XXAR.Installer.Dialogs
 
         private void Repair_Click(object sender, RoutedEventArgs e)
         {
-            // REINSTALLMODE=emus: replace equal-or-lower versions, force re-cache,
-            // rewrite machine-data, write user registry entries, rewrite shortcuts.
+            // REINSTALLMODE=emus: reinstall all files, registry and shortcuts.
             var s = model.Session;
             if (s != null)
             {

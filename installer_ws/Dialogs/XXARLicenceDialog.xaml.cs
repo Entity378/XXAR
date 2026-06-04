@@ -22,6 +22,7 @@ namespace XXAR.Installer.Dialogs
 
         public void Init()
         {
+            if (XXARSilentUpdate.IsActive(ManagedFormHost)) { XXARSilentUpdate.SkipTo(this, ManagedFormHost.Shell.GoNext); return; }
             XXARHostStyling.ApplyDarkHost(ManagedFormHost);
             model = new Model(this) { Host = ManagedFormHost };
             DataContext = model;

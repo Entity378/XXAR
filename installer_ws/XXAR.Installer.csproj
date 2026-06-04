@@ -2,9 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!-- WixSharp ManagedUI runs inside the MSI context which historically
-         required .NET Framework 4.x. The build-time program itself can
-         target modern .NET but net48 keeps UI DLLs loadable by msiexec. -->
+    <!-- net48 so the ManagedUI DLLs stay loadable by msiexec. -->
     <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>

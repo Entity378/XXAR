@@ -19,6 +19,9 @@ namespace XXAR.Installer.Dialogs
 
         public void Init()
         {
+            // Silent update: close automatically once the install finishes (deferred — a
+            // synchronous Exit() here rolls the install back via CancelRequestHandler).
+            if (XXARSilentUpdate.IsActive(ManagedFormHost)) { XXARSilentUpdate.SkipTo(this, ManagedFormHost.Shell.Exit); return; }
             XXARHostStyling.ApplyDarkHost(ManagedFormHost);
             UpdateTitles(ManagedFormHost.Runtime.Session);
             model = new Model { Host = ManagedFormHost };

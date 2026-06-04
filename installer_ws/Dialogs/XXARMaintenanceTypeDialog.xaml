@@ -77,7 +77,7 @@
             </Button>
         </StackPanel>
 
-        <!-- Button bar: only Cancel, navigation happens via the tiles above -->
+        <!-- Button bar -->
         <Border Grid.Row="2" Background="#080922"
                 BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
