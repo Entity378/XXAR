@@ -32,6 +32,9 @@ tools*/
 dist*/
 build*/
 
+# Archived code kept out of the app (e.g. retired HoYo API downloader)
+archive/
+
 # OS
 .DS_Store
 Thumbs.db

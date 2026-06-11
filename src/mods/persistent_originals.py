@@ -1,19 +1,5 @@
-# Unified management of game-original PCKs that may live in Persistent.
-#
-# Model: StreamingAssets is the home of the "true" originals. The game stages
-# fresh originals into Persistent on in-game download (vs StreamingAssets on a
-# launcher download) -- for ALL pcks, not just VO. This module PROMOTES any
-# pristine original found in Persistent into StreamingAssets, keeping a
-# hashes-only ledger (never pck bytes). The Persistent copy is then a pure
-# overlay: reverting a mod is just deleting it and letting the game fall back to
-# the StreamingAssets original.
-#
-# Pristine detection is per-file: if a "<stem>_<md5>.hash" sidecar sits next to
-# the pck (HSR ships these for VO only) it is the ground truth; otherwise the
-# mod_tracker is authoritative (XXAR is the only modder).
-#
-# Patch.pck / Hotfix.pck are out of scope -- they keep their own override
-# handling in override_pck_patcher.py and are never promoted or deleted here.
+# Promotes pristine originals from Persistent into StreamingAssets and wipes Persistent
+# Pristine = md5 match vs the launcher pkg_version manifests or the game's .hash sidecars.
 
 import hashlib
 import json
@@ -29,6 +15,8 @@ logger = get_logger(__name__)
 
 _INDEX_FILE = "originals_index.json"
 _CHUNK = 1 << 20  # 1 MB
+_MANIFEST_GLOB = "*pkg_version"
+_MANIFEST_WALK_UP = 8
 
 
 def _md5(path):
@@ -71,26 +59,99 @@ def _scan_sidecars(folder):
     return out
 
 
-def _load_index(backup_root):
-    f = backup_root / _INDEX_FILE
-    if not f.is_file():
-        return {"schema": 1, "entries": {}}
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        data.setdefault("entries", {})
-        return data
-    except Exception:
-        return {"schema": 1, "entries": {}}
+def load_manifest_md5s(streaming_root):
+    # {rel_pck_path: (md5, size)} from the manifests found walking up to the game root.
+    streaming_root = Path(streaming_root)
+    d = streaming_root
+    for _ in range(_MANIFEST_WALK_UP):
+        if d.parent == d:
+            break
+        d = d.parent
+        manifests = sorted(d.glob(_MANIFEST_GLOB))
+        if not manifests:
+            continue
+        try:
+            prefix = streaming_root.relative_to(d).as_posix() + "/"
+        except ValueError:
+            return {}
+        entries = {}
+        for mf in manifests:
+            try:
+                lines = mf.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                name = str(obj.get("remoteName", ""))
+                if not name.lower().endswith(".pck") or not name.startswith(prefix):
+                    continue
+                md5_val = str(obj.get("md5", "")).lower()
+                if len(md5_val) != 32:
+                    continue
+                try:
+                    size_val = int(obj.get("fileSize", -1))
+                except (TypeError, ValueError):
+                    size_val = -1
+                entries[name[len(prefix):]] = (md5_val, size_val)
+        if entries:
+            logger.info(f"[Persistent Originals] Loaded {len(entries)} pck hash(es) "
+                f"from {len(manifests)} manifest(s) in {d}")
+        return entries
+    return {}
 
 
-def _save_index(backup_root, index):
-    try:
-        backup_root.mkdir(parents=True, exist_ok=True)
-        (backup_root / _INDEX_FILE).write_text(
-            json.dumps(index, indent=2), encoding="utf-8"
-        )
-    except Exception as e:
-        logger.error(f"[Persistent Originals] Failed to save index: {e}")
+class _Md5Cache:
+    # size+mtime keyed md5 cache; losing it only costs rehashing.
+
+    def __init__(self, backup_root):
+        self.backup_root = Path(backup_root)
+        self.path = self.backup_root / _INDEX_FILE
+        self.files = {}
+        self.dirty = False
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if data.get("schema") == 2:
+                self.files = data.get("files", {})
+        except Exception:
+            pass
+
+    def md5(self, path, key, st=None):
+        st = st or path.stat()
+        entry = self.files.get(key)
+        if entry and entry.get("size") == st.st_size and entry.get("mtime") == int(st.st_mtime):
+            return entry["md5"]
+        digest = _md5(path)
+        self.files[key] = {"size": st.st_size, "mtime": int(st.st_mtime), "md5": digest}
+        self.dirty = True
+        return digest
+
+    def seed(self, path, key, digest):
+        # Records a known digest for a file just written, skipping the rehash.
+        try:
+            st = path.stat()
+        except OSError:
+            return
+        self.files[key] = {"size": st.st_size, "mtime": int(st.st_mtime), "md5": digest}
+        self.dirty = True
+
+    def save(self):
+        if not self.dirty:
+            return
+        try:
+            self.backup_root.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(
+                json.dumps({"schema": 2, "files": self.files}, indent=2),
+                encoding="utf-8",
+            )
+            self.dirty = False
+        except Exception as e:
+            logger.error(f"[Persistent Originals] Failed to save md5 cache: {e}")
 
 
 def _copy_original(src, dst):
@@ -105,125 +166,131 @@ def has_streaming_original(streaming_root, rel_path):
     return (Path(streaming_root) / rel_path).is_file()
 
 
+def _ground_truth(manifest, sidecar_cache, pck, rel):
+    # (original_md5, expected_size); size < 0 = unknown (sidecars carry no size).
+    entry = manifest.get(rel)
+    if entry:
+        return entry
+    folder = pck.parent
+    if folder not in sidecar_cache:
+        sidecar_cache[folder] = _scan_sidecars(folder)
+    md5_val = sidecar_cache[folder].get(pck.name)
+    if md5_val:
+        return (md5_val, -1)
+    return (None, -1)
+
+
 def promote_originals(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None):
-    # Copy pristine originals found in Persistent up into StreamingAssets, so the
-    # Persistent copy becomes a deletable overlay. Updates the hashes-only ledger.
+    # Returns (stats, keep); rels in keep must never be deleted by cleanup.
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
-    stats = {"promoted": 0, "updated": 0, "skipped_modded": 0, "orphan": 0}
+    stats = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0}
+    keep = set()
     if not persistent_root.is_dir():
-        return stats
+        return stats, keep
 
     protected = get_game(game_id).protected_pcks
     modded_names = set(modded_keys or ())
-    backup_root = get_game_backup_dir(game_id)
-    index = _load_index(backup_root)
-    entries = index["entries"]
+    cache = _Md5Cache(get_game_backup_dir(game_id))
+    manifest = load_manifest_md5s(streaming_root)
     sidecar_cache = {}
-    dirty = False
 
     for pck in persistent_root.rglob("*.pck"):
         if pck.name in protected:
             continue
         try:
             rel = pck.relative_to(persistent_root).as_posix()
-        except ValueError:
-            continue
-
-        folder = pck.parent
-        if folder not in sidecar_cache:
-            sidecar_cache[folder] = _scan_sidecars(folder)
-        sidecar_md5 = sidecar_cache[folder].get(pck.name)
-
-        try:
             st = pck.stat()
-        except OSError:
+        except (ValueError, OSError):
             continue
-        size, mtime = st.st_size, int(st.st_mtime)
         s_path = streaming_root / rel
+        original_md5, expected_size = _ground_truth(manifest, sidecar_cache, pck, rel)
 
-        # Fast-path: an unchanged file we already recorded as the original, with
-        # the StreamingAssets copy in place -> nothing to do, skip the rehash.
-        entry = entries.get(rel)
-        if (entry and entry.get("size") == size and entry.get("mtime") == mtime
-                and s_path.is_file()):
+        if original_md5:
+            if expected_size >= 0 and st.st_size != expected_size:
+                matches = False
+            else:
+                matches = cache.md5(pck, f"persistent/{rel}", st) == original_md5
+            if not matches:
+                stats["kept_mod"] += 1
+                if not s_path.is_file():
+                    stats["orphan"] += 1
+                    if progress_cb:
+                        progress_cb(f"Warning: no original for modded {rel}")
+                continue
+            try:
+                if not s_path.is_file():
+                    _copy_original(pck, s_path)
+                    cache.seed(s_path, f"streaming/{rel}", original_md5)
+                    stats["promoted"] += 1
+                    logger.info(f"[Persistent Originals] Promoted {rel} into StreamingAssets")
+                    if progress_cb:
+                        progress_cb(f"Secured original: {rel}")
+                else:
+                    s_st = s_path.stat()
+                    if (s_st.st_size != st.st_size
+                            or cache.md5(s_path, f"streaming/{rel}", s_st) != original_md5):
+                        _copy_original(pck, s_path)
+                        cache.seed(s_path, f"streaming/{rel}", original_md5)
+                        stats["updated"] += 1
+                        logger.info(f"[Persistent Originals] Updated original {rel} in StreamingAssets")
+            except Exception as e:
+                keep.add(rel)  # securing failed: never delete the only good copy
+                logger.error(f"[Persistent Originals] Failed to promote {rel}: {e}")
             continue
 
-        # Decide pristine vs mod (hash only when a sidecar forces a comparison or
-        # the file looks pristine -- never hash a tracker-flagged mod).
-        if sidecar_md5 is not None:
-            disk_md5 = _md5(pck)
-            if disk_md5 != sidecar_md5:
-                stats["skipped_modded"] += 1
-                if not s_path.is_file():
-                    stats["orphan"] += 1
-                    if progress_cb:
-                        progress_cb(f"Warning: no original for modded {rel}")
-                continue
-            original_md5, ground = sidecar_md5, "hash"
-        else:
-            if pck.name in modded_names:
-                stats["skipped_modded"] += 1
-                if not s_path.is_file():
-                    stats["orphan"] += 1
-                    if progress_cb:
-                        progress_cb(f"Warning: no original for modded {rel}")
-                continue
-            disk_md5 = _md5(pck)
-            original_md5, ground = disk_md5, "tracker"
-
-        # P is pristine: fill a missing original, or update a differing one.
+        if pck.name in modded_names:
+            stats["kept_mod"] += 1
+            if not s_path.is_file():
+                stats["orphan"] += 1
+                if progress_cb:
+                    progress_cb(f"Warning: no original for modded {rel}")
+            continue
         if not s_path.is_file():
             try:
+                p_md5 = cache.md5(pck, f"persistent/{rel}", st)
                 _copy_original(pck, s_path)
+                cache.seed(s_path, f"streaming/{rel}", p_md5)
                 stats["promoted"] += 1
-                logger.info(f"[Persistent Originals] Promoted {rel} into StreamingAssets")
+                logger.info(f"[Persistent Originals] Promoted {rel} into StreamingAssets (no ground truth)")
                 if progress_cb:
                     progress_cb(f"Secured original: {rel}")
             except Exception as e:
+                keep.add(rel)
                 logger.error(f"[Persistent Originals] Failed to promote {rel}: {e}")
-                continue
-        else:
-            try:
-                if _md5(s_path) != disk_md5:
-                    _copy_original(pck, s_path)
-                    stats["updated"] += 1
-                    logger.info(f"[Persistent Originals] Updated original {rel} in StreamingAssets")
-            except Exception as e:
-                logger.error(f"[Persistent Originals] Failed to update {rel}: {e}")
-                continue
+            continue
+        try:
+            s_st = s_path.stat()
+            same = (s_st.st_size == st.st_size
+                    and cache.md5(s_path, f"streaming/{rel}", s_st)
+                    == cache.md5(pck, f"persistent/{rel}", st))
+        except OSError:
+            same = False
+        if not same:
+            stats["conflict"] += 1
+            keep.add(rel)
+            logger.warning(f"[Persistent Originals] {rel} differs from StreamingAssets "
+                f"and has no ground truth; leaving both in place")
 
-        entries[rel] = {
-            "original_md5": original_md5,
-            "size": size,
-            "mtime": mtime,
-            "ground_truth": ground,
-            "sidecar_md5": sidecar_md5,
-        }
-        dirty = True
-
-    if dirty:
-        _save_index(backup_root, index)
-    return stats
+    cache.save()
+    return stats, keep
 
 
 def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None):
-    # Shared replacement for the duplicated cleanup blocks: secure originals into
-    # StreamingAssets, wipe the Persistent overlay (only where a StreamingAssets
-    # original guarantees fallback), then restore protected-pck backups.
+    # Promote -> wipe overlay where the fallback exists -> restore protected backups.
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
-    result = {"promoted": 0, "updated": 0, "skipped_modded": 0, "orphan": 0,
-              "deleted": 0, "kept_orphan": 0, "override_restored": 0}
+    result = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0,
+              "deleted": 0, "kept": 0, "override_restored": 0}
     if not persistent_root.is_dir():
         return result
 
-    result.update(promote_originals(
+    stats, keep = promote_originals(
         game_id, streaming_root, persistent_root, modded_keys, progress_cb
-    ))
+    )
+    result.update(stats)
 
     protected = get_game(game_id).protected_pcks
-    deleted = kept = 0
     for pck in persistent_root.rglob("*.pck"):
         if pck.name in protected:
             continue
@@ -231,17 +298,15 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_
             rel = pck.relative_to(persistent_root).as_posix()
         except ValueError:
             continue
-        if not has_streaming_original(streaming_root, rel):
-            kept += 1  # orphan: no original to fall back to -> never delete
+        if rel in keep or not has_streaming_original(streaming_root, rel):
+            result["kept"] += 1
             continue
         try:
             pck.chmod(0o644)
             pck.unlink()
-            deleted += 1
+            result["deleted"] += 1
         except Exception as e:
             logger.error(f"[Persistent Originals] Failed to delete {rel}: {e}")
-    result["deleted"] = deleted
-    result["kept_orphan"] = kept
 
     try:
         result["override_restored"] = restore_override_pck_backups(persistent_root)
