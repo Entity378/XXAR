@@ -62,11 +62,9 @@ from src.gui.backend.update_manager_bridge import _urlopen
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import ModPackageManager
 from src.mods.persistent_manager import PersistentModManager
+from src.mods.persistent_originals import cleanup_persistent_overlay
 from src.wwise.bnk_indexer import BNKIndexer
-from src.wwise.override_pck_patcher import (
-    patch_override_pcks,
-    restore_override_pck_backups,
-)
+from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import find_patch_pck_sources, resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
@@ -1958,53 +1956,21 @@ class AudioBrowserBridge(QObject):
                     )
                 )
 
-                should_skip_cleanup_folder = getattr(
-                    self._active_browser_handler,
-                    "should_skip_persistent_cleanup_folder",
-                    lambda folder, count: False,
+                modded_keys = set(self.mod_manager.get_all_replacements().keys())
+                stats = cleanup_persistent_overlay(
+                    game.id,
+                    streaming_base,
+                    persistent_path,
+                    modded_keys,
+                    progress_cb=lambda msg: self.statusUpdate.emit(msg),
                 )
-                lang_folders_to_skip = set()
-                for lang_folder in persistent_path.iterdir():
-                    if not lang_folder.is_dir():
-                        continue
-                    pck_count = len(list(lang_folder.glob("*.pck")))
-                    if should_skip_cleanup_folder(lang_folder, pck_count):
-                        lang_folders_to_skip.add(lang_folder)
-                        logger.info(f"[Audio Browser] Skipping language folder "
-                            f"{lang_folder.name} (has {pck_count} PCK files)")
-
-                cleaned_files = 0
-                for pck_file in persistent_path.rglob("*.pck"):
-                    if any(
-                        lang_folder in pck_file.parents
-                        for lang_folder in lang_folders_to_skip
-                    ):
-                        continue
-
-                    if pck_file.name in self._active_game().protected_pcks:
-                        logger.info(f"[Audio Browser] Skipping protected file: {pck_file.name}")
-                        continue
-
-                    try:
-                        pck_file.chmod(0o644)
-                        pck_file.unlink()
-                        cleaned_files += 1
-                    except Exception as e:
-                        logger.error(f"[Audio Browser] Failed to delete {pck_file}: {e}")
-
-                try:
-                    restored = restore_override_pck_backups(persistent_path)
-                    if restored > 0:
-                        logger.info(f"[Audio Browser] Restored {restored} override PCK backup(s)")
-                except Exception as e:
-                    logger.error(f"[Audio Browser] Warning: Failed to restore override PCK backups: {e}")
-
-                if cleaned_files > 0:
+                logger.info(f"[Audio Browser] Persistent cleanup: {stats}")
+                if stats["deleted"] > 0:
                     self.statusUpdate.emit(
                         QCoreApplication.translate(
                             "Application",
                             "Cleaned up %1 modded PCK file(s) from Persistent folder",
-                        ).replace("%1", str(cleaned_files))
+                        ).replace("%1", str(stats["deleted"]))
                     )
                 else:
                     self.statusUpdate.emit(
@@ -2378,40 +2344,21 @@ class AudioBrowserBridge(QObject):
                     *game.persistent_audio_subpath
                 )
                 if persistent_path.exists():
-                    should_skip_cleanup_folder = getattr(
-                        self._active_browser_handler,
-                        "should_skip_persistent_cleanup_folder",
-                        lambda folder, count: False,
+                    streaming_base = (
+                        Path(self._audio_root)
+                        if self._audio_root
+                        else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
                     )
-                    lang_folders_to_skip = set()
-                    for lang_folder in persistent_path.iterdir():
-                        if not lang_folder.is_dir():
-                            continue
-                        pck_count = len(list(lang_folder.glob("*.pck")))
-                        if should_skip_cleanup_folder(lang_folder, pck_count):
-                            lang_folders_to_skip.add(lang_folder)
-                            logger.info(f"[Audio Browser] Skipping language folder "
-                                f"{lang_folder.name} (has {pck_count} PCK files)")
-
-                    for pck_file in persistent_path.rglob("*.pck"):
-                        if pck_file.name in self._active_game().protected_pcks:
-                            continue
-                        if any(
-                            lang_folder in pck_file.parents
-                            for lang_folder in lang_folders_to_skip
-                        ):
-                            continue
-                        try:
-                            pck_file.chmod(0o644)
-                            pck_file.unlink()
-                            cleaned_files += 1
-                        except Exception as e:
-                            logger.error(f"[Audio Browser] Failed to delete {pck_file}: {e}")
-
-                    try:
-                        restore_override_pck_backups(persistent_path)
-                    except Exception:
-                        pass
+                    modded_keys = set(self.mod_manager.get_all_replacements().keys())
+                    stats = cleanup_persistent_overlay(
+                        game.id,
+                        streaming_base,
+                        persistent_path,
+                        modded_keys,
+                        progress_cb=lambda msg: self.statusUpdate.emit(msg),
+                    )
+                    cleaned_files = stats["deleted"]
+                    logger.info(f"[Audio Browser] Reset cleanup: {stats}")
 
             if cleaned_files == 0 and self.mod_manager.persistent_base_path:
                 for pck_name in stats["pcks"]:

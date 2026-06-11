@@ -50,6 +50,15 @@
   </requires>
 
   <releases>
+    <release version="0.9.5" date="2026-06-11">
+      <description>
+        <p>Audio originals handling rework.</p>
+        <ul>
+          <li>Original audio is now kept in StreamingAssets, with Persistent treated as a removable overlay</li>
+          <li>Unified the per-game voice-over handling into a single hash-based system</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.4" date="2026-06-04">
       <description>
         <p>Installer fixes.</p>

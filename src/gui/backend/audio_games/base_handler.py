@@ -209,15 +209,6 @@ class BaseBrowserHandler:
     def should_list_direct_wem(merge_wem_enabled):
         return not merge_wem_enabled
 
-    @staticmethod
-    def should_skip_persistent_cleanup_folder(lang_folder, pck_count):
-        return False
-
-    @staticmethod
-    def restore_persistent_originals(persistent_path, progress_callback=None, vo_backup_mode="local"):
-        # Subclass hook for games with VO restoration (currently HSR only).
-        return False
-
     def _emit_status(self, message):
         if not message:
             return

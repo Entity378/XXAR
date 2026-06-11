@@ -439,9 +439,6 @@ class SettingsConnector:
         hide_gb_thumbnail_warning = settings.get("hide_gb_thumbnail_warning", False)
         self.settings_page.setProperty("hideGbThumbnailWarning", hide_gb_thumbnail_warning)
 
-        hsr_vo_local_backup = settings.get("hsr_vo_backup_mode", "local") == "local"
-        self.settings_page.setProperty("hsrVoLocalBackup", hsr_vo_local_backup)
-
         hirc_editor_enabled = bool(settings.get("hirc_editor_enabled", False))
         self.settings_page.setProperty("hircEditorEnabled", hirc_editor_enabled)
         self.root.setProperty("hircEditorTabEnabled", hirc_editor_enabled)
@@ -706,7 +703,6 @@ class SettingsConnector:
         mod_creation_mode = self.settings_page.property("modCreationEnabled")
         enable_gb_thumbnails = self.settings_page.property("enableGbThumbnails")
         hide_gb_thumbnail_warning = self.settings_page.property("hideGbThumbnailWarning")
-        hsr_vo_local_backup = self.settings_page.property("hsrVoLocalBackup")
         custom_mods_dir = self.settings_page.property("modsDirectory") or ""
 
         try:
@@ -721,7 +717,6 @@ class SettingsConnector:
         settings["mod_creation_mode"] = mod_creation_mode
         settings["enable_gb_thumbnails"] = enable_gb_thumbnails
         settings["hide_gb_thumbnail_warning"] = hide_gb_thumbnail_warning
-        settings["hsr_vo_backup_mode"] = "local" if hsr_vo_local_backup else "api"
         current_game = normalize_game_id(
             settings.get("selected_game", DEFAULT_GAME_ID)
         )

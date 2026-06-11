@@ -32,7 +32,6 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
-from src.gui.backend.audio_games import get_browser_handler_class
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
@@ -41,7 +40,7 @@ from src.mods.package_manager import (
     count_replacements,
 )
 from src.mods.persistent_manager import PersistentModManager
-from src.wwise.override_pck_patcher import restore_override_pck_backups
+from src.mods.persistent_originals import cleanup_persistent_overlay
 
 logger = get_logger(__name__)
 
@@ -180,7 +179,6 @@ class ModManagerBridge(QObject):
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
-        self.hsr_vo_backup_mode = "local"
 
         self.persistent_mod_manager = PersistentModManager(game_id=self.active_game_id)
         self.mod_package_manager = ModPackageManager(
@@ -206,18 +204,6 @@ class ModManagerBridge(QObject):
             return normalize_game_id(detected, default=selected)
         return selected
 
-    def _should_skip_cleanup_folder(self, lang_folder, pck_count):
-        handler_cls = get_browser_handler_class(self.active_game_id)
-        should_skip_fn = getattr(
-            handler_cls,
-            "should_skip_persistent_cleanup_folder",
-            lambda folder, count: False,
-        )
-        try:
-            return bool(should_skip_fn(lang_folder, pck_count))
-        except Exception:
-            return False
-
     def load_settings(self):
 
         try:
@@ -233,7 +219,6 @@ class ModManagerBridge(QObject):
                     )
                     self.mod_creation_mode = settings.get("mod_creation_mode", False)
                     self.conflict_preferences = settings.get("conflict_preferences", {})
-                    self.hsr_vo_backup_mode = settings.get("hsr_vo_backup_mode", "local")
 
                     custom_mods_dir = get_custom_mod_library_root(
                         self.active_game_id, settings=settings
@@ -721,64 +706,22 @@ class ModManagerBridge(QObject):
 
         try:
 
-            if self.persistent_dir:
+            if self.persistent_dir and self.game_audio_dir:
                 try:
                     persistent_path = Path(self.persistent_dir)
-
                     if persistent_path.exists():
                         self.progressUpdate.emit("Cleaning up old PCK files...")
-
-                        lang_folders_to_skip = set()
-                        for lang_folder in persistent_path.iterdir():
-                            if lang_folder.is_dir():
-                                pck_count = len(list(lang_folder.glob("*.pck")))
-                                if self._should_skip_cleanup_folder(lang_folder, pck_count):
-                                    lang_folders_to_skip.add(lang_folder)
-                                    logger.info(f"[Mod Manager] Skipping language folder "
-                                        f"{lang_folder.name} (has {pck_count} PCK files)")
-
-                        cleaned_files = 0
-                        for pck_file in persistent_path.rglob("*.pck"):
-
-                            if any(lang_folder in pck_file.parents for lang_folder in lang_folders_to_skip):
-                                continue
-
-                            if pck_file.name in get_game(self.active_game_id).protected_pcks:
-                                logger.info(f"[Mod Manager] Skipping protected file: {pck_file.name}")
-                                continue
-
-                            try:
-                                pck_file.chmod(0o644)
-                                pck_file.unlink()
-                                cleaned_files += 1
-                            except Exception as e:
-                                logger.error(f"[Mod Manager] Failed to delete {pck_file}: {e}")
-
-                        if cleaned_files > 0:
-                            logger.info(f"[Mod Manager] Cleaned up {cleaned_files} old PCK file(s) from Persistent folder")
-
-                        try:
-                            restored = restore_override_pck_backups(persistent_path)
-                            if restored > 0:
-                                logger.info(f"[Mod Manager] Restored {restored} override PCK backup(s)")
-                        except Exception as e:
-                            logger.error(f"[Mod Manager] Warning: Failed to restore override PCK backups: {e}")
-
+                        modded_keys = set(self.persistent_mod_manager.get_all_replacements().keys())
+                        stats = cleanup_persistent_overlay(
+                            self.active_game_id,
+                            self.game_audio_dir,
+                            persistent_path,
+                            modded_keys,
+                            progress_cb=lambda msg: self.progressUpdate.emit(msg),
+                        )
+                        logger.info(f"[Mod Manager] Persistent cleanup: {stats}")
                 except Exception as e:
                     logger.error(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
-
-            # Restore backed-up originals into Persistent (e.g. HSR VO).
-            if self.persistent_dir:
-                try:
-                    handler_cls = get_browser_handler_class(self.active_game_id)
-                    vo_mode = self.hsr_vo_backup_mode if self.active_game_id == "hsr" else "api"
-                    handler_cls.restore_persistent_originals(
-                        Path(self.persistent_dir),
-                        progress_callback=lambda msg: self.progressUpdate.emit(msg),
-                        vo_backup_mode=vo_mode,
-                    )
-                except Exception as e:
-                    logger.error(f"[Mod Manager] Warning: Failed to restore persistent originals: {e}")
 
             self.progressUpdate.emit("Applying mods...")
 
