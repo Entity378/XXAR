@@ -868,7 +868,7 @@ Item {
                                                         border.width: 1
                                                     }
                                                     Layout.preferredWidth: 130
-                                                    validator: DoubleValidator { bottom: 0; decimals: 6 }
+                                                    validator: RegularExpressionValidator { regularExpression: /^[0-9]*\.?[0-9]{0,6}$/ }
                                                     onTextEdited: hircEditorPage.setPending(
                                                                       track.obj_id, "loop", null, text
                                                                   )
@@ -922,7 +922,7 @@ Item {
                                                         border.width: 1
                                                     }
                                                     Layout.preferredWidth: 130
-                                                    validator: DoubleValidator { bottom: -100; top: 24; decimals: 4 }
+                                                    validator: RegularExpressionValidator { regularExpression: /^-?[0-9]*\.?[0-9]{0,4}$/ }
                                                     onTextEdited: hircEditorPage.setPending(
                                                                       track.obj_id, "vol", null, text
                                                                   )
@@ -1440,7 +1440,7 @@ Item {
                                         verticalAlignment: Text.AlignVCenter
                                         text: rowRoot.rowData.loop_ms
                                         color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                                        validator: DoubleValidator { bottom: 0; decimals: 3 }
+                                        validator: RegularExpressionValidator { regularExpression: /^[0-9]*\.?[0-9]{0,3}$/ }
                                         clip: true
                                         onEditingFinished: hircEditorPage.editTrackLoopRequested(
                                             rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)
@@ -1469,7 +1469,7 @@ Item {
                                         verticalAlignment: Text.AlignVCenter
                                         text: rowRoot.rowData.volume_db
                                         color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                                        validator: DoubleValidator { bottom: -96; top: 24; decimals: 2 }
+                                        validator: RegularExpressionValidator { regularExpression: /^-?[0-9]*\.?[0-9]{0,2}$/ }
                                         clip: true
                                         onEditingFinished: hircEditorPage.editTrackVolumeRequested(
                                             rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)

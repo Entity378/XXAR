@@ -854,13 +854,13 @@ class HircEditorBridge(QObject):
         loop_val = None
         if str(loop_ms).strip() != "":
             try:
-                loop_val = float(loop_ms)
+                loop_val = max(0.0, float(loop_ms))
             except ValueError:
                 loop_val = None
         vol_val = None
         if str(volume_db).strip() != "":
             try:
-                vol_val = float(volume_db)
+                vol_val = max(-96.0, min(24.0, float(volume_db)))
             except ValueError:
                 vol_val = None
 
@@ -918,7 +918,7 @@ class HircEditorBridge(QObject):
         if v is None:
             return ""
         f = float(v)
-        return str(int(f)) if f == int(f) else f"{f:g}"
+        return str(int(f)) if f == int(f) else f"{f:.6f}".rstrip("0").rstrip(".")
 
     @pyqtSlot()
     def showDraftChanges(self):
