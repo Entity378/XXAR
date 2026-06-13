@@ -237,6 +237,14 @@ def get_game_mod_tracker_file(game_id=DEFAULT_GAME_ID, custom_root=None):
     return get_game_mod_library_dir(game_id, custom_root) / "mod_tracker.json"
 
 
+def get_game_hirc_draft_file(game_id=DEFAULT_GAME_ID):
+    return get_game_data_dir(normalize_game_id(game_id)) / "hirc_mod_draft.json"
+
+
+def get_game_hirc_draft_wem_dir(game_id=DEFAULT_GAME_ID):
+    return get_game_data_dir(normalize_game_id(game_id)) / "hirc_draft_wems"
+
+
 def resolve_mod_paths_for_game(game_id=DEFAULT_GAME_ID, custom_root=None):
     game = normalize_game_id(game_id)
     mod_library_dir = get_game_mod_library_dir(game, custom_root)

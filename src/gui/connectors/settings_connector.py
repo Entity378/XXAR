@@ -190,6 +190,19 @@ class SettingsConnector:
                     "refreshBnkList",
                     Qt.ConnectionType.QueuedConnection,
                 )
+            # Refresh the Add-WEM target pck selector in the HIRC tab.
+            if getattr(self, "hirc_editor_bridge", None) is not None:
+                QMetaObject.invokeMethod(
+                    self.hirc_editor_bridge,
+                    "listMusicPcks",
+                    Qt.ConnectionType.QueuedConnection,
+                )
+                # The HIRC mod draft is per game, so reload it.
+                QMetaObject.invokeMethod(
+                    self.hirc_editor_bridge,
+                    "refreshDraft",
+                    Qt.ConnectionType.QueuedConnection,
+                )
         except Exception as e:
             logger.error(f"[Settings] Background game switch error: {e}")
 

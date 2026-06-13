@@ -24,13 +24,28 @@ from PyQt6.QtCore import (
 )
 
 import src.core.app_config as app_config
-from src.core.config_manager import get_settings_file
+from src.audio.converter import AudioConverter
+from src.core.config_manager import (
+    get_game_hirc_draft_file,
+    get_game_hirc_draft_wem_dir,
+    get_game_sound_database_file,
+    get_settings_file,
+)
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     get_audio_settings_keys,
     get_game,
 )
 from src.core.logger import get_logger
+from src.data.sound_database import SoundDatabase
+from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.hirc_mod_apply import apply_hirc_track_patches
+from src.wwise.hirc_music import (
+    _collect_bnk_music_index,
+    _extract_track_source_ids,
+    _scan_bnk_music_objects,
+    apply_track_patches_to_bnk,
+)
 from src.wwise.hirc_patcher import (
     apply_duration_patches,
     scan_bank_for_patch_targets,
@@ -39,312 +54,6 @@ from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
 logger = get_logger(__name__)
-
-
-# ── HIRC parsing constants ───────────────────────────────────────────────────
-
-HIRC_TYPE_NAMES = {
-    0x0A: "MusicSegment",
-    0x0B: "MusicTrack",
-    0x0C: "MusicSwitchCntr",
-    0x0D: "MusicRanSeqCntr",
-}
-MUSIC_HIRC_TYPES = set(HIRC_TYPE_NAMES.keys())
-HIRC_TYPE_MUSIC_TRACK = 0x0B
-
-# AkBankSourceData layout (14 bytes per source).
-# pluginID(4) + streamType(1) + sourceID(4) + mediaSize(4) + sourceBits(1).
-_SOURCE_DATA_SIZE = 14
-_SOURCE_ID_OFFSET_IN_SOURCE = 5
-
-# TrackSrcInfo (44 bytes per playlist item).
-# trackID(4) + sourceID(4) + eventID(4) + fPlayAt(8) + fBeginTrim(8) + fEndTrim(8) + fSrcDuration(8).
-_TRACK_SRC_INFO_SIZE = 44
-
-
-# ── Pure HIRC helpers (module-level, easier to unit-test) ────────────────────
-
-def _find_hirc_sections(content: bytes):
-    # Yield (data_start, data_size) for each HIRC chunk in a bnk.
-    flen = len(content)
-    pos = -1
-    while True:
-        pos = content.find(b"HIRC", pos + 1)
-        if pos == -1:
-            break
-        if pos + 12 > flen:
-            break
-        section_size = struct.unpack_from("<I", content, pos + 4)[0]
-        if section_size < 4 or pos + 8 + section_size > flen:
-            continue
-        yield (pos + 8, section_size)
-
-
-def _iter_music_types_in_content(content: bytes):
-    for hs, hsz in _find_hirc_sections(content):
-        se = hs + hsz
-        if hs + 4 > se:
-            continue
-        n_obj = struct.unpack_from("<I", content, hs)[0]
-        op = hs + 4
-        for _ in range(n_obj):
-            if op + 5 > se:
-                break
-            ot = content[op]
-            osz = struct.unpack_from("<I", content, op + 1)[0]
-            if ot in MUSIC_HIRC_TYPES:
-                yield ot
-            op = op + 5 + osz
-
-
-def _parse_music_track_fields(
-    content: bytes, ds: int, de: int, abs_off_base: int
-) -> Optional[dict]:
-    # Extract MusicTrack obj_id + AkBankSourceData/TrackSrcInfo entries with absolute pck offsets.
-    # Also returns the current loop_ms (TrackSrcInfo[0].fSrcDuration).
-    if ds + 9 > de:
-        return None
-    obj_id = struct.unpack_from("<I", content, ds)[0]
-    num_sources = struct.unpack_from("<I", content, ds + 5)[0]
-    if num_sources < 0 or num_sources > 100:
-        return None
-
-    sources: List[dict] = []
-    p = ds + 9
-    for k in range(num_sources):
-        if p + _SOURCE_DATA_SIZE > de:
-            break
-        sid_off = p + _SOURCE_ID_OFFSET_IN_SOURCE
-        sid = struct.unpack_from("<I", content, sid_off)[0]
-        sources.append({
-            "index": k,
-            "source_id": sid,
-            "abs_offset_in_pck": abs_off_base + sid_off,
-        })
-        p += _SOURCE_DATA_SIZE
-
-    playlist: List[dict] = []
-    if p + 4 <= de:
-        num_pl = struct.unpack_from("<I", content, p)[0]
-        p += 4
-        if 0 <= num_pl <= 200:
-            for j in range(num_pl):
-                if p + _TRACK_SRC_INFO_SIZE > de:
-                    break
-                ts_sid_off = p + 4
-                ts_sid = struct.unpack_from("<I", content, ts_sid_off)[0]
-                playlist.append({
-                    "index": j,
-                    "source_id": ts_sid,
-                    "abs_offset_in_pck": abs_off_base + ts_sid_off,
-                })
-                p += _TRACK_SRC_INFO_SIZE
-
-    loop_ms: Optional[float] = None
-    loop_clear_offset_abs: Optional[int] = None
-    loop_duration_offset_abs: Optional[int] = None
-    if playlist:
-        first_ts_sid_off = playlist[0]["abs_offset_in_pck"] - abs_off_base
-        ts_struct_start = first_ts_sid_off - 4  # back up to trackID
-        clear_off = ts_struct_start + 8
-        dur_off = ts_struct_start + 36
-        if 0 <= dur_off + 8 <= len(content):
-            try:
-                loop_ms = struct.unpack_from("<d", content, dur_off)[0]
-                loop_clear_offset_abs = abs_off_base + clear_off
-                loop_duration_offset_abs = abs_off_base + dur_off
-            except Exception:
-                loop_ms = None
-
-    return {
-        "obj_id": obj_id,
-        "type": "MusicTrack",
-        "type_hex": "0x0B",
-        "body_size": de - ds,
-        "sources": sources,
-        "playlist": playlist,
-        "loop_ms": loop_ms,
-        "loop_clear_offset_abs": loop_clear_offset_abs,
-        "loop_duration_offset_abs": loop_duration_offset_abs,
-        "volume_db": None,
-        "volume_offset_abs": None,
-        "has_volume": False,
-        # Internal: bnk-relative bounds used to disambiguate per-track volumes.
-        # They matter when multiple tracks share the same source_id.
-        # Stripped before leaving the bridge.
-        "_ds_local": ds,
-        "_de_local": de,
-    }
-
-
-def _parse_music_object_basic(
-    obj_type: int, content: bytes, ds: int, de: int
-) -> Optional[dict]:
-    if ds + 4 > de:
-        return None
-    obj_id = struct.unpack_from("<I", content, ds)[0]
-    out: dict = {
-        "obj_id": obj_id,
-        "type": HIRC_TYPE_NAMES.get(obj_type, f"0x{obj_type:02X}"),
-        "type_hex": f"0x{obj_type:02X}",
-        "body_size": de - ds,
-        "sources": [],
-        "playlist": [],
-        "loop_ms": None,
-        "loop_clear_offset_abs": None,
-        "loop_duration_offset_abs": None,
-        "volume_db": None,
-        "volume_offset_abs": None,
-        "has_volume": False,
-    }
-    # NOTE: container-type AkPropBundle parsing is unreliable for Genshin's Wwise variant.
-    # Both alignments (with/without bOverrideAttachmentParams) produce garbage prop_ids/values.
-    # This affects MusicSegment, MusicRanSeqCntr and MusicSwitchCntr.
-    # The Volume offset for these nodes most likely lives elsewhere.
-    # Candidates: StateGroup attenuations, RTPC bindings or CAkBus volumes.
-    # None of those are reachable from a simple AkPropBundle scan.
-    # We deliberately do NOT expose volume editing for these types to avoid corrupting the bnk.
-    return out
-
-
-def _scan_bnk_music_objects(
-    content: bytes, bnk_abs_offset_in_pck: int
-) -> List[dict]:
-    out: List[dict] = []
-    for hs, hsz in _find_hirc_sections(content):
-        se = hs + hsz
-        if hs + 4 > se:
-            continue
-        n_obj = struct.unpack_from("<I", content, hs)[0]
-        op = hs + 4
-        for _ in range(n_obj):
-            if op + 5 > se:
-                break
-            ot = content[op]
-            osz = struct.unpack_from("<I", content, op + 1)[0]
-            ds = op + 5
-            de = ds + osz
-            if de > len(content):
-                break
-            if ot in MUSIC_HIRC_TYPES:
-                if ot == HIRC_TYPE_MUSIC_TRACK:
-                    parsed = _parse_music_track_fields(
-                        content, ds, de, bnk_abs_offset_in_pck
-                    )
-                else:
-                    parsed = _parse_music_object_basic(ot, content, ds, de)
-                if parsed is not None:
-                    out.append(parsed)
-            op = de
-
-    # Second pass: lift AkPropBundle Volume offsets via XXAR's HIRC patcher.
-    # Single call with all source_ids.
-    # Then attribute each VolumePatchInfo to its owning MusicTrack.
-    # Match is done by checking which track's body range contains volume_value_offset.
-    # Multiple tracks can share the same source_id but each carries its own AkPropBundle.
-    # Per-source dict-mapping was wrong.
-    all_source_ids: set = set()
-    for o in out:
-        if o.get("type") == "MusicTrack":
-            for s in o.get("sources", []):
-                all_source_ids.add(s["source_id"])
-    if not all_source_ids:
-        for o in out:
-            o.pop("_ds_local", None)
-            o.pop("_de_local", None)
-        return out
-    try:
-        targets = scan_bank_for_patch_targets(content, all_source_ids)
-    except Exception:
-        for o in out:
-            o.pop("_ds_local", None)
-            o.pop("_de_local", None)
-        return out
-
-    # Build a sorted index of (ds_local, de_local, track_dict) tuples.
-    # Used for O(log N) lookup of the owning track per volume_value_offset.
-    track_ranges = []
-    for o in out:
-        if o.get("type") != "MusicTrack":
-            continue
-        ds_l = o.get("_ds_local")
-        de_l = o.get("_de_local")
-        if ds_l is not None and de_l is not None:
-            track_ranges.append((ds_l, de_l, o))
-    track_ranges.sort(key=lambda t: t[0])
-
-    def _find_owner(off):
-        # Linear-ish scan; ranges are non-overlapping and sorted by start.
-        # For typical bnks (hundreds of tracks) this is plenty fast.
-        for ds_l, de_l, owner in track_ranges:
-            if ds_l <= off < de_l:
-                return owner
-            if ds_l > off:
-                return None
-        return None
-
-    seen_track_ids = set()
-    for vp in targets.volume_patches:
-        if not vp.has_existing_volume:
-            continue
-        owner = _find_owner(vp.volume_value_offset)
-        if owner is None:
-            continue
-        if owner["obj_id"] in seen_track_ids:
-            continue  # one volume per track
-        seen_track_ids.add(owner["obj_id"])
-        vof = vp.volume_value_offset
-        if 0 <= vof + 4 <= len(content):
-            try:
-                owner["volume_db"] = float(
-                    struct.unpack_from("<f", content, vof)[0]
-                )
-                owner["volume_offset_abs"] = bnk_abs_offset_in_pck + vof
-                owner["has_volume"] = True
-            except Exception:
-                pass
-
-    # Strip internal-only fields from the returned dicts.
-    for o in out:
-        o.pop("_ds_local", None)
-        o.pop("_de_local", None)
-    return out
-
-
-def _extract_track_source_ids(content, track_obj_id: int) -> set:
-    # Walk HIRC, find MusicTrack with given obj_id, return set of its AkBankSourceData sourceIDs.
-    out: set = set()
-    for hs, hsz in _find_hirc_sections(content):
-        se = hs + hsz
-        if hs + 4 > se:
-            continue
-        n_obj = struct.unpack_from("<I", content, hs)[0]
-        op = hs + 4
-        for _ in range(n_obj):
-            if op + 5 > se:
-                break
-            ot = content[op]
-            osz = struct.unpack_from("<I", content, op + 1)[0]
-            ds = op + 5
-            de = ds + osz
-            if de > len(content):
-                break
-            if ot == HIRC_TYPE_MUSIC_TRACK and ds + 9 <= de:
-                obj_id = struct.unpack_from("<I", content, ds)[0]
-                if obj_id == track_obj_id:
-                    num_sources = struct.unpack_from("<I", content, ds + 5)[0]
-                    if 0 <= num_sources <= 100:
-                        p = ds + 9
-                        for _ in range(num_sources):
-                            if p + _SOURCE_DATA_SIZE > de:
-                                break
-                            out.add(struct.unpack_from(
-                                "<I", content, p + _SOURCE_ID_OFFSET_IN_SOURCE
-                            )[0])
-                            p += _SOURCE_DATA_SIZE
-                    return out
-            op = de
-    return out
 
 
 # ── Background loader (QThread) ──────────────────────────────────────────────
@@ -411,7 +120,7 @@ class BnkListLoaderWorker(QThread):
                         return []
                     f.seek(binfo["offset"])
                     content = f.read(binfo["size"])
-                    n_music = sum(1 for _ in _iter_music_types_in_content(content))
+                    n_music, src_ids = _collect_bnk_music_index(content)
                     if n_music == 0:
                         continue
                     result.append({
@@ -421,6 +130,7 @@ class BnkListLoaderWorker(QThread):
                         "bnk_size": binfo["size"],
                         "music_object_count": n_music,
                         "is_override": is_override,
+                        "source_ids": sorted(src_ids),
                     })
             if i % 8 == 0 or i == total:
                 self.progress.emit(
@@ -428,6 +138,89 @@ class BnkListLoaderWorker(QThread):
                 )
         result.sort(key=lambda r: (_natural_pck_key(r["pck_name"]), r["bnk_id"]))
         return result
+
+
+class WemConvertWorker(QThread):
+    # Convert an arbitrary audio file to .wem off the UI thread (Wwise shellout is slow).
+    # .wem inputs are copied as-is.
+    finished_ok = pyqtSignal(str, str)  # (wem_path, source_name)
+    failed = pyqtSignal(str)
+
+    def __init__(self, audio_path: Path, dest_wem: Path, normalize: bool = False,
+                 streaming_root=None, wem_id=None):
+        super().__init__()
+        self._audio_path = Path(audio_path)
+        self._dest_wem = Path(dest_wem)
+        self._normalize = normalize
+        self._streaming_root = streaming_root
+        self._wem_id = wem_id
+
+    def run(self):
+        try:
+            # An add must use a new id, so reject one that already exists in the originals.
+            # Building the index here keeps it off the UI thread.
+            if self._streaming_root is not None and self._wem_id is not None:
+                from src.wwise.original_id_index import get_original_id_index
+                if int(self._wem_id) in get_original_id_index(self._streaming_root):
+                    self.failed.emit(
+                        f"WEM id {self._wem_id} already exists in the game's original files. "
+                        f"Choose a different (unused) id."
+                    )
+                    return
+            self._dest_wem.parent.mkdir(parents=True, exist_ok=True)
+            if self._audio_path.suffix.lower() == ".wem":
+                shutil.copy2(self._audio_path, self._dest_wem)
+            else:
+                converter = AudioConverter()
+                out = Path(converter.any_to_wem(
+                    str(self._audio_path),
+                    output_file=str(self._dest_wem),
+                    normalize=self._normalize,
+                ))
+                if out != self._dest_wem and out.exists():
+                    shutil.move(str(out), str(self._dest_wem))
+            self.finished_ok.emit(str(self._dest_wem), self._audio_path.name)
+        except Exception as e:
+            logger.exception("[HIRC Editor] WEM conversion failed")
+            self.failed.emit(str(e))
+
+
+class ApplyDraftWorker(QThread):
+    # Replay a HIRC draft onto the live game (Persistent): media WEM adds + track patches.
+    progress = pyqtSignal(str)
+    finished_ok = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, media_adds, track_patches, add_fn, streaming_root, persistent_root):
+        super().__init__()
+        self._media_adds = list(media_adds)
+        self._track_patches = list(track_patches)
+        self._add_fn = add_fn  # bound HircEditorBridge._add_wem_to_pck
+        self._streaming_root = streaming_root
+        self._persistent_root = persistent_root
+
+    def run(self):
+        try:
+            for item in self._media_adds:
+                self.progress.emit(
+                    f"Adding WEM {item['wem_id']} to {item['pck_name']}..."
+                )
+                self._add_fn(
+                    item["pck_name"], int(item["wem_id"]), Path(item["wem_path"])
+                )
+            if self._track_patches:
+                self.progress.emit("Applying track patches...")
+                apply_hirc_track_patches(
+                    self._track_patches,
+                    self._streaming_root,
+                    self._persistent_root,
+                    fresh_clone=True,
+                    status_cb=lambda m: self.progress.emit(str(m)),
+                )
+            self.finished_ok.emit("Draft applied to the live game.")
+        except Exception as e:
+            logger.exception("[HIRC Editor] Apply draft failed")
+            self.failed.emit(str(e))
 
 
 # ── Bridge ──────────────────────────────────────────────────────────────────
@@ -443,10 +236,28 @@ class HircEditorBridge(QObject):
     volumePatchApplied = pyqtSignal(str, "qint64", float)
     wemAdded = pyqtSignal(str, "qint64", str)
     musicPckListReady = pyqtSignal("QVariant")
+    inspectorCleared = pyqtSignal()
+
+    # Mod-draft staging (Browser-style): stage edits, then Apply All / Export / Reset.
+    draftChangesCount = pyqtSignal(int)
+    draftChangesReady = pyqtSignal("QVariant")
+    exportMetadataDialogReady = pyqtSignal("QVariant")
+    thumbnailPathSelected = pyqtSignal(str)
+    draftApplied = pyqtSignal(bool, str)
+    modExported = pyqtSignal(bool, str)
+    wemStaged = pyqtSignal(str, "qint64", str)
 
     def __init__(self):
         super().__init__()
         self._loader: Optional[BnkListLoaderWorker] = None
+        self._draft = {"media_adds": [], "track_patches": []}
+        self._draft_game_id: Optional[str] = None
+        self._convert_worker: Optional[WemConvertWorker] = None
+        self._apply_worker: Optional[ApplyDraftWorker] = None
+        # Reverse index {wem_id: name} from the per-game sound database.
+        # It is built lazily and refreshed on game switch to label HIRC sources.
+        self._id_name_map: Optional[Dict[int, str]] = None
+        self._id_name_game_id: Optional[str] = None
 
     # ── Settings + active-game lifecycle ────────────────────────────────
 
@@ -460,6 +271,8 @@ class HircEditorBridge(QObject):
     @pyqtSlot()
     def refreshBnkList(self):
         self._cancel_loader()
+        # Re-read tagged names on an explicit refresh (e.g. after tagging in the Browser).
+        self._id_name_game_id = None
         audio_root = self._game_audio_dir()
         persistent_root = self._game_persistent_audio_dir()
         if audio_root is None:
@@ -485,10 +298,11 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot()
     def unloadAll(self):
-        # Drop bnk list state. Called on game switch.
+        # Drop the bnk list and the open inspector on game switch.
         logger.info("[HIRC Editor] Unloading all bnks (active-game change)")
         self._cancel_loader()
         self.bnkListReady.emit([])
+        self.inspectorCleared.emit()
         self.statusUpdate.emit("Bnks unloaded (active game changed).")
 
     # ── Per-bnk HIRC inspection ─────────────────────────────────────────
@@ -676,7 +490,21 @@ class HircEditorBridge(QObject):
             return
         n = len(data) if data is not None else 0
         logger.info(f"[HIRC Editor] Bnk scan finished: {n} bnks")
+        self._build_bnk_search_blobs(data)
         self.bnkListReady.emit(data)
+
+    def _build_bnk_search_blobs(self, data):
+        # Turn each bnk's source ids into a lowercase "id name" search blob.
+        # The bnk-list filter uses it to search all banks by source id or tagged name.
+        name_map = self._get_id_name_map()
+        for entry in (data or []):
+            ids = entry.pop("source_ids", []) or []
+            parts = [str(i) for i in ids]
+            for i in ids:
+                nm = name_map.get(int(i))
+                if nm:
+                    parts.append(nm.lower())
+            entry["search"] = " ".join(parts)
 
     def _onLoaderFailed(self, msg):
         if self.sender() is not self._loader:
@@ -709,8 +537,53 @@ class HircEditorBridge(QObject):
                 with open(pck_path, "rb") as f:
                     f.seek(binfo["offset"])
                     content = f.read(binfo["size"])
-                return _scan_bnk_music_objects(content, binfo["offset"])
+                objs = _scan_bnk_music_objects(content, binfo["offset"])
+                self._annotate_source_names(objs)
+                return objs
         raise KeyError(f"bnk_id {bnk_id} not in {pck_name}")
+
+    def _get_id_name_map(self) -> Dict[int, str]:
+        # Map wem ids to names from the active game's sound database, cached per game.
+        gid = self._current_game_id()
+        if self._id_name_game_id != gid:
+            mapping: Dict[int, str] = {}
+            try:
+                db = SoundDatabase(db_path=get_game_sound_database_file(gid))
+                db.ensure_loaded()
+                for info in db.database.values():
+                    name = info.get("name")
+                    if not name:
+                        continue
+                    for fid in (info.get("file_ids") or []):
+                        try:
+                            mapping[int(fid)] = name
+                        except (TypeError, ValueError):
+                            continue
+            except Exception as e:
+                logger.warning(f"[HIRC Editor] Failed to load sound names: {e}")
+            self._id_name_map = mapping
+            self._id_name_game_id = gid
+        return self._id_name_map
+
+    def _annotate_source_names(self, objs):
+        # Tag each AkBankSourceData / TrackSrcInfo entry with its DB name (when known).
+        name_map = self._get_id_name_map()
+        if not name_map:
+            return
+        for o in objs:
+            for entry in (o.get("sources") or []):
+                nm = name_map.get(int(entry.get("source_id", -1)))
+                if nm:
+                    entry["name"] = nm
+            for entry in (o.get("playlist") or []):
+                nm = name_map.get(int(entry.get("source_id", -1)))
+                if nm:
+                    entry["name"] = nm
+
+    @pyqtSlot()
+    def refreshSoundNames(self):
+        # Invalidate the name cache (e.g. after the user tags sounds in the Browser).
+        self._id_name_game_id = None
 
     # ── Internal: patching ──────────────────────────────────────────────
 
@@ -858,3 +731,523 @@ class HircEditorBridge(QObject):
                 return cur / "AudioAssets"
             cur = cur.parent
         return path if path.exists() else None
+
+    # The draft holds media adds and track patches, persisted per game so it survives restarts.
+    # Apply All replays it onto the live game and Export packages it as a .xxar.
+
+    def _get_draft(self) -> dict:
+        gid = self._current_game_id()
+        if self._draft_game_id != gid:
+            self._draft = self._load_draft(gid)
+            self._draft_game_id = gid
+        return self._draft
+
+    def _load_draft(self, game_id: str) -> dict:
+        try:
+            f = get_game_hirc_draft_file(game_id)
+            if f.exists():
+                data = json.loads(f.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    data.setdefault("media_adds", [])
+                    data.setdefault("track_patches", [])
+                    return data
+        except Exception as e:
+            logger.warning(f"[HIRC Editor] Failed to load draft: {e}")
+        return {"media_adds": [], "track_patches": []}
+
+    def _save_draft(self):
+        gid = self._draft_game_id or self._current_game_id()
+        try:
+            f = get_game_hirc_draft_file(gid)
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(self._draft, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"[HIRC Editor] Failed to save draft: {e}")
+
+    def _draft_count(self) -> int:
+        d = self._get_draft()
+        return len(d.get("media_adds", [])) + len(d.get("track_patches", []))
+
+    def _emit_draft_count(self):
+        self.draftChangesCount.emit(self._draft_count())
+
+    @pyqtSlot()
+    def refreshDraft(self):
+        # Reload the draft for the active game and push the count to the UI.
+        self._draft_game_id = None
+        self._get_draft()
+        self._emit_draft_count()
+
+    @pyqtSlot(str, "QVariant", str, "QVariant")
+    def stageAddWem(self, pck_name, wem_id, audio_file_path, lang_id):
+        # Convert (if needed) then stage a new WEM add into the named media pck.
+        pck = str(pck_name)
+        try:
+            wid = int(wem_id)
+        except (TypeError, ValueError):
+            self.errorOccurred.emit("Add WEM", "Invalid WEM id.")
+            return
+        if not (0 <= wid <= 0xFFFFFFFF):
+            self.errorOccurred.emit("Add WEM", f"WEM id {wid} out of u32 range.")
+            return
+        src = Path(str(audio_file_path))
+        if not src.exists():
+            self.errorOccurred.emit("Add WEM", f"Audio file not found:\n{src}")
+            return
+        try:
+            lid = int(lang_id)
+        except (TypeError, ValueError):
+            lid = 0
+
+        gid = self._current_game_id()
+        dest = get_game_hirc_draft_wem_dir(gid) / f"{wid}.wem"
+        self.statusUpdate.emit(f"Converting {src.name} to WEM...")
+        # Validate the id against the originals inside the worker (off the UI thread).
+        worker = WemConvertWorker(src, dest, streaming_root=self._game_audio_dir(), wem_id=wid)
+        worker.finished_ok.connect(
+            lambda wem_path, sname, p=pck, w=wid, l=lid:
+            self._on_wem_converted(p, w, l, wem_path, sname)
+        )
+        worker.failed.connect(
+            lambda msg: self.errorOccurred.emit("Add WEM", f"Conversion failed:\n{msg}")
+        )
+        worker.finished.connect(worker.deleteLater)
+        self._convert_worker = worker
+        worker.start()
+
+    def _on_wem_converted(self, pck, wem_id, lang_id, wem_path, source_name):
+        d = self._get_draft()
+        wid = int(wem_id)
+        # One media add per (pck, wem_id): a re-add replaces the previous staging.
+        d["media_adds"] = [
+            m for m in d["media_adds"]
+            if not (m.get("pck_name") == pck and int(m.get("wem_id")) == wid)
+        ]
+        d["media_adds"].append({
+            "pck_name": pck,
+            "wem_id": wid,
+            "wem_path": str(wem_path),
+            "lang_id": int(lang_id),
+            "source_name": source_name,
+        })
+        self._save_draft()
+        self._emit_draft_count()
+        self.statusUpdate.emit(f"Staged WEM {wid} -> {pck} ({source_name})")
+        self.wemStaged.emit(pck, wid, source_name)
+
+    @pyqtSlot(str, "QVariant", "QVariant", str, str, str)
+    def stageTrackEdits(self, pck_name, bnk_id, track_obj_id,
+                        remaps_json, loop_ms, volume_db):
+        # Stage one MusicTrack's edits: source remaps (JSON list) + optional loop/volume.
+        pck = str(pck_name)
+        try:
+            bnk = int(bnk_id)
+            tid = int(track_obj_id)
+        except (TypeError, ValueError):
+            self.errorOccurred.emit("Stage", "Invalid bnk/track id.")
+            return
+        try:
+            remaps = json.loads(remaps_json) if remaps_json else []
+        except Exception:
+            remaps = []
+
+        loop_val = None
+        if str(loop_ms).strip() != "":
+            try:
+                loop_val = float(loop_ms)
+            except ValueError:
+                loop_val = None
+        vol_val = None
+        if str(volume_db).strip() != "":
+            try:
+                vol_val = float(volume_db)
+            except ValueError:
+                vol_val = None
+
+        if not remaps and loop_val is None and vol_val is None:
+            return
+
+        self._merge_track_patch(pck, bnk, tid, remaps, loop_val, vol_val)
+        self._save_draft()
+        self._emit_draft_count()
+        self.statusUpdate.emit(f"Staged track {tid} edits in {pck}:{bnk}")
+
+    def _merge_track_patch(self, pck, bnk, tid, remaps, loop_val, vol_val):
+        d = self._get_draft()
+        entry = None
+        for tp in d["track_patches"]:
+            if (tp.get("pck_name") == pck
+                    and int(tp.get("bnk_id")) == bnk
+                    and int(tp.get("track_obj_id")) == tid):
+                entry = tp
+                break
+        if entry is None:
+            entry = {
+                "pck_name": pck, "bnk_id": bnk, "track_obj_id": tid,
+                "source_remaps": [], "loop_ms": None, "volume_db": None,
+            }
+            d["track_patches"].append(entry)
+
+        by_slot = {
+            (r.get("slot"), int(r.get("index", 0))): r
+            for r in entry["source_remaps"]
+        }
+        for r in remaps:
+            try:
+                slot = str(r.get("slot", "src"))
+                idx = int(r.get("index", 0))
+                new_id = int(r.get("new_source_id"))
+            except (TypeError, ValueError):
+                continue
+            old_raw = r.get("old_source_id")
+            by_slot[(slot, idx)] = {
+                "slot": slot,
+                "index": idx,
+                "old_source_id": int(old_raw) if old_raw is not None else None,
+                "new_source_id": new_id,
+            }
+        entry["source_remaps"] = list(by_slot.values())
+        if loop_val is not None:
+            entry["loop_ms"] = loop_val
+        if vol_val is not None:
+            entry["volume_db"] = vol_val
+
+    @staticmethod
+    def _num_str(v):
+        # Compact numeric string for the editable fields ("" when unset).
+        if v is None:
+            return ""
+        f = float(v)
+        return str(int(f)) if f == int(f) else f"{f:g}"
+
+    @pyqtSlot()
+    def showDraftChanges(self):
+        # Each change carries its editable parts as separate fields (Source, Loop, Volume).
+        # The QML renders an input per part.
+        # Track rows are editable; add rows show a read-only source.
+        d = self._get_draft()
+        changes = []
+        for m in d.get("media_adds", []):
+            wid = int(m.get("wem_id"))
+            sname = m.get("source_name", "")
+            changes.append({
+                "kind": "add_wem",
+                "pck_name": m.get("pck_name"),
+                "wem_id": wid,
+                "bnk_id": 0,
+                "track_obj_id": 0,
+                "remaps": [],
+                "source_display": f"+ {wid}" + (f" ({sname})" if sname else ""),
+                "loop_ms": "",
+                "volume_db": "",
+            })
+        for tp in d.get("track_patches", []):
+            remaps = [{
+                "slot": str(r.get("slot", "src")),
+                "index": int(r.get("index", 0)),
+                "old_source_id": r.get("old_source_id"),
+                "new_source_id": r.get("new_source_id"),
+            } for r in (tp.get("source_remaps") or [])]
+            changes.append({
+                "kind": "track",
+                "pck_name": tp.get("pck_name"),
+                "wem_id": 0,
+                "bnk_id": int(tp.get("bnk_id")),
+                "track_obj_id": int(tp.get("track_obj_id")),
+                "remaps": remaps,
+                "source_display": "",
+                "loop_ms": self._num_str(tp.get("loop_ms")),
+                "volume_db": self._num_str(tp.get("volume_db")),
+            })
+        self.draftChangesReady.emit(changes)
+
+    def _find_track_patch(self, pck, bnk_id, track_obj_id):
+        d = self._get_draft()
+        for tp in d.get("track_patches", []):
+            if (tp.get("pck_name") == str(pck)
+                    and int(tp.get("bnk_id")) == int(bnk_id)
+                    and int(tp.get("track_obj_id")) == int(track_obj_id)):
+                return tp
+        return None
+
+    def _track_patch_is_empty(self, tp):
+        return (not tp.get("source_remaps")
+                and tp.get("loop_ms") is None
+                and tp.get("volume_db") is None)
+
+    def _after_track_edit(self, tp, structural=False):
+        # Persist, and drop the patch if it no longer changes anything.
+        # Re-emit the list only on a structural change (row added or removed).
+        # A value-only edit must not rebuild the model, or the edited field loses focus.
+        d = self._get_draft()
+        if self._track_patch_is_empty(tp):
+            d["track_patches"] = [x for x in d.get("track_patches", []) if x is not tp]
+            self._save_draft()
+            self._emit_draft_count()
+            self.showDraftChanges()
+            return
+        self._save_draft()
+        if structural:
+            self.showDraftChanges()
+
+    @pyqtSlot(str, "QVariant", "QVariant", str)
+    def setDraftTrackLoop(self, pck, bnk_id, track_obj_id, value):
+        tp = self._find_track_patch(pck, bnk_id, track_obj_id)
+        if tp is None:
+            return
+        v = str(value).strip()
+        if v == "":
+            tp["loop_ms"] = None
+        else:
+            try:
+                tp["loop_ms"] = max(0.0, float(v))
+            except ValueError:
+                return
+        self._after_track_edit(tp)
+
+    @pyqtSlot(str, "QVariant", "QVariant", str)
+    def setDraftTrackVolume(self, pck, bnk_id, track_obj_id, value):
+        tp = self._find_track_patch(pck, bnk_id, track_obj_id)
+        if tp is None:
+            return
+        v = str(value).strip()
+        if v == "":
+            tp["volume_db"] = None
+        else:
+            try:
+                tp["volume_db"] = max(-96.0, min(24.0, float(v)))
+            except ValueError:
+                return
+        self._after_track_edit(tp)
+
+    @pyqtSlot(str, "QVariant", "QVariant", str, "QVariant", str)
+    def setDraftRemapTarget(self, pck, bnk_id, track_obj_id, slot, index, value):
+        tp = self._find_track_patch(pck, bnk_id, track_obj_id)
+        if tp is None:
+            return
+        slot = str(slot)
+        idx = int(index)
+        remaps = tp.get("source_remaps") or []
+        v = str(value).strip()
+        if v == "":
+            # Clearing a remap's target removes that remap (structural — refresh the dialog).
+            tp["source_remaps"] = [
+                r for r in remaps
+                if not (str(r.get("slot")) == slot and int(r.get("index", 0)) == idx)
+            ]
+            self._after_track_edit(tp, structural=True)
+            return
+        try:
+            nid = int(v)
+        except ValueError:
+            return
+        if not (0 <= nid <= 0xFFFFFFFF):
+            return
+        for r in remaps:
+            if str(r.get("slot")) == slot and int(r.get("index", 0)) == idx:
+                r["new_source_id"] = nid
+                break
+        self._after_track_edit(tp)
+
+    @pyqtSlot(str, "QVariant")
+    def removeDraftMediaAdd(self, pck_name, wem_id):
+        d = self._get_draft()
+        wid = int(wem_id)
+        before = len(d["media_adds"])
+        d["media_adds"] = [
+            m for m in d["media_adds"]
+            if not (m.get("pck_name") == str(pck_name) and int(m.get("wem_id")) == wid)
+        ]
+        if len(d["media_adds"]) != before:
+            self._save_draft()
+            self._emit_draft_count()
+            self.showDraftChanges()
+
+    @pyqtSlot(str, "QVariant", "QVariant")
+    def removeDraftTrackPatch(self, pck_name, bnk_id, track_obj_id):
+        d = self._get_draft()
+        bnk = int(bnk_id)
+        tid = int(track_obj_id)
+        before = len(d["track_patches"])
+        d["track_patches"] = [
+            tp for tp in d["track_patches"]
+            if not (tp.get("pck_name") == str(pck_name)
+                    and int(tp.get("bnk_id")) == bnk
+                    and int(tp.get("track_obj_id")) == tid)
+        ]
+        if len(d["track_patches"]) != before:
+            self._save_draft()
+            self._emit_draft_count()
+            self.showDraftChanges()
+
+    @pyqtSlot()
+    def resetDraft(self):
+        d = self._get_draft()
+        try:
+            wem_dir = get_game_hirc_draft_wem_dir(self._draft_game_id or self._current_game_id())
+            for m in d.get("media_adds", []):
+                wp = Path(str(m.get("wem_path", "")))
+                try:
+                    if wp.exists() and wem_dir in wp.parents:
+                        wp.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        self._draft = {"media_adds": [], "track_patches": []}
+        self._save_draft()
+        self._emit_draft_count()
+        self.statusUpdate.emit("Draft cleared.")
+
+    def _reallocate_collisions(self, media_adds, track_patches, streaming_root):
+        # Any staged add whose id already exists in the originals is moved to a free id.
+        # The matching remaps follow, and copies are returned so the draft keeps the user's ids.
+        from src.wwise.original_id_index import allocate_free_ids, get_original_id_index
+        orig_ids = get_original_id_index(streaming_root)
+        colliding = [int(m["wem_id"]) for m in media_adds
+                     if int(m.get("wem_id", -1)) in orig_ids]
+        if not colliding:
+            return media_adds, track_patches
+        used = set(orig_ids) | {int(m.get("wem_id", -1)) for m in media_adds}
+        for tp in track_patches:
+            for r in (tp.get("source_remaps") or []):
+                try:
+                    used.add(int(r.get("new_source_id")))
+                except (TypeError, ValueError):
+                    pass
+        rename = allocate_free_ids(colliding, used)
+        new_media = []
+        for m in media_adds:
+            wid = int(m.get("wem_id", -1))
+            if wid in rename:
+                m = dict(m)
+                m["wem_id"] = rename[wid]
+            new_media.append(m)
+        new_patches = []
+        for tp in track_patches:
+            remaps = []
+            for r in (tp.get("source_remaps") or []):
+                try:
+                    nid = int(r.get("new_source_id"))
+                except (TypeError, ValueError):
+                    remaps.append(r)
+                    continue
+                if nid in rename:
+                    r = dict(r)
+                    r["new_source_id"] = rename[nid]
+                remaps.append(r)
+            tp = dict(tp)
+            tp["source_remaps"] = remaps
+            new_patches.append(tp)
+        logger.warning(f"[HIRC Editor] Live apply reallocated colliding ids: {rename}")
+        self.statusUpdate.emit(f"Reallocated {len(rename)} colliding WEM id(s) to free ids.")
+        return new_media, new_patches
+
+    @pyqtSlot()
+    def applyDraftLive(self):
+        if self._draft_count() == 0:
+            self.errorOccurred.emit("Apply", "Nothing staged to apply.")
+            return
+        if self._apply_worker is not None and self._apply_worker.isRunning():
+            self.statusUpdate.emit("Apply already in progress...")
+            return
+        streaming = self._game_audio_dir()
+        persistent = self._game_persistent_audio_dir()
+        if streaming is None or persistent is None:
+            self.errorOccurred.emit("Apply", "Game audio directories are not configured.")
+            return
+        d = self._get_draft()
+        media_adds, track_patches = self._reallocate_collisions(
+            list(d.get("media_adds", [])), list(d.get("track_patches", [])), streaming
+        )
+        self.statusUpdate.emit("Applying draft to the live game...")
+        worker = ApplyDraftWorker(
+            media_adds, track_patches,
+            self._add_wem_to_pck, streaming, persistent,
+        )
+        worker.progress.connect(lambda m: self.statusUpdate.emit(m))
+        worker.finished_ok.connect(lambda m: self.statusUpdate.emit(m))
+        worker.finished_ok.connect(lambda m: self.draftApplied.emit(True, m))
+        worker.failed.connect(lambda m: self.errorOccurred.emit("Apply Error", m))
+        worker.failed.connect(lambda m: self.draftApplied.emit(False, m))
+        worker.finished.connect(worker.deleteLater)
+        self._apply_worker = worker
+        worker.start()
+
+    @pyqtSlot()
+    def exportDraftAsMod(self):
+        if self._draft_count() == 0:
+            self.errorOccurred.emit("Export", "Nothing staged to export.")
+            return
+        self.exportMetadataDialogReady.emit({})
+
+    @pyqtSlot()
+    def browseThumbnail(self):
+        filename = NativeDialogs.get_open_file(
+            "Select Thumbnail Image",
+            filter_str="Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            remember_key="thumbnail",
+        )
+        if filename:
+            self.thumbnailPathSelected.emit(filename)
+
+    @pyqtSlot(str, str, str, str, str)
+    def createModPackage(self, name, author, version, description, thumbnail_path):
+        d = self._get_draft()
+        if self._draft_count() == 0:
+            self.errorOccurred.emit("Export", "Nothing staged to export.")
+            return
+
+        replacements = {}
+        for m in d.get("media_adds", []):
+            wp = Path(str(m.get("wem_path", "")))
+            if not wp.exists():
+                self.errorOccurred.emit(
+                    "Export", f"Staged WEM missing on disk:\n{wp}"
+                )
+                return
+            pck = m.get("pck_name")
+            replacements.setdefault(pck, {})[str(int(m.get("wem_id")))] = {
+                "wem_path": str(wp),
+                "file_type": "wem",
+                "lang_id": int(m.get("lang_id", 0)),
+                "bnk_id": None,
+                "sound_name": m.get("source_name", ""),
+                "is_add": True,  # new id, not a replacement -> apply guards against id collisions
+            }
+        hirc_patches = d.get("track_patches", [])
+
+        version = version or "1.0.0"
+        default_name = f"{(name or 'mod').replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
+        filename = NativeDialogs.get_save_file(
+            "Save Mod Package",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="save_mod",
+            default_filename=default_name,
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(app_config.MOD_FILE_EXT.lower()):
+            filename += app_config.MOD_FILE_EXT
+
+        try:
+            from src.mods.package_manager import ModPackageManager
+            mod_pkg = ModPackageManager(game_id=self._current_game_id())
+            metadata = {
+                "name": name or "Untitled",
+                "author": author or "",
+                "version": version,
+                "description": description or "",
+            }
+            thumb = thumbnail_path if (thumbnail_path and thumbnail_path.strip()) else None
+            mod_pkg.create_mod_package(
+                filename, metadata, replacements, thumb, hirc_patches=hirc_patches
+            )
+            self.statusUpdate.emit(f"Mod package created: {Path(filename).name}")
+            self.modExported.emit(True, Path(filename).name)
+        except Exception as e:
+            logger.exception("[HIRC Editor] Export failed")
+            self.errorOccurred.emit(
+                "Export Error", f"Failed to create mod package:\n{e}"
+            )
+            self.modExported.emit(False, str(e))

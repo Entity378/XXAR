@@ -19,6 +19,7 @@ from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, ge
 from src.core.logger import get_logger
 from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
+from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
@@ -59,14 +60,19 @@ _AUDIO_SETTING_KEYS = (
 
 def count_replacements(metadata):
     # Total replacements; handles v1.0 flat and v2.0/v3.0 per-bnk layouts.
+    # HIRC-only add-mods (no WEM replacements) count their track patches so they don't read as empty.
     replacements = metadata.get('replacements', {}) if isinstance(metadata, dict) else {}
     fmt = metadata.get('format_version', '1.0') if isinstance(metadata, dict) else '1.0'
     if fmt in ('2.0', '3.0'):
-        return sum(
+        total = sum(
             sum(len(files) for files in bnks.values())
             for bnks in replacements.values()
         )
-    return sum(len(files) for files in replacements.values())
+    else:
+        total = sum(len(files) for files in replacements.values())
+    if isinstance(metadata, dict):
+        total += len(metadata.get('hirc_patches', []) or [])
+    return total
 
 
 def _extract_audio_settings(file_info):
@@ -171,6 +177,8 @@ class ModPackageManager:
                     for key in _AUDIO_SETTING_KEYS:
                         if key in file_info:
                             entry[key] = file_info[key]
+                    if file_info.get('is_add'):
+                        entry['is_add'] = True
                     normalized[pck_name][internal_key] = entry
         return normalized
 
@@ -193,19 +201,26 @@ class ModPackageManager:
                 metadata_content = zf.read('metadata.json').decode('utf-8')
                 metadata = json.loads(metadata_content)
 
-                required_fields = ['name', 'author', 'version', 'replacements']
+                required_fields = ['name', 'author', 'version']
                 for field in required_fields:
                     if field not in metadata:
                         raise InvalidModPackageError(f"Missing required field in metadata: {field}")
+
+                # An add-mod may carry only HIRC track patches (no WEM replacements).
+                if 'replacements' not in metadata and not metadata.get('hirc_patches'):
+                    raise InvalidModPackageError(
+                        "Mod has neither 'replacements' nor 'hirc_patches'"
+                    )
 
                 if 'format_version' not in metadata:
                     metadata['format_version'] = '1.0'
 
                 file_list = zf.namelist()
                 format_version = metadata.get('format_version', '1.0')
+                replacements = metadata.get('replacements', {}) or {}
 
                 if format_version in ('2.0', '3.0'):
-                    for pck_name, bnk_entries in metadata['replacements'].items():
+                    for pck_name, bnk_entries in replacements.items():
                         for bnk_key, files in bnk_entries.items():
                             for file_id, file_info in files.items():
                                 wem_file = file_info.get('wem_file', '')
@@ -214,7 +229,7 @@ class ModPackageManager:
                                         f"Referenced WEM file not found in archive: {wem_file}"
                                     )
                 else:
-                    for pck_name, files in metadata['replacements'].items():
+                    for pck_name, files in replacements.items():
                         for file_id, file_info in files.items():
                             wem_file = file_info.get('wem_file', '')
                             if wem_file and wem_file not in file_list:
@@ -446,6 +461,8 @@ class ModPackageManager:
                     for key in _AUDIO_SETTING_KEYS:
                         if key in file_info:
                             replacement_info[key] = file_info[key]
+                    if file_info.get('is_add'):
+                        replacement_info['is_add'] = True
 
                     all_replacements[pck_name][conflict_key][mod_name] = replacement_info
 
@@ -539,6 +556,118 @@ class ModPackageManager:
             'mod_conflicts': mod_conflicts,
         }
 
+    def _collect_hirc_patches(self):
+        # Merge hirc_patches across enabled mods in load order.
+        # Later mods win per (pck, bnk, track); remaps union by slot+index, loop/volume last wins.
+        merged = {}
+        for mod_uuid in self.mod_config.get('load_order', []):
+            mod_info = self.mod_config.get('installed_mods', {}).get(mod_uuid)
+            if not mod_info or not mod_info.get('enabled', False):
+                continue
+            patches = mod_info.get('metadata', {}).get('hirc_patches', []) or []
+            for p in patches:
+                pck = p.get('pck_name')
+                try:
+                    bnk = int(p.get('bnk_id'))
+                    tid = int(p.get('track_obj_id'))
+                except (TypeError, ValueError):
+                    continue
+                if not pck:
+                    continue
+                key = (pck, bnk, tid)
+                entry = merged.get(key)
+                if entry is None:
+                    entry = {
+                        'pck_name': pck, 'bnk_id': bnk, 'track_obj_id': tid,
+                        'source_remaps': [], 'loop_ms': None, 'volume_db': None,
+                    }
+                    merged[key] = entry
+
+                remap_by_slot = {
+                    (r.get('slot'), int(r.get('index', 0))): r
+                    for r in entry['source_remaps']
+                }
+                for r in (p.get('source_remaps') or []):
+                    try:
+                        slot_key = (str(r.get('slot', 'src')), int(r.get('index', 0)))
+                    except (TypeError, ValueError):
+                        continue
+                    remap_by_slot[slot_key] = r
+                entry['source_remaps'] = list(remap_by_slot.values())
+
+                if p.get('loop_ms') is not None:
+                    entry['loop_ms'] = p.get('loop_ms')
+                if p.get('volume_db') is not None:
+                    entry['volume_db'] = p.get('volume_db')
+
+        result = list(merged.values())
+        if result:
+            logger.info(f"[Mod Manager] Collected {len(result)} HIRC track patch group(s)")
+        return result
+
+    @staticmethod
+    def _entry_wem_id(key, info):
+        raw = info.get('file_id') or (str(key).split('|')[-1] if '|' in str(key) else key)
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _reallocate_add_collisions(self, resolved, hirc_patches, streaming_root):
+        # Move every is_add entry whose id already exists in the originals to a free id.
+        # Rewrite the source remaps that pointed at it.
+        # Mutate resolved and hirc_patches in place and return the old->new map.
+        from src.wwise.original_id_index import allocate_free_ids, get_original_id_index
+        orig_ids = get_original_id_index(streaming_root)
+        if not orig_ids:
+            return {}
+
+        colliding = []
+        used = set(orig_ids)
+        for files in resolved.values():
+            for key, info in files.items():
+                rid = self._entry_wem_id(key, info)
+                if rid is None:
+                    continue
+                used.add(rid)
+                if info.get('is_add') and rid in orig_ids:
+                    colliding.append(rid)
+        for patch in (hirc_patches or []):
+            for remap in (patch.get('source_remaps') or []):
+                try:
+                    used.add(int(remap['new_source_id']))
+                except (KeyError, TypeError, ValueError):
+                    pass
+
+        if not colliding:
+            return {}
+        rename = allocate_free_ids(colliding, used)
+
+        # Rekey the colliding add entries to their new id.
+        for files in resolved.values():
+            for key in list(files.keys()):
+                info = files[key]
+                rid = self._entry_wem_id(key, info)
+                if rid in rename and info.get('is_add'):
+                    new_id = rename[rid]
+                    info['file_id'] = str(new_id)
+                    new_key = (f"{info['bnk_id']}|{new_id}"
+                               if info.get('bnk_id') is not None else str(new_id))
+                    del files[key]
+                    files[new_key] = info
+        # Rewrite remaps that targeted a reallocated id.
+        for patch in (hirc_patches or []):
+            for remap in (patch.get('source_remaps') or []):
+                try:
+                    nid = int(remap['new_source_id'])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if nid in rename:
+                    remap['new_source_id'] = rename[nid]
+
+        logger.warning(f"[Mod Manager] Reallocated {len(rename)} colliding add id(s): {rename}")
+        return rename
+
     def apply_mods(self, game_audio_dir, persistent_audio_dir, progress_callback=None, conflict_preferences=None):
 
         game_audio_dir = Path(game_audio_dir)
@@ -554,6 +683,18 @@ class ModPackageManager:
             progress_callback("Resolving mod conflicts...", 0, 1)
 
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
+        merged_hirc_patches = self._collect_hirc_patches()
+
+        # An add whose id already exists in the originals would overwrite original audio.
+        # Move it to a free id before anything is written.
+        try:
+            rename = self._reallocate_add_collisions(resolved, merged_hirc_patches, game_audio_dir)
+            if rename and progress_callback:
+                progress_callback(
+                    f"Reallocated {len(rename)} colliding WEM id(s) to free id(s)", 0, 1
+                )
+        except Exception as e:
+            logger.error(f"[Mod Manager] Add-collision reallocation failed: {e}")
 
         # Remap entries from protected override PCKs to their StreamingAssets target.
         # Also pre-extract pristine BNK content for the main loop to merge.
@@ -576,7 +717,7 @@ class ModPackageManager:
         else:
             old_replacements = {}
 
-        if not resolved:
+        if not resolved and not merged_hirc_patches:
             if progress_callback:
                 progress_callback("No mods enabled - cleaning up...", 0, 1)
 
@@ -793,6 +934,26 @@ class ModPackageManager:
         except Exception as e:
             raise ModApplicationError(f"Failed to run loop point post-processing: {e}")
 
+        # Apply the add-mod HIRC track patches (source-id remap, loop, volume).
+        # Run last so it stacks on the rebuilt overlays and the loop/volume post step.
+        # Cleanup reset Persistent to pristine this run, so old_source_id checks match.
+        try:
+            if merged_hirc_patches:
+                hirc_cb = None
+                if progress_callback:
+                    hirc_cb = lambda msg: progress_callback(
+                        str(msg), total_pcks, max(total_pcks, 1)
+                    )
+                apply_hirc_track_patches(
+                    merged_hirc_patches,
+                    streaming_root=game_audio_dir,
+                    persistent_root=persistent_audio_dir,
+                    fresh_clone=False,
+                    status_cb=hirc_cb,
+                )
+        except Exception as e:
+            raise ModApplicationError(f"Failed to apply HIRC track patches: {e}")
+
         if self.persistent_mod_manager:
 
             persistent_format = {}
@@ -818,7 +979,7 @@ class ModPackageManager:
         if progress_callback:
             progress_callback(f"Applied {total_pcks} PCK(s) successfully", total_pcks, total_pcks)
 
-    def create_mod_package(self, output_path, metadata, current_replacements, thumbnail_path=None):
+    def create_mod_package(self, output_path, metadata, current_replacements, thumbnail_path=None, hirc_patches=None):
 
         output_path = Path(output_path)
 
@@ -866,6 +1027,8 @@ class ModPackageManager:
                         'file_type': file_info.get('file_type', 'wem')
                     }
                     entry.update(_extract_audio_settings(file_info))
+                    if file_info.get('is_add'):
+                        entry['is_add'] = True
                     replacements_data[pck_name][bnk_key][actual_file_id] = entry
 
             thumbnail_filename = None
@@ -888,6 +1051,11 @@ class ModPackageManager:
                 'replacements': replacements_data,
                 'app_version': app_version
             }
+
+            # Add-based mods carry offset-free HIRC track patches alongside the media adds.
+            # This key is additive, so older builds ignore it.
+            if hirc_patches:
+                metadata_content['hirc_patches'] = hirc_patches
 
             if thumbnail_filename:
                 metadata_content['thumbnail'] = thumbnail_filename

@@ -12,12 +12,23 @@ Item {
     // Public signals
     signal refreshRequested()
     signal bnkSelected(string pckName, var bnkId)
-    signal patchSourceRequested(string pckName, var absOffsetInPck, var oldWem, var newWem)
-    signal patchLoopRequested(string pckName, var bnkId, var trackObjId, var loopMs)
-    signal patchVolumeRequested(string pckName, var absOffsetInPck, var dbValue)
     signal refreshMusicPcksRequested()
     signal browseWemFileRequested()
-    signal addWemRequested(string pckName, var wemId, string wemFilePath)
+    // Mod-draft staging that mirrors the Browser tab.
+    // Apply Changes lives inside the changes overlay.
+    signal stageAddWemRequested(string pckName, var wemId, string audioFilePath, var langId)
+    signal stageTrackRequested(string pckName, var bnkId, var trackObjId, string remapsJson, string loopMs, string volumeDb)
+    signal showChangesRequested()
+    signal removeMediaAddRequested(string pckName, var wemId)
+    signal removeTrackPatchRequested(string pckName, var bnkId, var trackObjId)
+    signal editTrackLoopRequested(string pckName, var bnkId, var trackObjId, string value)
+    signal editTrackVolumeRequested(string pckName, var bnkId, var trackObjId, string value)
+    signal editRemapTargetRequested(string pckName, var bnkId, var trackObjId, string slot, var index, string value)
+    signal applyAllRequested()
+    signal exportModRequested()
+    signal resetDraftRequested()
+    signal browseThumbnailRequested()
+    signal createModRequested(string name, string author, string version, string description, string thumbnailPath)
 
     // Public state (set from connector)
     property var bnkList: []
@@ -37,6 +48,10 @@ Item {
     property string wemAddPath: ""
     property string wemAddTargetPck: ""
     property string wemAddIdText: ""
+    property var wemAddLangId: 0
+
+    property int draftCount: 0
+    property var draftChanges: []
 
     // Pending edits per MusicTrack: keys "<obj_id>:<kind>[:<idx>]" -> typed string.
     // Kinds: "src" (AkBankSourceData), "pl" (TrackSrcInfo), "loop", "vol".
@@ -86,55 +101,48 @@ Item {
         return false
     }
 
-    function applyPendingForTrack(objId, modelData) {
-        // Sources
+    function stagePendingForTrack(objId, modelData) {
+        // Collect this track's pending edits into a logical (offset-free) patch and stage it.
+        var remaps = []
         for (var i = 0; i < (modelData.sources || []).length; i++) {
             var k = pendingKey(objId, "src", i)
             if (k in pending) {
                 var src = modelData.sources[i]
                 var v = parseInt(pending[k])
                 if (!isNaN(v) && v !== src.source_id) {
-                    hircEditorPage.patchSourceRequested(
-                        hircEditorPage.selectedPck, src.abs_offset_in_pck,
-                        src.source_id, v
-                    )
+                    remaps.push({slot: "src", index: i,
+                                 old_source_id: src.source_id, new_source_id: v})
                 }
             }
         }
-        // Playlist
         for (var j = 0; j < (modelData.playlist || []).length; j++) {
             var k2 = pendingKey(objId, "pl", j)
             if (k2 in pending) {
                 var ts = modelData.playlist[j]
                 var v2 = parseInt(pending[k2])
                 if (!isNaN(v2) && v2 !== ts.source_id) {
-                    hircEditorPage.patchSourceRequested(
-                        hircEditorPage.selectedPck, ts.abs_offset_in_pck,
-                        ts.source_id, v2
-                    )
+                    remaps.push({slot: "pl", index: j,
+                                 old_source_id: ts.source_id, new_source_id: v2})
                 }
             }
         }
-        // Loop
+        var loopStr = ""
         var loopK = pendingKey(objId, "loop")
         if (loopK in pending) {
             var lv = parseFloat(pending[loopK])
-            if (!isNaN(lv) && lv !== modelData.loop_ms) {
-                hircEditorPage.patchLoopRequested(
-                    hircEditorPage.selectedPck, hircEditorPage.selectedBnkId, objId, lv
-                )
-            }
+            if (!isNaN(lv) && lv !== modelData.loop_ms) loopStr = "" + lv
         }
-        // Volume
+        var volStr = ""
         var volK = pendingKey(objId, "vol")
         if (volK in pending) {
             var vv = parseFloat(pending[volK])
-            if (!isNaN(vv) && vv !== modelData.volume_db) {
-                hircEditorPage.patchVolumeRequested(
-                    hircEditorPage.selectedPck, modelData.volume_offset_abs, vv
-                )
-            }
+            if (!isNaN(vv) && vv !== modelData.volume_db) volStr = "" + vv
         }
+        if (remaps.length === 0 && loopStr === "" && volStr === "") return
+        hircEditorPage.stageTrackRequested(
+            hircEditorPage.selectedPck, hircEditorPage.selectedBnkId, objId,
+            JSON.stringify(remaps), loopStr, volStr
+        )
         // Clear pending for this track only.
         var copy = {}
         for (var key in pending) {
@@ -147,16 +155,34 @@ Item {
 
     function setMusicPckList(data) { musicPckList = data || [] }
     function setWemAddPath(path) { wemAddPath = path || "" }
-    function onWemAdded(pck, wid, src) {
-        statusText = qsTranslate("Application", "Added WEM %1 to %2 (from %3)")
-                        .replace("%1", wid).replace("%2", pck).replace("%3", src)
+
+    function setDraftCount(n) { draftCount = n || 0 }
+    function setDraftChanges(list) {
+        // Data-driven populate + open, mirroring the Browser's showChanges().
+        draftChanges = list || []
+        changesOverlay.visible = true
+        changesOverlay.closing = false
+    }
+    function setThumbnailPath(path) { hircMetaThumbInput.text = path || "" }
+    function onWemStaged(sname) {
+        // Staged: clear the add fields so the next add starts fresh.
         wemAddPath = ""
         wemAddIdText = ""
-        // pck size changed: re-list pcks, and re-fetch HIRC if inspecting a bnk in it.
-        hircEditorPage.refreshMusicPcksRequested()
-        if (selectedPck) {
-            hircEditorPage.bnkSelected(selectedPck, selectedBnkId)
-        }
+    }
+    function onDraftApplied(ok, msg) { statusText = msg }
+    function onModExported(ok, name) {
+        statusText = ok ? qsTranslate("Application", "Mod exported: %1").replace("%1", name)
+                        : qsTranslate("Application", "Export failed: %1").replace("%1", name)
+    }
+    function openExportDialog(prefill) {
+        hircMetaNameInput.text = (prefill && prefill.name) ? prefill.name : ""
+        hircMetaAuthorInput.text = (prefill && prefill.author) ? prefill.author : ""
+        hircMetaVersionInput.text = (prefill && prefill.version) ? prefill.version : "1.0.0"
+        hircMetaDescInput.text = (prefill && prefill.description) ? prefill.description : ""
+        hircMetaThumbInput.text = ""
+        metadataOverlay.visible = true
+        metadataOverlay.closing = false
+        hircMetaNameInput.forceActiveFocus()
     }
 
     function togglePckExpanded(pckName) {
@@ -167,10 +193,17 @@ Item {
         expandedPcks = copy
     }
 
+    // Apply the unified search to both the bank list (left) and the inspector objects (right).
+    function applyHircSearch() {
+        var q = (typeof hircSearchInput !== "undefined") ? hircSearchInput.text : ""
+        objectFilter = q.toLowerCase()
+        rebuildBnkTreeModel()
+    }
+
     function rebuildBnkTreeModel() {
         // Preserve the current scroll position across the model reassignment.
         var savedY = bnkListView ? bnkListView.contentY : 0
-        bnkTreeModel = buildBnkTreeModel(bnkSearch ? bnkSearch.text : "")
+        bnkTreeModel = buildBnkTreeModel(typeof hircSearchInput !== "undefined" ? hircSearchInput.text : "")
         if (bnkListView) {
             // Defer until after layout so contentHeight reflects the new model.
             Qt.callLater(function() {
@@ -200,12 +233,14 @@ Item {
         for (var p = 0; p < order.length; p++) {
             var pck = order[p]
             var children = byPck[pck]
-            // Per-pck filtering: keep pck if name matches filter OR any child bnk_id matches.
+            // Keep a pck if its name, a child bnk_id, or a contained source id/name matches.
+            // The search blob is built server-side per bnk.
             var pckMatches = !f || pck.toLowerCase().indexOf(f) !== -1
             var childMatches = []
             if (!pckMatches && f) {
                 for (var c = 0; c < children.length; c++) {
-                    if (("" + children[c].bnk_id).indexOf(f) !== -1) {
+                    if (("" + children[c].bnk_id).indexOf(f) !== -1
+                        || (children[c].search && children[c].search.indexOf(f) !== -1)) {
                         childMatches.push(children[c])
                     }
                 }
@@ -259,23 +294,17 @@ Item {
                         .replace("%2", pck)
                         .replace("%3", bnkId)
     }
+    function clearInspector() {
+        // Reset the right-hand inspector on game switch (the loaded bnk belongs to the old game).
+        selectedPck = ""
+        selectedBnkId = 0
+        hircObjects = []
+        clearAllPending()
+        // Clearing the unified search resets both the bank list and the object filter.
+        if (typeof hircSearchInput !== "undefined") hircSearchInput.text = ""
+        objectFilter = ""
+    }
     function setStatusText(msg) { statusText = msg }
-    function onPatchApplied(pck, off, oldW, newW) {
-        statusText = qsTranslate("Application", "Patched %1 @%2: %3 -> %4")
-                        .replace("%1", pck).replace("%2", off)
-                        .replace("%3", oldW).replace("%4", newW)
-        if (selectedPck) { hircEditorPage.bnkSelected(selectedPck, selectedBnkId) }
-    }
-    function onLoopPatched(pck, bnkId, trackId, ms) {
-        statusText = qsTranslate("Application", "Loop patched: track %1 -> %2 ms")
-                        .replace("%1", trackId).replace("%2", ms.toFixed(2))
-        if (selectedPck) { hircEditorPage.bnkSelected(selectedPck, selectedBnkId) }
-    }
-    function onVolumePatched(pck, off, db) {
-        statusText = qsTranslate("Application", "Volume patched @%1: %2 dB")
-                        .replace("%1", off).replace("%2", db.toFixed(2))
-        if (selectedPck) { hircEditorPage.bnkSelected(selectedPck, selectedBnkId) }
-    }
 
     // ── Outer / inner frames matching Browser/ModManager pages ──────────
     Rectangle {
@@ -296,6 +325,52 @@ Item {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingMedium
                 spacing: Theme.spacingSmall
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: Theme.buttonHeight
+                        color: Theme.cardBackground
+                        radius: Theme.radiusMedium
+
+                        TextInput {
+                            id: hircSearchInput
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            verticalAlignment: Text.AlignVCenter
+                            color: Theme.textPrimary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            clip: true
+
+                            onTextChanged: hircEditorPage.applyHircSearch()
+                            Keys.onReturnPressed: hircEditorPage.applyHircSearch()
+
+                            Text {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                color: Theme.textPrimary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                text: qsTranslate("Application", "Search by pck, bnk_id, obj_id, source_id or name")
+                                visible: !hircSearchInput.text && !hircSearchInput.activeFocus
+                            }
+                        }
+                    }
+
+                    XXARButton {
+                        text: qsTranslate("Application", "Search")
+                        onClicked: hircEditorPage.applyHircSearch()
+                    }
+                    XXARButton {
+                        text: qsTranslate("Application", "Clear")
+                        onClicked: hircSearchInput.text = ""
+                    }
+                }
 
                 // ── Two-column work area ────────────────────────────────
                 RowLayout {
@@ -351,22 +426,6 @@ Item {
                                         onClicked: hircEditorPage.refreshRequested()
                                     }
                                 }
-                            }
-
-                            TextField {
-                                id: bnkSearch
-                                Layout.fillWidth: true
-                                placeholderText: qsTranslate("Application", "Filter by pck/bnk_id...")
-                                color: Theme.textPrimary
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSmall
-                                background: Rectangle {
-                                    color: Theme.surfaceColor
-                                    radius: Theme.radiusMedium
-                                    border.color: Theme.cardBackground
-                                    border.width: 1
-                                }
-                                onTextChanged: hircEditorPage.rebuildBnkTreeModel()
                             }
 
                             ListView {
@@ -558,22 +617,6 @@ Item {
                                 }
                             }
 
-                            TextField {
-                                id: objectSearch
-                                Layout.fillWidth: true
-                                placeholderText: qsTranslate("Application", "Filter by obj_id or wem source_id...")
-                                color: Theme.textPrimary
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSmall
-                                background: Rectangle {
-                                    color: Theme.surfaceColor
-                                    radius: Theme.radiusMedium
-                                    border.color: Theme.cardBackground
-                                    border.width: 1
-                                }
-                                onTextChanged: hircEditorPage.objectFilter = text.toLowerCase()
-                            }
-
                             ListView {
                                 id: hircListView
                                 Layout.fillWidth: true
@@ -591,12 +634,12 @@ Item {
                                         if (q) {
                                             var hay = ("" + o.obj_id) + " "
                                             for (var s = 0; s < (o.sources || []).length; s++) {
-                                                hay += " " + o.sources[s].source_id
+                                                hay += " " + o.sources[s].source_id + " " + (o.sources[s].name || "")
                                             }
                                             for (var p = 0; p < (o.playlist || []).length; p++) {
-                                                hay += " " + o.playlist[p].source_id
+                                                hay += " " + o.playlist[p].source_id + " " + (o.playlist[p].name || "")
                                             }
-                                            if (hay.indexOf(q) === -1) continue
+                                            if (hay.toLowerCase().indexOf(q) === -1) continue
                                         }
                                         out.push(o)
                                     }
@@ -701,11 +744,21 @@ Item {
                                                                       )
                                                     }
                                                     Text {
+                                                        visible: !!(modelData.name) && modelData.name.length > 0
+                                                        text: "♪ " + (modelData.name || "")
+                                                        color: Theme.primaryAccent
+                                                        font.family: Theme.fontFamily
+                                                        font.pixelSize: 11
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                    }
+                                                    Text {
                                                         text: "@ " + modelData.abs_offset_in_pck
                                                         color: Theme.textSecondary
                                                         font.family: Theme.fontFamily
                                                         font.pixelSize: 10
-                                                        Layout.fillWidth: true
+                                                        Layout.fillWidth: !(modelData.name && modelData.name.length > 0)
+                                                        horizontalAlignment: Text.AlignRight
                                                         elide: Text.ElideRight
                                                     }
                                                 }
@@ -755,11 +808,21 @@ Item {
                                                                       )
                                                     }
                                                     Text {
+                                                        visible: !!(modelData.name) && modelData.name.length > 0
+                                                        text: "♪ " + (modelData.name || "")
+                                                        color: Theme.primaryAccent
+                                                        font.family: Theme.fontFamily
+                                                        font.pixelSize: 11
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                    }
+                                                    Text {
                                                         text: "@ " + modelData.abs_offset_in_pck
                                                         color: Theme.textSecondary
                                                         font.family: Theme.fontFamily
                                                         font.pixelSize: 10
-                                                        Layout.fillWidth: true
+                                                        Layout.fillWidth: !(modelData.name && modelData.name.length > 0)
+                                                        horizontalAlignment: Text.AlignRight
                                                         elide: Text.ElideRight
                                                     }
                                                 }
@@ -875,7 +938,6 @@ Item {
                                             }
                                         }
 
-                                        // ── Apply button (any HIRC entry with at least one editable field) ──
                                         Item {
                                             Layout.fillWidth: true
                                             Layout.preferredHeight: 32
@@ -900,7 +962,7 @@ Item {
 
                                                 Text {
                                                     anchors.centerIn: parent
-                                                    text: qsTranslate("Application", "Apply")
+                                                    text: qsTranslate("Application", "Stage")
                                                     color: Theme.textOnAccent
                                                     font.family: Theme.fontFamily
                                                     font.pixelSize: Theme.fontSizeSmall
@@ -912,7 +974,7 @@ Item {
                                                     hoverEnabled: true
                                                     enabled: parent.parent.dirty
                                                     cursorShape: parent.parent.dirty ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                                    onClicked: hircEditorPage.applyPendingForTrack(track.obj_id, track)
+                                                    onClicked: hircEditorPage.stagePendingForTrack(track.obj_id, track)
                                                 }
                                             }
                                         }
@@ -986,7 +1048,7 @@ Item {
                                 anchors.leftMargin: Theme.spacingSmall
                                 anchors.rightMargin: Theme.spacingSmall
                                 verticalAlignment: Text.AlignVCenter
-                                text: hircEditorPage.wemAddPath || qsTranslate("Application", "(no .wem selected)")
+                                text: hircEditorPage.wemAddPath || qsTranslate("Application", "(no audio selected — wav/mp3/ogg/wem)")
                                 color: hircEditorPage.wemAddPath ? Theme.textPrimary : Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 11
@@ -1079,7 +1141,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: qsTranslate("Application", "Add")
+                                text: qsTranslate("Application", "Stage")
                                 color: Theme.textOnAccent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeSmall
@@ -1097,30 +1159,564 @@ Item {
                                     var pck = hircEditorPage.musicPckList[idx].pck_name
                                     var wid = parseInt(hircEditorPage.wemAddIdText)
                                     if (isNaN(wid)) return
-                                    hircEditorPage.addWemRequested(pck, wid, hircEditorPage.wemAddPath)
+                                    hircEditorPage.stageAddWemRequested(pck, wid, hircEditorPage.wemAddPath, hircEditorPage.wemAddLangId)
                                 }
                             }
                         }
                     }
                 }
 
-                // ── Status bar ──────────────────────────────────────────
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+
+                    XXARButton {
+                        text: hircEditorPage.draftCount > 0
+                              ? qsTranslate("Application", "Show Changes (%1)").arg(hircEditorPage.draftCount)
+                              : qsTranslate("Application", "Show Changes")
+                        onClicked: hircEditorPage.showChangesRequested()
+                    }
+                    XXARButton {
+                        text: qsTranslate("Application", "Export as Mod Package")
+                        onClicked: hircEditorPage.exportModRequested()
+                    }
+                    XXARButton {
+                        text: qsTranslate("Application", "Reset All Changes")
+                        buttonColor: Theme.disabledAccent
+                        textColor: Theme.textPrimary
+                        onClicked: hircEditorPage.resetDraftRequested()
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                Text {
+                    text: hircEditorPage.statusText
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    Item {
+        id: changesOverlay
+        visible: false
+        anchors.fill: parent
+        z: 2000
+        property bool closing: false
+
+        Timer {
+            id: changesHideTimer
+            interval: 200
+            onTriggered: { changesOverlay.visible = false; changesOverlay.closing = false }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#80000000"
+            opacity: (!changesOverlay.closing && changesOverlay.visible) ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            Image {
+                anchors.fill: parent
+                source: "../assets/" + assetsDir + "/gradient.png"
+                fillMode: Image.Stretch
+                mipmap: true
+                opacity: 0.6
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { changesOverlay.closing = true; changesHideTimer.start() }
+            }
+        }
+
+        Rectangle {
+            id: changesDialog
+            width: Math.min(parent.width - 40, 940)
+            height: Math.min(560, parent.height - 60)
+            anchors.centerIn: parent
+            color: Theme.surfaceColor
+            radius: Theme.radiusLarge
+            border.color: Theme.cardBackground
+            border.width: 1
+            scale: (!changesOverlay.closing && changesOverlay.visible) ? 1.0 : 0.9
+            opacity: (!changesOverlay.closing && changesOverlay.visible) ? 1.0 : 0.0
+            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            MouseArea { anchors.fill: parent; z: -1 }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 12
+
+                Text {
+                    text: qsTranslate("Application", "Current Changes") + " (" + hircEditorPage.draftCount + ")"
+                    color: Theme.primaryAccent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 28
-                    radius: Theme.radiusMedium
+                    height: 32
                     color: Theme.surfaceDark
+                    radius: 6
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 8
+                        Text { Layout.preferredWidth: 64;  text: qsTranslate("Application", "Type");    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.preferredWidth: 160; text: qsTranslate("Application", "Target");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.fillWidth: true;     text: qsTranslate("Application", "Source");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.preferredWidth: 96;  text: qsTranslate("Application", "Loop (ms)");    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.preferredWidth: 96;  text: qsTranslate("Application", "Volume (dB)");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.preferredWidth: 84;  text: qsTranslate("Application", "Actions"); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                    }
+                }
+
+                ListView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 6
+                    model: hircEditorPage.draftChanges
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    delegate: Rectangle {
+                        id: rowRoot
+                        property var rowData: modelData
+                        width: ListView.view.width
+                        implicitHeight: rowLayout.implicitHeight + 16
+                        height: implicitHeight
+                        radius: 6
+                        color: Theme.surfaceDark
+                        RowLayout {
+                            id: rowLayout
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            anchors.topMargin: 8
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.preferredWidth: 64
+                                Layout.preferredHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                radius: 4
+                                color: rowRoot.rowData.kind === "add_wem" ? Theme.primaryAccent : Theme.cardBackground
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: rowRoot.rowData.kind === "add_wem" ? "ADD" : "TRACK"
+                                    color: rowRoot.rowData.kind === "add_wem" ? Theme.textOnAccent : Theme.textPrimary
+                                    font.pixelSize: 11; font.bold: true; font.family: Theme.fontFamily
+                                }
+                            }
+
+                            Column {
+                                id: targetCol
+                                Layout.preferredWidth: 160
+                                Layout.alignment: Qt.AlignVCenter
+                                Text {
+                                    width: targetCol.width
+                                    height: 26
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: rowRoot.rowData.pck_name || ""
+                                    color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                    elide: Text.ElideMiddle
+                                }
+                                Text {
+                                    width: targetCol.width
+                                    visible: rowRoot.rowData.kind === "track"
+                                    text: "bnk " + rowRoot.rowData.bnk_id + " · trk " + rowRoot.rowData.track_obj_id
+                                    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            Column {
+                                id: sourceCol
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 4
+                                Repeater {
+                                    model: rowRoot.rowData.kind === "track" ? (rowRoot.rowData.remaps || []) : []
+                                    Row {
+                                        spacing: 4
+                                        // Measure the widest label so Source and Playlist share one prefix width.
+                                        // The ids and inputs stay aligned with no extra padding.
+                                        TextMetrics {
+                                            id: pfxMetrics
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            text: "Playlist[" + modelData.index + "]:"
+                                        }
+                                        Text {
+                                            width: pfxMetrics.advanceWidth
+                                            height: 26
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: (modelData.slot === "pl" ? "Playlist[" : "Source[") + modelData.index + "]:"
+                                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        }
+                                        Text {
+                                            height: 26
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: (modelData.old_source_id !== null && modelData.old_source_id !== undefined
+                                                   ? "" + modelData.old_source_id : "")
+                                            color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        }
+                                        Text {
+                                            height: 26
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: "→"
+                                            color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        }
+                                        Rectangle {
+                                            width: 110; height: 26; radius: 4
+                                            color: Theme.cardBackground
+                                            border.color: srcInput.activeFocus ? Theme.primaryAccent : "transparent"
+                                            border.width: 1
+                                            TextInput {
+                                                id: srcInput
+                                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: "" + modelData.new_source_id
+                                                color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                                validator: RegularExpressionValidator { regularExpression: /^[0-9]{0,10}$/ }
+                                                clip: true
+                                                onEditingFinished: hircEditorPage.editRemapTargetRequested(
+                                                    rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id,
+                                                    modelData.slot, modelData.index, text)
+                                            }
+                                        }
+                                    }
+                                }
+                                Text {
+                                    visible: rowRoot.rowData.kind === "add_wem"
+                                    width: sourceCol.width
+                                    height: 26
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: rowRoot.rowData.source_display || ""
+                                    color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    visible: rowRoot.rowData.kind === "track" && (rowRoot.rowData.remaps || []).length === 0
+                                    height: 26
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: "—"
+                                    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                }
+                            }
+
+                            Item {
+                                Layout.preferredWidth: 96
+                                Layout.preferredHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                Text {
+                                    visible: rowRoot.rowData.kind !== "track"
+                                    anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                    text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                }
+                                Rectangle {
+                                    visible: rowRoot.rowData.kind === "track"
+                                    anchors.fill: parent
+                                    radius: 4; color: Theme.cardBackground
+                                    border.color: loopInput.activeFocus ? Theme.primaryAccent : "transparent"
+                                    border.width: 1
+                                    TextInput {
+                                        id: loopInput
+                                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: rowRoot.rowData.loop_ms
+                                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        validator: DoubleValidator { bottom: 0; decimals: 3 }
+                                        clip: true
+                                        onEditingFinished: hircEditorPage.editTrackLoopRequested(
+                                            rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.preferredWidth: 96
+                                Layout.preferredHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                Text {
+                                    visible: rowRoot.rowData.kind !== "track"
+                                    anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                    text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                }
+                                Rectangle {
+                                    visible: rowRoot.rowData.kind === "track"
+                                    anchors.fill: parent
+                                    radius: 4; color: Theme.cardBackground
+                                    border.color: volInput.activeFocus ? Theme.primaryAccent : "transparent"
+                                    border.width: 1
+                                    TextInput {
+                                        id: volInput
+                                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: rowRoot.rowData.volume_db
+                                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        validator: DoubleValidator { bottom: -96; top: 24; decimals: 2 }
+                                        clip: true
+                                        onEditingFinished: hircEditorPage.editTrackVolumeRequested(
+                                            rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.preferredWidth: 84
+                                Layout.preferredHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                XXARButton {
+                                    anchors.fill: parent
+                                    text: qsTranslate("Application", "Remove")
+                                    buttonColor: Theme.disabledAccent
+                                    textColor: Theme.textPrimary
+                                    fontSize: 11
+                                    onClicked: {
+                                        if (rowRoot.rowData.kind === "add_wem")
+                                            hircEditorPage.removeMediaAddRequested(rowRoot.rowData.pck_name, rowRoot.rowData.wem_id)
+                                        else
+                                            hircEditorPage.removeTrackPatchRequested(rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id)
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     Text {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacingMedium
-                        anchors.rightMargin: Theme.spacingMedium
-                        verticalAlignment: Text.AlignVCenter
-                        text: hircEditorPage.statusText
+                        anchors.centerIn: parent
+                        text: qsTranslate("Application", "No changes yet.\nStage some edits to see them here.")
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
-                        elide: Text.ElideRight
+                        font.pixelSize: Theme.fontSizeNormal
+                        horizontalAlignment: Text.AlignHCenter
+                        visible: !hircEditorPage.draftChanges || hircEditorPage.draftChanges.length === 0
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+                    Item { Layout.fillWidth: true }
+
+                    XXARButton {
+                        text: qsTranslate("Application", "Apply Changes")
+                        buttonColor: Theme.primaryAccent
+                        visible: hircEditorPage.draftCount > 0
+                        onClicked: {
+                            hircEditorPage.applyAllRequested()
+                            changesOverlay.closing = true
+                            changesHideTimer.start()
+                        }
+                    }
+
+                    XXARButton {
+                        text: qsTranslate("Application", "Close")
+                        onClicked: { changesOverlay.closing = true; changesHideTimer.start() }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
+        id: metadataOverlay
+        visible: false
+        anchors.fill: parent
+        z: 2001
+        property bool closing: false
+
+        Timer {
+            id: metadataHideTimer
+            interval: 200
+            onTriggered: { metadataOverlay.visible = false; metadataOverlay.closing = false }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#80000000"
+            opacity: (!metadataOverlay.closing && metadataOverlay.visible) ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            Image {
+                anchors.fill: parent
+                source: "../assets/" + assetsDir + "/gradient.png"
+                fillMode: Image.Stretch
+                mipmap: true
+                opacity: 0.6
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { metadataOverlay.closing = true; metadataHideTimer.start() }
+            }
+        }
+
+        Rectangle {
+            id: metadataDialog
+            width: Math.min(500, parent.width - 60)
+            height: Math.min(560, parent.height - 80)
+            anchors.centerIn: parent
+            color: Theme.surfaceColor
+            radius: Theme.radiusLarge
+            border.color: Theme.cardBackground
+            border.width: 1
+            scale: (!metadataOverlay.closing && metadataOverlay.visible) ? 1.0 : 0.9
+            opacity: (!metadataOverlay.closing && metadataOverlay.visible) ? 1.0 : 0.0
+            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            MouseArea { anchors.fill: parent; z: -1 }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 12
+
+                Text {
+                    text: qsTranslate("Application", "Mod Package Metadata")
+                    color: Theme.primaryAccent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeNormal
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Text { text: qsTranslate("Application", "Name*:"); color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                Rectangle {
+                    Layout.fillWidth: true; height: Theme.buttonHeight
+                    color: Theme.cardBackground; radius: Theme.radiusMedium
+                    TextInput {
+                        id: hircMetaNameInput
+                        anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
+                        verticalAlignment: Text.AlignVCenter
+                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; clip: true
+                        Text {
+                            anchors.fill: parent; verticalAlignment: Text.AlignVCenter
+                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                            text: qsTranslate("Application", "My Awesome Mod")
+                            visible: !hircMetaNameInput.text && !hircMetaNameInput.activeFocus
+                        }
+                    }
+                }
+
+                Text { text: qsTranslate("Application", "Author*:"); color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                Rectangle {
+                    Layout.fillWidth: true; height: Theme.buttonHeight
+                    color: Theme.cardBackground; radius: Theme.radiusMedium
+                    TextInput {
+                        id: hircMetaAuthorInput
+                        anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
+                        verticalAlignment: Text.AlignVCenter
+                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; clip: true
+                        Text {
+                            anchors.fill: parent; verticalAlignment: Text.AlignVCenter
+                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                            text: qsTranslate("Application", "Your Name")
+                            visible: !hircMetaAuthorInput.text && !hircMetaAuthorInput.activeFocus
+                        }
+                    }
+                }
+
+                Text { text: qsTranslate("Application", "Version:"); color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                Rectangle {
+                    Layout.fillWidth: true; height: Theme.buttonHeight
+                    color: Theme.cardBackground; radius: Theme.radiusMedium
+                    TextInput {
+                        id: hircMetaVersionInput
+                        anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
+                        verticalAlignment: Text.AlignVCenter
+                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                        text: "1.0.0"; clip: true
+                    }
+                }
+
+                Text { text: qsTranslate("Application", "Description:"); color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                Rectangle {
+                    Layout.fillWidth: true; Layout.preferredHeight: 100
+                    color: Theme.cardBackground; radius: Theme.radiusMedium
+                    TextEdit {
+                        id: hircMetaDescInput
+                        anchors.fill: parent; anchors.margins: 14
+                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                        wrapMode: TextEdit.Wrap; clip: true
+                        Text {
+                            anchors.fill: parent
+                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                            text: qsTranslate("Application", "Describe what your mod does...")
+                            visible: !hircMetaDescInput.text && !hircMetaDescInput.activeFocus
+                        }
+                    }
+                }
+
+                Text { text: qsTranslate("Application", "Thumbnail:"); color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Rectangle {
+                        Layout.fillWidth: true; height: Theme.buttonHeight
+                        color: Theme.cardBackground; radius: Theme.radiusMedium
+                        TextInput {
+                            id: hircMetaThumbInput
+                            anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
+                            verticalAlignment: Text.AlignVCenter
+                            color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                            readOnly: true; clip: true
+                            Text {
+                                anchors.fill: parent; verticalAlignment: Text.AlignVCenter
+                                color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                text: qsTranslate("Application", "Optional: Select thumbnail image")
+                                visible: !hircMetaThumbInput.text
+                            }
+                        }
+                    }
+                    XXARButton {
+                        text: qsTranslate("Application", "Browse")
+                        onClicked: hircEditorPage.browseThumbnailRequested()
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+                    Item { Layout.fillWidth: true }
+
+                    XXARButton {
+                        text: qsTranslate("Application", "Cancel")
+                        buttonColor: Theme.disabledAccent
+                        onClicked: { metadataOverlay.closing = true; metadataHideTimer.start() }
+                    }
+
+                    XXARButton {
+                        text: qsTranslate("Application", "Create Package")
+                        buttonColor: Theme.primaryAccent
+                        onClicked: {
+                            var name = hircMetaNameInput.text.trim()
+                            var author = hircMetaAuthorInput.text.trim()
+                            if (!name || !author) return
+                            var version = hircMetaVersionInput.text.trim() || "1.0.0"
+                            hircEditorPage.createModRequested(name, author, version,
+                                hircMetaDescInput.text.trim(), hircMetaThumbInput.text.trim())
+                            metadataOverlay.closing = true
+                            metadataHideTimer.start()
+                        }
                     }
                 }
             }
