@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import re
 import shutil
 import stat
 import struct
@@ -1413,27 +1412,24 @@ class AudioBrowserBridge(QObject):
 
     @staticmethod
     def _parse_duration_to_ms(duration_text):
+        # Accept "mm:ss.SSS", "mm:ss", or plain milliseconds; return int ms or None.
         text = str(duration_text or "").strip()
         if not text:
             return None
-
-        if text.isdigit():
-            return int(text)
-
-        m = re.match(r"^(\d+)\s*:\s*([0-5]?\d)\s*.\s*(\d{1,3})$", text)
-        if m:
-            minutes = int(m.group(1))
-            seconds = int(m.group(2))
-            millis = int(m.group(3).ljust(3, "0")[:3])
-            return (minutes * 60 + seconds) * 1000 + millis
-
-        m2 = re.match(r"^(\d+)\s*:\s*([0-5]?\d)$", text)
-        if m2:
-            minutes = int(m2.group(1))
-            seconds = int(m2.group(2))
-            return (minutes * 60 + seconds) * 1000
-
-        return None
+        if ":" not in text:
+            try:
+                return round(float(text))
+            except ValueError:
+                return None
+        minutes_part, _, seconds_part = text.partition(":")
+        seconds_str, _, millis_str = seconds_part.partition(".")
+        try:
+            minutes = int(minutes_part)
+            seconds = int(seconds_str)
+            millis = int((millis_str + "000")[:3]) if millis_str else 0
+        except ValueError:
+            return None
+        return (minutes * 60 + seconds) * 1000 + millis
 
     @pyqtSlot(str, str, str)
     def setChangeLoopPointManualMs(self, pck_file, tracker_key, duration_text):

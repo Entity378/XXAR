@@ -75,6 +75,33 @@ Item {
         return (key in pending) ? pending[key] : defaultVal
     }
 
+    function formatDurationMs(totalMs) {
+        // Render a millisecond duration as mm:ss.SSS, matching the Browser changes view.
+        var ms = Math.max(0, Math.floor(Number(totalMs) || 0))
+        var minutes = Math.floor(ms / 60000)
+        var seconds = Math.floor((ms % 60000) / 1000)
+        var millis = ms % 1000
+        return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}.${millis.toString().padStart(3,'0')}`
+    }
+
+    function parseDurationMs(text) {
+        // Accept "mm:ss.SSS", "mm:ss", or plain milliseconds; return integer ms or null.
+        var raw = String(text || "").trim()
+        if (raw === "") return null
+        if (raw.indexOf(":") === -1) {
+            var asMs = Number(raw)
+            return isNaN(asMs) ? null : Math.round(asMs)
+        }
+        var mmss = raw.split(":")
+        if (mmss.length !== 2) return null
+        var secMs = mmss[1].split(".")
+        var minutes = parseInt(mmss[0], 10)
+        var seconds = parseInt(secMs[0], 10)
+        var millis = secMs.length > 1 ? parseInt((secMs[1] + "000").slice(0, 3), 10) : 0
+        if (isNaN(minutes) || isNaN(seconds) || isNaN(millis)) return null
+        return (minutes * 60 + seconds) * 1000 + millis
+    }
+
     function hasPendingForTrack(objId, modelData) {
         for (var k in pending) {
             if (k.indexOf(objId + ":") !== 0) continue
@@ -91,8 +118,10 @@ Item {
                 var ts = modelData.playlist[idx]
                 if (ts && parseInt(val) !== ts.source_id && val !== "") return true
             } else if (kind === "loop") {
-                var v = parseFloat(val)
-                if (!isNaN(v) && v !== modelData.loop_ms) return true
+                var v = parseDurationMs(val)
+                var curLoop = (modelData.loop_ms === null || modelData.loop_ms === undefined)
+                              ? null : Math.floor(modelData.loop_ms)
+                if (v !== null && v !== curLoop) return true
             } else if (kind === "vol") {
                 var v = parseFloat(val)
                 if (!isNaN(v) && v !== modelData.volume_db) return true
@@ -129,8 +158,10 @@ Item {
         var loopStr = ""
         var loopK = pendingKey(objId, "loop")
         if (loopK in pending) {
-            var lv = parseFloat(pending[loopK])
-            if (!isNaN(lv) && lv !== modelData.loop_ms) loopStr = "" + lv
+            var lv = parseDurationMs(pending[loopK])
+            var curLoop = (modelData.loop_ms === null || modelData.loop_ms === undefined)
+                          ? null : Math.floor(modelData.loop_ms)
+            if (lv !== null && lv !== curLoop) loopStr = "" + lv
         }
         var volStr = ""
         var volK = pendingKey(objId, "vol")
@@ -845,7 +876,7 @@ Item {
                                                 anchors.rightMargin: Theme.spacingSmall
                                                 spacing: Theme.spacingSmall
                                                 Text {
-                                                    text: qsTranslate("Application", "Loop (ms)")
+                                                    text: qsTranslate("Application", "Loop")
                                                     color: Theme.primaryAccent
                                                     font.family: Theme.fontFamily
                                                     font.pixelSize: 11
@@ -856,7 +887,7 @@ Item {
                                                     text: hircEditorPage.getPendingOrDefault(
                                                               track.obj_id, "loop", null,
                                                               (track.loop_ms !== null && track.loop_ms !== undefined)
-                                                                ? track.loop_ms.toFixed(2) : ""
+                                                                ? hircEditorPage.formatDurationMs(track.loop_ms) : ""
                                                           )
                                                     color: Theme.textPrimary
                                                     font.family: Theme.fontFamily
@@ -868,7 +899,7 @@ Item {
                                                         border.width: 1
                                                     }
                                                     Layout.preferredWidth: 130
-                                                    validator: RegularExpressionValidator { regularExpression: /^[0-9]*\.?[0-9]{0,6}$/ }
+                                                    validator: RegularExpressionValidator { regularExpression: /^[0-9:.]*$/ }
                                                     onTextEdited: hircEditorPage.setPending(
                                                                       track.obj_id, "loop", null, text
                                                                   )
@@ -922,7 +953,7 @@ Item {
                                                         border.width: 1
                                                     }
                                                     Layout.preferredWidth: 130
-                                                    validator: RegularExpressionValidator { regularExpression: /^-?[0-9]*\.?[0-9]{0,4}$/ }
+                                                    validator: DoubleValidator { bottom: -96; top: 24; decimals: 2; notation: DoubleValidator.StandardNotation; locale: "C" }
                                                     onTextEdited: hircEditorPage.setPending(
                                                                       track.obj_id, "vol", null, text
                                                                   )
@@ -1277,7 +1308,7 @@ Item {
                         Text { Layout.preferredWidth: 64;  text: qsTranslate("Application", "Type");    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
                         Text { Layout.preferredWidth: 160; text: qsTranslate("Application", "Target");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
                         Text { Layout.fillWidth: true;     text: qsTranslate("Application", "Source");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                        Text { Layout.preferredWidth: 96;  text: qsTranslate("Application", "Loop (ms)");    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { Layout.preferredWidth: 118; text: qsTranslate("Application", "Loop");    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
                         Text { Layout.preferredWidth: 96;  text: qsTranslate("Application", "Volume (dB)");  color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
                         Text { Layout.preferredWidth: 84;  text: qsTranslate("Application", "Actions"); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
                     }
@@ -1382,9 +1413,9 @@ Item {
                                             color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                         }
                                         Rectangle {
-                                            width: 110; height: 26; radius: 4
-                                            color: Theme.cardBackground
-                                            border.color: srcInput.activeFocus ? Theme.primaryAccent : "transparent"
+                                            width: 110; height: 26; radius: Theme.radiusSmall
+                                            color: Theme.inputBackground || "#2a2a2a"
+                                            border.color: srcInput.activeFocus ? Theme.primaryAccent : Theme.cardBackground
                                             border.width: 1
                                             TextInput {
                                                 id: srcInput
@@ -1420,7 +1451,7 @@ Item {
                             }
 
                             Item {
-                                Layout.preferredWidth: 96
+                                Layout.preferredWidth: 118
                                 Layout.preferredHeight: 26
                                 Layout.alignment: Qt.AlignVCenter
                                 Text {
@@ -1428,22 +1459,82 @@ Item {
                                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                     text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                 }
-                                Rectangle {
-                                    visible: rowRoot.rowData.kind === "track"
+                                SpinBox {
+                                    id: hircLoopSpin
+                                    from: 0
+                                    to: 3600000
                                     anchors.fill: parent
-                                    radius: 4; color: Theme.cardBackground
-                                    border.color: loopInput.activeFocus ? Theme.primaryAccent : "transparent"
-                                    border.width: 1
-                                    TextInput {
-                                        id: loopInput
-                                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                                    editable: true
+                                    locale: Qt.locale("C")
+                                    visible: rowRoot.rowData.kind === "track"
+                                    value: rowRoot.rowData.loop_ms === "" ? 0 : Math.max(0, Math.round(parseFloat(rowRoot.rowData.loop_ms)))
+                                    textFromValue: function(value, locale) {
+                                        return formatDurationMs(value)
+                                    }
+                                    valueFromText: function(text, locale) {
+                                        var ms = parseDurationMs(text)
+                                        return ms === null ? hircLoopSpin.value : ms
+                                    }
+                                    background: Rectangle {
+                                        HoverHandler { id: loopSpinBgHover }
+                                        color: loopSpinBgHover.hovered
+                                            ? Qt.lighter(Theme.cardBackground, 1.08)
+                                            : Theme.cardBackground
+                                        radius: Theme.radiusSmall
+                                    }
+                                    contentItem: TextInput {
+                                        text: hircLoopSpin.textFromValue(hircLoopSpin.value, hircLoopSpin.locale)
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 6
+                                        anchors.rightMargin: 22
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.textPrimary
+                                        horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
-                                        text: rowRoot.rowData.loop_ms
-                                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                                        validator: RegularExpressionValidator { regularExpression: /^[0-9]*\.?[0-9]{0,3}$/ }
+                                        readOnly: !hircLoopSpin.editable
+                                        validator: hircLoopSpin.validator
+                                        inputMethodHints: Qt.ImhNone
+                                        selectByMouse: true
                                         clip: true
-                                        onEditingFinished: hircEditorPage.editTrackLoopRequested(
-                                            rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)
+                                        onTextEdited: {
+                                            hircLoopSpin.value = hircLoopSpin.valueFromText(text, hircLoopSpin.locale)
+                                        }
+                                    }
+                                    up.indicator: Rectangle {
+                                        x: parent.width - width
+                                        y: 0
+                                        width: 20
+                                        height: parent.height / 2
+                                        color: "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "+"
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 12
+                                        }
+                                    }
+                                    down.indicator: Rectangle {
+                                        x: parent.width - width
+                                        y: parent.height / 2
+                                        width: 20
+                                        height: parent.height / 2
+                                        color: "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "-"
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 12
+                                        }
+                                    }
+                                    onValueChanged: {
+                                        var cur = rowRoot.rowData.loop_ms === "" ? 0 : Math.max(0, Math.round(parseFloat(rowRoot.rowData.loop_ms)))
+                                        if (value !== cur)
+                                            hircEditorPage.editTrackLoopRequested(
+                                                rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id,
+                                                value > 0 ? "" + value : "")
                                     }
                                 }
                             }
@@ -1457,23 +1548,44 @@ Item {
                                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                     text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                 }
-                                Rectangle {
-                                    visible: rowRoot.rowData.kind === "track"
+                                SpinBox {
                                     anchors.fill: parent
-                                    radius: 4; color: Theme.cardBackground
-                                    border.color: volInput.activeFocus ? Theme.primaryAccent : "transparent"
-                                    border.width: 1
-                                    TextInput {
-                                        id: volInput
-                                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: rowRoot.rowData.volume_db
-                                        color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                                        validator: RegularExpressionValidator { regularExpression: /^-?[0-9]*\.?[0-9]{0,2}$/ }
-                                        clip: true
-                                        onEditingFinished: hircEditorPage.editTrackVolumeRequested(
-                                            rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id, text)
+                                    visible: rowRoot.rowData.kind === "track"
+                                    from: -960
+                                    to: 240
+                                    stepSize: 5
+                                    editable: true
+                                    locale: Qt.locale("C")
+                                    value: rowRoot.rowData.volume_db === "" ? 0 : Math.round(parseFloat(rowRoot.rowData.volume_db) * 10)
+                                    textFromValue: function(value, locale) {
+                                        return (value / 10.0).toFixed(1)
                                     }
+                                    valueFromText: function(text, locale) {
+                                        var v = parseFloat(text)
+                                        if (isNaN(v)) return 0
+                                        return Math.round(v * 10)
+                                    }
+                                    onValueModified: hircEditorPage.editTrackVolumeRequested(
+                                        rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id,
+                                        (value / 10.0).toFixed(1))
+                                    background: Rectangle {
+                                        color: Theme.inputBackground || "#2a2a2a"
+                                        border.color: Theme.cardBackground
+                                        border.width: 1
+                                        radius: Theme.radiusSmall
+                                    }
+                                    contentItem: TextInput {
+                                        text: parent.textFromValue(parent.value, parent.locale)
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.textPrimary
+                                        horizontalAlignment: Qt.AlignHCenter
+                                        verticalAlignment: Qt.AlignVCenter
+                                        readOnly: !parent.editable
+                                        validator: DoubleValidator { bottom: -96; top: 24; decimals: 1; notation: DoubleValidator.StandardNotation; locale: "C" }
+                                    }
+                                    up.indicator: Item { width: 0 }
+                                    down.indicator: Item { width: 0 }
                                 }
                             }
 

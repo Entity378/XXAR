@@ -112,6 +112,24 @@ Item {
         return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}.${millis.toString().padStart(3,'0')}`
     }
 
+    function parseDurationMs(text) {
+        // Accept "mm:ss.SSS", "mm:ss", or plain milliseconds; return integer ms or null.
+        var raw = String(text || "").trim()
+        if (raw === "") return null
+        if (raw.indexOf(":") === -1) {
+            var asMs = Number(raw)
+            return isNaN(asMs) ? null : Math.round(asMs)
+        }
+        var mmss = raw.split(":")
+        if (mmss.length !== 2) return null
+        var secMs = mmss[1].split(".")
+        var minutes = parseInt(mmss[0], 10)
+        var seconds = parseInt(secMs[0], 10)
+        var millis = secMs.length > 1 ? parseInt((secMs[1] + "000").slice(0, 3), 10) : 0
+        if (isNaN(minutes) || isNaN(seconds) || isNaN(millis)) return null
+        return (minutes * 60 + seconds) * 1000 + millis
+    }
+
     ListModel { id: languageTabsModel }
     ListModel { id: treeModel }
 
@@ -2913,24 +2931,15 @@ Item {
                                         width: 118
                                         implicitHeight: 28
                                         editable: true
+                                        locale: Qt.locale("C")
                                         value: Math.max(1, loopPointManualMs || 0)
                                         visible: (loopPointMode || "auto") === "manual"
                                         textFromValue: function(value, locale) {
                                             return formatDurationMs(value)
                                         }
                                         valueFromText: function(text, locale) {
-                                            var raw = String(text || "").trim()
-                                            var m = raw.match(/^(\d+)\s*:\s*([0-5]?\d)\s*.\s*(\d{1,3})$/)
-                                            if (m) {
-                                                var mm = parseInt(m[1], 10)
-                                                var ss = parseInt(m[2], 10)
-                                                var mss = parseInt((m[3] + "000").slice(0, 3), 10)
-                                                return Math.max(1, (mm * 60 + ss) * 1000 + mss)
-                                            }
-                                            if (/^\d+$/.test(raw)) {
-                                                return Math.max(1, parseInt(raw, 10))
-                                            }
-                                            return Math.max(1, loopPointManualMs || 1)
+                                            var ms = parseDurationMs(text)
+                                            return ms === null ? rowLoopManualSpin.value : ms
                                         }
 
                                         background: Rectangle {
@@ -3069,6 +3078,7 @@ Item {
                                         stepSize: 5
                                         value: Math.round((volumeDb || 0.0) * 10)
                                         editable: true
+                                        locale: Qt.locale("C")
 
                                         textFromValue: function(value, locale) {
                                             return (value / 10.0).toFixed(1)
@@ -3094,16 +3104,12 @@ Item {
                                         contentItem: TextInput {
                                             text: parent.textFromValue(parent.value, parent.locale)
                                             font.family: Theme.fontFamily
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeSmall
                                             color: Theme.textPrimary
                                             horizontalAlignment: Qt.AlignHCenter
                                             verticalAlignment: Qt.AlignVCenter
                                             readOnly: !parent.editable
-                                            validator: DoubleValidator {
-                                                bottom: -96.0
-                                                top: 24.0
-                                                decimals: 1
-                                            }
+                                            validator: DoubleValidator { bottom: -96; top: 24; decimals: 1; notation: DoubleValidator.StandardNotation; locale: "C" }
                                         }
                                         up.indicator: Item { width: 0 }
                                         down.indicator: Item { width: 0 }
