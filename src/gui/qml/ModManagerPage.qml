@@ -15,6 +15,9 @@ Item {
     signal refreshClicked()
     signal openFolderClicked()
     signal applyModsClicked()
+    signal enableAllClicked()
+    signal disableAllClicked()
+    signal clearModsClicked()
     signal modToggled(string modUuid, bool enabled)
     signal modSelected(string modUuid)
     signal moreInfoClicked(string modUuid)
@@ -226,40 +229,6 @@ Item {
                     }
                 }
                 Item {
-                    id: btn_refresh
-                    height: 31
-                    width: refresh.implicitWidth + 32
-
-                    Rectangle {
-                        id: rectangle_40
-                        anchors.fill: parent
-                        color: btn_refresh_mouse.pressed ? Theme.accentDark : btn_refresh_mouse.containsMouse ? Theme.accentLight : Theme.primaryAccent
-                        radius: 20
-                        scale: btn_refresh_mouse.pressed ? 0.95 : 1.0
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Behavior on scale { NumberAnimation { duration: 100 } }
-                    }
-                    Text {
-                        id: refresh
-                        anchors.centerIn: parent
-                        color: "#000000"
-                        font.family: "Alatsi"
-                        font.pixelSize: 20
-                        font.weight: Font.Normal
-                        horizontalAlignment: Text.AlignHCenter
-                        text: qsTranslate("Application", "Refresh")
-                        textFormat: Text.PlainText
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    MouseArea {
-                        id: btn_refresh_mouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: refreshClicked()
-                    }
-                }
-                Item {
                     id: btn_openfolder
                     height: 31
                     width: refresh_1.implicitWidth + 32
@@ -291,6 +260,135 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: openFolderClicked()
+                    }
+                }
+                Item {
+                    id: btn_enableall
+                    height: 31
+                    width: enableall.implicitWidth + 32
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: btn_enableall_mouse.pressed ? Theme.accentDark : btn_enableall_mouse.containsMouse ? Theme.accentLight : Theme.primaryAccent
+                        radius: 20
+                        scale: btn_enableall_mouse.pressed ? 0.95 : 1.0
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on scale { NumberAnimation { duration: 100 } }
+                    }
+                    Text {
+                        id: enableall
+                        anchors.centerIn: parent
+                        color: "#000000"
+                        font.family: "Alatsi"
+                        font.pixelSize: 20
+                        font.weight: Font.Normal
+                        horizontalAlignment: Text.AlignHCenter
+                        text: qsTranslate("Application", "Enable All Mods")
+                        textFormat: Text.PlainText
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: btn_enableall_mouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: enableAllClicked()
+                    }
+                }
+                Item {
+                    id: btn_disableall
+                    height: 31
+                    width: disableall.implicitWidth + 32
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: btn_disableall_mouse.pressed ? Theme.accentDark : btn_disableall_mouse.containsMouse ? Theme.accentLight : Theme.primaryAccent
+                        radius: 20
+                        scale: btn_disableall_mouse.pressed ? 0.95 : 1.0
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on scale { NumberAnimation { duration: 100 } }
+                    }
+                    Text {
+                        id: disableall
+                        anchors.centerIn: parent
+                        color: "#000000"
+                        font.family: "Alatsi"
+                        font.pixelSize: 20
+                        font.weight: Font.Normal
+                        horizontalAlignment: Text.AlignHCenter
+                        text: qsTranslate("Application", "Disable All Mods")
+                        textFormat: Text.PlainText
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: btn_disableall_mouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: disableAllClicked()
+                    }
+                }
+                Item {
+                    id: btn_clearmods
+                    height: 31
+                    width: clearmods.implicitWidth + 32
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: btn_clearmods_mouse.pressed ? Theme.accentDark : btn_clearmods_mouse.containsMouse ? Theme.accentLight : Theme.primaryAccent
+                        radius: 20
+                        scale: btn_clearmods_mouse.pressed ? 0.95 : 1.0
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on scale { NumberAnimation { duration: 100 } }
+                    }
+                    Text {
+                        id: clearmods
+                        anchors.centerIn: parent
+                        color: "#000000"
+                        font.family: "Alatsi"
+                        font.pixelSize: 20
+                        font.weight: Font.Normal
+                        horizontalAlignment: Text.AlignHCenter
+                        text: qsTranslate("Application", "Clear Mods")
+                        textFormat: Text.PlainText
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: btn_clearmods_mouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clearModsClicked()
+                    }
+                }
+                Item {
+                    id: btn_refresh
+                    height: 31
+                    width: 40
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: btn_refresh_mouse.pressed ? Theme.accentDark : btn_refresh_mouse.containsMouse ? Theme.accentLight : Theme.primaryAccent
+                        radius: 20
+                        scale: btn_refresh_mouse.pressed ? 0.95 : 1.0
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on scale { NumberAnimation { duration: 100 } }
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        color: "#000000"
+                        font.pixelSize: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "↻"
+                        textFormat: Text.PlainText
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: btn_refresh_mouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: refreshClicked()
                     }
                 }
             }

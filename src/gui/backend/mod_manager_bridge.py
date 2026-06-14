@@ -454,6 +454,81 @@ class ModManagerBridge(QObject):
             logger.error(f"[Mod Manager] ERROR: Failed to toggle mod: {str(e)}")
             self.errorOccurred.emit("Error", f"Failed to toggle mod: {str(e)}")
 
+    @pyqtSlot()
+    def enableAllMods(self):
+
+        try:
+            self.mod_package_manager.set_all_mods_enabled(True)
+            logger.info("[Mod Manager] All mods enabled")
+            self.progressUpdate.emit("All mods enabled")
+            self.refreshMods()
+        except Exception as e:
+            logger.error(f"[Mod Manager] ERROR: Failed to enable all mods: {str(e)}")
+            self.errorOccurred.emit("Error", f"Failed to enable all mods: {str(e)}")
+
+    @pyqtSlot()
+    def disableAllMods(self):
+
+        try:
+            self.mod_package_manager.set_all_mods_enabled(False)
+            logger.info("[Mod Manager] All mods disabled")
+            self.progressUpdate.emit("All mods disabled")
+            self.refreshMods()
+        except Exception as e:
+            logger.error(f"[Mod Manager] ERROR: Failed to disable all mods: {str(e)}")
+            self.errorOccurred.emit("Error", f"Failed to disable all mods: {str(e)}")
+
+    @pyqtSlot()
+    def clearMods(self):
+        # Revert the game to its original audio while leaving every mod enabled in the manager.
+        # It wipes the Persistent overlay and the applied-mod tracker; "Apply Mods" re-applies later.
+        logger.info("[Mod Manager] Clearing applied mods from the game...")
+        self.load_settings()
+
+        if not self.game_audio_dir or not Path(self.game_audio_dir).exists():
+            self.errorOccurred.emit(
+                "Missing Directory",
+                "Game audio directory not set. Please configure it in settings first.",
+            )
+            return
+        if not self.persistent_dir:
+            self.errorOccurred.emit(
+                "Missing Directory",
+                "Persistent audio directory not set. Please configure it in settings first.",
+            )
+            return
+
+        try:
+            self.progressUpdate.emit("Clearing mods from game...")
+            persistent_path = Path(self.persistent_dir)
+            modded_keys = set(self.persistent_mod_manager.get_all_replacements().keys())
+            if persistent_path.exists():
+                stats = cleanup_persistent_overlay(
+                    self.active_game_id,
+                    self.game_audio_dir,
+                    persistent_path,
+                    modded_keys,
+                    progress_cb=lambda msg: self.progressUpdate.emit(msg),
+                )
+                logger.info(f"[Mod Manager] Clear mods cleanup: {stats}")
+            self.persistent_mod_manager.clear_all_replacements()
+            logger.info("[Mod Manager] Mods cleared from game; manager enabled-states untouched")
+            self.progressUpdate.emit("Mods cleared (still enabled in the manager)")
+            self.refreshMods()
+        except Exception as e:
+            logger.error(f"[Mod Manager] ERROR: Failed to clear mods: {str(e)}")
+            is_permission_error = isinstance(e, PermissionError) or (
+                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
+            ) or "permission denied" in str(e).lower()
+            if is_permission_error:
+                self.alertDialogRequested.emit(
+                    QCoreApplication.translate("Application", "Permission Denied"),
+                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
+                    ""
+                )
+            else:
+                self.errorOccurred.emit("Error", f"Failed to clear mods: {str(e)}")
+
     @pyqtSlot(str)
     def installMod(self, file_path):
 

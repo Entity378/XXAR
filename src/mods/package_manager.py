@@ -371,6 +371,12 @@ class ModPackageManager:
             self.mod_config['installed_mods'][mod_uuid]['enabled'] = enabled
             self.save_config()
 
+    def set_all_mods_enabled(self, enabled):
+
+        for mod_uuid in self.mod_config.get('installed_mods', {}):
+            self.mod_config['installed_mods'][mod_uuid]['enabled'] = enabled
+        self.save_config()
+
     def remove_mod(self, mod_uuid):
 
         if mod_uuid in self.mod_config['installed_mods']:
