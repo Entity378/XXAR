@@ -68,13 +68,14 @@ namespace XXAR.Installer
                             Description = "Cross-game Audio Replacer",
                             WorkingDirectory = "BIN_DIR",
                         }),
-                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1). 
+                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1).
+                    // Suppressed when XXAR_SILENT=1: the in-app updater runs msiexec silently and must not recreate a desktop shortcut on every update.
                     // No custom Id: it would break %Desktop% mapping and cause Warning 1909.
                     new Dir(@"%Desktop%",
                         new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
                         {
                             IconFile = appExe,
-                            Condition = new Condition("INSTALLDESKTOPSHORTCUT=\"1\""),
+                            Condition = new Condition("INSTALLDESKTOPSHORTCUT=\"1\" AND XXAR_SILENT<>\"1\""),
                             WorkingDirectory = "BIN_DIR",
                         }),
                 },

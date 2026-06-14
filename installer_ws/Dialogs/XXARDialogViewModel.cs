@@ -29,10 +29,26 @@ namespace XXAR.Installer.Dialogs
     // True when the in-app updater set XXAR_SILENT=1: dialogs auto-advance, only progress shows.
     internal static class XXARSilentUpdate
     {
+        // Cached from the first dialog that can read it. The Exit dialog runs after
+        // InstallFinalize, where the session property is no longer reliably readable —
+        // without the cache it would read empty, fall through to false, and wait for a
+        // manual Finish click instead of auto-closing.
+        private static bool? _cached;
+
         public static bool IsActive(ManagedForm host)
         {
-            try { return host?.Runtime?.Session?.Property("XXAR_SILENT") == "1"; }
-            catch { return false; }
+            if (_cached.HasValue) return _cached.Value;
+            try
+            {
+                var value = host?.Runtime?.Session?.Property("XXAR_SILENT");
+                if (!string.IsNullOrEmpty(value))
+                {
+                    _cached = value == "1";
+                    return _cached.Value;
+                }
+            }
+            catch { }
+            return false;
         }
 
         // Skip a dialog. Must be deferred: calling Shell.GoNext()/Exit() synchronously from

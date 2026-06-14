@@ -245,6 +245,27 @@ class UpdateCheckWorker(QThread):
             self.errorOccurred.emit(f"Update check failed: {e}")
 
 
+# Downloaded installer/portable artifacts left in cache/updates from previous versions.
+_STALE_UPDATE_SUFFIXES = (".msi", ".zip", ".tar.gz", ".flatpak")
+
+
+def _prune_stale_update_artifacts(update_dir, keep=""):
+    # Delete every prior update download except the one we are about to (re)fetch; leaves staging/ and updater.log alone.
+    try:
+        for entry in update_dir.iterdir():
+            if not entry.is_file() or entry.name == keep:
+                continue
+            name = entry.name.lower()
+            if any(name.endswith(suffix) for suffix in _STALE_UPDATE_SUFFIXES):
+                try:
+                    entry.unlink()
+                    logger.info(f"[Updater] Removed stale update artifact: {entry.name}")
+                except OSError as e:
+                    logger.warning(f"[Updater] Could not remove stale artifact {entry.name}: {e}")
+    except OSError as e:
+        logger.warning(f"[Updater] Could not scan update cache for cleanup: {e}")
+
+
 class UpdateDownloadWorker(QThread):
     downloadProgress = pyqtSignal(int)  # percent
     # Emits (kind, path). kind is one of: "msi", "zip_staging", "flatpak".
@@ -262,6 +283,9 @@ class UpdateDownloadWorker(QThread):
             update_dir = get_cache_dir() / "updates"
             update_dir.mkdir(parents=True, exist_ok=True)
             archive_path = update_dir / self.asset_name
+
+            # Old .msi files are handed to msiexec and never deleted, so they pile up across versions; prune every prior artifact before fetching the new one.
+            _prune_stale_update_artifacts(update_dir, keep=self.asset_name)
 
             req = urllib.request.Request(self.download_url)
             req.add_header("User-Agent", f"{APP_NAME}-Updater")
