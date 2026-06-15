@@ -8,7 +8,7 @@ from src.core.app_config import APP_NAME
 from src.core.config_manager import get_cache_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS
-from src.gui.backend.update_manager_bridge import _get_real_exe_path
+from src.gui.backend.update_manager_bridge import _get_real_exe_path, _prune_stale_update_artifacts
 
 logger = get_logger(__name__)
 
@@ -201,6 +201,7 @@ class UpdateConnector:
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
                 logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
+                _prune_stale_update_artifacts(get_cache_dir() / "updates")
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
