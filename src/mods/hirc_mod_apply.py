@@ -1,8 +1,9 @@
-# Apply offset-free HIRC track patches carried by add-based mods.
-# Each patch targets a MusicTrack by pck/bnk/track id, so it survives game updates.
-# The edits are size-preserving, so each BNK is patched in place with no repack.
+# Apply offset-free HIRC track patches (by pck/bnk/track id) carried by add-based mods.
+# Size-preserving edits patch in place; a volume insert grows a BNK and triggers a pck repack.
 
+import os
 import shutil
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -10,8 +11,33 @@ import src.core.app_config as app_config
 from src.core.logger import get_logger
 from src.wwise.hirc_music import apply_track_patches_to_bnk
 from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.pck_packer import PCKPacker
 
 logger = get_logger(__name__)
+
+
+def _repack_overlay(overlay_pck, modified):
+    # Rebuild the pck, swapping in patched bnk bytes when a volume insert grew a bnk.
+    # An in-place write would overrun the next entry, so write a temp file and replace atomically.
+    fd, tmp_name = tempfile.mkstemp(suffix=".pck", dir=str(overlay_pck.parent))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    packer = None
+    packed = False
+    try:
+        packer = PCKPacker(str(overlay_pck), str(tmp_path))
+        packer.load_original_pck()
+        for bnk_id, (lang_id, new_bytes) in modified.items():
+            packer.replace_bnk_raw(bnk_id, new_bytes, lang_id)
+        packer.pack(use_patching=False)
+        packed = True
+    finally:
+        if packer is not None:
+            packer.close()
+    if not packed:
+        tmp_path.unlink(missing_ok=True)
+        raise RuntimeError("pck repack failed")
+    os.replace(str(tmp_path), str(overlay_pck))
 
 
 def _ensure_writable_overlay(source_pck, streaming_root, persistent_root, fresh_clone):
@@ -78,8 +104,11 @@ def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fre
             bank_info_by_id = {
                 bank["id"]: bank for bank in PCKIndexer(str(overlay_pck)).build_index().get("banks", [])
             }
-            pck_was_patched = False
-            with open(overlay_pck, "r+b") as overlay_file:
+            # Patch each matched bnk in memory, since a volume insert can grow it.
+            # Then write size-preserving edits in place, or repack the whole pck if any bnk grew.
+            modified = {}  # bnk_id -> (lang_id, new_bytes)
+            grew = False
+            with open(overlay_pck, "rb") as overlay_file:
                 for bnk_id in matched_bnk_ids:
                     bank_info = bank_info_by_id.get(bnk_id)
                     if bank_info is None:
@@ -89,23 +118,30 @@ def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fre
                     patch_counts = apply_track_patches_to_bnk(bnk_bytes, patches_by_bnk_id[bnk_id])
                     if patch_counts["remaps"] + patch_counts["loops"] + patch_counts["volumes"] <= 0:
                         continue
+                    modified[bnk_id] = (bank_info["lang_id"], bytes(bnk_bytes))
                     if len(bnk_bytes) != bank_info["size"]:
-                        logger.error(f"[HIRC mod] bnk {bnk_id} size changed; not writing")
-                        continue
-                    overlay_file.seek(bank_info["offset"])
-                    overlay_file.write(bytes(bnk_bytes))
-                    pck_was_patched = True
-                    apply_summary["patched_bnks"] += 1
+                        grew = True
                     logger.info(
                         f"[HIRC mod] {soundbank_pck.name}:{bnk_id} -> "
                         f"{patch_counts['remaps']} remap(s), {patch_counts['loops']} loop(s), "
                         f"{patch_counts['volumes']} volume(s)"
                     )
+
+            if not modified:
+                continue
+
+            if grew:
+                _repack_overlay(overlay_pck, modified)
+            else:
+                with open(overlay_pck, "r+b") as overlay_file:
+                    for bnk_id, (lang_id, new_bytes) in modified.items():
+                        overlay_file.seek(bank_info_by_id[bnk_id]["offset"])
+                        overlay_file.write(new_bytes)
+            apply_summary["patched_bnks"] += len(modified)
+            apply_summary["patched_files"] += 1
         except Exception as e:
             logger.error(f"[HIRC mod] Failed to patch {soundbank_pck.name}: {e}")
             continue
-        if pck_was_patched:
-            apply_summary["patched_files"] += 1
 
     if unresolved_bnk_ids:
         logger.warning(f"[HIRC mod] bnk(s) not found in any pck, skipped: {sorted(unresolved_bnk_ids)}")

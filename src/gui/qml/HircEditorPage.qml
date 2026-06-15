@@ -915,14 +915,14 @@ Item {
                                             }
                                         }
 
-                                        // Volume (visible if AkPropBundle Volume present — works for
-                                        // MusicTrack AND container types: MusicSegment / RanSeqCntr / SwitchCntr)
+                                        // Shown for MusicTracks whose AkPropBundle is reachable (has_volume or volume_insertable).
+                                        // Sourceless stubs and containers stay hidden, since there's nothing to apply a volume to.
                                         Rectangle {
                                             Layout.fillWidth: true
                                             height: 30
                                             radius: Theme.radiusSmall / 3
                                             color: Qt.darker(Theme.primaryAccent, 6.5)
-                                            visible: track.has_volume === true
+                                            visible: track.has_volume === true || track.volume_insertable === true
 
                                             RowLayout {
                                                 anchors.fill: parent
@@ -959,7 +959,9 @@ Item {
                                                                   )
                                                 }
                                                 Text {
-                                                    text: "@ " + track.volume_offset_abs
+                                                    text: track.has_volume === true
+                                                            ? "@ " + track.volume_offset_abs
+                                                            : qsTranslate("Application", "(new — inserted on apply)")
                                                     color: Theme.textSecondary
                                                     font.family: Theme.fontFamily
                                                     font.pixelSize: 10
@@ -1441,8 +1443,22 @@ Item {
                                     color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                     elide: Text.ElideRight
                                 }
+                                // With no remap staged, show the current sources/playlist so it's clear they're preserved.
+                                Repeater {
+                                    model: (rowRoot.rowData.kind === "track" && (rowRoot.rowData.remaps || []).length === 0)
+                                           ? (rowRoot.rowData.current_sources || []) : []
+                                    Text {
+                                        width: sourceCol.width
+                                        height: 22
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: modelData
+                                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                                        elide: Text.ElideRight
+                                    }
+                                }
                                 Text {
                                     visible: rowRoot.rowData.kind === "track" && (rowRoot.rowData.remaps || []).length === 0
+                                             && (rowRoot.rowData.current_sources || []).length === 0
                                     height: 26
                                     verticalAlignment: Text.AlignVCenter
                                     text: "—"
@@ -1467,7 +1483,12 @@ Item {
                                     editable: true
                                     locale: Qt.locale("C")
                                     visible: rowRoot.rowData.kind === "track"
-                                    value: rowRoot.rowData.loop_ms === "" ? 0 : Math.max(0, Math.round(parseFloat(rowRoot.rowData.loop_ms)))
+                                    // Effective loop is the staged value if edited, else the track's current loop.
+                                    // This shows an unedited loop's real value instead of a misleading 0.
+                                    value: {
+                                        var eff = rowRoot.rowData.loop_ms === "" ? rowRoot.rowData.current_loop_ms : rowRoot.rowData.loop_ms
+                                        return (eff === "" || eff === undefined) ? 0 : Math.max(0, Math.round(parseFloat(eff)))
+                                    }
                                     textFromValue: function(value, locale) {
                                         return formatDurationMs(value)
                                     }
@@ -1530,7 +1551,10 @@ Item {
                                         }
                                     }
                                     onValueChanged: {
-                                        var cur = rowRoot.rowData.loop_ms === "" ? 0 : Math.max(0, Math.round(parseFloat(rowRoot.rowData.loop_ms)))
+                                        // Baseline is the effective current loop, so initialising to the real loop is a no-op.
+                                        // Only a genuine change stages a loop edit.
+                                        var eff = rowRoot.rowData.loop_ms === "" ? rowRoot.rowData.current_loop_ms : rowRoot.rowData.loop_ms
+                                        var cur = (eff === "" || eff === undefined) ? 0 : Math.max(0, Math.round(parseFloat(eff)))
                                         if (value !== cur)
                                             hircEditorPage.editTrackLoopRequested(
                                                 rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id,

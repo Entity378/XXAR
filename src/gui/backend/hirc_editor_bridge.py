@@ -941,6 +941,19 @@ class HircEditorBridge(QObject):
                 "loop_ms": "",
                 "volume_db": "",
             })
+        # Resolve the track's current loop and sources so the overlay shows what a patch preserves.
+        # Without it a volume-only row would render loop 0 and no source, reading as destructive.
+        bnk_cache = {}
+
+        def _current_track(pck, bnk_id, obj_id):
+            key = (pck, int(bnk_id))
+            if key not in bnk_cache:
+                try:
+                    bnk_cache[key] = {o["obj_id"]: o for o in self._load_bnk_objects(pck, int(bnk_id))}
+                except Exception:
+                    bnk_cache[key] = {}
+            return bnk_cache[key].get(int(obj_id))
+
         for tp in d.get("track_patches", []):
             remaps = [{
                 "slot": str(r.get("slot", "src")),
@@ -948,6 +961,15 @@ class HircEditorBridge(QObject):
                 "old_source_id": r.get("old_source_id"),
                 "new_source_id": r.get("new_source_id"),
             } for r in (tp.get("source_remaps") or [])]
+            cur = _current_track(tp.get("pck_name"), tp.get("bnk_id"), tp.get("track_obj_id"))
+            current_loop_ms = ""
+            current_sources = []
+            if cur:
+                current_loop_ms = self._num_str(cur.get("loop_ms"))
+                for s in (cur.get("sources") or []):
+                    current_sources.append(f"Source[{s['index']}]: {s['source_id']}")
+                for p in (cur.get("playlist") or []):
+                    current_sources.append(f"Playlist[{p['index']}]: {p['source_id']}")
             changes.append({
                 "kind": "track",
                 "pck_name": tp.get("pck_name"),
@@ -958,6 +980,8 @@ class HircEditorBridge(QObject):
                 "source_display": "",
                 "loop_ms": self._num_str(tp.get("loop_ms")),
                 "volume_db": self._num_str(tp.get("volume_db")),
+                "current_loop_ms": current_loop_ms,
+                "current_sources": current_sources,
             })
         self.draftChangesReady.emit(changes)
 
@@ -1148,9 +1172,17 @@ class HircEditorBridge(QObject):
         if self._draft_count() == 0:
             self.errorOccurred.emit("Apply", "Nothing staged to apply.")
             return
-        if self._apply_worker is not None and self._apply_worker.isRunning():
-            self.statusUpdate.emit("Apply already in progress...")
-            return
+        if self._apply_worker is not None:
+            try:
+                still_running = self._apply_worker.isRunning()
+            except RuntimeError:
+                # The previous worker's C++ object was already deleted by deleteLater.
+                # The dangling Python ref is stale, so treat it as not running.
+                still_running = False
+                self._apply_worker = None
+            if still_running:
+                self.statusUpdate.emit("Apply already in progress...")
+                return
         streaming = self._game_audio_dir()
         persistent = self._game_persistent_audio_dir()
         if streaming is None or persistent is None:
@@ -1171,8 +1203,13 @@ class HircEditorBridge(QObject):
         worker.failed.connect(lambda m: self.errorOccurred.emit("Apply Error", m))
         worker.failed.connect(lambda m: self.draftApplied.emit(False, m))
         worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(self._clear_apply_worker)
         self._apply_worker = worker
         worker.start()
+
+    def _clear_apply_worker(self):
+        # Drop the reference once the worker finishes so the next apply doesn't poke a deleted object.
+        self._apply_worker = None
 
     @pyqtSlot()
     def exportDraftAsMod(self):

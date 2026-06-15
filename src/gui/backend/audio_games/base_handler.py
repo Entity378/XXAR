@@ -1,17 +1,24 @@
+import os
 import re
 import shutil
 import struct
+import tempfile
+from io import BytesIO
 from pathlib import Path
 
 from PyQt6.QtCore import QCoreApplication
 
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
+from src.wwise.bnk_handler import BNKFile
 from src.wwise.hirc_patcher import (
     apply_duration_patches,
+    apply_volume_inserts,
     apply_volume_patches,
     scan_bank_for_patch_targets,
 )
+from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.pck_packer import PCKPacker
 
 logger = get_logger(__name__)
 
@@ -644,6 +651,18 @@ class BaseBrowserHandler:
 
         logger.info(f"[HIRC Patch] {target_path.name}: {len(targets.tracks)} track(s), {len(targets.segments)} seg(s), {len(targets.volume_patches)} vol target(s), has_volume={has_volume}")
 
+        # Inserting a missing Volume grows the bnk and shifts every pck offset.
+        # The in-place poke below can't do that, so escalate to a per-bnk rebuild.
+        needs_insert = has_volume and any(
+            (not vp.has_existing_volume) and vp.source_id in volume_db_by_track
+            for vp in targets.volume_patches
+        )
+        if needs_insert:
+            return BaseBrowserHandler._rebuild_pck_with_hirc_patches(
+                target_path, base_file, source_ids,
+                duration_ms_by_track, volume_db_by_track, patched_track_ids,
+            )
+
         content = bytearray(raw)
         original_size = len(content)
 
@@ -682,6 +701,112 @@ class BaseBrowserHandler:
         target_path.write_bytes(content)
         patched_track_ids.update(dur_result["patched_source_ids"])
         logger.info(f"[HIRC Patch] Wrote {len(content)} bytes to {target_path}")
+        return True
+
+    @staticmethod
+    def _patch_bnk_bytes(bnk_bytes, source_ids, duration_ms_by_track, volume_db_by_track):
+        # Patch one isolated bnk: insert missing volumes, overwrite existing ones, apply durations.
+        # Returns (modified_bytes, patched_source_ids), or (None, set()) when nothing changed.
+        try:
+            bnk = BNKFile(bnk_bytes=bnk_bytes)
+        except Exception:
+            return None, set()
+        if "HIRC" not in bnk.data:
+            return None, set()
+
+        # Operate on the HIRC chunk bytes (header + payload) so scan offsets are local to it.
+        mini = bytearray(bnk.data["HIRC"].getdata())
+        targets = scan_bank_for_patch_targets(mini, source_ids)
+        if not (targets.tracks or targets.segments or targets.volume_patches):
+            return None, set()
+
+        inserted = 0
+        if targets.volume_patches and volume_db_by_track:
+            inserted = apply_volume_inserts(
+                mini, targets.volume_patches, volume_db_by_track
+            )["inserted"]
+            if inserted:
+                # Inserts grew the blob; re-scan so overwrite + duration offsets are fresh.
+                targets = scan_bank_for_patch_targets(bytes(mini), source_ids)
+
+        vol_patched = 0
+        if targets.volume_patches and volume_db_by_track:
+            vol_patched = apply_volume_patches(
+                mini, targets.volume_patches, volume_db_by_track
+            )["patched"]
+
+        dur_result = {"patched_offsets": 0, "patched_source_ids": set()}
+        if (targets.tracks or targets.segments) and duration_ms_by_track:
+            dur_result = apply_duration_patches(mini, targets, duration_ms_by_track)
+
+        if inserted + vol_patched + dur_result["patched_offsets"] <= 0:
+            return None, set()
+
+        bnk.data["HIRC"].data = BytesIO(bytes(mini[12:]))
+        return bnk.get_bytes(), dur_result["patched_source_ids"]
+
+    @staticmethod
+    def _rebuild_pck_with_hirc_patches(
+        raw, target_path, base_file, source_ids,
+        duration_ms_by_track, volume_db_by_track, patched_track_ids,
+    ):
+        # Repack base_file into target_path, swapping in the HIRC-patched bnks.
+        # Used when a Volume must be inserted (size grows), which the in-place poke can't do.
+        try:
+            index = PCKIndexer(base_file).build_index()
+        except Exception:
+            logger.exception(f"[HIRC Patch] rebuild: failed to index {base_file}")
+            return False
+
+        banks = index.get("banks", [])
+        if not banks:
+            return False
+
+        patches = []  # (bnk_id, lang_id, new_bytes, patched_source_ids)
+        for bank in banks:
+            off, size = bank["offset"], bank["size"]
+            new_bytes, psids = BaseBrowserHandler._patch_bnk_bytes(
+                raw[off:off + size], source_ids, duration_ms_by_track, volume_db_by_track
+            )
+            if new_bytes is not None:
+                patches.append((bank["id"], bank["lang_id"], new_bytes, psids))
+
+        if not patches:
+            return False
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(suffix=".pck", dir=str(target_path.parent))
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        packer = None
+        packed = False
+        applied = 0
+        try:
+            packer = PCKPacker(base_file, tmp_path)
+            packer.load_original_pck()
+            for bnk_id, lang_id, new_bytes, psids in patches:
+                if packer.replace_bnk_raw(bnk_id, new_bytes, lang_id):
+                    applied += 1
+                    patched_track_ids.update(psids)
+            if applied > 0:
+                packer.pack(use_patching=False)
+                packed = True
+        except Exception:
+            logger.exception(f"[HIRC Patch] rebuild failed for {target_path.name}")
+        finally:
+            if packer is not None:
+                packer.close()
+
+        if not packed:
+            tmp_path.unlink(missing_ok=True)
+            return False
+
+        try:
+            target_path.chmod(0o644)
+        except Exception:
+            pass
+        os.replace(tmp_path, target_path)
+        logger.info(f"[HIRC Patch] Rebuilt {target_path.name}: {applied} bnk(s) patched (volume-insert path)")
         return True
 
     def _find_bank_pck_files(self, audio_root):

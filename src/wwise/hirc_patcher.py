@@ -33,8 +33,11 @@ class TrackPatchInfo:
 class VolumePatchInfo:
     source_id: int
     prop_bundle_cProps_offset: int   # absolute offset of the cProps byte
-    volume_value_offset: int         # absolute offset of the volume float (or insertion point)
+    volume_value_offset: int         # absolute offset of the volume float (overwrite) or values-array insertion point
     has_existing_volume: bool        # True = overwrite in-place, False = need insert
+    object_size_field_offset: int = 0  # absolute offset of the enclosing MusicTrack object's u32 size field
+    cProps: int = 0                  # current property count in this AkPropBundle
+    ids_start_offset: int = 0        # absolute offset where the prop-id array begins (cProps_offset + 1)
 
 
 @dataclass
@@ -148,6 +151,39 @@ def apply_volume_patches(content, volume_patches, volume_db_by_source):
         logger.info(f"[HIRC Patch] Volume: skipped {skipped} track(s) without existing volume property")
 
     return {"patched": patched, "inserted": 0, "total_shift": 0}
+
+
+def apply_volume_inserts(content, volume_patches, volume_db_by_source):
+    # Insert a Volume (0x00) prop into MusicTracks that lack one, growing an isolated bnk buffer.
+    # 0x00 sorts to the front so the bundle stays ascending, and only the object size field is bumped.
+    inserts = {}
+    for vp in volume_patches:
+        if vp.has_existing_volume:
+            continue
+        db_val = volume_db_by_source.get(vp.source_id)
+        if db_val is None:
+            continue
+        # One insert per bundle even if several sources share the same MusicTrack.
+        inserts.setdefault(vp.prop_bundle_cProps_offset, (vp, db_val))
+
+    inserted = 0
+    for cProps_offset in sorted(inserts.keys(), reverse=True):
+        vp, db_val = inserts[cProps_offset]
+        values_start = vp.ids_start_offset + vp.cProps
+        # Insert the value then the id, both at the front of their arrays.
+        # Doing the higher offset first keeps the lower insertion point valid.
+        content[values_start:values_start] = struct.pack("<f", float(db_val))
+        content[vp.ids_start_offset:vp.ids_start_offset] = bytes([VOLUME_PROP_ID])
+        content[cProps_offset] = vp.cProps + 1
+        if vp.object_size_field_offset:
+            old_size = struct.unpack_from("<I", content, vp.object_size_field_offset)[0]
+            struct.pack_into("<I", content, vp.object_size_field_offset, old_size + 5)
+        inserted += 1
+
+    if inserted:
+        logger.info(f"[HIRC Patch] Volume: inserted {inserted} new volume property(ies)")
+
+    return {"patched": 0, "inserted": inserted, "total_shift": inserted * 5}
 
 
 def apply_duration_patches(content, targets, duration_ms_by_source):
@@ -306,14 +342,17 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
 
     # parse AkPropBundle for volume
     try:
-        volume_patches = _parse_volume_from_track(content, p, end, patches)
+        object_size_field_offset = data_start - 4  # u32 size field precedes the object data
+        volume_patches = _parse_volume_from_track(
+            content, p, end, patches, object_size_field_offset
+        )
     except Exception:
         # If parsing fails (unexpected layout), skip volume for this track.
         volume_patches = []
     return (obj_id, patches, volume_patches)
 
 
-def _parse_volume_from_track(content, p, end, track_patches):
+def _parse_volume_from_track(content, p, end, track_patches, object_size_field_offset=0):
     # Post-playlist section of a MusicTrack; walks NodeBaseParams to find the AkPropBundle Volume entry.
     # Layout reference: parse_hirc_examples.py.
     if p + 8 > end:
@@ -376,6 +415,7 @@ def _parse_volume_from_track(content, p, end, track_patches):
         return []
 
     # Read property IDs
+    ids_start_offset = p  # start of the prop-id array (= cProps_offset + 1)
     prop_ids = list(content[p : p + cProps])
     p += cProps  # now at start of values array
 
@@ -389,8 +429,8 @@ def _parse_volume_from_track(content, p, end, track_patches):
             break
 
     if not has_existing:
-        # Insertion point: end of values array
-        volume_value_offset = p + cProps * 4
+        # Volume sorts to the front, so its value goes at the start of the values array.
+        volume_value_offset = p
 
     # Create one VolumePatchInfo per matched source in this track
     results = []
@@ -401,6 +441,9 @@ def _parse_volume_from_track(content, p, end, track_patches):
                 prop_bundle_cProps_offset=cProps_offset,
                 volume_value_offset=volume_value_offset,
                 has_existing_volume=has_existing,
+                object_size_field_offset=object_size_field_offset,
+                cProps=cProps,
+                ids_start_offset=ids_start_offset,
             )
         )
     return results

@@ -3,11 +3,14 @@
 # They are shared between the live HIRC Editor and the mod-apply pipeline.
 
 import struct
+from io import BytesIO
 from typing import List, Optional
 
 from src.core.logger import get_logger
+from src.wwise.bnk_handler import BNKFile
 from src.wwise.hirc_patcher import (
     apply_duration_patches,
+    apply_volume_inserts,
     scan_bank_for_patch_targets,
 )
 
@@ -184,6 +187,7 @@ def _parse_music_track_fields(
         "volume_db": None,
         "volume_offset_abs": None,
         "has_volume": False,
+        "volume_insertable": False,
         # Internal: bnk-relative bounds used to disambiguate per-track volumes.
         # They matter when multiple tracks share the same source_id.
         # Stripped before leaving the parse.
@@ -211,6 +215,7 @@ def _parse_music_object_basic(
         "volume_db": None,
         "volume_offset_abs": None,
         "has_volume": False,
+        "volume_insertable": False,
     }
     # NOTE: container-type AkPropBundle parsing is unreliable for Genshin's Wwise variant.
     # Both alignments (with/without bOverrideAttachmentParams) produce garbage prop_ids/values.
@@ -300,10 +305,13 @@ def _scan_bnk_music_objects(
 
     seen_track_ids = set()
     for vp in targets.volume_patches:
-        if not vp.has_existing_volume:
-            continue
         owner = _find_owner(vp.volume_value_offset)
         if owner is None:
+            continue
+        # A located AkPropBundle means a Volume can be inserted or overwritten here.
+        # Sourceless placeholder tracks never reach this, so they stay non-insertable.
+        owner["volume_insertable"] = True
+        if not vp.has_existing_volume:
             continue
         if owner["obj_id"] in seen_track_ids:
             continue  # one volume per track
@@ -362,10 +370,28 @@ def _extract_track_source_ids(content, track_obj_id: int) -> set:
     return out
 
 
+def _insert_track_volumes(bnk_bytes: bytearray, volume_db_by_source: dict) -> int:
+    # Insert a Volume prop into MusicTracks that lack one, growing bnk_bytes in place.
+    # Returns the insert count; BNKFile reframes the chunk so only the object size field changes.
+    try:
+        bnk = BNKFile(bnk_bytes=bytes(bnk_bytes))
+    except Exception:
+        return 0
+    if "HIRC" not in bnk.data:
+        return 0
+    mini = bytearray(bnk.data["HIRC"].getdata())
+    targets = scan_bank_for_patch_targets(mini, set(volume_db_by_source.keys()))
+    res = apply_volume_inserts(mini, targets.volume_patches, volume_db_by_source)
+    if res["inserted"] <= 0:
+        return 0
+    bnk.data["HIRC"].data = BytesIO(bytes(mini[12:]))
+    bnk_bytes[:] = bnk.get_bytes()
+    return res["inserted"]
+
+
 def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> dict:
-    # Apply offset-free track patches to one bnk's bytes, in place.
-    # Each patch targets a MusicTrack by obj_id and may remap sources or set loop/volume.
-    # All edits are size-preserving, so the caller writes the bytes back at the same offset.
+    # Apply offset-free track patches to one bnk by obj_id: source remaps, loop, volume.
+    # Inserting a volume on a track that lacks one grows the bnk, so the caller repacks on size change.
     result = {"remaps": 0, "loops": 0, "volumes": 0}
     if not patches_for_bnk:
         return result
@@ -414,16 +440,22 @@ def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> d
     objs2 = _scan_bnk_music_objects(bnk_bytes, 0)
     by_obj2 = {o["obj_id"]: o for o in objs2}
     loop_map = {}  # source_id -> loop_ms
+    vol_insert_map = {}  # source_id -> db, for tracks without an existing Volume prop
     for patch in patches_for_bnk:
         track = by_obj2.get(int(patch.get("track_obj_id")))
         if track is None:
             continue
         vol = patch.get("volume_db")
-        if vol is not None and track.get("has_volume") and track.get("volume_offset_abs") is not None:
-            voff = int(track["volume_offset_abs"])
-            if 0 <= voff + 4 <= len(bnk_bytes):
-                struct.pack_into("<f", bnk_bytes, voff, float(vol))
-                result["volumes"] += 1
+        if vol is not None:
+            if track.get("has_volume") and track.get("volume_offset_abs") is not None:
+                voff = int(track["volume_offset_abs"])
+                if 0 <= voff + 4 <= len(bnk_bytes):
+                    struct.pack_into("<f", bnk_bytes, voff, float(vol))
+                    result["volumes"] += 1
+            else:
+                # No existing Volume here, so insert one keyed by source_id (mirrors the loop map).
+                for s in track.get("sources", []) or []:
+                    vol_insert_map[s["source_id"]] = float(vol)
         loop_ms = patch.get("loop_ms")
         if loop_ms is not None:
             for s in track.get("sources", []) or []:
@@ -438,5 +470,12 @@ def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> d
             result["loops"] = int(dur_result.get("patched_offsets", 0))
         except Exception as e:
             logger.warning(f"[HIRC patch] loop duration patch failed: {e}")
+
+    # Volume inserts grow the bnk, so they run last after the size-preserving passes.
+    if vol_insert_map:
+        try:
+            result["volumes"] += _insert_track_volumes(bnk_bytes, vol_insert_map)
+        except Exception as e:
+            logger.warning(f"[HIRC patch] volume insert failed: {e}")
 
     return result

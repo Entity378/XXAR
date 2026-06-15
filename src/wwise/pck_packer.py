@@ -321,6 +321,19 @@ class PCKPacker:
 
         logger.info(f"[OK] Merged BNK {bnk_id}: {replaced} mod WEM(s), {transported} transported, new size: {len(modified_bnk_bytes)} bytes")
 
+    def replace_bnk_raw(self, bnk_id, new_bnk_bytes, lang_id=0):
+        # Swap a BNK's bytes wholesale (used after HIRC patching changed its size).
+        # The rebuild pack path picks up the new size/offset from soundbank_titles.
+        if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
+            logger.warning(f"  replace_bnk_raw: BNK {bnk_id} not found (lang_id={lang_id})")
+            return False
+
+        new_file_index = len(self.file_list)
+        self.file_list.append(BytesIO(new_bnk_bytes))
+        self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(new_bnk_bytes), 0)]
+        logger.info(f"  replace_bnk_raw: BNK {bnk_id} -> {len(new_bnk_bytes)} bytes")
+        return True
+
     def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
         # Remove specific WEM IDs from a BNK inside the PCK
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
@@ -595,7 +608,10 @@ class PCKPacker:
 
         file_list = []
 
-        f.write(struct.pack('<I', len(map_data)))
+        # One row is emitted per (file_id, lang) pair, so the count is the total rows.
+        # A unique-id count would undercount when an id repeats across languages.
+        total_rows = sum(len(lang_dict) for _, lang_dict in map_data)
+        f.write(struct.pack('<I', total_rows))
 
         for hash_info in map_data:
             file_id, lang_dict = hash_info
