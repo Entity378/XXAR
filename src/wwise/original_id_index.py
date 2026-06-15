@@ -48,12 +48,13 @@ def get_original_id_index(streaming_root, refresh=False) -> set:
         with _lock:
             cached = _cache.get(key)
         if cached is not None:
-            return cached
+            # Copy so a caller mutating the result can't corrupt the shared cache.
+            return set(cached)
     built = build_original_id_index(streaming_root)
     with _lock:
         _cache[key] = built
     logger.info(f"[OrigIndex] Indexed {len(built)} original ids under {key}")
-    return built
+    return set(built)
 
 
 def clear_cache(streaming_root=None):

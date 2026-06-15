@@ -24,6 +24,7 @@ ApplicationWindow {
     property string activeGameName: gameName
     property string activeAssetsDir: assetsDir
     property string activeLogoPng: logoPng
+    property string activeLogo256: logo256
     property string activeModFileExt: modFileExt
     property string activeModFileExtUpper: modFileExtUpper
     property string activeAppFullName: appFullName
@@ -56,7 +57,7 @@ ApplicationWindow {
     signal languageWarningDontShowAgain(bool dontShow)
     signal moveLanguageToStreaming(string folderName)
     signal moveHashPckToStreaming(string pckName)
-    signal swapGameRequested()
+    signal selectGameRequested(string gameId)
 
     function showConfirmDialog(title, message, actionId, customSticker) {
         customDialog.title = title
@@ -196,6 +197,9 @@ ApplicationWindow {
                         height: 75
                         source: "../assets/" + activeAssetsDir + "/" + activeLogoPng
                         fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
+                        transform: Translate { x: activeAssetsDir === "SRAR" ? 75 * 32 / 256 : 0 }
                     }
 
                 }
@@ -738,28 +742,131 @@ ApplicationWindow {
                                 }
                             }
 
-                            Column {
+                            Rectangle {
                                 anchors.centerIn: parent
-                                spacing: 0
+                                width: 40
+                                height: 40
+                                radius: 20
+                                color: Theme.primaryAccent
+                                clip: true
 
-                                Text {
-                                    text: activeGameShort
-                                    color: Theme.primaryAccent
-                                    font.family: "Alatsi"
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                    horizontalAlignment: Text.AlignHCenter
-                                    width: 40
+                                Image {
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: activeAssetsDir === "SRAR" ? width * 32 / 256 : 0
+                                    width: 32
+                                    height: 32
+                                    source: "../assets/" + activeAssetsDir + "/" + activeLogo256
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    mipmap: true
+                                    visible: activeLogo256 !== ""
                                 }
 
                                 Text {
-                                    text: qsTranslate("Application", "SWAP")
-                                    color: swapGame.hovered ? Theme.primaryAccent : "#ffffff"
-                                    font.family: "Alatsi"
-                                    font.pixelSize: 8
-                                    font.bold: true
-                                    horizontalAlignment: Text.AlignHCenter
-                                    width: 40
+                                    anchors.centerIn: parent
+                                    text: activeGameShort
+                                    visible: activeLogo256 === ""
+                                    color: "#000000"
+                                    font.family: "Stretch Pro"
+                                    font.pixelSize: 13
+                                }
+                            }
+
+                            Text {
+                                text: "▾"
+                                color: Theme.primaryAccent
+                                font.pixelSize: 11
+                                font.bold: true
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 4
+                            }
+
+                            XXARContextMenu {
+                                id: gameMenu
+                                Instantiator {
+                                    model: supportedGames
+                                    delegate: MenuItem {
+                                        id: gameItem
+                                        implicitWidth: 260
+                                        implicitHeight: 52
+                                        leftPadding: Theme.spacingMedium
+                                        rightPadding: Theme.spacingMedium
+
+                                        contentItem: Item {
+                                            Rectangle {
+                                                id: itemLogo
+                                                anchors.left: parent.left
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: 36
+                                                height: 36
+                                                radius: 18
+                                                color: modelData.accent
+                                                clip: true
+
+                                                Image {
+                                                    anchors.centerIn: parent
+                                                    anchors.horizontalCenterOffset: modelData.id === "hsr" ? width * 32 / 256 : 0
+                                                    width: 28
+                                                    height: 28
+                                                    source: modelData.logo
+                                                    fillMode: Image.PreserveAspectFit
+                                                    smooth: true
+                                                    mipmap: true
+                                                    visible: modelData.logo !== ""
+                                                }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.shortLabel
+                                                    visible: modelData.logo === ""
+                                                    color: "#000000"
+                                                    font.family: "Stretch Pro"
+                                                    font.pixelSize: 12
+                                                }
+                                            }
+
+                                            Text {
+                                                id: itemCheck
+                                                anchors.right: parent.right
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData.shortLabel === activeGameShort ? "✓" : ""
+                                                color: gameItem.highlighted ? Theme.textOnAccent : Theme.primaryAccent
+                                                font.pixelSize: 14
+                                                font.bold: true
+                                            }
+
+                                            Text {
+                                                anchors.left: itemLogo.right
+                                                anchors.leftMargin: Theme.spacingMedium
+                                                anchors.right: itemCheck.left
+                                                anchors.rightMargin: Theme.spacingSmall
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData.displayName
+                                                elide: Text.ElideRight
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                color: gameItem.highlighted ? Theme.textOnAccent : Theme.textPrimary
+                                                Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                                            }
+                                        }
+
+                                        background: Rectangle {
+                                            color: gameItem.highlighted ? Theme.primaryAccent : "transparent"
+                                            radius: Theme.radiusSmall
+                                            Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            hoverEnabled: true
+                                            onPressed: mouse.accepted = false
+                                        }
+
+                                        onTriggered: mainWindow.selectGameRequested(modelData.id)
+                                    }
+                                    onObjectAdded: (index, object) => gameMenu.insertItem(index, object)
+                                    onObjectRemoved: (index, object) => gameMenu.removeItem(object)
                                 }
                             }
 
@@ -772,12 +879,12 @@ ApplicationWindow {
                                 onExited: parent.hovered = false
                                 onClicked: {
                                     if (!audioBrowserPage.changesDialogOpen)
-                                        mainWindow.swapGameRequested()
+                                        gameMenu.popup(swapGame.width + 4, 0)
                                 }
                             }
 
                             ToolTip.visible: swapGameMouse.containsMouse
-                            ToolTip.text: qsTranslate("Application", "Swap active game (%1)").replace("%1", activeGameName)
+                            ToolTip.text: qsTranslate("Application", "Select active game")
                         }
                     }
                 }

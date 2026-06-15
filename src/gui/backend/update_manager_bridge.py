@@ -10,9 +10,10 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.core.app_config import APP_NAME
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.core.config_manager import get_cache_dir, get_settings_file
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS, is_frozen
@@ -164,7 +165,7 @@ def _safe_extract_tar(tf, dest):
     tf.extractall(dest)
 
 
-class UpdateCheckWorker(QThread):
+class UpdateCheckWorker(BaseWorker):
     # version, download_url, asset_name, release_notes
     updateAvailable = pyqtSignal(str, str, str, str)
     noUpdateAvailable = pyqtSignal()
@@ -175,7 +176,7 @@ class UpdateCheckWorker(QThread):
         self.current_version = current_version
         self.github_token = github_token
 
-    def run(self):
+    def work(self):
         try:
             req = urllib.request.Request(GITHUB_API_URL)
             req.add_header("Accept", "application/vnd.github.v3+json")
@@ -266,7 +267,7 @@ def _prune_stale_update_artifacts(update_dir, keep=""):
         logger.warning(f"[Updater] Could not scan update cache for cleanup: {e}")
 
 
-class UpdateDownloadWorker(QThread):
+class UpdateDownloadWorker(BaseWorker):
     downloadProgress = pyqtSignal(int)  # percent
     # Emits (kind, path). kind is one of: "msi", "zip_staging", "flatpak".
     downloadFinished = pyqtSignal(str, str)
@@ -278,7 +279,7 @@ class UpdateDownloadWorker(QThread):
         self.asset_name = asset_name
         self.github_token = github_token
 
-    def run(self):
+    def work(self):
         try:
             update_dir = get_cache_dir() / "updates"
             update_dir.mkdir(parents=True, exist_ok=True)
@@ -300,6 +301,8 @@ class UpdateDownloadWorker(QThread):
 
                 with open(archive_path, "wb") as f:
                     while True:
+                        if self.is_cancelled():
+                            return
                         chunk = response.read(block_size)
                         if not chunk:
                             break
@@ -357,8 +360,7 @@ class UpdateManagerBridge(QObject):
 
     def __init__(self):
         super().__init__()
-        self._check_worker = None
-        self._download_worker = None
+        self._workers = WorkerRegistry("updater")
         self._download_url = ""
         self._asset_name = ""
         self._downloaded_path = ""
@@ -398,16 +400,16 @@ class UpdateManagerBridge(QObject):
 
     @pyqtSlot()
     def checkForUpdates(self):
-        if self._check_worker and self._check_worker.isRunning():
+        if self._workers.is_running("check"):
             return
 
         logger.info(f"[Updater] Checking for updates (current: {self._current_version})")
 
-        self._check_worker = UpdateCheckWorker(self._current_version, self._github_token)
-        self._check_worker.updateAvailable.connect(self._on_update_available)
-        self._check_worker.noUpdateAvailable.connect(self._on_no_update)
-        self._check_worker.errorOccurred.connect(self._on_check_error)
-        self._check_worker.start()
+        worker = UpdateCheckWorker(self._current_version, self._github_token)
+        worker.updateAvailable.connect(self._on_update_available)
+        worker.noUpdateAvailable.connect(self._on_no_update)
+        worker.errorOccurred.connect(self._on_check_error)
+        self._workers.start("check", worker)
 
     def _on_update_available(self, version, download_url, asset_name, release_notes):
         logger.info(f"[Updater] Update available: {version} ({asset_name})")
@@ -429,18 +431,18 @@ class UpdateManagerBridge(QObject):
             self.updateError.emit("No download URL available")
             return
 
-        if self._download_worker and self._download_worker.isRunning():
+        if self._workers.is_running("download"):
             return
 
         logger.info(f"[Updater] Starting download from: {self._download_url}")
 
-        self._download_worker = UpdateDownloadWorker(
+        worker = UpdateDownloadWorker(
             self._download_url, self._asset_name, self._github_token
         )
-        self._download_worker.downloadProgress.connect(self._on_download_progress)
-        self._download_worker.downloadFinished.connect(self._on_download_finished)
-        self._download_worker.errorOccurred.connect(self._on_download_error)
-        self._download_worker.start()
+        worker.downloadProgress.connect(self._on_download_progress)
+        worker.downloadFinished.connect(self._on_download_finished)
+        worker.errorOccurred.connect(self._on_download_error)
+        self._workers.start("download", worker)
 
     def _on_download_progress(self, percent):
         self.updateProgress.emit(percent)

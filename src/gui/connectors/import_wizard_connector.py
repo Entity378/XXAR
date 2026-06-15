@@ -141,6 +141,10 @@ class ImportWizardConnector:
 
         logger.info(f"[Import Wizard] Saving to: {save_path}")
 
+        if self._app_workers.is_running("import"):
+            self.mod_manager_bridge.errorOccurred.emit("Busy", "An import is already in progress.")
+            return
+
         QMetaObject.invokeMethod(self.import_wizard, "startImporting", Qt.ConnectionType.QueuedConnection)
 
         import_mode = wizard_data["importMode"]
@@ -163,17 +167,17 @@ class ImportWizardConnector:
             "save_path": save_path,
         }
 
-        self.import_worker = ImportWorker(
+        worker = ImportWorker(
             import_data,
             game_audio_dir,
             self.mod_manager_bridge.mod_package_manager,
             persistent_audio_dir,
         )
 
-        self.import_worker.progress.connect(self.on_import_progress)
-        self.import_worker.progressPercent.connect(self.on_import_percent)
-        self.import_worker.finished.connect(self.on_import_finished)
-        self.import_worker.start()
+        worker.progress.connect(self.on_import_progress)
+        worker.progressPercent.connect(self.on_import_percent)
+        worker.finished.connect(self.on_import_finished)
+        self._app_workers.start("import", worker)
 
     def on_wizard_cancelled(self):
         logger.info("[Import Wizard] Wizard cancelled")
@@ -201,6 +205,5 @@ class ImportWizardConnector:
             logger.error(f"[Import Worker] Error: {message}")
             self.mod_manager_bridge.errorOccurred.emit(QCoreApplication.translate("Application", "Import Error"), message)
 
-        self.import_worker = None
         self.wizard_selected_files = []
         self.wizard_selected_folder = ""

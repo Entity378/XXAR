@@ -19,7 +19,6 @@ from PyQt6.QtCore import (
     QMetaObject,
     QObject,
     Qt,
-    QThread,
     QTimer,
     pyqtSignal,
     pyqtSlot,
@@ -28,6 +27,7 @@ from PyQt6.QtCore import (
 import src.core.app_config as app_config
 from src.audio import constellation
 from src.audio.converter import AudioConverter
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry
 from src.audio.matcher import AudioMatcher
 from src.audio.player import AudioPlayer
 from src.core.app_config import APP_NAME
@@ -81,23 +81,6 @@ def _get_tag_db_url():
     return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
 
 
-class _WorkerThread(QThread):
-
-    finished = pyqtSignal(bool, object)
-
-    def __init__(self, func, *args):
-        super().__init__()
-        self.func = func
-        self.args = args
-
-    def run(self):
-        try:
-            result = self.func(*self.args)
-            self.finished.emit(True, result)
-        except Exception as e:
-            self.finished.emit(False, f"{e}\n{traceback.format_exc()}")
-
-
 def _pck_rel_key(pck_file_path, audio_root):
     # Return relative path like 'English/Banks0.pck' from audio_root, falling back to filename.
     try:
@@ -108,7 +91,7 @@ def _pck_rel_key(pck_file_path, audio_root):
         return pck_file_path.name
 
 
-class ReplaceAudioWorker(QThread):
+class ReplaceAudioWorker(BaseWorker):
 
     progress = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
@@ -123,7 +106,7 @@ class ReplaceAudioWorker(QThread):
         self.audio_root = audio_root
         self.persistent_root = persistent_root
 
-    def run(self):
+    def work(self):
         try:
             pck_file_path = Path(self.meta["pck_path"])
             pck_filename = _pck_rel_key(pck_file_path, self.audio_root) if self.audio_root else pck_file_path.name
@@ -177,12 +160,12 @@ class ReplaceAudioWorker(QThread):
             self.finished.emit(False, str(e))
 
 
-class TagDatabaseDownloadWorker(QThread):
+class TagDatabaseDownloadWorker(BaseWorker):
 
     downloadFinished = pyqtSignal(str)
     errorOccurred = pyqtSignal(str)
 
-    def run(self):
+    def work(self):
         try:
             url = _get_tag_db_url()
             req = urllib.request.Request(url)
@@ -218,7 +201,7 @@ class TagDatabaseDownloadWorker(QThread):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Download failed: %1").replace("%1", str(e)))
 
 
-class TagDatabaseCheckWorker(QThread):
+class TagDatabaseCheckWorker(BaseWorker):
 
     newTagsFound = pyqtSignal(int, str)
     noNewTags = pyqtSignal()
@@ -227,7 +210,7 @@ class TagDatabaseCheckWorker(QThread):
         super().__init__()
         self.last_seen_hash = last_seen_hash
 
-    def run(self):
+    def work(self):
         try:
             url = _get_tag_db_url()
             req = urllib.request.Request(url)
@@ -252,7 +235,7 @@ class TagDatabaseCheckWorker(QThread):
             self.newTagsFound.emit(entry_count, content_hash)
 
         except Exception:
-            pass
+            logger.exception("[Tag DB] Update check failed")
 
 
 class AudioBrowserBridge(QObject):
@@ -344,17 +327,13 @@ class AudioBrowserBridge(QObject):
             next(iter(self._browser_handlers.values())),
         )
 
-        self._worker = None
-        self._index_thread = None
+        self._workers = WorkerRegistry("audio_browser")
         self._index_cancel = threading.Event()
         self._playback_duration = 0
 
         self._imported_mod_metadata = None
-        self._match_thread = None
         self._match_cancel = threading.Event()
-        self._tag_db_worker = None
         self._tag_db_temp_path = None
-        self._tag_db_check_worker = None
         self._tag_db_notify_dismissed = False
         self._tag_db_last_seen_hash = ""
         self._tag_db_check_done = False
@@ -540,12 +519,8 @@ class AudioBrowserBridge(QObject):
         self._active_browser_handler.scan_language_folders(data_folder)
 
     def _check_missing_streaming_pcks(self, full_folder):
-        thread = threading.Thread(
-            target=self._check_missing_streaming_threaded,
-            args=(full_folder,),
-            daemon=True,
-        )
-        thread.start()
+        worker = FunctionWorker(lambda: self._check_missing_streaming_threaded(full_folder))
+        self._workers.start("missing_check", worker)
 
     def _check_missing_streaming_threaded(self, full_folder):
         try:
@@ -1666,15 +1641,19 @@ class AudioBrowserBridge(QObject):
         if not filename:
             return
 
+        if self._workers.is_running("replace"):
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "A replacement is already in progress"))
+            return
+
         self.loadingStarted.emit(QCoreApplication.translate("Application", "Converting audio..."))
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Processing your custom audio..."))
 
         game = self._active_game()
         persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath) if self.game_root_dir else None
-        self._replace_worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, persistent_root, self.normalize_target_lufs)
-        self._replace_worker.progress.connect(self._on_replace_progress)
-        self._replace_worker.finished.connect(self._on_replace_finished)
-        self._replace_worker.start()
+        worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, persistent_root, self.normalize_target_lufs)
+        worker.progress.connect(self._on_replace_progress)
+        worker.finished.connect(self._on_replace_finished)
+        self._workers.start("replace", worker)
 
     def _on_replace_progress(self, message):
         self.loadingStarted.emit(message)
@@ -1682,7 +1661,6 @@ class AudioBrowserBridge(QObject):
 
     def _on_replace_finished(self, success, message):
         self.loadingFinished.emit()
-        self._replace_worker = None
 
         if success:
             self.statusUpdate.emit(message)
@@ -2485,7 +2463,7 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Not Ready"), QCoreApplication.translate("Application", "The file index is still building. Please wait."))
             return
 
-        if self._match_thread and self._match_thread.is_alive():
+        if self._workers.is_running("match"):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
@@ -2502,12 +2480,11 @@ class AudioBrowserBridge(QObject):
         self.matchStarted.emit()
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Preparing audio fingerprint..."))
 
-        self._match_thread = threading.Thread(
-            target=self._run_matching_threaded,
-            args=(recording_path, self._match_cancel),
-            daemon=True,
+        worker = FunctionWorker(
+            lambda: self._run_matching_threaded(recording_path, self._match_cancel),
+            cancel_event=self._match_cancel,
         )
-        self._match_thread.start()
+        self._workers.start("match", worker)
 
     @pyqtSlot()
     def cancelMatchingSound(self):
@@ -2540,18 +2517,17 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Not Ready"), QCoreApplication.translate("Application", "The file index is still building. Please wait."))
             return
 
-        if self._match_thread and self._match_thread.is_alive():
+        if self._workers.is_running("match"):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "A match is already in progress"))
             return
 
         self._match_cancel = threading.Event()
 
-        self._match_thread = threading.Thread(
-            target=self._run_matching_threaded,
-            args=(recording_path, self._match_cancel, language_only),
-            daemon=True,
+        worker = FunctionWorker(
+            lambda: self._run_matching_threaded(recording_path, self._match_cancel, language_only),
+            cancel_event=self._match_cancel,
         )
-        self._match_thread.start()
+        self._workers.start("match", worker)
 
     def _run_matching_threaded(self, recording_path, cancel_event, language_only=False):
 
@@ -3136,6 +3112,10 @@ class AudioBrowserBridge(QObject):
                     "source_override": override_name,
                 })
 
+    def cancel_indexing(self):
+        # Public stop for the file-index build (called on game switch / directory change).
+        self._index_cancel.set()
+
     def _build_file_index(self, pck_files):
 
         self._index_cancel.set()
@@ -3148,10 +3128,14 @@ class AudioBrowserBridge(QObject):
         self._index_cancel = threading.Event()
         cancel = self._index_cancel
 
-        self._index_thread = threading.Thread(
-            target=self._build_index_threaded, args=(pck_paths, cancel), daemon=True
+        # Unique key per rebuild so a superseding index is never refused; the prior run sees its
+        # cancel event set above and exits.
+        self._index_seq = getattr(self, "_index_seq", 0) + 1
+        worker = FunctionWorker(
+            lambda: self._build_index_threaded(pck_paths, cancel),
+            cancel_event=cancel,
         )
-        self._index_thread.start()
+        self._workers.start(f"index:{self._index_seq}", worker)
 
     def _build_index_threaded(self, pck_paths, cancel_event):
 
@@ -3374,16 +3358,16 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot()
     def downloadOfficialTagDb(self):
-        if self._tag_db_worker and self._tag_db_worker.isRunning():
+        if self._workers.is_running("tag_db_download"):
             return
 
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Downloading official tag database..."))
         self.tagDbDownloadStarted.emit()
 
-        self._tag_db_worker = TagDatabaseDownloadWorker()
-        self._tag_db_worker.downloadFinished.connect(self._on_tag_db_downloaded)
-        self._tag_db_worker.errorOccurred.connect(self._on_tag_db_error)
-        self._tag_db_worker.start()
+        worker = TagDatabaseDownloadWorker()
+        worker.downloadFinished.connect(self._on_tag_db_downloaded)
+        worker.errorOccurred.connect(self._on_tag_db_error)
+        self._workers.start("tag_db_download", worker)
 
     def _on_tag_db_downloaded(self, temp_path):
         self._tag_db_temp_path = temp_path
@@ -3445,13 +3429,13 @@ class AudioBrowserBridge(QObject):
             return
         if self._tag_db_check_done:
             return
-        if self._tag_db_check_worker and self._tag_db_check_worker.isRunning():
+        if self._workers.is_running("tag_db_check"):
             return
 
         self._tag_db_check_done = True
-        self._tag_db_check_worker = TagDatabaseCheckWorker(self._tag_db_last_seen_hash)
-        self._tag_db_check_worker.newTagsFound.connect(self._on_new_tags_found)
-        self._tag_db_check_worker.start()
+        worker = TagDatabaseCheckWorker(self._tag_db_last_seen_hash)
+        worker.newTagsFound.connect(self._on_new_tags_found)
+        self._workers.start("tag_db_check", worker)
 
     def _on_new_tags_found(self, entry_count, content_hash):
         self._tag_db_latest_hash = content_hash
@@ -3488,8 +3472,10 @@ class AudioBrowserBridge(QObject):
 
         self.audio_player.stop()
         self.cache_manager.cleanup()
-        if self._index_thread and self._index_thread.is_alive():
-            self._index_thread.join(timeout=1.0)
+        # Stop background work before closing the SQLite-backed index those threads write to.
+        self._match_cancel.set()
+        self._index_cancel.set()
+        self._workers.shutdown()
         if self._tag_db_temp_path:
             try:
                 os.unlink(self._tag_db_temp_path)

@@ -6,9 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 
 import src.core.app_config as app_config
+from src.gui.backend.base_worker import BaseWorker
 from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 from src.core.paths import get_temp_dir
@@ -17,7 +18,7 @@ from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
 
 
-class ImportWorker(QThread):
+class ImportWorker(BaseWorker):
 
     progress = pyqtSignal(str)
     progressPercent = pyqtSignal(int)
@@ -80,7 +81,7 @@ class ImportWorker(QThread):
 
         return sources
 
-    def run(self):
+    def work(self):
 
         try:
             result = self._convert_mod()

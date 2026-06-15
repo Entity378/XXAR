@@ -1,9 +1,10 @@
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.core.logger import get_logger
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 
 logger = get_logger(__name__)
 
@@ -14,10 +15,11 @@ sys.path.insert(0, str(project_root / "src"))
 from src.audio.converter import AudioConverter
 
 
-class ConversionWorker(QThread):
+class ConversionWorker(BaseWorker):
 
     progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
+    # Named conversionDone (not finished) so it never shadows QThread.finished.
+    conversionDone = pyqtSignal(bool, str)
 
     def __init__(self, mode, input_path, output_path, sample_rate, normalize=True, normalize_lufs=-9):
         super().__init__()
@@ -29,7 +31,7 @@ class ConversionWorker(QThread):
         self.normalize_lufs = normalize_lufs
         self.converter = None
 
-    def run(self):
+    def work(self):
 
         try:
             self.converter = AudioConverter()
@@ -43,12 +45,12 @@ class ConversionWorker(QThread):
                     result = self.converter.batch_convert_wem_to_wav(
                         str(input_p), str(output_p) if output_p else None
                     )
-                    self.finished.emit(True, f"Converted {len(result)} WEM files to WAV")
+                    self.conversionDone.emit(True, f"Converted {len(result)} WEM files to WAV")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
                     output_file = self._single_output(input_p, output_p, '.wav')
                     result = self.converter.wem_to_wav(str(input_p), output_file)
-                    self.finished.emit(True, f"Converted to: {result}")
+                    self.conversionDone.emit(True, f"Converted to: {result}")
 
             elif self.mode == 1:
 
@@ -58,7 +60,7 @@ class ConversionWorker(QThread):
                         str(input_p), str(output_p) if output_p else None,
                         normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
-                    self.finished.emit(True, f"Converted {len(result)} files to WAV")
+                    self.conversionDone.emit(True, f"Converted {len(result)} files to WAV")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
                     output_file = self._single_output(input_p, output_p, '.wav')
@@ -66,7 +68,7 @@ class ConversionWorker(QThread):
                         str(input_p), output_file, sample_rate=self.sample_rate,
                         normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
-                    self.finished.emit(True, f"Converted to: {result}")
+                    self.conversionDone.emit(True, f"Converted to: {result}")
 
             else:
 
@@ -76,7 +78,7 @@ class ConversionWorker(QThread):
                         str(input_p), str(output_p) if output_p else None,
                         normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
-                    self.finished.emit(True, f"Converted {len(result)} WAV files to WEM")
+                    self.conversionDone.emit(True, f"Converted {len(result)} WAV files to WEM")
                 else:
                     self.progress.emit(f"Converting {input_p.name}...")
                     output_file = self._single_output(input_p, output_p, '.wem')
@@ -84,11 +86,11 @@ class ConversionWorker(QThread):
                         str(input_p), output_file,
                         normalize=self.normalize, normalize_lufs=self.normalize_lufs
                     )
-                    self.finished.emit(True, f"Converted to: {result}")
+                    self.conversionDone.emit(True, f"Converted to: {result}")
 
         except Exception as e:
             error_msg = str(e)
-            self.finished.emit(False, f"Conversion failed:\n{error_msg}")
+            self.conversionDone.emit(False, f"Conversion failed:\n{error_msg}")
 
     def _single_output(self, input_p, output_p, suffix):
         if not output_p:
@@ -111,7 +113,7 @@ class AudioConversionBridge(QObject):
 
     def __init__(self):
         super().__init__()
-        self.worker = None
+        self._workers = WorkerRegistry("audio_conversion")
 
     @pyqtSlot(int, str, str, int, bool, int)
     def convertAudio(self, mode, input_path, output_path, sample_rate, normalize, lufs=-9):
@@ -126,6 +128,10 @@ class AudioConversionBridge(QObject):
             self.errorOccurred.emit("Error", f"Input path does not exist:\n{input_path}")
             return
 
+        if self._workers.is_running("convert"):
+            self.errorOccurred.emit("Busy", "A conversion is already in progress.")
+            return
+
         self.conversionStarted.emit()
         self.logMessage.emit(f"Input: {input_path}")
         self.logMessage.emit(f"Output: {output_path if output_path else 'Auto (same as input)'}")
@@ -133,10 +139,10 @@ class AudioConversionBridge(QObject):
         self.logMessage.emit(f"Normalize: {'On (' + str(lufs) + ' LUFS)' if normalize else 'Off'}")
         self.logMessage.emit("Starting conversion...\n")
 
-        self.worker = ConversionWorker(mode, input_path, output_path, sample_rate, normalize, lufs)
-        self.worker.progress.connect(self._onProgress)
-        self.worker.finished.connect(self._onFinished)
-        self.worker.start()
+        worker = ConversionWorker(mode, input_path, output_path, sample_rate, normalize, lufs)
+        worker.progress.connect(self._onProgress)
+        worker.conversionDone.connect(self._onFinished)
+        self._workers.start("convert", worker)
 
     def _onProgress(self, message):
 
@@ -154,5 +160,3 @@ class AudioConversionBridge(QObject):
         else:
 
             self.conversionErrorDialog.emit("Conversion Error", message)
-
-        self.worker = None

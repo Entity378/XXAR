@@ -9,7 +9,6 @@ from urllib.request import url2pathname
 from PyQt6.QtCore import (
     QCoreApplication,
     QObject,
-    QThread,
     QTimer,
     pyqtSignal,
     pyqtSlot,
@@ -32,6 +31,7 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
@@ -45,10 +45,10 @@ from src.mods.persistent_originals import cleanup_persistent_overlay
 logger = get_logger(__name__)
 
 
-class WwiseSetupWorker(QThread):
+class WwiseSetupWorker(BaseWorker):
     finished = pyqtSignal(bool, str)
 
-    def run(self):
+    def work(self):
         try:
             if is_frozen():
 
@@ -72,6 +72,7 @@ class WwiseSetupWorker(QThread):
                     bufsize=1,
                     **SUBPROCESS_KWARGS,
                 )
+                self.set_process(process)
 
                 output_lines = []
                 for line in iter(process.stdout.readline, ''):
@@ -96,11 +97,11 @@ class WwiseSetupWorker(QThread):
             self.finished.emit(False, str(e))
 
 
-class WindowsAudioToolsSetupWorker(QThread):
+class WindowsAudioToolsSetupWorker(BaseWorker):
 
     finished = pyqtSignal(bool, str)
 
-    def run(self):
+    def work(self):
         try:
             if is_frozen():
 
@@ -123,6 +124,7 @@ class WindowsAudioToolsSetupWorker(QThread):
                     bufsize=1,
                     **SUBPROCESS_KWARGS,
                 )
+                self.set_process(process)
 
                 output_lines = []
                 for line in iter(process.stdout.readline, ''):
@@ -173,8 +175,7 @@ class ModManagerBridge(QObject):
         self.settings_file = get_settings_file()
 
         self.mod_creation_mode = False
-        self.wwise_worker = None
-        self.audio_tools_worker = None
+        self._workers = WorkerRegistry("mod_manager")
         self.game_audio_dir = ""
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
@@ -313,12 +314,12 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def startWwiseSetup(self):
 
-        if self.wwise_worker and self.wwise_worker.isRunning():
+        if self._workers.is_running("wwise"):
             return
 
-        self.wwise_worker = WwiseSetupWorker()
-        self.wwise_worker.finished.connect(self._on_wwise_setup_finished)
-        self.wwise_worker.start()
+        worker = WwiseSetupWorker()
+        worker.finished.connect(self._on_wwise_setup_finished)
+        self._workers.start("wwise", worker)
         self.progressUpdate.emit("Starting Wwise setup...")
 
     def _on_wwise_setup_finished(self, success, message):
@@ -382,12 +383,12 @@ class ModManagerBridge(QObject):
             )
             return
 
-        if self.audio_tools_worker and self.audio_tools_worker.isRunning():
+        if self._workers.is_running("audio_tools"):
             return
 
-        self.audio_tools_worker = WindowsAudioToolsSetupWorker()
-        self.audio_tools_worker.finished.connect(self._on_audio_tools_setup_finished)
-        self.audio_tools_worker.start()
+        worker = WindowsAudioToolsSetupWorker()
+        worker.finished.connect(self._on_audio_tools_setup_finished)
+        self._workers.start("audio_tools", worker)
         self.progressUpdate.emit("Starting Windows audio tools setup...")
 
     def _on_audio_tools_setup_finished(self, success, message):
