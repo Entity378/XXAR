@@ -39,6 +39,7 @@ archive/
 .DS_Store
 Thumbs.db
 *.md
+docs*/
 
 # Reference MSIs placed locally for analysis (not part of the source tree)
 XXMI-Launcher-Installer-Online-*.msi
