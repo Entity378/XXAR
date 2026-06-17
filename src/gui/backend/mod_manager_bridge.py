@@ -33,6 +33,7 @@ from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.mod_relinker import relink_replacements
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
     InvalidModPackageError,
@@ -549,7 +550,9 @@ class ModManagerBridge(QObject):
             logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
 
             logger.info(f"[Mod Manager] Installing mod: {metadata['name']}")
-            install_result = self.mod_package_manager.install_mod(file_path)
+            install_result = self.mod_package_manager.install_mod(
+                file_path, game_audio_dir=self.game_audio_dir or None
+            )
 
             if install_result is None:
 
@@ -1093,6 +1096,19 @@ class ModManagerBridge(QObject):
                             if audio_key in file_info:
                                 entry[audio_key] = file_info[audio_key]
                         current_replacements[pck_name][tracker_key] = entry
+
+            # Repair references the game moved since the mod was built, so the export targets
+            # the PCK that now holds each sound. wem_path is absolute here, so audio follows.
+            if self.game_audio_dir:
+                try:
+                    relinked = relink_replacements(
+                        current_replacements, self.game_audio_dir, get_game(self.active_game_id),
+                        progress_callback=lambda msg: self.progressUpdate.emit(msg),
+                    ).get("relinked", 0)
+                    if relinked:
+                        logger.info(f"[Mod Manager] Repaired {relinked} target(s) in export of '{mod_name}'")
+                except Exception:
+                    logger.exception("[Mod Manager] Export-time relink failed")
 
             export_metadata = {
                 'name': full_metadata.get('name', 'Unknown'),

@@ -20,6 +20,7 @@ from src.core.logger import get_logger
 from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
+from src.mods.mod_relinker import relink_metadata
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
@@ -266,7 +267,7 @@ class ModPackageManager:
 
             return 0
 
-    def install_mod(self, mod_path):
+    def install_mod(self, mod_path, game_audio_dir=None):
 
         metadata = self.validate_mod_package(mod_path)
 
@@ -325,13 +326,23 @@ class ModPackageManager:
 
         self.mod_config['load_order'].append(mod_uuid)
 
+        # Repair references that a game update relocated, so the mod works on the current version.
+        if game_audio_dir:
+            try:
+                game = get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
+                relinked = relink_metadata(metadata, game_audio_dir, game).get('relinked', 0)
+                if relinked:
+                    logger.info(f"[Mod Manager] Repaired {relinked} target(s) in '{mod_name}' for the current game version")
+            except Exception as e:
+                logger.error(f"[Mod Manager] Warning: install-time relink failed: {e}")
+
         self.save_config()
 
         return {
             'uuid': mod_uuid,
             'replaced': replaced,
             'mod_name': mod_name,
-            'version': new_version
+            'version': new_version,
         }
 
     def get_installed_mods(self):

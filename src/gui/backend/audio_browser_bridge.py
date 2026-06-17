@@ -59,6 +59,7 @@ from src.gui.backend.audio_games import (
 )
 from src.gui.backend.update_manager_bridge import _urlopen
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager
 from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay
@@ -3007,6 +3008,21 @@ class AudioBrowserBridge(QObject):
                             replacement_count += 1
 
                     shutil.rmtree(temp_dir, ignore_errors=True)
+
+                    try:
+                        if self.game_root_dir:
+                            game = self._active_game()
+                            game_audio_dir = (
+                                Path(self._audio_root)
+                                if self._audio_root
+                                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+                            )
+                            relink_tracker(
+                                self.mod_manager, game_audio_dir, game,
+                                progress_callback=lambda msg: self.statusUpdate.emit(msg),
+                            )
+                    except Exception:
+                        logger.exception("[Audio Browser] Mod target relink failed")
 
                     self._emit_changes_count()
                     self.statusUpdate.emit(

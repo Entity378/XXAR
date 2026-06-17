@@ -50,6 +50,15 @@
   </requires>
 
   <releases>
+    <release version="0.9.6" date="2026-06-17">
+      <description>
+        <p>Mod repair after game updates.</p>
+        <ul>
+          <li>Mods are automatically relinked when a game update moves a sound to a different PCK, on import, install and export</li>
+          <li>Merge Streaming PCK is now off by default</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.5" date="2026-06-11">
       <description>
         <p>Audio originals handling rework.</p>
