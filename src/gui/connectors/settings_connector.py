@@ -75,23 +75,6 @@ class SettingsConnector:
         settings = self.load_settings()
         return normalize_game_id(settings.get("selected_game", DEFAULT_GAME_ID))
 
-    def _cycle_game_id(self, current_game_id):
-        supported = [normalize_game_id(g) for g in get_supported_game_ids()]
-        if not supported:
-            return DEFAULT_GAME_ID
-        if current_game_id not in supported:
-            return supported[0]
-        settings = self.load_settings()
-        start_idx = supported.index(current_game_id)
-        for offset in range(1, len(supported) + 1):
-            candidate = supported[(start_idx + offset) % len(supported)]
-            if candidate == current_game_id:
-                return current_game_id
-            game_dir = self._get_saved_game_data_dir(settings, candidate)
-            if game_dir and is_valid_game_data_dir(game_dir):
-                return candidate
-        return current_game_id
-
     def _switch_active_game(self, target_game_id):
         settings = self.load_settings()
         target_game_id = normalize_game_id(target_game_id)
@@ -206,7 +189,7 @@ class SettingsConnector:
         except Exception as e:
             logger.error(f"[Settings] Background game switch error: {e}")
 
-    def on_swap_game_requested(self):
+    def on_swap_game_requested(self, gameID):
         if self._swap_in_progress:
             return
 
@@ -215,12 +198,7 @@ class SettingsConnector:
             if self.audio_browser_bridge:
                 self.audio_browser_bridge._index_cancel.set()
 
-            settings = self.load_settings()
-            current = normalize_game_id(
-                settings.get("selected_game", DEFAULT_GAME_ID)
-            )
-            next_game = self._cycle_game_id(current)
-            active_game_id, game_data_dir = self._switch_active_game(next_game)
+            active_game_id, game_data_dir = self._switch_active_game(gameID)
             active_game = get_game(active_game_id)
             self._set_settings_target_game(active_game_id)
 
