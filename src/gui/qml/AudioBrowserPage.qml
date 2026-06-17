@@ -73,7 +73,7 @@ Item {
     property bool isPlaying: false
     property bool isPaused: false
     property bool playbackEnabled: false
-    property bool mergeWemChecked: true
+    property bool mergeWemChecked: false
     property bool hideUselessPckChecked: true
     property bool hideEmptyBnkChecked: true
     property bool normalizeAudioChecked: true

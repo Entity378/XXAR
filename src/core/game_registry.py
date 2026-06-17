@@ -37,7 +37,6 @@ class GameDefinition:
     mod_file_ext_upper: str = ""
     assets_dir: str = ""
     logo_png: str = ""
-    logo_ico: str = ""
     logo_256: str = ""
 
 
@@ -69,7 +68,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         subfolder_sort_priority=(),
         non_language_tabs=("Full", "Common"),
         check_streaming_pairing=True,
-        merge_wem_default=True,
+        merge_wem_default=False,
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
@@ -78,7 +77,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="ZZAR",
         assets_dir="ZZAR",
         logo_png="ZZAR-Logo2.png",
-        logo_ico="ZZAR-Logo2.ico",
         logo_256="ZZAR-Logo2-256.png",
     ),
     GameDefinition(
@@ -106,7 +104,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         audio_root_friendly_name="SFX/Music",
         subfolder_sort_priority=(("BeyondUGC", 1), ("MusicGame", 2)),
         non_language_tabs=("Full", "Common"),
-        merge_wem_default=True,
+        merge_wem_default=False,
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
@@ -116,7 +114,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="GIAR",
         assets_dir="GIAR",
         logo_png="GIAR-Logo2.png",
-        logo_ico="GIAR-Logo2.ico",
         logo_256="GIAR-Logo2-256.png",
     ),
     GameDefinition(
@@ -154,7 +151,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="SRAR",
         assets_dir="SRAR",
         logo_png="SRAR-Logo2.png",
-        logo_ico="SRAR-Logo2.ico",
         logo_256="SRAR-Logo2-256.png",
     ),
 )
