@@ -49,33 +49,18 @@ namespace XXAR.Installer
                 },
                 Dirs = new[]
                 {
-                    new Dir(@"%LocalAppDataFolder%\XXAR",
-                        // Resources\Bin\  — all files under dist\XXAR
+                    // Pin INSTALLDIR to the XXAR root; without the root shortcut WixSharp would
+                    // otherwise auto-pick Resources\ and break [INSTALLDIR]-relative paths.
+                    new Dir(new Id("INSTALLDIR"), @"%LocalAppDataFolder%\XXAR",
                         new Dir("Resources",
                             new Dir(new Id("BIN_DIR"), "Bin", new Files(Path.Combine(opts.BinDir, "*.*"))),
-                            new Dir(new Id("UPDATER_DIR"), "Updater", new Files(Path.Combine(opts.UpdaterDir, "*.*")))),
-                        // Shortcut at install root (XXMI-style)
-                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
-                        {
-                            IconFile = appExe,
-                            WorkingDirectory = "BIN_DIR",
-                        }),
+                            new Dir(new Id("UPDATER_DIR"), "Updater", new Files(Path.Combine(opts.UpdaterDir, "*.*"))))),
                     // Start Menu shortcut
                     new Dir(@"%ProgramMenu%\XXAR",
                         new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
                         {
                             IconFile = appExe,
                             Description = "Cross-game Audio Replacer",
-                            WorkingDirectory = "BIN_DIR",
-                        }),
-                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1).
-                    // Suppressed when XXAR_SILENT=1: the in-app updater runs msiexec silently and must not recreate a desktop shortcut on every update.
-                    // No custom Id: it would break %Desktop% mapping and cause Warning 1909.
-                    new Dir(@"%Desktop%",
-                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
-                        {
-                            IconFile = appExe,
-                            Condition = new Condition("INSTALLDESKTOPSHORTCUT=\"1\" AND XXAR_SILENT<>\"1\""),
                             WorkingDirectory = "BIN_DIR",
                         }),
                 },
@@ -93,7 +78,6 @@ namespace XXAR.Installer
                     new Property("INSTALLDIR",
                         new RegistrySearch(RegistryHive.CurrentUser, @"Software\XXAR",
                                            "InstallLocation", RegistrySearchType.raw)),
-                    new Property("INSTALLDESKTOPSHORTCUT", "1") { AttributesDefinition = "Secure=yes" },
                     // Set to "1" by the in-app updater to show only the progress dialog.
                     new Property("XXAR_SILENT", "0") { AttributesDefinition = "Secure=yes" },
                     new Property("ARPHELPLINK", "https://github.com/Entity378/XXAR"),

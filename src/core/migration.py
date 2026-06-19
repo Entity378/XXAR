@@ -219,6 +219,16 @@ def _delete_dir(path: Path) -> None:
         _log(f"Could not remove {path}: {e}")
 
 
+def _delete_file(path: Path) -> None:
+    if not path.exists():
+        return
+    try:
+        path.unlink()
+        _log(f"Removed stale {path}")
+    except OSError as e:
+        _log(f"Could not remove {path}: {e}")
+
+
 def _read_selected_game(roaming: Path) -> str:
     settings_path = roaming / "settings.json"
     try:
@@ -328,6 +338,7 @@ def run_migrations() -> None:
         or (localappdata / "XXAR").exists()
         or (localappdata / "launcher").exists()
         or (localappdata / "backup").exists()
+        or (localappdata / "XXAR.lnk").exists()
         or (appdata / "mod_config.json").exists()
         or (appdata / "mod_tracker.json").exists()
     )
@@ -360,5 +371,8 @@ def run_migrations() -> None:
         # launcher/ : folded into top-level cache/ + updates/. Its contents (QML cache, stale update
         # archives) all regenerate or re-download, so just drop the old tree.
         _delete_dir(localappdata / "launcher")
+
+        # XXAR.lnk : install-root shortcut left by pre-0.9.x MSI installs; the installer no longer creates it.
+        _delete_file(localappdata / "XXAR.lnk")
     finally:
         _release_lock(lock)
