@@ -659,7 +659,7 @@ class BaseBrowserHandler:
         )
         if needs_insert:
             return BaseBrowserHandler._rebuild_pck_with_hirc_patches(
-                target_path, base_file, source_ids,
+                raw, target_path, base_file, source_ids,
                 duration_ms_by_track, volume_db_by_track, patched_track_ids,
             )
 

@@ -148,10 +148,10 @@ class GameAudioIndex:
         return None
 
 
-def relink_replacements(replacements, game_audio_dir, game, progress_callback=None):
+def relink_replacements(replacements, game_audio_dir, game, progress_callback=None, index=None):
     # Relink a flat {pck: {key: info}} dict in place (tracker / export-staging shape).
     # Each info keeps its wem_path, so the physical audio follows the moved reference.
-    index = GameAudioIndex(game_audio_dir, game)
+    index = index or GameAudioIndex(game_audio_dir, game)
     broken = []
 
     for pck_name, entries in list(replacements.items()):
@@ -264,10 +264,10 @@ def _relocate_metadata_entry(metadata, old_pck, old_bnk_id, file_key, new_pck, n
         replacements.pop(old_pck, None)
 
 
-def relink_metadata(metadata, game_audio_dir, game, progress_callback=None):
+def relink_metadata(metadata, game_audio_dir, game, progress_callback=None, index=None):
     # Repair one installed mod's stored references against the current game version.
     # Mutates metadata["replacements"] in place; caller persists it.
-    index = GameAudioIndex(game_audio_dir, game)
+    index = index or GameAudioIndex(game_audio_dir, game)
     broken = []
 
     for pck, bnk_id, file_key, info in _metadata_entries(metadata):

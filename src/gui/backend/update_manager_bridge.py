@@ -14,7 +14,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.core.app_config import APP_NAME
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
-from src.core.config_manager import get_cache_dir, get_settings_file
+from src.core.config_manager import get_settings_file, get_updates_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS, is_frozen
 
@@ -281,7 +281,7 @@ class UpdateDownloadWorker(BaseWorker):
 
     def work(self):
         try:
-            update_dir = get_cache_dir() / "updates"
+            update_dir = get_updates_dir()
             update_dir.mkdir(parents=True, exist_ok=True)
             archive_path = update_dir / self.asset_name
 

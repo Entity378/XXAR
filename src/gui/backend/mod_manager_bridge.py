@@ -26,14 +26,12 @@ from src.core.config_manager import (
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
-    get_game,
     normalize_game_id,
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
-from src.mods.mod_relinker import relink_replacements
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
     InvalidModPackageError,
@@ -1081,7 +1079,10 @@ class ModManagerBridge(QObject):
                             bnk_id = bnk_id_str
                         sub_dir = wem_dir / str(bnk_id)
                     for file_id, file_info in files.items():
-                        wem_file = sub_dir / f"{file_id}.wem"
+                        # Use the stored relative path; a migrated entry keeps its original
+                        # wem_files/<bnk_id>/ location even when its target PCK changed.
+                        rel = file_info.get('wem_file', '')
+                        wem_file = mod_dir / rel if rel else sub_dir / f"{file_id}.wem"
                         if not wem_file.exists():
                             continue
                         tracker_key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
@@ -1096,19 +1097,6 @@ class ModManagerBridge(QObject):
                             if audio_key in file_info:
                                 entry[audio_key] = file_info[audio_key]
                         current_replacements[pck_name][tracker_key] = entry
-
-            # Repair references the game moved since the mod was built, so the export targets
-            # the PCK that now holds each sound. wem_path is absolute here, so audio follows.
-            if self.game_audio_dir:
-                try:
-                    relinked = relink_replacements(
-                        current_replacements, self.game_audio_dir, get_game(self.active_game_id),
-                        progress_callback=lambda msg: self.progressUpdate.emit(msg),
-                    ).get("relinked", 0)
-                    if relinked:
-                        logger.info(f"[Mod Manager] Repaired {relinked} target(s) in export of '{mod_name}'")
-                except Exception:
-                    logger.exception("[Mod Manager] Export-time relink failed")
 
             export_metadata = {
                 'name': full_metadata.get('name', 'Unknown'),

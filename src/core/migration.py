@@ -326,6 +326,8 @@ def run_migrations() -> None:
         or (appdata / "tools").exists()
         or (appdata / "temp").exists()
         or (localappdata / "XXAR").exists()
+        or (localappdata / "launcher").exists()
+        or (localappdata / "backup").exists()
         or (appdata / "mod_config.json").exists()
         or (appdata / "mod_tracker.json").exists()
     )
@@ -351,5 +353,12 @@ def run_migrations() -> None:
 
         # pre-0.8 Qt nested paths under %LOCALAPPDATA%\XXAR\XXAR\ (org+app both "XXAR"); only regenerable QML cache lives there.
         _delete_dir(localappdata / "XXAR")
+
+        # backup/ -> state/ : the dir now holds only the small originals_index ledger; rename for honesty.
+        _migrate_dir(localappdata / "backup", localappdata / "state")
+
+        # launcher/ : folded into top-level cache/ + updates/. Its contents (QML cache, stale update
+        # archives) all regenerate or re-download, so just drop the old tree.
+        _delete_dir(localappdata / "launcher")
     finally:
         _release_lock(lock)

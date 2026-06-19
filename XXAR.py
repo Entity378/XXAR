@@ -53,8 +53,8 @@ _load_ui_scale()
 
 
 def _redirect_qml_disk_cache():
-    # Keep Qt's QML bytecode cache under our launcher cache instead of the default QStandardPaths::CacheLocation.
-    # Otherwise Qt would create a separate top-level cache/ dir alongside our launcher/cache/.
+    # Put Qt's QML bytecode cache under cache/qml. Qt's QStandardPaths::CacheLocation already
+    # resolves to data_dir/cache (the qtpipelinecache lives there), so this keeps one cache/ root.
     from src.core.app_config import CONFIG_DIR_NAME
     if IS_FLATPAK:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
@@ -62,7 +62,7 @@ def _redirect_qml_disk_cache():
         base = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / CONFIG_DIR_NAME
     else:
         base = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / CONFIG_DIR_NAME
-    os.environ.setdefault('QML_DISK_CACHE_PATH', str(base / 'launcher' / 'cache' / 'qmlcache'))
+    os.environ.setdefault('QML_DISK_CACHE_PATH', str(base / 'cache' / 'qml'))
 
 
 _redirect_qml_disk_cache()

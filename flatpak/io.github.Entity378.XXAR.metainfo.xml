@@ -50,6 +50,14 @@
   </requires>
 
   <releases>
+    <release version="0.9.7" date="2026-06-19">
+      <description>
+        <p>Mod repair improvements.</p>
+        <ul>
+          <li>Broken mods are now also relinked when applying, not just on import, and the repaired references are saved into the mod</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.6" date="2026-06-17">
       <description>
         <p>Mod repair after game updates.</p>

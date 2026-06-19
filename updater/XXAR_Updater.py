@@ -31,7 +31,7 @@ APP_EXE_NAME = "XXAR.exe"
 
 def _setup_logging(dist_dir: Path) -> Path:
     localappdata = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    log_dir = localappdata / "XXAR" / "launcher" / "cache" / "updates"
+    log_dir = localappdata / "XXAR" / "updates"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "updater.log"
     logging.basicConfig(

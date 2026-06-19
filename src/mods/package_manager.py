@@ -20,7 +20,7 @@ from src.core.logger import get_logger
 from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
-from src.mods.mod_relinker import relink_metadata
+from src.mods.mod_relinker import GameAudioIndex, relink_metadata
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import resolve_and_extract
 from src.wwise.pck_indexer import PCKIndexer
@@ -326,16 +326,7 @@ class ModPackageManager:
 
         self.mod_config['load_order'].append(mod_uuid)
 
-        # Repair references that a game update relocated, so the mod works on the current version.
-        if game_audio_dir:
-            try:
-                game = get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
-                relinked = relink_metadata(metadata, game_audio_dir, game).get('relinked', 0)
-                if relinked:
-                    logger.info(f"[Mod Manager] Repaired {relinked} target(s) in '{mod_name}' for the current game version")
-            except Exception as e:
-                logger.error(f"[Mod Manager] Warning: install-time relink failed: {e}")
-
+        self.migrate_mod(mod_uuid, metadata, game_audio_dir)
         self.save_config()
 
         return {
@@ -344,6 +335,44 @@ class ModPackageManager:
             'mod_name': mod_name,
             'version': new_version,
         }
+
+    def migrate_mod(self, mod_uuid, metadata, game_audio_dir, game=None, index=None):
+        # Relink one installed mod to the current game version and rewrite its on-disk
+        # metadata.json, so import and apply leave the same fixed JSON. Caller saves mod_config.
+        if not game_audio_dir or not Path(game_audio_dir).exists():
+            return 0
+        try:
+            game = game or get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
+            relinked = relink_metadata(metadata, game_audio_dir, game, index=index).get('relinked', 0)
+        except Exception as e:
+            logger.error(f"[Mod Manager] Relink failed for {mod_uuid}: {e}")
+            return 0
+
+        if relinked:
+            try:
+                with open(self.mods_dir / mod_uuid / 'metadata.json', 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                logger.info(f"[Mod Manager] Migrated {relinked} target(s) in '{metadata.get('name', mod_uuid)}' to the current game version")
+            except Exception as e:
+                logger.error(f"[Mod Manager] Failed to rewrite metadata.json for {mod_uuid}: {e}")
+        return relinked
+
+    def migrate_installed_mods(self, game_audio_dir, game=None):
+        # Migrate every installed mod (shared index), saving mod_config once if anything changed.
+        if not game_audio_dir or not Path(game_audio_dir).exists():
+            return
+        installed = self.mod_config.get('installed_mods', {})
+        if not installed:
+            return
+        game = game or get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
+        index = GameAudioIndex(game_audio_dir, game)
+        migrated = 0
+        for mod_uuid, mod_info in installed.items():
+            metadata = mod_info.get('metadata')
+            if metadata:
+                migrated += self.migrate_mod(mod_uuid, metadata, game_audio_dir, game, index)
+        if migrated:
+            self.save_config()
 
     def get_installed_mods(self):
 
@@ -695,6 +724,10 @@ class ModPackageManager:
             raise ModApplicationError(f"Game audio directory not found: {game_audio_dir}")
 
         persistent_audio_dir.mkdir(parents=True, exist_ok=True)
+
+        # Migrate installed mods to the current game version before resolving, so a game
+        # update that moved sounds to other PCKs doesn't silently break them.
+        self.migrate_installed_mods(game_audio_dir, game)
 
         if progress_callback:
             progress_callback("Resolving mod conflicts...", 0, 1)

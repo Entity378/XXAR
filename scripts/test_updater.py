@@ -312,10 +312,10 @@ def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | Non
 
     app = QCoreApplication.instance() or QCoreApplication(sys.argv)
 
-    cache_dir = temp_dir / "cache"
-    cache_dir.mkdir()
-    original_get_cache_dir = umb.get_cache_dir
-    umb.get_cache_dir = lambda: cache_dir
+    updates_dir = temp_dir / "updates"
+    updates_dir.mkdir()
+    original_get_updates_dir = umb.get_updates_dir
+    umb.get_updates_dir = lambda: updates_dir
 
     try:
         url = f"http://127.0.0.1:{port}/download/zip"
@@ -351,7 +351,7 @@ def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | Non
         r.ok("DownloadWorker: downloads + extracts", f"{len(progress)} progress ticks")
         r.ok("DownloadWorker: staging root contains XXAR.exe", str(staging))
 
-        archive = cache_dir / "updates" / "XXAR-windows-x64.zip"
+        archive = updates_dir / "XXAR-windows-x64.zip"
         if not archive.exists():
             r.ok("DownloadWorker: archive cleaned up post-extract")
         else:
@@ -359,7 +359,7 @@ def test_download_worker(r: TestResult, port: int, temp_dir: Path) -> Path | Non
 
         return staging
     finally:
-        umb.get_cache_dir = original_get_cache_dir
+        umb.get_updates_dir = original_get_updates_dir
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QApplication
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
-from src.core.config_manager import get_cache_dir
+from src.core.config_manager import get_updates_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS
 from src.gui.backend.update_manager_bridge import _get_real_exe_path, _prune_stale_update_artifacts
@@ -175,7 +175,7 @@ class UpdateConnector:
     def _on_update_applied(self):
         logger.info(f"[{APP_NAME}]Update applied successfully, restarting application...")
         try:
-            flag_file = get_cache_dir() / "update_success"
+            flag_file = get_updates_dir() / "update_success"
             flag_file.parent.mkdir(parents=True, exist_ok=True)
             flag_file.write_text(QCoreApplication.applicationVersion())
             logger.info(f"[{APP_NAME}]Update success flag written: {flag_file}")
@@ -195,13 +195,13 @@ class UpdateConnector:
 
     def _check_update_success_flag(self):
         try:
-            flag_file = get_cache_dir() / "update_success"
+            flag_file = get_updates_dir() / "update_success"
             if flag_file.exists():
                 old_version = flag_file.read_text().strip()
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
                 logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
-                _prune_stale_update_artifacts(get_cache_dir() / "updates")
+                _prune_stale_update_artifacts(get_updates_dir())
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
