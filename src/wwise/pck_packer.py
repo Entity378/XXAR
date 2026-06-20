@@ -321,18 +321,37 @@ class PCKPacker:
 
         logger.info(f"[OK] Merged BNK {bnk_id}: {replaced} mod WEM(s), {transported} transported, new size: {len(modified_bnk_bytes)} bytes")
 
+    def _append_bnk_raw(self, bnk_id, bnk_bytes, lang_id):
+        # Append the bytes as a new file and point soundbank_titles at them.
+        # The rebuild pack path picks up the new size and offset from there.
+        new_file_index = len(self.file_list)
+        self.file_list.append(BytesIO(bnk_bytes))
+        self.soundbank_titles.setdefault(lang_id, {})[bnk_id] = [(new_file_index, len(bnk_bytes), 0)]
+
     def replace_bnk_raw(self, bnk_id, new_bnk_bytes, lang_id=0):
         # Swap a BNK's bytes wholesale (used after HIRC patching changed its size).
-        # The rebuild pack path picks up the new size/offset from soundbank_titles.
         if lang_id not in self.soundbank_titles or bnk_id not in self.soundbank_titles[lang_id]:
             logger.warning(f"  replace_bnk_raw: BNK {bnk_id} not found (lang_id={lang_id})")
             return False
-
-        new_file_index = len(self.file_list)
-        self.file_list.append(BytesIO(new_bnk_bytes))
-        self.soundbank_titles[lang_id][bnk_id] = [(new_file_index, len(new_bnk_bytes), 0)]
+        self._append_bnk_raw(bnk_id, new_bnk_bytes, lang_id)
         logger.info(f"  replace_bnk_raw: BNK {bnk_id} -> {len(new_bnk_bytes)} bytes")
         return True
+
+    def add_bnk_raw(self, bnk_id, bnk_bytes, lang_id=0):
+        # Add a brand-new BNK to this pck (an orphan Patch.pck BNK with no SoundBank home).
+        if lang_id in self.soundbank_titles and bnk_id in self.soundbank_titles[lang_id]:
+            logger.warning(f"  add_bnk_raw: BNK {bnk_id} already present (lang_id={lang_id})")
+            return False
+        self._append_bnk_raw(bnk_id, bnk_bytes, lang_id)
+        logger.info(f"  add_bnk_raw: added BNK {bnk_id} -> {len(bnk_bytes)} bytes (lang_id={lang_id})")
+        return True
+
+    def add_or_replace_bnk_raw(self, bnk_id, bnk_bytes, fallback_lang=0):
+        # Replace the BNK in whichever language it already lives, else add it under fallback_lang.
+        existing_lang = next((lang for lang, bnks in self.soundbank_titles.items() if bnk_id in bnks), None)
+        if existing_lang is not None:
+            return self.replace_bnk_raw(bnk_id, bnk_bytes, existing_lang)
+        return self.add_bnk_raw(bnk_id, bnk_bytes, fallback_lang)
 
     def remove_wems_from_bnk(self, bnk_id, wem_ids, lang_id=0):
         # Remove specific WEM IDs from a BNK inside the PCK

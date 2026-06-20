@@ -50,6 +50,7 @@ from src.wwise.hirc_patcher import (
     apply_duration_patches,
     scan_bank_for_patch_targets,
 )
+from src.wwise.patch_target_resolver import soundbank_bnk_ids
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
@@ -96,11 +97,18 @@ class BnkListLoaderWorker(BaseWorker):
 
         all_pcks = sorted(pck_map.values(), key=lambda t: t[0].name)
 
+        # A protected override (Patch.pck/Hotfix.pck) contributes only its orphan banks with no SoundBank counterpart.
+        # Counterpart-present banks are reached via their SoundBank entry, mirroring the Browser.
+        game = app_config._active_game
+        protected = set(getattr(game, "protected_pcks", ()) or ())
+        counterpart_ids = soundbank_bnk_ids(self._audio_root, game) if protected else set()
+
         result: List[dict] = []
         total = len(all_pcks)
         for i, (pck_path, is_override) in enumerate(all_pcks, 1):
             if self.is_cancelled():
                 return []
+            is_protected = pck_path.name in protected
             try:
                 indexer = PCKIndexer(str(pck_path))
                 indexer.build_index()
@@ -114,6 +122,8 @@ class BnkListLoaderWorker(BaseWorker):
                 for binfo in banks:
                     if self.is_cancelled():
                         return []
+                    if is_protected and binfo["id"] in counterpart_ids:
+                        continue
                     f.seek(binfo["offset"])
                     content = f.read(binfo["size"])
                     n_music, src_ids = _collect_bnk_music_index(content)

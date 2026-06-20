@@ -467,7 +467,8 @@ class BaseBrowserHandler:
             if did_patch:
                 patched_file_count += 1
 
-        # Scan override PCKs for HIRC patching too
+        # Protected override PCKs (Patch.pck/Hotfix.pck) still hold the HIRC Wwise loads for any BNK that wasn't nulled, so patch them too.
+        # allow_grow=False keeps these size-preserving: loop points and existing-volume overwrites apply, a volume insert is skipped (a grow would corrupt the file and trigger a re-download).
         for override_pck in self._find_override_pcks(persistent_root):
             try:
                 override_pck.chmod(0o644)
@@ -477,7 +478,7 @@ class BaseBrowserHandler:
             did_patch = self._patch_bank_content(
                 raw, override_pck, override_pck, source_ids,
                 duration_ms_by_track, volume_db_by_track,
-                patched_track_ids,
+                patched_track_ids, allow_grow=False,
             )
             if did_patch:
                 patched_file_count += 1
@@ -602,7 +603,8 @@ class BaseBrowserHandler:
             if did_patch:
                 patched_file_count += 1
 
-        # Scan override PCKs for HIRC patching too
+        # Protected override PCKs (Patch.pck/Hotfix.pck) still hold the HIRC Wwise loads for any BNK that wasn't nulled, so patch them too.
+        # allow_grow=False keeps these size-preserving: loop points and existing-volume overwrites apply, a volume insert is skipped (a grow would corrupt the file and trigger a re-download).
         for override_pck in handler._find_override_pcks(persistent_root):
             try:
                 override_pck.chmod(0o644)
@@ -613,7 +615,7 @@ class BaseBrowserHandler:
             did_patch = handler._patch_bank_content(
                 raw, override_pck, override_pck, source_ids,
                 duration_ms_by_track, volume_db_by_track,
-                patched_track_ids,
+                patched_track_ids, allow_grow=False,
             )
             if did_patch:
                 patched_file_count += 1
@@ -639,7 +641,7 @@ class BaseBrowserHandler:
     def _patch_bank_content(
         raw, target_path, base_file, source_ids,
         duration_ms_by_track, volume_db_by_track,
-        patched_track_ids,
+        patched_track_ids, allow_grow=True,
     ):
         # Patch in-memory on a bytearray so volume insertions don't shift duration offsets mid-pass.
         # A single write happens at the end.
@@ -657,6 +659,11 @@ class BaseBrowserHandler:
             (not vp.has_existing_volume) and vp.source_id in volume_db_by_track
             for vp in targets.volume_patches
         )
+        if needs_insert and not allow_grow:
+            # Protected override PCKs (Patch.pck/Hotfix.pck) must keep their on-disk size, or the game re-downloads them.
+            # So a volume insert is skipped here; loop points and existing-volume overwrites below stay size-preserving.
+            logger.info(f"[HIRC Patch] {target_path.name}: skipping volume insert on protected PCK (size must stay fixed)")
+            needs_insert = False
         if needs_insert:
             return BaseBrowserHandler._rebuild_pck_with_hirc_patches(
                 raw, target_path, base_file, source_ids,

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from src.core.logger import get_logger
 from src.wwise.bnk_handler import BNKFile
+from src.wwise.bnk_indexer import BNKIndexer
+from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
 
 logger = get_logger(__name__)
@@ -31,14 +33,22 @@ def _is_broken(index, pck, file_type, bnk_id, wem_id):
 class GameAudioIndex:
     # Lazily-built view of where every sound id currently lives in the live game audio.
 
-    def __init__(self, game_audio_dir, game):
+    def __init__(self, game_audio_dir, game, persistent_audio_dir=None):
         self.game_audio_dir = Path(game_audio_dir)
+        # The live Patch.pck lives under Persistent (StreamingAssets holds only a stub); derive it when not given.
+        if persistent_audio_dir:
+            self.persistent_audio_dir = Path(persistent_audio_dir)
+        elif "StreamingAssets" in str(self.game_audio_dir):
+            self.persistent_audio_dir = Path(str(self.game_audio_dir).replace("StreamingAssets", "Persistent"))
+        else:
+            self.persistent_audio_dir = None
         self.game = game
         self.protected = set(getattr(game, "protected_pcks", ()) or ())
         self._pck_cache = {}        # path -> PCKIndexer (index built)
         self._bnk_wems = {}         # (path, bnk_id) -> set(wem_id)
         self._direct_index = None   # wem_id -> [pck_basename]
         self._embedded_index = None  # wem_id -> [(pck_basename, bnk_id)]
+        self._patch_index = None    # wem_id -> (override_name, bnk_id)
 
     def _indexer(self, path):
         path = str(path)
@@ -67,7 +77,39 @@ class GameAudioIndex:
                 return candidate
         return None
 
+    def _build_patch_index(self):
+        # wem_id -> (override_name, bnk_id) for WEMs embedded in Patch.pck/Hotfix.pck BNKs (the copy the game plays).
+        # Reads only each bnk's leading bytes: DIDX sits near the start, so we skip its (large) DATA payload.
+        if self._patch_index is not None:
+            return
+        self._patch_index = {}
+        if not self.persistent_audio_dir:
+            return
+        for source_path, override_name in find_patch_pck_sources(self.persistent_audio_dir, self.game):
+            try:
+                banks = self._indexer(source_path).index_data["banks"]
+                with open(source_path, "rb") as f:
+                    for bank in banks:
+                        f.seek(bank["offset"])
+                        didx = BNKIndexer(f.read(min(bank["size"], 131072)))
+                        didx.parse_didx()
+                        for wem_id in didx.get_wem_ids():
+                            self._patch_index.setdefault(wem_id, (override_name, bank["id"]))
+            except Exception as e:
+                logger.warning(f"[Relink] Could not scan {Path(source_path).name}: {e}")
+
+    def patch_home(self, wem_id):
+        # (override_name, bnk_id) if the wem is embedded in a Patch.pck BNK, else None.
+        self._build_patch_index()
+        return self._patch_index.get(int(wem_id))
+
     def entry_is_valid(self, pck_name, file_type, bnk_id, wem_id):
+        # A Patch-shadowed wem is only valid from its Patch BNK; the override copy is what the game plays.
+        home = self.patch_home(wem_id)
+        if home is not None:
+            override_name, patch_bnk_id = home
+            return Path(pck_name).name == override_name and file_type == "bnk" and bnk_id is not None and int(bnk_id) == patch_bnk_id
+
         live = self.find_live_pck(pck_name)
         if not live:
             return False
@@ -131,8 +173,13 @@ class GameAudioIndex:
 
     def locate(self, wem_id, progress_callback=None):
         # Returns {'pck_name','file_type','bnk_id'} for the id's current home, or None.
-        # Direct (streamed/standalone) is checked first since it needs no bnk parsing; 
-        # the embedded scan only runs when the id isn't a direct sound anywhere.
+        # Priority Patch.pck > SoundBank > Streamed: a Patch-embedded copy is what the game plays, so it wins.
+        # The target stays Patch.pck/bnk; the apply remaps it (add whole BNK to a host SoundBank + null).
+        home = self.patch_home(wem_id)
+        if home is not None:
+            override_name, patch_bnk_id = home
+            return {"pck_name": override_name, "file_type": "bnk", "bnk_id": patch_bnk_id}
+
         self._build_direct_index()
         direct = self._direct_index.get(wem_id)
         if direct:

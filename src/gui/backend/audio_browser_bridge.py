@@ -65,7 +65,15 @@ from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.override_pck_patcher import patch_override_pcks
-from src.wwise.patch_target_resolver import find_patch_pck_sources, resolve_and_extract
+from src.wwise.patch_target_resolver import (
+    BACKUP_SUFFIX,
+    add_streamed_duplicates,
+    find_patch_pck_sources,
+    install_whole_patch_bnks,
+    resolve_and_extract,
+    soundbank_bnk_ids,
+    streamed_wem_pcks,
+)
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
@@ -110,7 +118,10 @@ class ReplaceAudioWorker(BaseWorker):
     def work(self):
         try:
             pck_file_path = Path(self.meta["pck_path"])
-            pck_filename = _pck_rel_key(pck_file_path, self.audio_root) if self.audio_root else pck_file_path.name
+            # Orphan Patch.pck items read from the pristine source but must stage under the live override name.
+            pck_filename = self.meta.get("pck_name") or (
+                _pck_rel_key(pck_file_path, self.audio_root) if self.audio_root else pck_file_path.name
+            )
 
             if self.meta["type"] == "wem":
                 file_id = self.meta["file_id"]
@@ -316,6 +327,9 @@ class AudioBrowserBridge(QObject):
         # The mapping is cached per game so tab switches don't redo the scan.
         self._patch_pck_wems_by_bnk = None
         self._patch_pck_cache_key = None
+        # {bnk_id: {"path", "lang_id", "override"}} for Patch/Hotfix BNKs with no SoundBank counterpart.
+        self._orphan_patch_bnks = None
+        self._orphan_bnks_cache_key = None
         self._current_directory = None
         self._current_tree_key = None
         self._audio_root = None
@@ -354,6 +368,8 @@ class AudioBrowserBridge(QObject):
         self.index_ready = False
         self._patch_pck_wems_by_bnk = None
         self._patch_pck_cache_key = None
+        self._orphan_patch_bnks = None
+        self._orphan_bnks_cache_key = None
 
     @staticmethod
     def _normalize_game_mode(game_mode, default=DEFAULT_GAME_ID):
@@ -752,6 +768,22 @@ class AudioBrowserBridge(QObject):
                 "path": pck_path,
             }
 
+        # Surface Patch.pck/Hotfix.pck (which live in Persistent) carrying orphan BNKs with no SoundBank counterpart.
+        # Only the override for the tab being listed, mirroring how SoundBank pcks are listed per language folder.
+        persistent_dir = os.path.normcase(str(directory).replace("StreamingAssets", "Persistent"))
+        orphan_sources = {}  # pristine_path -> override_name
+        for info in self._get_orphan_patch_bnks().values():
+            src = Path(info["path"])
+            if os.path.normcase(str(src.parent)) == persistent_dir:
+                orphan_sources.setdefault(str(src), info["override"])
+        for src_path, override_name in orphan_sources.items():
+            items.append({
+                "fileName": override_name, "itemId": "", "fileSize": "", "duration": "",
+                "itemType": "PCK", "tags": "", "hasChildren": True, "depth": 0,
+                "pckPath": src_path, "isModified": False,
+            })
+            self._item_data[f"pck:{src_path}"] = {"type": "pck", "path": src_path}
+
         self._tree_cache[cache_key] = {
             "items": items,
             "item_data": dict(self._item_data),
@@ -806,10 +838,21 @@ class AudioBrowserBridge(QObject):
             indexer = PCKIndexer(pck_path)
             indexer.build_index()
 
+            # A protected override source (Patch.pck/Hotfix.pck, maybe its .xxar_backup) lists only its orphan BNKs.
+            # Counterpart-present ones are folded under their SoundBank, and pck_name carries the live name for staging.
+            pck_base_name = Path(pck_path).name
+            if pck_base_name.endswith(BACKUP_SUFFIX):
+                pck_base_name = pck_base_name[:-len(BACKUP_SUFFIX)]
+            is_protected_source = pck_base_name in self._active_game().protected_pcks
+            orphan_ids = set(self._get_orphan_patch_bnks().keys()) if is_protected_source else set()
+
             items = []
 
             for bnk_info in indexer.index_data["banks"]:
                 bnk_id = str(bnk_info["id"])
+
+                if is_protected_source and bnk_info["id"] not in orphan_ids:
+                    continue
 
                 if self.hide_empty_bnk_enabled:
                     try:
@@ -831,6 +874,8 @@ class AudioBrowserBridge(QObject):
                     "pck_path": pck_path,
                     "metadata": bnk_info,
                 }
+                if is_protected_source:
+                    self._item_data[data_key]["pck_name"] = pck_base_name
 
                 items.append({
                     "fileName": f"{bnk_id}.bnk",
@@ -851,7 +896,7 @@ class AudioBrowserBridge(QObject):
                 "should_list_direct_wem",
                 lambda merge_enabled: not merge_enabled,
             )
-            if should_list_direct_wem(self.merge_wem_enabled):
+            if should_list_direct_wem(self.merge_wem_enabled) and not is_protected_source:
                 for wem_info in indexer.index_data["sounds"] + indexer.index_data["externals"]:
                     wem_id = str(wem_info["id"])
                     data_key = f"wem:{pck_path}:{wem_id}"
@@ -968,6 +1013,9 @@ class AudioBrowserBridge(QObject):
                     "pck_path": bnk_data["pck_path"],
                     "lang_id": bnk_data.get("lang_id", 0),
                 }
+                if bnk_data.get("pck_name"):
+                    # Orphan BNK shown under Patch.pck: stage under the live override name, not the pristine source path.
+                    item_meta["pck_name"] = bnk_data["pck_name"]
                 if streaming:
                     sw, sp = streaming
                     item_meta["streaming_wem"] = sw
@@ -1016,9 +1064,10 @@ class AudioBrowserBridge(QObject):
                 })
 
             # Surface override-only WEMs (Patch/Hotfix BNKs) under the StreamingAssets SoundBank so staged replacements target a stable PCK name.
+            # Skipped when this BNK is itself an orphan shown under Patch.pck — its WEMs are already listed above.
             existing_wem_ids = {w["wem_id"] for w in wem_list}
             try:
-                if self.game_root_dir:
+                if self.game_root_dir and not bnk_data.get("pck_name"):
                     persistent_root = Path(self.game_root_dir).joinpath(
                         *self._active_game().persistent_audio_subpath
                     )
@@ -1966,19 +2015,44 @@ class AudioBrowserBridge(QObject):
             if not replacements:
                 return
 
+            # Relink targets against the current game (Patch-aware) before resolving.
+            # A Patch override shadowing a streamed/SoundBank target is retargeted to Patch.pck/bnk for the resolve below.
+            try:
+                relink_tracker(
+                    self.mod_manager, streaming_base, game,
+                    progress_callback=lambda msg: self.statusUpdate.emit(msg),
+                )
+                replacements = self.mod_manager.get_all_replacements()
+            except Exception:
+                logger.exception("[Audio Browser] Relink before apply failed")
+
+            # Index the streamed pcks once and share it with both the resolver and the mirror step below.
+            streamed_index = streamed_wem_pcks(streaming_base, game)
+
             # Remap protected-PCK entries to StreamingAssets and pre-extract pristine BNK content.
             patch_bnk_content = {}
             try:
                 patch_info = resolve_and_extract(
                     replacements, streaming_base, persistent_path, game,
+                    streamed_index=streamed_index,
                 )
                 patch_bnk_content = patch_info.get("patch_bnk_content", {})
                 if patch_info.get("remapped"):
                     logger.info(f"[Audio Browser] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+                if patch_info.get("orphan_added"):
+                    logger.info(f"[Audio Browser] Added {patch_info['orphan_added']} orphan Patch BNK(s) whole into a host SoundBank")
                 if patch_info.get("dropped"):
                     logger.warning(f"[Audio Browser] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
             except Exception as e:
                 logger.error(f"[Audio Browser] Warning: patch target resolution failed: {e}")
+
+            # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
+            try:
+                mirrored = add_streamed_duplicates(replacements, streaming_base, game, streamed_index=streamed_index)
+                if mirrored:
+                    logger.info(f"[Audio Browser] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
+            except Exception as e:
+                logger.error(f"[Audio Browser] Warning: streamed-duplicate mirroring failed: {e}")
 
             total_files = sum(len(files) for files in replacements.values())
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
@@ -2043,6 +2117,8 @@ class AudioBrowserBridge(QObject):
                         plain_wem_id = int(self._tracker_plain_file_id(file_id))
                         bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
                         bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
+
+                install_whole_patch_bnks(packer, bnk_wem_maps.keys(), patch_bnk_content, bnk_lang_ids)
 
                 # Schedule transport-only merges so pristine override BNKs aren't lost when patch_override_pcks nulls them.
                 touched_bnks = set(bnk_wem_maps.keys())
@@ -2129,6 +2205,16 @@ class AudioBrowserBridge(QObject):
         if not replacements:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "No Replacements"), QCoreApplication.translate("Application", "No audio replacements found."))
             return
+
+        # Relink targets (Patch-aware) so the exported package carries the fix for the current game version.
+        if self.game_root_dir:
+            try:
+                game = self._active_game()
+                streaming_base = Path(self._audio_root) if self._audio_root else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+                relink_tracker(self.mod_manager, streaming_base, game)
+                replacements = self._get_user_replacements()
+            except Exception:
+                logger.exception("[Audio Browser] Relink before export failed")
 
         default_name = f"{name.replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
 
@@ -3098,6 +3184,35 @@ class AudioBrowserBridge(QObject):
         self._patch_pck_wems_by_bnk = result
         return result
 
+    def _get_orphan_patch_bnks(self):
+        # {bnk_id: {"path", "lang_id", "override"}} for Patch/Hotfix BNKs absent from every SoundBank pck.
+        # "path" is the pristine source (backup preferred) for reading; "override" is the live name (Patch.pck) for staging.
+        if not self.game_root_dir:
+            return {}
+        cache_key = str(self.game_root_dir)
+        if self._orphan_bnks_cache_key == cache_key and self._orphan_patch_bnks is not None:
+            return self._orphan_patch_bnks
+        result = {}
+        try:
+            game = self._active_game()
+            streaming_root = Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+            persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
+            counterpart_ids = soundbank_bnk_ids(streaming_root, game)
+            for patch_path, override_name in find_patch_pck_sources(persistent_root, game):
+                try:
+                    banks = PCKIndexer(str(patch_path)).build_index().get("banks", [])
+                except Exception:
+                    continue
+                for bank in banks:
+                    if bank["id"] in counterpart_ids or bank["id"] in result:
+                        continue
+                    result[bank["id"]] = {"path": str(patch_path), "lang_id": bank.get("lang_id", 0), "override": override_name}
+        except Exception as e:
+            logger.error(f"[Browser] Orphan Patch.pck scan failed: {e}")
+        self._orphan_bnks_cache_key = cache_key
+        self._orphan_patch_bnks = result
+        return result
+
     def _merge_patch_entries_into_index(self, index_dict):
         # Map patch-unique WEM ids to the StreamingAssets SoundBank that hosts the same bnk_id.
         patch_map = self._get_patch_pck_wems_by_bnk()
@@ -3109,19 +3224,22 @@ class AudioBrowserBridge(QObject):
                 if loc.get("type") == "bnk" and fid in patch_map:
                     bnk_to_streaming_pck.setdefault(fid, loc["pck_path"])
                     break
+        orphan_bnks = self._get_orphan_patch_bnks()
         for bnk_id, wems in patch_map.items():
-            streaming_pck = bnk_to_streaming_pck.get(bnk_id)
-            if not streaming_pck:
+            orphan = orphan_bnks.get(bnk_id)
+            # Counterpart-present BNKs map to their SoundBank; orphans map to the Patch source so search reaches them.
+            target_pck = bnk_to_streaming_pck.get(bnk_id) or (orphan["path"] if orphan else None)
+            if not target_pck:
                 continue
             for wem_id, (override_name, lang_id) in wems.items():
                 locs = index_dict.setdefault(wem_id, [])
                 if any(
-                    l.get("pck_path") == streaming_pck and l.get("bnk_id") == bnk_id
+                    l.get("pck_path") == target_pck and l.get("bnk_id") == bnk_id
                     for l in locs
                 ):
                     continue
                 locs.append({
-                    "pck_path": streaming_pck,
+                    "pck_path": target_pck,
                     "type": "wem_embedded",
                     "bnk_id": bnk_id,
                     "lang_id": lang_id,

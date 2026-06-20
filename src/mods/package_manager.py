@@ -22,7 +22,7 @@ from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.mod_relinker import GameAudioIndex, relink_metadata
 from src.wwise.override_pck_patcher import patch_override_pcks
-from src.wwise.patch_target_resolver import resolve_and_extract
+from src.wwise.patch_target_resolver import add_streamed_duplicates, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
@@ -746,20 +746,34 @@ class ModPackageManager:
         except Exception as e:
             logger.error(f"[Mod Manager] Add-collision reallocation failed: {e}")
 
+        # Index the streamed pcks once and share it with both the resolver and the mirror step below.
+        streamed_index = streamed_wem_pcks(game_audio_dir, game)
+
         # Remap entries from protected override PCKs to their StreamingAssets target.
         # Also pre-extract pristine BNK content for the main loop to merge.
         patch_bnk_content = {}
         try:
             patch_info = resolve_and_extract(
                 resolved, game_audio_dir, persistent_audio_dir, game,
+                streamed_index=streamed_index,
             )
             patch_bnk_content = patch_info.get("patch_bnk_content", {})
             if patch_info.get("remapped"):
                 logger.info(f"[Mod Manager] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+            if patch_info.get("orphan_added"):
+                logger.info(f"[Mod Manager] Added {patch_info['orphan_added']} orphan Patch BNK(s) whole into a host SoundBank")
             if patch_info.get("dropped"):
                 logger.warning(f"[Mod Manager] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
         except Exception as e:
             logger.error(f"[Mod Manager] Warning: patch target resolution failed: {e}")
+
+        # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
+        try:
+            mirrored = add_streamed_duplicates(resolved, game_audio_dir, game, streamed_index=streamed_index)
+            if mirrored:
+                logger.info(f"[Mod Manager] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
+        except Exception as e:
+            logger.error(f"[Mod Manager] Warning: streamed-duplicate mirroring failed: {e}")
 
         if self.persistent_mod_manager:
             old_replacements = self.persistent_mod_manager.get_all_replacements()
@@ -904,6 +918,8 @@ class ModPackageManager:
 
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
+
+                install_whole_patch_bnks(packer, bnk_wems.keys(), patch_bnk_content, bnk_lang_ids)
 
                 # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs aren't lost when the override BNK is nulled.
                 touched_bnks = set(bnk_wems.keys())

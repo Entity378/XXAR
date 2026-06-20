@@ -50,6 +50,14 @@
   </requires>
 
   <releases>
+    <release version="0.9.8" date="2026-06-20">
+      <description>
+        <p>Wider sound replacement coverage.</p>
+        <ul>
+          <li>A sound duplicated in both a SoundBank/Patch BNK and a streamed PCK is now replaced in both copies</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.7" date="2026-06-19">
       <description>
         <p>Mod repair improvements.</p>
