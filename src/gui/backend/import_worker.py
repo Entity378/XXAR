@@ -43,10 +43,10 @@ class ImportWorker(BaseWorker):
 
     def _priority_label(self, priority):
         if priority == 1:
-            return self.game.soundbank_pck_prefix or "Primary"
+            return self.game.soundbank_pck_prefix
         if priority < 0:
             return "Persistent"
-        return self.game.streamed_pck_prefix or "Streamed"
+        return self.game.streamed_pck_prefix
 
     def _priority_suffix(self, priority):
         return f" ({self._priority_label(priority)})"
@@ -56,7 +56,7 @@ class ImportWorker(BaseWorker):
         if len(rel.parts) <= 1:
             return False
         top_dir = rel.parts[0]
-        non_language_tabs = set(self.game.non_language_tabs or ())
+        non_language_tabs = set(self.game.non_language_tabs)
         return top_dir not in non_language_tabs
 
     def _build_scan_sources(self, game_audio_dir, name_filter=None):

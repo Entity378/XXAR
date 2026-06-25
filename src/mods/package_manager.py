@@ -919,11 +919,14 @@ class ModPackageManager:
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
 
-                install_whole_patch_bnks(packer, bnk_wems.keys(), patch_bnk_content, bnk_lang_ids)
+                # Pristine override content scoped to this pck (keyed by bnk_id), so the rebuild uses its own language.
+                pck_patch_content = patch_bnk_content.get(pck_name, {})
+
+                install_whole_patch_bnks(packer, bnk_wems.keys(), pck_patch_content, bnk_lang_ids)
 
                 # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs aren't lost when the override BNK is nulled.
                 touched_bnks = set(bnk_wems.keys())
-                for patch_bnk_id in list(patch_bnk_content.keys()):
+                for patch_bnk_id in list(pck_patch_content.keys()):
                     if patch_bnk_id in touched_bnks:
                         continue
                     if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
@@ -941,8 +944,8 @@ class ModPackageManager:
                         continue
 
                     patch_wems = None
-                    if bnk_id in patch_bnk_content:
-                        patch_wems = patch_bnk_content[bnk_id].get("wems")
+                    if bnk_id in pck_patch_content:
+                        patch_wems = pck_patch_content[bnk_id].get("wems")
 
                     packer.merge_bnk_wems(
                         bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,

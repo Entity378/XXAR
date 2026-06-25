@@ -50,6 +50,15 @@
   </requires>
 
   <releases>
+    <release version="0.9.9" date="2026-06-25">
+      <description>
+        <p>Voice mod and Patch.pck fixes.</p>
+        <ul>
+          <li>Voice mods targeting Patch.pck now apply to the correct language and no longer disturb the other language</li>
+          <li>Browser search and navigation now reach sounds inside Patch.pck</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.8" date="2026-06-20">
       <description>
         <p>Wider sound replacement coverage.</p>

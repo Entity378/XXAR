@@ -100,7 +100,7 @@ class BnkListLoaderWorker(BaseWorker):
         # A protected override (Patch.pck/Hotfix.pck) contributes only its orphan banks with no SoundBank counterpart.
         # Counterpart-present banks are reached via their SoundBank entry, mirroring the Browser.
         game = app_config._active_game
-        protected = set(getattr(game, "protected_pcks", ()) or ())
+        protected = set(game.protected_pcks)
         counterpart_ids = soundbank_bnk_ids(self._audio_root, game) if protected else set()
 
         result: List[dict] = []

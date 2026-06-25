@@ -43,7 +43,7 @@ class GameAudioIndex:
         else:
             self.persistent_audio_dir = None
         self.game = game
-        self.protected = set(getattr(game, "protected_pcks", ()) or ())
+        self.protected = set(game.protected_pcks)
         self._pck_cache = {}        # path -> PCKIndexer (index built)
         self._bnk_wems = {}         # (path, bnk_id) -> set(wem_id)
         self._direct_index = None   # wem_id -> [pck_basename]
@@ -162,8 +162,8 @@ class GameAudioIndex:
 
     def _prefer_pck(self, names):
         # Authoritative target first: a SoundBank container, then a Streamed one, then anything.
-        sb = getattr(self.game, "soundbank_pck_filter_prefix", "")
-        st = getattr(self.game, "streamed_pck_prefix", "")
+        sb = self.game.soundbank_pck_filter_prefix
+        st = self.game.streamed_pck_prefix
         for prefix in (sb, st):
             if prefix:
                 match = next((n for n in names if n.startswith(prefix)), None)

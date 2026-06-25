@@ -83,7 +83,7 @@ class BaseBrowserHandler:
         b._audio_root = audio_root
         b.language_folders = {}
         language_mapping = dict(self.game.language_folders)
-        special_dirs = set(self.game.special_audio_dirs or ())
+        special_dirs = set(self.game.special_audio_dirs)
         known_dirs = set(language_mapping) | special_dirs
         include_all_subdirs = not known_dirs
 
@@ -196,12 +196,7 @@ class BaseBrowserHandler:
         if pck_file.name in self.game.protected_pcks:
             return False
 
-        if merge_wem_enabled and str(pck_file.name).startswith(
-            self.game.streamed_pck_prefix
-        ):
-            return False
-
-        non_language_tabs = set(self.game.non_language_tabs or ("Full", "Common"))
+        non_language_tabs = set(self.game.non_language_tabs)
         is_language_folder = current_language_folder not in non_language_tabs
         if hide_useless_pck_enabled and is_language_folder:
             if not str(pck_file.name).startswith(self.game.soundbank_pck_filter_prefix):
@@ -211,10 +206,6 @@ class BaseBrowserHandler:
     @staticmethod
     def format_pck_display_name(pck_file, directory):
         return pck_file.name
-
-    @staticmethod
-    def should_list_direct_wem(merge_wem_enabled):
-        return not merge_wem_enabled
 
     def _emit_status(self, message):
         if not message:
@@ -234,7 +225,7 @@ class BaseBrowserHandler:
     def _loop_point_supported(self):
         if self.loop_point_patching_supported is not None:
             return bool(self.loop_point_patching_supported)
-        return bool(getattr(self.game, "loop_point_patching_supported", False))
+        return self.game.loop_point_patching_supported
 
     def enrich_change_entry(self, pck_filename, tracker_key, repl_info, entry):
         if not self._loop_point_supported():
@@ -829,7 +820,7 @@ class BaseBrowserHandler:
     def _find_titlescreen_pcks(self, audio_root):
         # Some games keep the title-screen PCK in a sibling folder of streaming_root (e.g. ZZZ stores Minimum.pck under Audio/Windows/Min/ while streaming_root is Full/).
         # Scan streaming_root and its siblings to cover both layouts.
-        names = getattr(self.game, "titlescreen_pcks", ())
+        names = self.game.titlescreen_pcks
         if not names or not audio_root:
             return []
         name_set = {n.lower() for n in names}
