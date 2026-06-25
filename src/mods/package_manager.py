@@ -501,7 +501,7 @@ class ModPackageManager:
                         'bnk_id': bnk_id,
                         'file_type': file_info.get('file_type', 'wem'),
                         'sound_name': file_info.get('sound_name', ''),
-                        'file_id': file_info.get('file_id'),
+                        'file_id': actual_wem_id,
                         'conflicts_with': []
                     }
                     for key in _AUDIO_SETTING_KEYS:

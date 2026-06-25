@@ -3277,6 +3277,7 @@ class AudioBrowserBridge(QObject):
         # Map patch-unique WEM ids to the StreamingAssets SoundBank that hosts the same bnk_id.
         patch_map = self._get_patch_pck_wems_by_bnk()
         if not patch_map:
+            logger.warning("[Search Index] No Patch.pck banks found (patch_map empty) - Patch.pck sounds will NOT be searchable")
             return
         bnk_to_streaming_pck = {}
         for fid, locs in index_dict.items():
@@ -3311,6 +3312,7 @@ class AudioBrowserBridge(QObject):
                     "lang_id": lang_id,
                     "source_override": override_name,
                 })
+        logger.info(f"[Search Index] Merged Patch.pck into search: {len(patch_map)} bank(s), {len(orphan_bnks)} orphan(s) indexed")
 
     def cancel_indexing(self):
         # Public stop for the file-index build (called on game switch / directory change).
