@@ -276,6 +276,8 @@ class AudioBrowserBridge(QObject):
     normalizeAudioChanged = pyqtSignal(bool, arguments=["enabled"])
     normalizeTargetLufsChanged = pyqtSignal(int, arguments=["lufs"])
     hideEmptyBnkChanged = pyqtSignal(bool, arguments=["enabled"])
+    mergeWemChanged = pyqtSignal(bool, arguments=["enabled"])
+    hideUselessPckChanged = pyqtSignal(bool, arguments=["enabled"])
     loadingStarted = pyqtSignal(str, arguments=["message"])
     loadingFinished = pyqtSignal()
     tagDbDownloadStarted = pyqtSignal()
@@ -376,6 +378,21 @@ class AudioBrowserBridge(QObject):
         self._streaming_streamed_wem_index = None
         self._streaming_streamed_index_key = None
 
+    def _pristine_read_path(self, pck_path):
+        # Protected overrides (Patch.pck/Hotfix.pck) get their modded BNKs nulled in the live file on apply.
+        # Read the pristine source instead: the .xxar_backup when present, else the live file (itself the original).
+        path = Path(pck_path)
+        name = path.name
+        stem = name[:-len(BACKUP_SUFFIX)] if name.endswith(BACKUP_SUFFIX) else name
+        if stem not in self._active_game().protected_pcks:
+            return pck_path
+        backup = path.with_name(stem + BACKUP_SUFFIX)
+        if backup.exists():
+            logger.info(f"[Override Read] {stem}: redirected to pristine backup ({backup.name}) instead of the nulled live file")
+            return str(backup)
+        logger.info(f"[Override Read] {stem}: no backup present, reading live (it is itself the original)")
+        return str(path.with_name(stem))
+
     @staticmethod
     def _normalize_game_mode(game_mode, default=DEFAULT_GAME_ID):
         return normalize_game_mode(game_mode, default=default)
@@ -397,6 +414,8 @@ class AudioBrowserBridge(QObject):
             normalized, self._browser_handlers[DEFAULT_GAME_ID]
         )
         self._set_active_game_databases(normalized)
+        self.mergeWemChanged.emit(self.merge_wem_enabled)
+        self.hideUselessPckChanged.emit(self.hide_useless_pck_enabled)
 
     def _set_active_game_databases(self, game_id):
         normalized = self._normalize_game_mode(game_id)
@@ -840,7 +859,8 @@ class AudioBrowserBridge(QObject):
         self.statusUpdate.emit(QCoreApplication.translate("Application", "Indexing %1...").replace("%1", Path(pck_path).name))
 
         try:
-            indexer = PCKIndexer(pck_path)
+            # Read pristine (backup-preferred) for overrides; emit/key under pck_path so the tree nests as displayed.
+            indexer = PCKIndexer(self._pristine_read_path(pck_path))
             indexer.build_index()
 
             # A protected override source (Patch.pck/Hotfix.pck, maybe its .xxar_backup) lists only its orphan BNKs.
@@ -968,6 +988,7 @@ class AudioBrowserBridge(QObject):
                 break
 
         if not bnk_data:
+            logger.warning(f"[ExpandBNK] BNK {bnk_id} not found in loaded items; cannot expand")
             return
 
         load_key = f"{bnk_data['pck_path']}:{bnk_id}"
@@ -976,7 +997,7 @@ class AudioBrowserBridge(QObject):
         self._bnk_loaded[load_key] = True
 
         try:
-            indexer = PCKIndexer(bnk_data["pck_path"])
+            indexer = PCKIndexer(self._pristine_read_path(bnk_data["pck_path"]))
             indexer.build_index()
             bnk_bytes = indexer.extract_single_file(
                 bnk_data["file_id"], "bnk", bnk_data["lang_id"]
@@ -984,6 +1005,7 @@ class AudioBrowserBridge(QObject):
 
             bnk_indexer = BNKIndexer(bnk_bytes)
             wem_list = bnk_indexer.parse_didx()
+            logger.info(f"[ExpandBNK] BNK {bnk_id}: loaded {len(wem_list)} embedded WEM(s)")
 
             # Pair against the shared streamed index so merge works for SoundBank and orphan Patch.pck BNKs alike.
             streaming_wem_data = self._get_streaming_streamed_wem_index() if self.merge_wem_enabled else {}
@@ -1187,7 +1209,7 @@ class AudioBrowserBridge(QObject):
 
         try:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Loading audio..."))
-            indexer = PCKIndexer(meta["pck_path"])
+            indexer = PCKIndexer(self._pristine_read_path(meta["pck_path"]))
             indexer.build_index()
             wem_bytes = indexer.extract_single_file(
                 meta["file_id"], "wem", meta["lang_id"]
@@ -1220,7 +1242,7 @@ class AudioBrowserBridge(QObject):
             else:
                 if "bnk_bytes" not in meta:
                     self.statusUpdate.emit(QCoreApplication.translate("Application", "Extracting BNK from PCK..."))
-                    indexer = PCKIndexer(meta["pck_path"])
+                    indexer = PCKIndexer(self._pristine_read_path(meta["pck_path"]))
                     indexer.build_index()
                     bnk_bytes = indexer.extract_single_file(
                         meta["bnk_id"], "bnk", meta.get("lang_id", 0)
@@ -1749,7 +1771,7 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Exporting audio..."))
 
             if meta["type"] == "wem":
-                indexer = PCKIndexer(meta["pck_path"])
+                indexer = PCKIndexer(self._pristine_read_path(meta["pck_path"]))
                 indexer.build_index()
                 wem_bytes = indexer.extract_single_file(meta["file_id"], "wem", meta["lang_id"])
             else:
@@ -2484,7 +2506,7 @@ class AudioBrowserBridge(QObject):
         try:
 
             if meta["type"] == "wem":
-                indexer = PCKIndexer(meta["pck_path"])
+                indexer = PCKIndexer(self._pristine_read_path(meta["pck_path"]))
                 indexer.build_index()
                 wem_bytes = indexer.extract_single_file(meta["file_id"], "wem", meta["lang_id"])
                 file_id = meta["file_id"]

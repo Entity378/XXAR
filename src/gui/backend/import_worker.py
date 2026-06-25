@@ -239,7 +239,7 @@ class ImportWorker(BaseWorker):
                 for file_id in file_id_to_pck:
                     game_pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
 
-                    if bnk_id:
+                    if bnk_id is not None:
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{file_id}.wem'
                         bnk_key = f"{bnk_id}.bnk"
@@ -262,7 +262,7 @@ class ImportWorker(BaseWorker):
                         'wem_file': wem_relative,
                         'sound_name': '',
                         'lang_id': lang_id,
-                        'file_type': 'bnk' if bnk_id else 'wem'
+                        'file_type': 'bnk' if bnk_id is not None else 'wem'
                     }
 
                 for pck_name, pck_files_map in replacements.items():
@@ -363,7 +363,7 @@ class ImportWorker(BaseWorker):
                     if file_id in file_id_to_pck:
                         pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
                         priority_str = self._priority_suffix(priority)
-                        location_str = f" in BNK {bnk_id}" if bnk_id else ""
+                        location_str = f" in BNK {bnk_id}" if bnk_id is not None else ""
                         self.progress.emit(f"File {file_id} -> {pck_name}{priority_str}{location_str} (lang {lang_id})")
                     else:
                         all_game_pcks = [i.relative_to(game_audio_dir) for i in game_audio_dir.rglob('*.pck')]
@@ -387,7 +387,7 @@ class ImportWorker(BaseWorker):
                         lang_id = 0
                         self.progress.emit(f"Warning: File ID {file_id} not found in any game PCK")
 
-                    if bnk_id:
+                    if bnk_id is not None:
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{file_id}.wem'
                         bnk_key = f"{bnk_id}.bnk"
@@ -408,7 +408,7 @@ class ImportWorker(BaseWorker):
                         'wem_file': wem_relative,
                         'sound_name': '',
                         'lang_id': lang_id,
-                        'file_type': 'bnk' if bnk_id else 'wem'
+                        'file_type': 'bnk' if bnk_id is not None else 'wem'
                     }
 
                 self.progress.emit(f"Processed {len(files)} WEM files into {len(replacements)} PCK(s)")

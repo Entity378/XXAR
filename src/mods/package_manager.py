@@ -1074,7 +1074,7 @@ class ModPackageManager:
                     actual_file_id = str(tracker_key).split('|')[1] if '|' in str(tracker_key) else str(tracker_key)
 
                     bnk_id = file_info.get('bnk_id')
-                    if bnk_id:
+                    if bnk_id is not None:
                         bnk_key = f"{bnk_id}.bnk"
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{actual_file_id}.wem'
