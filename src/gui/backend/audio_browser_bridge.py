@@ -1122,7 +1122,7 @@ class AudioBrowserBridge(QObject):
                             existing_wem_ids.add(p_wem_id)
 
                             data_key = f"wem_embedded:{bnk_data['pck_path']}:{bnk_data['file_id']}:{p_wem_id}"
-                            self._item_data[data_key] = {
+                            p_item_meta = {
                                 "type": "wem_embedded",
                                 "wem_id": p_wem_id,
                                 "bnk_id": bnk_data["file_id"],
@@ -1132,12 +1132,32 @@ class AudioBrowserBridge(QObject):
                                 "source_pck_path": str(patch_path),
                                 "source_override": override_name,
                             }
+                            # The patch BNK only carries the prefetch; pair it with the full streamed copy so playback isn't truncated.
+                            p_streaming = streaming_wem_data.get(p_wem_id) if self.merge_wem_enabled else None
+                            p_display_size = p_wem_info["size"]
+                            p_is_merged = False
+                            if p_streaming:
+                                p_streamed_wem, p_streamed_pck_path = p_streaming
+                                p_item_meta["streaming_wem"] = p_streamed_wem
+                                p_item_meta["streaming_pck_path"] = p_streamed_pck_path
+                                if p_streamed_wem["size"] > p_wem_info["size"]:
+                                    p_display_size = p_streamed_wem["size"]
+                                    p_is_merged = True
+                            self._item_data[data_key] = p_item_meta
 
                             tag_text = ""
                             duration_text = ""
                             display_name = f"{p_wem_id}.wem"
                             try:
-                                p_wem_bytes = patch_bnk_indexer.extract_wem(p_wem_id)
+                                if p_streaming:
+                                    p_streamed_wem, p_streamed_pck_path = p_streaming
+                                    p_streaming_indexer = PCKIndexer(p_streamed_pck_path)
+                                    p_streaming_indexer.build_index()
+                                    p_wem_bytes = p_streaming_indexer.extract_single_file(
+                                        p_streamed_wem["id"], "wem", p_streamed_wem["lang_id"]
+                                    )
+                                else:
+                                    p_wem_bytes = patch_bnk_indexer.extract_wem(p_wem_id)
                                 duration_text = self._get_wem_duration(p_wem_bytes)
                                 sound_info = self._lookup_sound_info(p_wem_bytes, p_wem_id)
                                 if sound_info:
@@ -1153,10 +1173,10 @@ class AudioBrowserBridge(QObject):
                             items.append({
                                 "fileName": display_name,
                                 "itemId": str(p_wem_id),
-                                "fileSize": self._format_size(p_wem_info["size"]),
+                                "fileSize": self._format_size(p_display_size),
                                 "duration": duration_text,
                                 "itemType": "WEM",
-                                "merged": False,
+                                "merged": p_is_merged,
                                 "tags": tag_text,
                                 "hasChildren": False,
                                 "depth": 2,
@@ -3250,7 +3270,8 @@ class AudioBrowserBridge(QObject):
         return result
 
     def _get_streaming_streamed_wem_index(self):
-        # Cached {wem_id: (sw, pck_path)} for every StreamingAssets streamed WEM (all languages), for merge pairing.
+        # Cached {wem_id: (sw, pck_path)} of every streamed WEM available for merge pairing.
+        # Covers StreamingAssets Streamed_*.pck plus the Patch/Hotfix sounds tables.
         if not self.game_root_dir:
             return {}
         cache_key = str(self.game_root_dir)
@@ -3267,6 +3288,16 @@ class AudioBrowserBridge(QObject):
                     continue
                 for streamed_wem in index.get("sounds", []) + index.get("externals", []):
                     result.setdefault(streamed_wem["id"], (streamed_wem, str(pck_file)))
+            # The full streamed copy of new patch content lives only inside Patch.pck.
+            # Index it so a Patch BNK prefetch pairs with the full WEM, not the ~0.5s prefetch.
+            persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
+            for patch_path, _override_name in find_patch_pck_sources(persistent_root, game):
+                try:
+                    index = PCKIndexer(str(patch_path)).build_index()
+                except Exception:
+                    continue
+                for streamed_wem in index.get("sounds", []) + index.get("externals", []):
+                    result.setdefault(streamed_wem["id"], (streamed_wem, str(patch_path)))
         except Exception as e:
             logger.error(f"[Browser] Streamed WEM index scan failed: {e}")
         self._streaming_streamed_index_key = cache_key

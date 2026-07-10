@@ -11,9 +11,14 @@ END_MARKER_ID = 0x5BBBD648
 
 VOLUME_PROP_ID = 0x00
 
+# Timings that differ by less than this slack count as equal, absorbing sub-ms rounding.
+# It stays far below the hundreds-of-ms gap that marks a loop-with-tail segment.
+_CONCAT_TOLERANCE_MS = 2.0
+
 # AkTrackSrcInfo layout (44 bytes per item).
 # Fields: trackID(4) + sourceID(4) + eventID(4) + fPlayAt(8) + fBeginTrimOffset(8) + fEndTrimOffset(8) + fSrcDuration(8).
 _TRACK_SRC_INFO_SIZE = 44
+_TRACK_SRC_PLAY_AT_OFFSET_IN_ITEM = 12   # offset of fPlayAt within a playlist item
 _TRACK_SRC_DURATION_OFFSET_IN_ITEM = 36  # offset of fSrcDuration within a playlist item
 
 # AkBankSourceData layout (14 bytes per source).
@@ -26,7 +31,8 @@ _SOURCE_ID_OFFSET_IN_SOURCE = 5  # after pluginID(4) + streamType(1)
 class TrackPatchInfo:
     source_id: int
     fSrcDuration_offset: int
-    clear_region_offset: int  # start of eventID+fPlayAt+fBeginTrim+fEndTrim (28 bytes to zero)
+    fPlayAt_offset: int
+    clear_region_offset: int  # eventID offset; eventID and trims are cleared, fPlayAt between them is kept
 
 
 @dataclass
@@ -45,6 +51,7 @@ class SegmentPatchInfo:
     fDuration_offset: int
     end_marker_fPos_offset: int
     associated_source_ids: set = field(default_factory=set)
+    member_clips: list = field(default_factory=list)  # TrackPatchInfo of the segment's clips (for timeline re-timing)
 
 
 @dataclass
@@ -71,6 +78,7 @@ def scan_bank_for_patch_targets(content, source_ids):
 
         section_tracks = []
         track_obj_to_sources = {}  # track_obj_id -> set of its source_ids
+        track_obj_to_clips = {}    # track_obj_id -> list of its TrackPatchInfo clips
         section_segment_candidates = []
 
         for _ in range(num_objects):
@@ -93,6 +101,7 @@ def scan_bank_for_patch_targets(content, source_ids):
                     track_obj_to_sources[track_obj_id] = {
                         p.source_id for p in patches
                     }
+                    track_obj_to_clips[track_obj_id] = list(patches)
 
             elif obj_type == HIRC_TYPE_MUSIC_SEGMENT:
                 seg_info = _parse_music_segment(content, obj_data_start, obj_size)
@@ -117,11 +126,14 @@ def scan_bank_for_patch_targets(content, source_ids):
             node_params_end = seg_info.fDuration_offset - seg_data_start
             seg_node_data = content[seg_data_start : seg_data_start + node_params_end]
             associated = set()
+            member_clips = []
             for tid_bytes, tid in track_id_bytes_map.items():
                 if tid_bytes in seg_node_data:
                     associated.update(track_obj_to_sources.get(tid, set()))
+                    member_clips.extend(track_obj_to_clips.get(tid, []))
             if associated:
                 seg_info.associated_source_ids = associated
+                seg_info.member_clips = member_clips
                 all_segments.append(seg_info)
 
         all_tracks.extend(section_tracks)
@@ -190,45 +202,82 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
     patched_offsets = 0
     patched_source_ids = set()
 
-    _zero_28 = b"\x00" * 28
+    # Snapshot each clip's original fPlayAt and fSrcDuration before pass 1 overwrites them.
+    original_timings = {}  # clear_region_offset -> (old_fPlayAt, old_fSrcDuration)
     for track in targets.tracks:
-        dur = duration_ms_by_source.get(track.source_id)
-        if dur is None:
-            continue
-        dur_bytes = struct.pack("<d", float(dur))
+        if track.source_id in duration_ms_by_source:
+            original_timings[track.clear_region_offset] = (
+                struct.unpack_from("<d", content, track.fPlayAt_offset)[0],
+                struct.unpack_from("<d", content, track.fSrcDuration_offset)[0],
+            )
 
-        existing = bytes(content[track.clear_region_offset : track.clear_region_offset + 36])
-        if existing[:28] == _zero_28 and existing[28:] == dur_bytes:
+    # Pass 1 clears eventID and trims and sets fSrcDuration, but preserves fPlayAt.
+    # Zeroing fPlayAt collapses intro+loop clips onto t=0 and makes them overlap.
+    event_id_zeros = b"\x00\x00\x00\x00"
+    trim_zeros = b"\x00" * 16
+    for track in targets.tracks:
+        new_duration = duration_ms_by_source.get(track.source_id)
+        if new_duration is None:
             continue
-
-        content[track.clear_region_offset : track.clear_region_offset + 28] = _zero_28
-        content[track.clear_region_offset + 28 : track.clear_region_offset + 36] = dur_bytes
+        clear_offset = track.clear_region_offset
+        event_id = slice(clear_offset, clear_offset + 4)
+        trims = slice(clear_offset + 12, clear_offset + 28)
+        src_duration = slice(track.fSrcDuration_offset, track.fSrcDuration_offset + 8)
+        duration_bytes = struct.pack("<d", float(new_duration))
+        if (content[event_id] == event_id_zeros
+                and content[trims] == trim_zeros
+                and content[src_duration] == duration_bytes):
+            continue
+        content[event_id] = event_id_zeros
+        content[trims] = trim_zeros
+        content[src_duration] = duration_bytes
         patched_offsets += 1
         patched_source_ids.add(track.source_id)
 
-    for seg in targets.segments:
-        seg_dur = max(
-            (
-                duration_ms_by_source[sid]
-                for sid in seg.associated_source_ids
-                if sid in duration_ms_by_source
-            ),
-            default=0,
-        )
-        if seg_dur <= 0:
-            continue
-        dur_bytes = struct.pack("<d", float(seg_dur))
-
-        existing_dur = bytes(content[seg.fDuration_offset : seg.fDuration_offset + 8])
-        existing_marker = bytes(content[seg.end_marker_fPos_offset : seg.end_marker_fPos_offset + 8])
-
-        if existing_dur == dur_bytes and existing_marker == dur_bytes:
+    # Pass 2 re-times clips and recomputes duration only for clean concatenations.
+    # Loop-with-tail segments keep their musical fDuration and every fPlayAt untouched.
+    for segment in targets.segments:
+        clip_timings = []  # (clip, old_fPlayAt, old_duration, new_duration)
+        for clip in segment.member_clips:
+            new_duration = duration_ms_by_source.get(clip.source_id)
+            if new_duration is None or clip.clear_region_offset not in original_timings:
+                continue
+            old_play_at, old_duration = original_timings[clip.clear_region_offset]
+            clip_timings.append((clip, old_play_at, old_duration, float(new_duration)))
+        if not clip_timings:
             continue
 
-        content[seg.fDuration_offset : seg.fDuration_offset + 8] = dur_bytes
-        content[seg.end_marker_fPos_offset : seg.end_marker_fPos_offset + 8] = dur_bytes
-        patched_offsets += 1
-        patched_source_ids.update(seg.associated_source_ids)
+        old_timeline_end = max(play_at + duration for _, play_at, duration, _ in clip_timings)
+        old_segment_duration = struct.unpack_from("<d", content, segment.fDuration_offset)[0]
+        if abs(old_segment_duration - old_timeline_end) > _CONCAT_TOLERANCE_MS:
+            continue  # loop-with-tail: leave untouched
+
+        segment_changed = False
+        new_clip_ends = []
+        for clip, old_play_at, _, new_duration in clip_timings:
+            # Shift this clip by the total growth of the clips that finish before it starts.
+            shift = sum(
+                other_new - other_old
+                for other, other_at, other_old, other_new in clip_timings
+                if other is not clip and other_at + other_old <= old_play_at + _CONCAT_TOLERANCE_MS
+            )
+            new_play_at = old_play_at + shift
+            if abs(new_play_at - old_play_at) > 1e-6:
+                struct.pack_into("<d", content, clip.fPlayAt_offset, new_play_at)
+                patched_offsets += 1
+                segment_changed = True
+            new_clip_ends.append(new_play_at + new_duration)
+
+        new_segment_duration = max(new_clip_ends)
+        old_marker_pos = struct.unpack_from("<d", content, segment.end_marker_fPos_offset)[0]
+        if abs(new_segment_duration - old_segment_duration) > 1e-6 or abs(new_segment_duration - old_marker_pos) > 1e-6:
+            struct.pack_into("<d", content, segment.fDuration_offset, new_segment_duration)
+            struct.pack_into("<d", content, segment.end_marker_fPos_offset, new_segment_duration)
+            patched_offsets += 1
+            segment_changed = True
+
+        if segment_changed:
+            patched_source_ids.update(clip.source_id for clip, *_ in clip_timings)
 
     return {
         "patched_offsets": patched_offsets,
@@ -332,6 +381,7 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
                 TrackPatchInfo(
                     source_id=pl_source_id,
                     fSrcDuration_offset=p + _TRACK_SRC_DURATION_OFFSET_IN_ITEM,
+                    fPlayAt_offset=p + _TRACK_SRC_PLAY_AT_OFFSET_IN_ITEM,
                     clear_region_offset=p + 8,  # eventID(4)+fPlayAt(8)+fBeginTrim(8)+fEndTrim(8) = 28 bytes
                 )
             )
