@@ -869,7 +869,10 @@ class AudioBrowserBridge(QObject):
             if pck_base_name.endswith(BACKUP_SUFFIX):
                 pck_base_name = pck_base_name[:-len(BACKUP_SUFFIX)]
             is_protected_source = pck_base_name in self._active_game().protected_pcks
-            orphan_ids = set(self._get_orphan_patch_bnks().keys()) if is_protected_source else set()
+            orphan_ids = {
+                info["bnk_id"] for info in self._get_orphan_patch_bnks().values()
+                if info["path"] == pck_path
+            } if is_protected_source else set()
 
             items = []
 
@@ -3202,7 +3205,8 @@ class AudioBrowserBridge(QObject):
             logger.exception("unhandled")
 
     def _get_patch_pck_wems_by_bnk(self):
-        # Cached per game_root: {bnk_id: {wem_id: (override_name, lang_id)}} from Persistent overrides.
+        # Cached per game_root: {(patch_path, bnk_id): {wem_id: (override_name, lang_id)}} from Persistent overrides.
+        # Keyed by path too so the same bnk_id in each language's Patch.pck stays separate (VO differs per language).
         if not self.game_root_dir:
             return {}
         cache_key = str(self.game_root_dir)
@@ -3229,7 +3233,7 @@ class AudioBrowserBridge(QObject):
                         pbi.parse_didx()
                     except Exception:
                         continue
-                    bnk_map = result.setdefault(bank["id"], {})
+                    bnk_map = result.setdefault((str(patch_path), bank["id"]), {})
                     for wem in pbi.wem_list:
                         bnk_map.setdefault(
                             wem["wem_id"], (override_name, bank["lang_id"])
@@ -3241,7 +3245,7 @@ class AudioBrowserBridge(QObject):
         return result
 
     def _get_orphan_patch_bnks(self):
-        # {bnk_id: {"path", "lang_id", "override"}} for Patch/Hotfix BNKs absent from every SoundBank pck.
+        # {(path, bnk_id): {...}} for Patch/Hotfix BNKs absent from every SoundBank pck; keyed by path so each language's copy of a shared bnk_id is kept.
         # "path" is the pristine source (backup preferred) for reading; "override" is the live name (Patch.pck) for staging.
         if not self.game_root_dir:
             return {}
@@ -3260,9 +3264,10 @@ class AudioBrowserBridge(QObject):
                 except Exception:
                     continue
                 for bank in banks:
-                    if bank["id"] in counterpart_ids or bank["id"] in result:
+                    bank_key = (str(patch_path), bank["id"])
+                    if bank["id"] in counterpart_ids or bank_key in result:
                         continue
-                    result[bank["id"]] = {"path": str(patch_path), "lang_id": bank.get("lang_id", 0), "override": override_name}
+                    result[bank_key] = {"path": str(patch_path), "bnk_id": bank["id"], "lang_id": bank.get("lang_id", 0), "override": override_name}
         except Exception as e:
             logger.error(f"[Browser] Orphan Patch.pck scan failed: {e}")
         self._orphan_bnks_cache_key = cache_key
@@ -3310,23 +3315,26 @@ class AudioBrowserBridge(QObject):
         if not patch_map:
             logger.warning("[Search Index] No Patch.pck banks found (patch_map empty) - Patch.pck sounds will NOT be searchable")
             return
+        patch_bnk_ids = {bnk_id for (_path, bnk_id) in patch_map}
         bnk_to_streaming_pck = {}
         for fid, locs in index_dict.items():
             for loc in locs:
-                if loc.get("type") == "bnk" and fid in patch_map:
+                if loc.get("type") == "bnk" and fid in patch_bnk_ids:
                     bnk_to_streaming_pck.setdefault(fid, loc["pck_path"])
                     break
         orphan_bnks = self._get_orphan_patch_bnks()
+        orphan_keys = set(orphan_bnks.keys())
         # Index the orphan BNK ids themselves; they have no SoundBank entry.
         # Without this, searching a Patch.pck-only bnk id finds nothing even though the tree lists it.
-        for bnk_id, orphan in orphan_bnks.items():
+        for orphan in orphan_bnks.values():
+            bnk_id = orphan["bnk_id"]
             locs = index_dict.setdefault(bnk_id, [])
             if not any(l.get("type") == "bnk" and l.get("pck_path") == orphan["path"] for l in locs):
                 locs.append({"pck_path": orphan["path"], "type": "bnk", "lang_id": orphan.get("lang_id", 0)})
-        for bnk_id, wems in patch_map.items():
-            orphan = orphan_bnks.get(bnk_id)
+        for (patch_path, bnk_id), wems in patch_map.items():
+            is_orphan = (patch_path, bnk_id) in orphan_keys
             # Counterpart-present BNKs map to their SoundBank; orphans map to the Patch source so search reaches them.
-            target_pck = bnk_to_streaming_pck.get(bnk_id) or (orphan["path"] if orphan else None)
+            target_pck = bnk_to_streaming_pck.get(bnk_id) or (patch_path if is_orphan else None)
             if not target_pck:
                 continue
             for wem_id, (override_name, lang_id) in wems.items():
