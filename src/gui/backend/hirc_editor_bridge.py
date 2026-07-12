@@ -1206,6 +1206,82 @@ class HircEditorBridge(QObject):
         if filename:
             self.thumbnailPathSelected.emit(filename)
 
+    @pyqtSlot()
+    def browseAndImportMod(self):
+        filename = NativeDialogs.get_open_file(
+            "Import Mod for Editing",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="import_mod",
+        )
+        if filename:
+            self.importModForEditing(filename)
+
+    @pyqtSlot(str)
+    def importModForEditing(self, mod_path):
+        # Rebuild the draft from a HIRC-editor mod package, replacing the current draft.
+        # Plain replacement mods belong in the Browser and are refused here.
+        import tempfile
+        import zipfile
+        from src.mods.package_manager import ModPackageManager, is_hirc_mod
+        try:
+            mgr = ModPackageManager(game_id=self._current_game_id())
+            metadata = mgr.validate_mod_package(mod_path)
+        except Exception as e:
+            self.errorOccurred.emit("Import", f"Not a valid mod package:\n{e}")
+            return
+        if not is_hirc_mod(metadata):
+            self.errorOccurred.emit(
+                "Wrong mod type",
+                "This is a standard audio-replacement mod, not a HIRC edit.\n"
+                "Import it from the Browser instead.",
+            )
+            return
+
+        tmp = Path(tempfile.mkdtemp(prefix="hirc_import_"))
+        try:
+            with zipfile.ZipFile(mod_path) as zf:
+                zf.extractall(tmp)
+            # Replace-always: clear the current draft (and its staged WEMs) before rebuilding.
+            self.resetDraft()
+            d = self._get_draft()
+            wem_dir = get_game_hirc_draft_wem_dir(self._current_game_id())
+            wem_dir.mkdir(parents=True, exist_ok=True)
+
+            media_adds = []
+            for pck_name, entries in mgr._normalize_metadata_replacements(metadata).items():
+                for info in entries.values():
+                    if not info.get("is_add"):
+                        continue
+                    file_id = str(info.get("file_id", "")).strip()
+                    rel = info.get("wem_file", "")
+                    src = tmp / rel if rel else None
+                    if not file_id or src is None or not src.exists():
+                        logger.warning(f"[HIRC Editor] Skipping add {pck_name}/{file_id}: WEM missing in package")
+                        continue
+                    dest = wem_dir / f"{file_id}.wem"
+                    shutil.copy2(src, dest)
+                    media_adds.append({
+                        "pck_name": pck_name,
+                        "wem_id": int(file_id),
+                        "wem_path": str(dest),
+                        "lang_id": int(info.get("lang_id", 0)),
+                        "source_name": info.get("sound_name", ""),
+                    })
+
+            d["media_adds"] = media_adds
+            d["track_patches"] = [dict(p) for p in (metadata.get("hirc_patches") or [])]
+            self._save_draft()
+            self._emit_draft_count()
+            self.statusUpdate.emit(
+                f"Imported '{metadata.get('name', 'mod')}' for editing "
+                f"({self._draft_count()} change(s))."
+            )
+        except Exception as e:
+            logger.exception("[HIRC Editor] Import for editing failed")
+            self.errorOccurred.emit("Import Error", f"Failed to import mod:\n{e}")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     @pyqtSlot(str, str, str, str, str)
     def createModPackage(self, name, author, version, description, thumbnail_path):
         d = self._get_draft()

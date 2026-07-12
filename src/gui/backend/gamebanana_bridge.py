@@ -3,6 +3,7 @@ import os
 import re
 import ssl
 import tempfile
+import time
 import traceback
 import urllib.error
 import urllib.parse
@@ -75,6 +76,11 @@ def _thumb_dir():
 _cache: dict = {}
 _cache_dirty = False
 
+# Sections whose GameBanana values can change (XXAR-support flags, thumbnails); expired on read so they re-fetch.
+# Structural sections (file archive trees, url->id) are immutable facts and kept forever.
+_VOLATILE_SECTIONS = ("mod_support", "mod_support_misc", "mod_thumbnail", "thumbnails")
+_CACHE_TTL_SECONDS = 24 * 3600
+
 
 def _load_cache():
     global _cache
@@ -98,13 +104,32 @@ def _save_cache():
 
 
 def _cache_get(section: str, mod_id: int):
-    return _cache.get(section, {}).get(str(mod_id))
+    entry = _cache.get(section, {}).get(str(mod_id))
+    if section not in _VOLATILE_SECTIONS:
+        return entry
+    # Volatile entries are wrapped {"v", "ts"}; legacy flat and expired ones read as absent so they re-fetch.
+    if not isinstance(entry, dict) or "ts" not in entry:
+        return None
+    if time.time() - entry["ts"] > _CACHE_TTL_SECONDS:
+        return None
+    return entry["v"]
 
 
 def _cache_set(section: str, mod_id: int, value):
     global _cache_dirty
+    if section in _VOLATILE_SECTIONS:
+        value = {"v": value, "ts": time.time()}
     _cache.setdefault(section, {})[str(mod_id)] = value
     _cache_dirty = True
+
+
+def _cache_clear_volatile():
+    # Drop the changeable sections so the next fetch re-evaluates support flags and thumbnails.
+    global _cache_dirty
+    for section in _VOLATILE_SECTIONS:
+        if _cache.pop(section, None) is not None:
+            _cache_dirty = True
+    _save_cache()
 
 
 _load_cache()
@@ -1516,5 +1541,6 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot()
     def refresh(self):
-
+        # A manual Refresh busts the volatile cache so badges/thumbnails/misc membership re-evaluate now.
+        _cache_clear_volatile()
         self.fetchMods(self.current_page, self.current_sort)

@@ -60,7 +60,7 @@ from src.gui.backend.audio_games import (
 from src.gui.backend.update_manager_bridge import _urlopen
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.mod_relinker import relink_tracker
-from src.mods.package_manager import ModPackageManager
+from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay
 from src.wwise.bnk_indexer import BNKIndexer
@@ -3064,12 +3064,21 @@ class AudioBrowserBridge(QObject):
         try:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Importing %1 mod for editing...").replace("%1", app_config.MOD_FILE_EXT))
 
+            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
+            metadata = mod_pkg.validate_mod_package(mod_path)
+
+            # HIRC-editor mods carry track patches the Browser can't represent; refuse before touching current changes.
+            if is_hirc_mod(metadata):
+                self.statusUpdate.emit("")
+                self.errorOccurred.emit(
+                    QCoreApplication.translate("Application", "Wrong mod type"),
+                    QCoreApplication.translate("Application", "This mod contains HIRC edits.\nImport it from the HIRC Editor instead."),
+                )
+                return
+
             if self.mod_manager.get_all_replacements():
                 logger.info("[Audio Browser] Clearing existing changes before importing new mod")
                 self.mod_manager.clear_all_replacements()
-
-            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
-            metadata = mod_pkg.validate_mod_package(mod_path)
 
             mod_name = metadata.get('name', 'Unknown')
             mod_author = metadata.get('author', 'Unknown')

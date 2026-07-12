@@ -1096,6 +1096,9 @@ class ModManagerBridge(QObject):
                         for audio_key in _AUDIO_SETTING_KEYS:
                             if audio_key in file_info:
                                 entry[audio_key] = file_info[audio_key]
+                        # HIRC-editor mods add a new WEM id; keep the flag or apply won't guard the add.
+                        if file_info.get('is_add'):
+                            entry['is_add'] = True
                         current_replacements[pck_name][tracker_key] = entry
 
             export_metadata = {
@@ -1106,11 +1109,13 @@ class ModManagerBridge(QObject):
             }
 
             self.progressUpdate.emit(f"Exporting {mod_name}...")
+            # Forward the HIRC track patches so re-export round-trips an editor mod, not a bare WEM add.
             self.mod_package_manager.create_mod_package(
                 save_path,
                 export_metadata,
                 current_replacements,
-                thumbnail_path
+                thumbnail_path,
+                hirc_patches=full_metadata.get('hirc_patches')
             )
 
             logger.info(f"[Mod Manager] Mod exported successfully to: {save_path}")

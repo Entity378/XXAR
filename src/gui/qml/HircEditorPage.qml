@@ -25,6 +25,7 @@ Item {
     signal editTrackVolumeRequested(string pckName, var bnkId, var trackObjId, string value)
     signal editRemapTargetRequested(string pckName, var bnkId, var trackObjId, string slot, var index, string value)
     signal applyAllRequested()
+    signal importModForEditingRequested()
     signal exportModRequested()
     signal resetDraftRequested()
     signal browseThumbnailRequested()
@@ -1203,6 +1204,10 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.spacingSmall
 
+                    XXARButton {
+                        text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
+                        onClicked: hircEditorPage.importModForEditingRequested()
+                    }
                     XXARButton {
                         text: hircEditorPage.draftCount > 0
                               ? qsTranslate("Application", "Show Changes (%1)").arg(hircEditorPage.draftCount)

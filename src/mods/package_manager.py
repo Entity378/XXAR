@@ -76,6 +76,27 @@ def count_replacements(metadata):
     return total
 
 
+def is_hirc_mod(metadata):
+    # A HIRC-editor mod carries track patches or new-WEM adds; a plain replacement mod has neither.
+    # Used to route imports: HIRC mods edit in the HIRC Editor, plain mods edit in the Browser.
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get('hirc_patches'):
+        return True
+    for pck_entries in (metadata.get('replacements') or {}).values():
+        if not isinstance(pck_entries, dict):
+            continue
+        for value in pck_entries.values():
+            if not isinstance(value, dict):
+                continue
+            if value.get('is_add'):
+                return True
+            for info in value.values():
+                if isinstance(info, dict) and info.get('is_add'):
+                    return True
+    return False
+
+
 def _extract_audio_settings(file_info):
     # Only non-default fields, so old mods stay absent from metadata.json.
     result = {}
