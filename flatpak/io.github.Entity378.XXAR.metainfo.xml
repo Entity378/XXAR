@@ -50,6 +50,17 @@
   </requires>
 
   <releases>
+    <release version="0.10.0" date="2026-07-12">
+      <description>
+        <p>HIRC Editor mod import, Patch.pck browser fix, and quality-of-life improvements.</p>
+        <ul>
+          <li>HIRC Editor can now import a mod package to keep editing it, and re-exports keep its track patches intact</li>
+          <li>The Browser lists Patch.pck under every language folder instead of only the first</li>
+          <li>The Mod Manager mod list now has a scrollbar</li>
+          <li>The GameBanana mod list cache now refreshes instead of staying stale forever</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.9.10" date="2026-06-25">
       <description>
         <p>Voice mod and Patch.pck fixes.</p>
