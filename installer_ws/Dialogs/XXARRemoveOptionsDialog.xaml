@@ -1,5 +1,5 @@
 <wixsharp:WpfDialog
-    x:Class="XXAR.Installer.Dialogs.XXARProgressDialog"
+    x:Class="XXAR.Installer.Dialogs.XXARRemoveOptionsDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:wixsharp="clr-namespace:WixSharp.UI.WPF;assembly=WixSharp.UI.WPF"
@@ -20,6 +20,7 @@
             <RowDefinition Height="53" />
         </Grid.RowDefinitions>
 
+        <!-- Header -->
         <Border Grid.Row="0" Background="#0A0B28"
                 BorderBrush="{DynamicResource XXARAccentBrush}" BorderThickness="0,0,0,1">
             <Grid Margin="20,0">
@@ -28,10 +29,10 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock x:Name="DialogTitleLabel" Text="[ProgressDlgTitleInstalling]"
+                    <TextBlock Text="Uninstall XXAR"
                                Foreground="{DynamicResource XXARTextPrimaryBrush}"
                                FontSize="13" FontWeight="SemiBold" />
-                    <TextBlock x:Name="DialogDescription" Text="[ProgressDlgTextInstalling]"
+                    <TextBlock Text="Choose what to remove, then click Uninstall."
                                Foreground="{DynamicResource XXARTextSecondaryBrush}"
                                FontSize="11" Margin="0,2,0,0" />
                 </StackPanel>
@@ -43,32 +44,33 @@
             </Grid>
         </Border>
 
+        <!-- Options -->
         <StackPanel Grid.Row="1" Margin="20,24,20,10">
-            <StackPanel Orientation="Horizontal" MinHeight="20">
-                <TextBlock x:Name="CurrentStatus" Text="[ProgressDlgStatusLabel]"
-                           Foreground="{DynamicResource XXARTextSecondaryBrush}" FontSize="12" />
-                <TextBlock Text="{Binding CurrentAction}"
+            <TextBlock Text="XXAR and its downloaded tools and caches will be removed from this computer."
+                       Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                       FontSize="12" TextWrapping="Wrap" Margin="0,0,0,18" />
+
+            <CheckBox x:Name="PurgeUserData" Foreground="{DynamicResource XXARTextSecondaryBrush}">
+                <TextBlock Text="Also remove my mods and settings"
                            Foreground="{DynamicResource XXARTextPrimaryBrush}"
-                           FontSize="12" Margin="6,0,0,0" />
-            </StackPanel>
-            <ProgressBar Height="8" Margin="0,12,0,0" Maximum="100"
-                         Value="{Binding ProgressValue}"
-                         Background="#0E1030"
-                         Foreground="{DynamicResource XXARAccentBrush}"
-                         BorderBrush="{DynamicResource XXARBorderBrush}"
-                         BorderThickness="1" />
+                           FontSize="12" TextWrapping="Wrap" />
+            </CheckBox>
+            <TextBlock Text="Your mod library and configuration will be permanently deleted. Leave unchecked to keep them for a future reinstall."
+                       Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                       FontSize="11" TextWrapping="Wrap" Margin="24,4,0,0" />
         </StackPanel>
 
+        <!-- Button bar -->
         <Border Grid.Row="2" Background="#080922"
                 BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center" Margin="0,0,20,0">
                 <Button x:Name="GoPrev" Content="[WixUIBack]"
                         Style="{StaticResource XXARSecondaryButton}"
-                        IsEnabled="False" Margin="4,0" />
-                <Button x:Name="GoNext" Content="[WixUINext]"
+                        Click="GoPrev_Click" Margin="4,0" />
+                <Button x:Name="Uninstall" Content="Uninstall"
                         Style="{StaticResource XXARPrimaryButton}"
-                        IsEnabled="False" Margin="4,0" />
+                        Click="Uninstall_Click" Margin="4,0" />
                 <Button x:Name="Cancel" Content="[WixUICancel]"
                         Style="{StaticResource XXARSecondaryButton}"
                         Click="Cancel_Click" Margin="12,0,0,0" />

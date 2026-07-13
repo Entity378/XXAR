@@ -36,6 +36,7 @@ namespace XXAR.Installer
 
                 ModifyDialogs = new ManagedDialogs()
                     .Add<XXARMaintenanceTypeDialog>()
+                    .Add<XXARRemoveOptionsDialog>()
                     .Add<XXARProgressDialog>()
                     .Add<XXARExitDialog>(),
             };
