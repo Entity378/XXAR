@@ -50,7 +50,7 @@
   </requires>
 
   <releases>
-    <release version="0.10.0" date="2026-07-12">
+    <release version="1.0.0" date="2026-07-12">
       <description>
         <p>HIRC Editor mod import, Patch.pck browser fix, and quality-of-life improvements.</p>
         <ul>
