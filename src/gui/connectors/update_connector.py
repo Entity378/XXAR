@@ -8,7 +8,7 @@ from src.core.app_config import APP_NAME
 from src.core.config_manager import get_updates_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS
-from src.gui.backend.update_manager_bridge import _get_real_exe_path, _prune_stale_update_artifacts
+from src.gui.backend.update_manager_bridge import _get_real_exe_path, _is_msi_install, _prune_stale_update_artifacts
 
 logger = get_logger(__name__)
 
@@ -69,6 +69,19 @@ class UpdateConnector:
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "Update your Flatpak to the latest version:\n\n"
                            "new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases")),
+                    Q_ARG("QVariant", ""),
+                )
+        elif IS_WINDOWS and not _is_msi_install():
+            if self._startup_update_check:
+                QMetaObject.invokeMethod(
+                    self.root,
+                    "showAlertDialog",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
+                    Q_ARG("QVariant",
+                           QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
+                           "The portable build does not auto-update. Download the latest "
+                           "XXAR-windows-x64.zip from https://github.com/Entity378/XXAR/releases")),
                     Q_ARG("QVariant", ""),
                 )
         elif self._startup_update_check and self.update_dialog:
