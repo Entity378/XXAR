@@ -721,9 +721,9 @@ class AudioBrowserBridge(QObject):
 
             if cache_key in self._index_cache:
                 self.file_id_index = self._index_cache[cache_key]
-                # Defensive merge: stale caches predating Persistent/Patch.pck would otherwise drop patch-only WEMs from cross-tab search.
+                # Restored caches may predate Persistent/Patch.pck; re-merge this tab's own Patch.pck so its WEMs stay searchable.
                 try:
-                    self._merge_patch_entries_into_index(self.file_id_index)
+                    self._merge_patch_entries_into_index(self.file_id_index, self._current_directory)
                     self._index_cache[cache_key] = self.file_id_index
                 except Exception as e:
                     logger.error(f"[Browser] Patch.pck index merge on restore failed: {e}")
@@ -3318,12 +3318,32 @@ class AudioBrowserBridge(QObject):
         self._streaming_streamed_wem_index = result
         return result
 
-    def _merge_patch_entries_into_index(self, index_dict):
-        # Map patch-unique WEM ids to the StreamingAssets SoundBank that hosts the same bnk_id.
+    def _merge_patch_entries_into_index(self, index_dict, tab_directory):
+        # Surface a tab's own Patch.pck WEMs in its search index, mapped to a SoundBank in the same folder.
+        # Persistent mirrors StreamingAssets, so a Patch.pck merges only into the tab whose folder it shares.
         patch_map = self._get_patch_pck_wems_by_bnk()
         if not patch_map:
             logger.warning("[Search Index] No Patch.pck banks found (patch_map empty) - Patch.pck sounds will NOT be searchable")
             return
+        game = self._active_game()
+        # Normalised streaming/persistent audio roots; a folder is identified by its subpath under whichever root holds it.
+        norm_roots = []
+        if getattr(self, "_audio_root", None):
+            norm_roots.append(os.path.normcase(os.path.abspath(str(self._audio_root))))
+        for subpath in (game.game_audio_subpath, game.persistent_audio_subpath):
+            norm_roots.append(os.path.normcase(os.path.abspath(str(Path(self.game_root_dir).joinpath(*subpath)))))
+
+        def folder_key(path):
+            # Relative subpath of `path` under its audio root; a Persistent Patch.pck and its mirrored tab folder match here.
+            target = os.path.normcase(os.path.abspath(str(path)))
+            for root in norm_roots:
+                if target == root:
+                    return ""
+                if target.startswith(root + os.sep):
+                    return target[len(root) + 1:]
+            return None
+
+        tab_folder = folder_key(tab_directory)
         patch_bnk_ids = {bnk_id for (_path, bnk_id) in patch_map}
         bnk_to_streaming_pck = {}
         for fid, locs in index_dict.items():
@@ -3333,14 +3353,19 @@ class AudioBrowserBridge(QObject):
                     break
         orphan_bnks = self._get_orphan_patch_bnks()
         orphan_keys = set(orphan_bnks.keys())
-        # Index the orphan BNK ids themselves; they have no SoundBank entry.
+        # Index this folder's orphan BNK ids themselves; they have no SoundBank entry.
         # Without this, searching a Patch.pck-only bnk id finds nothing even though the tree lists it.
         for orphan in orphan_bnks.values():
+            if folder_key(Path(orphan["path"]).parent) != tab_folder:
+                continue
             bnk_id = orphan["bnk_id"]
             locs = index_dict.setdefault(bnk_id, [])
             if not any(l.get("type") == "bnk" and l.get("pck_path") == orphan["path"] for l in locs):
                 locs.append({"pck_path": orphan["path"], "type": "bnk", "lang_id": orphan.get("lang_id", 0)})
         for (patch_path, bnk_id), wems in patch_map.items():
+            # A Patch.pck touches only its own folder: skip banks that belong to another tab.
+            if folder_key(Path(patch_path).parent) != tab_folder:
+                continue
             is_orphan = (patch_path, bnk_id) in orphan_keys
             # Counterpart-present BNKs map to their SoundBank; orphans map to the Patch source so search reaches them.
             target_pck = bnk_to_streaming_pck.get(bnk_id) or (patch_path if is_orphan else None)
@@ -3360,7 +3385,7 @@ class AudioBrowserBridge(QObject):
                     "lang_id": lang_id,
                     "source_override": override_name,
                 })
-        logger.info(f"[Search Index] Merged Patch.pck into search: {len(patch_map)} bank(s), {len(orphan_bnks)} orphan(s) indexed")
+        logger.info(f"[Search Index] Merged '{tab_folder}' Patch.pck into search: {len(patch_map)} bank(s), {len(orphan_bnks)} orphan(s) scanned")
 
     def cancel_indexing(self):
         # Public stop for the file-index build (called on game switch / directory change).
@@ -3377,17 +3402,19 @@ class AudioBrowserBridge(QObject):
 
         self._index_cancel = threading.Event()
         cancel = self._index_cancel
+        # Snapshot the tab's folder now so a mid-build tab switch can't scope the merge to the wrong folder.
+        tab_directory = self._current_directory
 
         # Unique key per rebuild so a superseding index is never refused; the prior run sees its
         # cancel event set above and exits.
         self._index_seq = getattr(self, "_index_seq", 0) + 1
         worker = FunctionWorker(
-            lambda: self._build_index_threaded(pck_paths, cancel),
+            lambda: self._build_index_threaded(pck_paths, cancel, tab_directory),
             cancel_event=cancel,
         )
         self._workers.start(f"index:{self._index_seq}", worker)
 
-    def _build_index_threaded(self, pck_paths, cancel_event):
+    def _build_index_threaded(self, pck_paths, cancel_event, tab_directory):
 
         temp_index = {}
         for i, pck_path in enumerate(pck_paths):
@@ -3433,10 +3460,10 @@ class AudioBrowserBridge(QObject):
             except Exception:
                 pass
 
-        # Merge patch-unique WEMs into the index (cheap; the scan is already cached).
+        # Merge this tab's own Patch.pck WEMs into the index (cheap; the scan is already cached).
         if not cancel_event.is_set():
             try:
-                self._merge_patch_entries_into_index(temp_index)
+                self._merge_patch_entries_into_index(temp_index, tab_directory)
             except Exception as e:
                 logger.error(f"[Browser] Patch.pck index merge failed: {e}")
 
