@@ -63,10 +63,11 @@ from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay
+from src.wwise import patch_backup
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.override_pck_patcher import patch_override_pcks
+from src.wwise.patch_backup import BACKUP_SUFFIX
 from src.wwise.patch_target_resolver import (
-    BACKUP_SUFFIX,
     add_streamed_duplicates,
     find_patch_pck_sources,
     install_whole_patch_bnks,
@@ -380,18 +381,15 @@ class AudioBrowserBridge(QObject):
 
     def _pristine_read_path(self, pck_path):
         # Protected overrides (Patch.pck/Hotfix.pck) get their modded BNKs nulled in the live file on apply.
-        # Read the pristine source instead: the .xxar_backup when present, else the live file (itself the original).
+        # Read the pristine source instead: the state-dir backup when valid, else the live file.
         path = Path(pck_path)
-        name = path.name
-        stem = name[:-len(BACKUP_SUFFIX)] if name.endswith(BACKUP_SUFFIX) else name
-        if stem not in self._active_game().protected_pcks:
+        if path.name.endswith(BACKUP_SUFFIX):
+            return str(path)
+        if path.name not in self._active_game().protected_pcks or not self.game_root_dir:
             return pck_path
-        backup = path.with_name(stem + BACKUP_SUFFIX)
-        if backup.exists():
-            logger.info(f"[Override Read] {stem}: redirected to pristine backup ({backup.name}) instead of the nulled live file")
-            return str(backup)
-        logger.info(f"[Override Read] {stem}: no backup present, reading live (it is itself the original)")
-        return str(path.with_name(stem))
+        game = self._active_game()
+        persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
+        return patch_backup.pristine_path(path, persistent_root, game)
 
     @staticmethod
     def _normalize_game_mode(game_mode, default=DEFAULT_GAME_ID):
@@ -2205,6 +2203,7 @@ class AudioBrowserBridge(QObject):
                 patch_override_pcks(
                     persistent_path,
                     replacements,
+                    game,
                     streaming_root=streaming_base,
                     progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
                 )

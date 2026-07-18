@@ -309,7 +309,7 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_
             logger.error(f"[Persistent Originals] Failed to delete {rel}: {e}")
 
     try:
-        result["override_restored"] = restore_override_pck_backups(persistent_root)
+        result["override_restored"] = restore_override_pck_backups(persistent_root, get_game(game_id))
     except Exception as e:
         logger.error(f"[Persistent Originals] Failed to restore override backups: {e}")
 

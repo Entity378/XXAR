@@ -993,7 +993,7 @@ class ModPackageManager:
                     str(msg), total_pcks, max(total_pcks, 1)
                 )
             patch_override_pcks(
-                persistent_audio_dir, resolved,
+                persistent_audio_dir, resolved, game,
                 streaming_root=game_audio_dir,
                 progress_callback=override_cb,
             )

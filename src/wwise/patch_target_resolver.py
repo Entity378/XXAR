@@ -4,13 +4,12 @@
 from pathlib import Path
 
 from src.core.logger import get_logger
+from src.wwise import patch_backup
 from src.wwise.bnk_handler import BNKFile
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.pck_indexer import PCKIndexer
 
 logger = get_logger(__name__)
-
-BACKUP_SUFFIX = ".xxar_backup"
 
 
 def _soundbank_scan_glob(game):
@@ -34,8 +33,7 @@ def find_patch_pck_sources(persistent_root, game):
     for p in persistent_root.rglob("*.pck"):
         if p.name not in protected:
             continue
-        backup = p.with_name(p.name + BACKUP_SUFFIX)
-        sources.append((backup if backup.exists() else p, p.name))
+        sources.append((patch_backup.pristine_path(p, persistent_root, game), p.name))
     return sources
 
 
@@ -163,8 +161,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
     def _override_index():
         if not override_index_cache:
             for override_pck in persistent_overrides:
-                backup = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
-                read_path = backup if backup.exists() else override_pck
+                read_path = patch_backup.pristine_path(override_pck, persistent_root, game)
                 try:
                     override_index_cache[override_pck] = (read_path, PCKIndexer(str(read_path)).build_index())
                 except Exception as e:

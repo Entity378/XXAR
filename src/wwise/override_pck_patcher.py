@@ -8,20 +8,18 @@
 # BNK extraction done by patch_target_resolver.resolve_and_extract().
 #
 # File size of override PCKs stays identical (only 4 bytes changed per BNK).
-# Originals are backed up as .xxar_backup and restored on mod removal.
+# Originals are backed up in the state dir (see patch_backup) and restored on mod removal.
 
 import shutil
 import struct
 from pathlib import Path
 
-from src.core.game_registry import DEFAULT_GAME_ID, get_game
 from src.core.logger import get_logger
+from src.wwise import patch_backup
 from src.wwise.bnk_handler import BNKFile
 from src.wwise.pck_indexer import PCKIndexer
 
 logger = get_logger(__name__)
-
-BACKUP_SUFFIX = ".xxar_backup"
 
 
 def _target_wems_by_bnk(replacements):
@@ -43,13 +41,12 @@ def _target_wems_by_bnk(replacements):
     return result
 
 
-def _owners_by_bnk(override_pcks, target_wems_by_bnk):
+def _owners_by_bnk(override_pcks, target_wems_by_bnk, persistent_root, game):
     # bnk_id -> set of override paths whose pristine copy of that bnk holds a modded WEM (its language).
-    # Read from the .xxar_backup snapshot when present, so a bnk already nulled by a prior apply is still seen.
+    # Read from the pristine backup when valid, so a bnk already nulled by a prior apply is still seen.
     owners = {}
     for override_pck in override_pcks:
-        backup = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
-        read_path = backup if backup.exists() else override_pck
+        read_path = patch_backup.pristine_path(override_pck, persistent_root, game)
         try:
             index = PCKIndexer(str(read_path)).build_index()
         except Exception as e:
@@ -71,7 +68,7 @@ def _owners_by_bnk(override_pcks, target_wems_by_bnk):
     return owners
 
 
-def patch_override_pcks(persistent_root, replacements, streaming_root=None, progress_callback=None):
+def patch_override_pcks(persistent_root, replacements, game, streaming_root=None, progress_callback=None):
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
@@ -84,7 +81,7 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
     if not target_bnk_ids:
         return _empty_result()
 
-    protected = get_game(DEFAULT_GAME_ID).protected_pcks
+    protected = game.protected_pcks
     override_pcks = [
         p for p in persistent_root.rglob("*.pck")
         if p.name in protected
@@ -94,20 +91,17 @@ def patch_override_pcks(persistent_root, replacements, streaming_root=None, prog
 
     # A voice bnk_id lives in both En\Patch.pck and Jp\Patch.pck with different audio.
     # Null it only in the override holding the modded WEM, so an En mod never disturbs the Jp copy.
-    owners_by_bnk = _owners_by_bnk(override_pcks, target_wems_by_bnk)
+    owners_by_bnk = _owners_by_bnk(override_pcks, target_wems_by_bnk, persistent_root, game)
 
     patched_pcks = 0
     all_nulled_bnk_ids = set()
 
     for override_pck in override_pcks:
-        backup_path = override_pck.with_name(override_pck.name + BACKUP_SUFFIX)
-        if not backup_path.exists():
-            try:
-                shutil.copy2(override_pck, backup_path)
-                logger.info(f"[Override Patcher] Backed up {override_pck.name}")
-            except Exception as e:
-                logger.error(f"[Override Patcher] Failed to back up {override_pck.name}: {e}")
-                continue
+        # Pristine backup lives in the machine-local state dir so it survives the game wiping Persistent.
+        backup_path = patch_backup.ensure_backup(override_pck, persistent_root, game)
+        if backup_path is None or not backup_path.exists():
+            logger.error(f"[Override Patcher] No pristine backup for {override_pck.name}, skipping")
+            continue
 
         # Restore from clean backup before patching so repeated applies are idempotent.
         try:
@@ -196,31 +190,10 @@ def _null_bnk_ids_in_file_table(pck_path, target_bnk_ids):
     return nulled
 
 
-def restore_override_pck_backups(persistent_root):
-    persistent_root = Path(persistent_root) if persistent_root else None
-    if not persistent_root or not persistent_root.exists():
-        return 0
-
-    protected = get_game(DEFAULT_GAME_ID).protected_pcks
-    restored = 0
-    for backup_file in persistent_root.rglob(f"*{BACKUP_SUFFIX}"):
-        original_name = backup_file.name.replace(BACKUP_SUFFIX, "")
-        if original_name not in protected:
-            continue
-
-        target = backup_file.with_name(original_name)
-        try:
-            backup_file.chmod(0o644)
-            if target.exists():
-                target.chmod(0o644)
-            shutil.copy2(backup_file, target)
-            backup_file.unlink()
-            restored += 1
-            logger.info(f"[Override Patcher] Restored original {original_name}")
-        except Exception as e:
-            logger.error(f"[Override Patcher] Failed to restore {original_name}: {e}")
-
-    return restored
+def restore_override_pck_backups(persistent_root, game):
+    # Restore originals from the state-dir backups, first sweeping any legacy co-located backup into it.
+    patch_backup.migrate_persistent_backups(persistent_root, game)
+    return patch_backup.restore_backups(persistent_root, game)
 
 
 def _empty_result():
