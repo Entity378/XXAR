@@ -1086,7 +1086,13 @@ class SettingsConnector:
                     gd = gd.toVariant()
                 game_dirs_map = dict(gd) if gd else {}
 
-            primary_game = normalize_game_id(selected_games[0]) if selected_games else None
+            # Primary = the game currently shown in the dialog (the last one configured), not the first clicked.
+            # Using selectedGames[0] made the app swap game right as the tutorial started.
+            current_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
+            if current_game:
+                primary_game = normalize_game_id(current_game)
+            else:
+                primary_game = normalize_game_id(selected_games[0]) if selected_games else None
             if primary_game:
                 settings["selected_game"] = primary_game
 
