@@ -13,6 +13,7 @@ from src.gui.backend.base_worker import BaseWorker
 from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 from src.core.paths import get_temp_dir
+from src.wwise import patch_backup
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
@@ -74,9 +75,10 @@ class ImportWorker(BaseWorker):
         if self.persistent_audio_dir:
             persistent_root = Path(self.persistent_audio_dir)
             if persistent_root.exists():
-                for scan_path, override_name in find_patch_pck_sources(persistent_root, self.game):
+                for live_path, override_name in find_patch_pck_sources(persistent_root, self.game):
                     if name_filter is not None and override_name not in name_filter:
                         continue
+                    scan_path = patch_backup.pristine_path(live_path, persistent_root, self.game)
                     sources.append((scan_path, override_name, -1))
 
         return sources

@@ -23,7 +23,8 @@ def _streamed_scan_glob(game):
 
 
 def find_patch_pck_sources(persistent_root, game):
-    # Returns [(pristine_path, override_pck_name), ...], preferring .xxar_backup for the pre-mod state.
+    # Live locations of the protected overrides (Patch.pck/Hotfix.pck) under Persistent.
+    # Read pre-mod bytes through patch_backup.pristine_path at the read site, not here.
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return []
@@ -33,7 +34,7 @@ def find_patch_pck_sources(persistent_root, game):
     for p in persistent_root.rglob("*.pck"):
         if p.name not in protected:
             continue
-        sources.append((patch_backup.pristine_path(p, persistent_root, game), p.name))
+        sources.append((str(p), p.name))
     return sources
 
 

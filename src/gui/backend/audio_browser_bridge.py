@@ -1095,8 +1095,9 @@ class AudioBrowserBridge(QObject):
                     for patch_path, override_name in find_patch_pck_sources(
                         persistent_root, self._active_game()
                     ):
+                        read_path = self._pristine_read_path(patch_path)
                         try:
-                            patch_pck_idx = PCKIndexer(str(patch_path)).build_index()
+                            patch_pck_idx = PCKIndexer(read_path).build_index()
                         except Exception:
                             continue
                         matching_bank = next(
@@ -1107,7 +1108,7 @@ class AudioBrowserBridge(QObject):
                         if not matching_bank:
                             continue
                         try:
-                            with open(patch_path, "rb") as pf:
+                            with open(read_path, "rb") as pf:
                                 pf.seek(matching_bank["offset"])
                                 patch_bnk_bytes = pf.read(matching_bank["size"])
                             patch_bnk_indexer = BNKIndexer(patch_bnk_bytes)
@@ -1652,8 +1653,14 @@ class AudioBrowserBridge(QObject):
         # Filter prefix covers voices too, not only Streamed_SFX_.
         streamed_prefix = self._active_game().streamed_pck_filter_prefix
         if self.merge_wem_enabled and matches:
-            matches = [m for m in matches
-                       if not Path(m["pckPath"]).name.startswith(streamed_prefix)]
+            # Drop a streamed copy only when the same id also lives in a non-streamed pck (its BNK/SoundBank/Patch).
+            # A streamed-only WEM (a full track with no embedded copy) has no duplicate, so keep it findable.
+            tagged = [(m, Path(m["pckPath"]).name.startswith(streamed_prefix)) for m in matches]
+
+            non_streamed_ids = {m["fileId"] for m, streamed in tagged if not streamed}
+
+            matches = [m for m, streamed in tagged
+                       if not (streamed and m["fileId"] in non_streamed_ids)]
 
         if matches:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Found %1 match(es) for '%2'").replace("%1", str(len(matches))).replace("%2", query))
@@ -3228,13 +3235,14 @@ class AudioBrowserBridge(QObject):
             for patch_path, override_name in find_patch_pck_sources(
                 persistent_root, self._active_game()
             ):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    patch_idx = PCKIndexer(str(patch_path)).build_index()
+                    patch_idx = PCKIndexer(read_path).build_index()
                 except Exception:
                     continue
                 for bank in patch_idx.get("banks", []):
                     try:
-                        with open(patch_path, "rb") as pf:
+                        with open(read_path, "rb") as pf:
                             pf.seek(bank["offset"])
                             patch_bnk_bytes = pf.read(bank["size"])
                         pbi = BNKIndexer(patch_bnk_bytes)
@@ -3254,7 +3262,7 @@ class AudioBrowserBridge(QObject):
 
     def _get_orphan_patch_bnks(self):
         # {(path, bnk_id): {...}} for Patch/Hotfix BNKs absent from every SoundBank pck; keyed by path so each language's copy of a shared bnk_id is kept.
-        # "path" is the pristine source (backup preferred) for reading; "override" is the live name (Patch.pck) for staging.
+        # "path" is the live override under Persistent (its folder scopes it to a tab); reads redirect to the pristine backup.
         if not self.game_root_dir:
             return {}
         cache_key = str(self.game_root_dir)
@@ -3267,8 +3275,9 @@ class AudioBrowserBridge(QObject):
             persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
             counterpart_ids = soundbank_bnk_ids(streaming_root, game)
             for patch_path, override_name in find_patch_pck_sources(persistent_root, game):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    banks = PCKIndexer(str(patch_path)).build_index().get("banks", [])
+                    banks = PCKIndexer(read_path).build_index().get("banks", [])
                 except Exception:
                     continue
                 for bank in banks:
@@ -3305,12 +3314,13 @@ class AudioBrowserBridge(QObject):
             # Index it so a Patch BNK prefetch pairs with the full WEM, not the ~0.5s prefetch.
             persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
             for patch_path, _override_name in find_patch_pck_sources(persistent_root, game):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    index = PCKIndexer(str(patch_path)).build_index()
+                    index = PCKIndexer(read_path).build_index()
                 except Exception:
                     continue
                 for streamed_wem in index.get("sounds", []) + index.get("externals", []):
-                    result.setdefault(streamed_wem["id"], (streamed_wem, str(patch_path)))
+                    result.setdefault(streamed_wem["id"], (streamed_wem, read_path))
         except Exception as e:
             logger.error(f"[Browser] Streamed WEM index scan failed: {e}")
         self._streaming_streamed_index_key = cache_key

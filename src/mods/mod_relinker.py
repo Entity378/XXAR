@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from src.core.logger import get_logger
+from src.wwise import patch_backup
 from src.wwise.bnk_handler import BNKFile
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.patch_target_resolver import find_patch_pck_sources
@@ -85,10 +86,11 @@ class GameAudioIndex:
         self._patch_index = {}
         if not self.persistent_audio_dir:
             return
-        for source_path, override_name in find_patch_pck_sources(self.persistent_audio_dir, self.game):
+        for live_path, override_name in find_patch_pck_sources(self.persistent_audio_dir, self.game):
+            read_path = patch_backup.pristine_path(live_path, self.persistent_audio_dir, self.game)
             try:
-                banks = self._indexer(source_path).index_data["banks"]
-                with open(source_path, "rb") as f:
+                banks = self._indexer(read_path).index_data["banks"]
+                with open(read_path, "rb") as f:
                     for bank in banks:
                         f.seek(bank["offset"])
                         didx = BNKIndexer(f.read(min(bank["size"], 131072)))
@@ -96,7 +98,7 @@ class GameAudioIndex:
                         for wem_id in didx.get_wem_ids():
                             self._patch_index.setdefault(wem_id, (override_name, bank["id"]))
             except Exception as e:
-                logger.warning(f"[Relink] Could not scan {Path(source_path).name}: {e}")
+                logger.warning(f"[Relink] Could not scan {Path(read_path).name}: {e}")
 
     def patch_home(self, wem_id):
         # (override_name, bnk_id) if the wem is embedded in a Patch.pck BNK, else None.
