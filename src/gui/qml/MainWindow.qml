@@ -214,7 +214,7 @@ ApplicationWindow {
                                     onExited: parent.hovered = false
                                     onClicked: {
                                         if (!audioBrowserPage.changesDialogOpen && activeGameShort != "GI")
-                                            mainWindow.swapGameRequested('genshin')
+                                            mainWindow.selectGameRequested('genshin')
                                     }
                                 }
                             ToolTip.visible: swapGameMouseGI.containsMouse && activeGameShort != "GI"
@@ -244,7 +244,7 @@ ApplicationWindow {
                                     onExited: parent.hovered = false
                                     onClicked: {
                                         if (!audioBrowserPage.changesDialogOpen && activeGameShort != "HSR")
-                                            mainWindow.swapGameRequested('hsr')
+                                            mainWindow.selectGameRequested('hsr')
                                     }
                                 }
                             ToolTip.visible: swapGameMouseHSR.containsMouse && activeGameShort != "HSR"
@@ -274,7 +274,7 @@ ApplicationWindow {
                                     onExited: parent.hovered = false
                                     onClicked: {
                                         if (!audioBrowserPage.changesDialogOpen && activeGameShort != "ZZZ")
-                                            mainWindow.swapGameRequested('zzz')
+                                            mainWindow.selectGameRequested('zzz')
                                     }
                                 }
                             ToolTip.visible: swapGameMouseZZZ.containsMouse && activeGameShort != "ZZZ"
