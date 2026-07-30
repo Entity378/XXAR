@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Security.Principal;
 using System.Windows;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -75,7 +74,6 @@ namespace XXAR.Installer.Dialogs
 
             private string currentAction;
             private int progressValue;
-            private bool uacPromptActioned;
             private bool cancelRequested;
 
             public string CurrentAction
@@ -90,21 +88,6 @@ namespace XXAR.Installer.Dialogs
                 set { progressValue = value; OnChanged(); }
             }
 
-            public bool UacPromptIsVisible
-                => !WindowsIdentity.GetCurrent().IsAdmin() && Uac.IsEnabled() && !uacPromptActioned;
-
-            public string UacPrompt
-            {
-                get
-                {
-                    if (!Uac.IsEnabled()) return null;
-                    var prompt = session?.Property("UAC_WARNING");
-                    if (!string.IsNullOrEmpty(prompt)) return prompt;
-                    return "Please wait for UAC prompt to appear. " +
-                           "If it appears minimized then activate it from the taskbar.";
-                }
-            }
-
             public void StartExecute() => shell?.StartExecute();
 
             public void Cancel()
@@ -117,18 +100,11 @@ namespace XXAR.Installer.Dialogs
 
             public MessageResult ProcessMessage(InstallMessage messageType, Record messageRecord)
             {
-                // Cancel clicked: abort the running install now instead of waiting for
-                // InstallFinalize (WixSharp's default only cancels via a mutex read there).
+                // Cancel clicked: abort the running install immediately instead of at InstallFinalize.
+                // WixSharp's default only cancels via a mutex read there, which is too late.
                 if (cancelRequested) return MessageResult.Cancel;
                 switch (messageType)
                 {
-                    case InstallMessage.InstallStart:
-                    case InstallMessage.InstallEnd:
-                        uacPromptActioned = true;
-                        OnChanged(nameof(UacPromptIsVisible));
-                        OnChanged(nameof(UacPrompt));
-                        break;
-
                     case InstallMessage.ActionStart:
                         try
                         {
@@ -139,7 +115,7 @@ namespace XXAR.Installer.Dialogs
                         }
                         catch
                         {
-                            // intentionally swallowed — don't crash the installer on a malformed message
+                            // Swallowed so a malformed message never crashes the installer.
                         }
                         break;
                 }

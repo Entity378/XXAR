@@ -73,7 +73,7 @@ Item {
     property bool isPlaying: false
     property bool isPaused: false
     property bool playbackEnabled: false
-    property bool mergeWemChecked: true
+    property bool mergeWemChecked: false
     property bool hideUselessPckChecked: true
     property bool hideEmptyBnkChecked: true
     property bool normalizeAudioChecked: true
@@ -1127,14 +1127,28 @@ Item {
                                             verticalAlignment: Text.AlignVCenter
                                         }
 
-                                        Text {
+                                        Row {
                                             width: (treeList.width - 40 - 20 - depth * 20) * 0.17
                                             height: parent.height
-                                            text: model.itemType || ""
-                                            color: Theme.textSecondary
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            verticalAlignment: Text.AlignVCenter
+                                            spacing: 6
+                                            Text {
+                                                height: parent.height
+                                                text: model.itemType || ""
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                            Text {
+                                                visible: model.itemType === "WEM" && model.merged === true
+                                                height: parent.height
+                                                text: "merged"
+                                                color: Theme.primaryAccent
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                font.bold: true
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
                                         }
                                     }
                                 }
@@ -1521,6 +1535,7 @@ Item {
             "fileSize": item.fileSize || "",
             "duration": item.duration || "",
             "itemType": item.itemType || "",
+            "merged": item.merged || false,
             "tags": item.tags || "",
             "hasChildren": item.hasChildren || false,
             "expanded": false,
@@ -1575,6 +1590,7 @@ Item {
                 "fileSize": items[i].fileSize || "",
                 "duration": items[i].duration || "",
                 "itemType": items[i].itemType || "",
+                "merged": items[i].merged || false,
                 "tags": items[i].tags || "",
                 "hasChildren": items[i].hasChildren || false,
                 "expanded": false,
@@ -1835,6 +1851,7 @@ Item {
                 duration: item.duration,
                 fileSizeBytes: parseSizeToBytes(item.fileSize),
                 itemType: item.itemType,
+                merged: item.merged,
                 tags: item.tags,
                 hasChildren: item.hasChildren,
                 expanded: item.expanded,
@@ -1907,6 +1924,7 @@ Item {
                 duration: item.duration,
                 durationSeconds: parseDurationToSeconds(item.duration),
                 itemType: item.itemType,
+                merged: item.merged,
                 tags: item.tags,
                 hasChildren: item.hasChildren,
                 expanded: item.expanded,

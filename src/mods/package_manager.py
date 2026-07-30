@@ -20,8 +20,9 @@ from src.core.logger import get_logger
 from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
+from src.mods.mod_relinker import GameAudioIndex, relink_metadata
 from src.wwise.override_pck_patcher import patch_override_pcks
-from src.wwise.patch_target_resolver import resolve_and_extract
+from src.wwise.patch_target_resolver import add_streamed_duplicates, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
@@ -73,6 +74,27 @@ def count_replacements(metadata):
     if isinstance(metadata, dict):
         total += len(metadata.get('hirc_patches', []) or [])
     return total
+
+
+def is_hirc_mod(metadata):
+    # A HIRC-editor mod carries track patches or new-WEM adds; a plain replacement mod has neither.
+    # Used to route imports: HIRC mods edit in the HIRC Editor, plain mods edit in the Browser.
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get('hirc_patches'):
+        return True
+    for pck_entries in (metadata.get('replacements') or {}).values():
+        if not isinstance(pck_entries, dict):
+            continue
+        for value in pck_entries.values():
+            if not isinstance(value, dict):
+                continue
+            if value.get('is_add'):
+                return True
+            for info in value.values():
+                if isinstance(info, dict) and info.get('is_add'):
+                    return True
+    return False
 
 
 def _extract_audio_settings(file_info):
@@ -266,7 +288,7 @@ class ModPackageManager:
 
             return 0
 
-    def install_mod(self, mod_path):
+    def install_mod(self, mod_path, game_audio_dir=None):
 
         metadata = self.validate_mod_package(mod_path)
 
@@ -325,14 +347,53 @@ class ModPackageManager:
 
         self.mod_config['load_order'].append(mod_uuid)
 
+        self.migrate_mod(mod_uuid, metadata, game_audio_dir)
         self.save_config()
 
         return {
             'uuid': mod_uuid,
             'replaced': replaced,
             'mod_name': mod_name,
-            'version': new_version
+            'version': new_version,
         }
+
+    def migrate_mod(self, mod_uuid, metadata, game_audio_dir, game=None, index=None):
+        # Relink one installed mod to the current game version and rewrite its on-disk
+        # metadata.json, so import and apply leave the same fixed JSON. Caller saves mod_config.
+        if not game_audio_dir or not Path(game_audio_dir).exists():
+            return 0
+        try:
+            game = game or get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
+            relinked = relink_metadata(metadata, game_audio_dir, game, index=index).get('relinked', 0)
+        except Exception as e:
+            logger.error(f"[Mod Manager] Relink failed for {mod_uuid}: {e}")
+            return 0
+
+        if relinked:
+            try:
+                with open(self.mods_dir / mod_uuid / 'metadata.json', 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                logger.info(f"[Mod Manager] Migrated {relinked} target(s) in '{metadata.get('name', mod_uuid)}' to the current game version")
+            except Exception as e:
+                logger.error(f"[Mod Manager] Failed to rewrite metadata.json for {mod_uuid}: {e}")
+        return relinked
+
+    def migrate_installed_mods(self, game_audio_dir, game=None):
+        # Migrate every installed mod (shared index), saving mod_config once if anything changed.
+        if not game_audio_dir or not Path(game_audio_dir).exists():
+            return
+        installed = self.mod_config.get('installed_mods', {})
+        if not installed:
+            return
+        game = game or get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
+        index = GameAudioIndex(game_audio_dir, game)
+        migrated = 0
+        for mod_uuid, mod_info in installed.items():
+            metadata = mod_info.get('metadata')
+            if metadata:
+                migrated += self.migrate_mod(mod_uuid, metadata, game_audio_dir, game, index)
+        if migrated:
+            self.save_config()
 
     def get_installed_mods(self):
 
@@ -461,7 +522,7 @@ class ModPackageManager:
                         'bnk_id': bnk_id,
                         'file_type': file_info.get('file_type', 'wem'),
                         'sound_name': file_info.get('sound_name', ''),
-                        'file_id': file_info.get('file_id'),
+                        'file_id': actual_wem_id,
                         'conflicts_with': []
                     }
                     for key in _AUDIO_SETTING_KEYS:
@@ -685,6 +746,10 @@ class ModPackageManager:
 
         persistent_audio_dir.mkdir(parents=True, exist_ok=True)
 
+        # Migrate installed mods to the current game version before resolving, so a game
+        # update that moved sounds to other PCKs doesn't silently break them.
+        self.migrate_installed_mods(game_audio_dir, game)
+
         if progress_callback:
             progress_callback("Resolving mod conflicts...", 0, 1)
 
@@ -702,20 +767,34 @@ class ModPackageManager:
         except Exception as e:
             logger.error(f"[Mod Manager] Add-collision reallocation failed: {e}")
 
+        # Index the streamed pcks once and share it with both the resolver and the mirror step below.
+        streamed_index = streamed_wem_pcks(game_audio_dir, game)
+
         # Remap entries from protected override PCKs to their StreamingAssets target.
         # Also pre-extract pristine BNK content for the main loop to merge.
         patch_bnk_content = {}
         try:
             patch_info = resolve_and_extract(
                 resolved, game_audio_dir, persistent_audio_dir, game,
+                streamed_index=streamed_index,
             )
             patch_bnk_content = patch_info.get("patch_bnk_content", {})
             if patch_info.get("remapped"):
                 logger.info(f"[Mod Manager] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+            if patch_info.get("orphan_added"):
+                logger.info(f"[Mod Manager] Added {patch_info['orphan_added']} orphan Patch BNK(s) whole into a host SoundBank")
             if patch_info.get("dropped"):
                 logger.warning(f"[Mod Manager] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
         except Exception as e:
             logger.error(f"[Mod Manager] Warning: patch target resolution failed: {e}")
+
+        # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
+        try:
+            mirrored = add_streamed_duplicates(resolved, game_audio_dir, game, streamed_index=streamed_index)
+            if mirrored:
+                logger.info(f"[Mod Manager] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
+        except Exception as e:
+            logger.error(f"[Mod Manager] Warning: streamed-duplicate mirroring failed: {e}")
 
         if self.persistent_mod_manager:
             old_replacements = self.persistent_mod_manager.get_all_replacements()
@@ -861,9 +940,14 @@ class ModPackageManager:
                 for wem_id, (wem_path, lang_id) in direct_wems.items():
                     packer.replace_file(wem_id, wem_path, lang_id=lang_id)
 
+                # Pristine override content scoped to this pck (keyed by bnk_id), so the rebuild uses its own language.
+                pck_patch_content = patch_bnk_content.get(pck_name, {})
+
+                install_whole_patch_bnks(packer, bnk_wems.keys(), pck_patch_content, bnk_lang_ids)
+
                 # Schedule untouched-but-overridden BNKs so pristine Patch.pck WEMs aren't lost when the override BNK is nulled.
                 touched_bnks = set(bnk_wems.keys())
-                for patch_bnk_id in list(patch_bnk_content.keys()):
+                for patch_bnk_id in list(pck_patch_content.keys()):
                     if patch_bnk_id in touched_bnks:
                         continue
                     if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
@@ -881,8 +965,8 @@ class ModPackageManager:
                         continue
 
                     patch_wems = None
-                    if bnk_id in patch_bnk_content:
-                        patch_wems = patch_bnk_content[bnk_id].get("wems")
+                    if bnk_id in pck_patch_content:
+                        patch_wems = pck_patch_content[bnk_id].get("wems")
 
                     packer.merge_bnk_wems(
                         bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,
@@ -909,7 +993,7 @@ class ModPackageManager:
                     str(msg), total_pcks, max(total_pcks, 1)
                 )
             patch_override_pcks(
-                persistent_audio_dir, resolved,
+                persistent_audio_dir, resolved, game,
                 streaming_root=game_audio_dir,
                 progress_callback=override_cb,
             )
@@ -1011,7 +1095,7 @@ class ModPackageManager:
                     actual_file_id = str(tracker_key).split('|')[1] if '|' in str(tracker_key) else str(tracker_key)
 
                     bnk_id = file_info.get('bnk_id')
-                    if bnk_id:
+                    if bnk_id is not None:
                         bnk_key = f"{bnk_id}.bnk"
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{actual_file_id}.wem'

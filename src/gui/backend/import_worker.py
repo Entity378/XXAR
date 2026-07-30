@@ -6,9 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 
 import src.core.app_config as app_config
+from src.gui.backend.base_worker import BaseWorker
 from src.core.app_config import APP_VERSION as app_version
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 from src.core.paths import get_temp_dir
@@ -17,7 +18,7 @@ from src.wwise.patch_target_resolver import find_patch_pck_sources
 from src.wwise.pck_indexer import PCKIndexer
 
 
-class ImportWorker(QThread):
+class ImportWorker(BaseWorker):
 
     progress = pyqtSignal(str)
     progressPercent = pyqtSignal(int)
@@ -42,10 +43,10 @@ class ImportWorker(QThread):
 
     def _priority_label(self, priority):
         if priority == 1:
-            return self.game.soundbank_pck_prefix or "Primary"
+            return self.game.soundbank_pck_prefix
         if priority < 0:
             return "Persistent"
-        return self.game.streamed_pck_prefix or "Streamed"
+        return self.game.streamed_pck_prefix
 
     def _priority_suffix(self, priority):
         return f" ({self._priority_label(priority)})"
@@ -55,7 +56,7 @@ class ImportWorker(QThread):
         if len(rel.parts) <= 1:
             return False
         top_dir = rel.parts[0]
-        non_language_tabs = set(self.game.non_language_tabs or ())
+        non_language_tabs = set(self.game.non_language_tabs)
         return top_dir not in non_language_tabs
 
     def _build_scan_sources(self, game_audio_dir, name_filter=None):
@@ -80,7 +81,7 @@ class ImportWorker(QThread):
 
         return sources
 
-    def run(self):
+    def work(self):
 
         try:
             result = self._convert_mod()
@@ -238,7 +239,7 @@ class ImportWorker(QThread):
                 for file_id in file_id_to_pck:
                     game_pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
 
-                    if bnk_id:
+                    if bnk_id is not None:
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{file_id}.wem'
                         bnk_key = f"{bnk_id}.bnk"
@@ -261,7 +262,7 @@ class ImportWorker(QThread):
                         'wem_file': wem_relative,
                         'sound_name': '',
                         'lang_id': lang_id,
-                        'file_type': 'bnk' if bnk_id else 'wem'
+                        'file_type': 'bnk' if bnk_id is not None else 'wem'
                     }
 
                 for pck_name, pck_files_map in replacements.items():
@@ -362,7 +363,7 @@ class ImportWorker(QThread):
                     if file_id in file_id_to_pck:
                         pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
                         priority_str = self._priority_suffix(priority)
-                        location_str = f" in BNK {bnk_id}" if bnk_id else ""
+                        location_str = f" in BNK {bnk_id}" if bnk_id is not None else ""
                         self.progress.emit(f"File {file_id} -> {pck_name}{priority_str}{location_str} (lang {lang_id})")
                     else:
                         all_game_pcks = [i.relative_to(game_audio_dir) for i in game_audio_dir.rglob('*.pck')]
@@ -386,7 +387,7 @@ class ImportWorker(QThread):
                         lang_id = 0
                         self.progress.emit(f"Warning: File ID {file_id} not found in any game PCK")
 
-                    if bnk_id:
+                    if bnk_id is not None:
                         sub_dir = wem_dir / str(bnk_id)
                         wem_relative = f'wem_files/{bnk_id}/{file_id}.wem'
                         bnk_key = f"{bnk_id}.bnk"
@@ -407,7 +408,7 @@ class ImportWorker(QThread):
                         'wem_file': wem_relative,
                         'sound_name': '',
                         'lang_id': lang_id,
-                        'file_type': 'bnk' if bnk_id else 'wem'
+                        'file_type': 'bnk' if bnk_id is not None else 'wem'
                     }
 
                 self.progress.emit(f"Processed {len(files)} WEM files into {len(replacements)} PCK(s)")

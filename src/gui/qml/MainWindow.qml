@@ -24,6 +24,7 @@ ApplicationWindow {
     property string activeGameName: gameName
     property string activeAssetsDir: assetsDir
     property string activeLogoPng: logoPng
+    property string activeLogo256: logo256
     property string activeModFileExt: modFileExt
     property string activeModFileExtUpper: modFileExtUpper
     property string activeAppFullName: appFullName
@@ -56,7 +57,7 @@ ApplicationWindow {
     signal languageWarningDontShowAgain(bool dontShow)
     signal moveLanguageToStreaming(string folderName)
     signal moveHashPckToStreaming(string pckName)
-    signal swapGameRequested(string gameID)
+    signal selectGameRequested(string gameID)
 
     function showConfirmDialog(title, message, actionId, customSticker) {
         customDialog.title = title

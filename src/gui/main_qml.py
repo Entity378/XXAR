@@ -16,7 +16,6 @@ from PyQt6.QtCore import (
     QMetaObject,
     QObject,
     Qt,
-    QThread,
     QUrl,
     pyqtSignal,
     pyqtSlot,
@@ -48,6 +47,7 @@ from src.core.config_manager import get_settings_file, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
 from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
 from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry, shutdown_all_workers
 from src.gui.backend.gamebanana_bridge import GameBananaBridge
 from src.gui.backend.hirc_editor_bridge import HircEditorBridge
 from src.gui.backend.mod_manager_bridge import ModManagerBridge
@@ -64,7 +64,7 @@ from src.gui.translation_manager import TranslationManager
 from src.gui.utils.native_dialogs import NativeDialogs
 
 
-class AutoDetectWorker(QThread):
+class AutoDetectWorker(BaseWorker):
 
     found = pyqtSignal(str)
     notFound = pyqtSignal()
@@ -74,7 +74,15 @@ class AutoDetectWorker(QThread):
         self._install_dir = install_dir_name
         self._data_dir = data_dir_name
 
-    def run(self):
+    def work(self):
+        # Any failure resolves to notFound so the UI's isAutoDetecting flag is always cleared.
+        try:
+            self._run_detect()
+        except Exception:
+            logger.exception(f"[{APP_NAME}] Auto-detect failed")
+            self.notFound.emit()
+
+    def _run_detect(self):
         install_dir = self._install_dir
         data_dir = self._data_dir
 
@@ -207,10 +215,8 @@ class Application(
         self.import_wizard = None
         self.mod_info_dialog = None
         self.pending_remove_uuids = []
-        self.import_worker = None
         self.wizard_selected_files = []
         self.wizard_selected_folder = ""
-        self.auto_detect_worker = None
         self.update_manager_bridge = None
         self.update_dialog = None
         self._startup_update_check = False
@@ -236,6 +242,10 @@ class Application(
         self.app = QApplication(sys.argv)
         self.app.setApplicationName(APP_NAME)
         self.app.setApplicationVersion(QCoreApplication.applicationVersion())
+        # Join every worker thread before the process exits so none is destroyed mid-run.
+        self.app.aboutToQuit.connect(shutdown_all_workers)
+        # Registry for connector-driven workers (import wizard, game auto-detect).
+        self._app_workers = WorkerRegistry("application")
 
         ui_path = Path(__file__).parent
         icon_path = ui_path / "assets" / "XXAR" / "XXAR-Logo2-256.png"
@@ -279,6 +289,8 @@ class Application(
         self.engine = QQmlApplicationEngine()
         self.mod_manager_bridge = ModManagerBridge()
         self.audio_browser_bridge = AudioBrowserBridge()
+        # Stop its threads and close the constellation index in the right order at exit.
+        self.app.aboutToQuit.connect(self.audio_browser_bridge.cleanup)
         self.audio_conversion_bridge = AudioConversionBridge()
         self.gamebanana_bridge = GameBananaBridge()
         self.update_manager_bridge = UpdateManagerBridge()
@@ -311,6 +323,7 @@ class Application(
         context.setContextProperty("modFileExt", app_config.MOD_FILE_EXT)
         context.setContextProperty("modFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
         context.setContextProperty("logoPng", app_config.LOGO_PNG)
+        context.setContextProperty("logo256", app_config.LOGO_256)
         context.setContextProperty("assetsDir", app_config.ASSETS_DIR)
         context.setContextProperty("accentColor", app_config.ACCENT_COLOR)
         context.setContextProperty("accentColorLight", app_config.ACCENT_COLOR_LIGHT)
@@ -324,6 +337,10 @@ class Application(
                     "displayName": g.display_name,
                     "shortLabel": g.short_label,
                     "dataDirName": g.data_dir_name,
+                    "logo": f"../assets/{g.assets_dir}/{g.logo_256}" if (g.assets_dir and g.logo_256) else "",
+                    "accent": app_config.GAME_THEME_PALETTES.get(
+                        g.id, app_config.GAME_THEME_PALETTES["zzz"]
+                    )[0],
                 }
                 for g in get_supported_games()
             ],

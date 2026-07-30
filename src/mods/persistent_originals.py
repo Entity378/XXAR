@@ -6,7 +6,7 @@ import json
 import shutil
 from pathlib import Path
 
-from src.core.config_manager import get_game_backup_dir
+from src.core.config_manager import get_game_state_dir
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
 from src.wwise.override_pck_patcher import restore_override_pck_backups
@@ -191,7 +191,7 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
 
     protected = get_game(game_id).protected_pcks
     modded_names = set(modded_keys or ())
-    cache = _Md5Cache(get_game_backup_dir(game_id))
+    cache = _Md5Cache(get_game_state_dir(game_id))
     manifest = load_manifest_md5s(streaming_root)
     sidecar_cache = {}
 
@@ -309,7 +309,7 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_
             logger.error(f"[Persistent Originals] Failed to delete {rel}: {e}")
 
     try:
-        result["override_restored"] = restore_override_pck_backups(persistent_root)
+        result["override_restored"] = restore_override_pck_backups(persistent_root, get_game(game_id))
     except Exception as e:
         logger.error(f"[Persistent Originals] Failed to restore override backups: {e}")
 

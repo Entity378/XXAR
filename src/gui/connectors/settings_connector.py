@@ -1,6 +1,5 @@
 import json
 import shutil
-import threading
 from pathlib import Path
 
 from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt, QTimer
@@ -21,20 +20,20 @@ from src.core.game_registry import (
     extract_game_data_dir_from_audio_path,
     get_audio_settings_keys,
     get_game,
-    get_supported_game_ids,
     get_supported_games,
     is_valid_game_data_dir,
     normalize_game_data_dir,
 )
 from src.core.logger import get_logger
+from src.gui.backend.base_worker import FunctionWorker
 from src.gui.utils.native_dialogs import NativeDialogs
 
 logger = get_logger(__name__)
 
 
 class SettingsConnector:
-    _swap_in_progress = False
     _settings_target_game_id = None
+    _pending_heavy = None
 
     def _set_root_active_game_props(self, game_id):
         if not self.root:
@@ -51,6 +50,7 @@ class SettingsConnector:
         ctx.setContextProperty("modFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
         ctx.setContextProperty("assetsDir", app_config.ASSETS_DIR)
         ctx.setContextProperty("logoPng", app_config.LOGO_PNG)
+        ctx.setContextProperty("logo256", app_config.LOGO_256)
         ctx.setContextProperty("appFullName", app_config.APP_FULL_NAME)
 
         self.root.setProperty("activeGameShort", game.short_label)
@@ -59,6 +59,7 @@ class SettingsConnector:
         self.root.setProperty("activeModFileExtUpper", app_config.MOD_FILE_EXT_UPPER)
         self.root.setProperty("activeAssetsDir", app_config.ASSETS_DIR)
         self.root.setProperty("activeLogoPng", app_config.LOGO_PNG)
+        self.root.setProperty("activeLogo256", app_config.LOGO_256)
         self.root.setProperty("activeAppFullName", app_config.APP_FULL_NAME)
 
         if getattr(self, "settings_page", None):
@@ -125,11 +126,7 @@ class SettingsConnector:
             except Exception as e:
                 logger.warning(f"[Settings] HIRC Editor unload failed: {e}")
 
-        threading.Thread(
-            target=self._switch_active_game_heavy,
-            args=(target_game_id, game_data_dir),
-            daemon=True,
-        ).start()
+        self._request_heavy_reload(target_game_id, game_data_dir)
 
         return target_game_id, game_data_dir
 
@@ -139,7 +136,7 @@ class SettingsConnector:
                 if game_data_dir:
                     self.audio_browser_bridge.loadFromSettings()
                 else:
-                    self.audio_browser_bridge._index_cancel.set()
+                    self.audio_browser_bridge.cancel_indexing()
                     self.audio_browser_bridge.treeCleared.emit()
                     self.audio_browser_bridge.languageTabsReady.emit([])
                     self.audio_browser_bridge.statusUpdate.emit(
@@ -189,16 +186,21 @@ class SettingsConnector:
         except Exception as e:
             logger.error(f"[Settings] Background game switch error: {e}")
 
-    def on_swap_game_requested(self, gameID):
-        if self._swap_in_progress:
+    def on_select_game_requested(self, game_id):
+        target = normalize_game_id(game_id)
+        current = normalize_game_id(
+            self.load_settings().get("selected_game", DEFAULT_GAME_ID)
+        )
+        if target == current:
             return
+        self._apply_game_switch(target)
 
-        self._swap_in_progress = True
+    def _apply_game_switch(self, target_game_id):
         try:
             if self.audio_browser_bridge:
-                self.audio_browser_bridge._index_cancel.set()
+                self.audio_browser_bridge.cancel_indexing()
 
-            active_game_id, game_data_dir = self._switch_active_game(gameID)
+            active_game_id, game_data_dir = self._switch_active_game(target_game_id)
             active_game = get_game(active_game_id)
             self._set_settings_target_game(active_game_id)
 
@@ -228,11 +230,32 @@ class SettingsConnector:
                     QCoreApplication.translate("Application", "Failed to swap game: %1").replace("%1", str(e)),
                 ),
             )
-        finally:
-            QTimer.singleShot(1000, self._unlock_swap)
 
-    def _unlock_swap(self):
-        self._swap_in_progress = False
+    def _request_heavy_reload(self, target_game_id, game_data_dir):
+        # Single-flight, latest-wins: never run two heavy reloads at once (the concurrent reload
+        # was the rapid-swap hazard). A switch requested mid-reload is applied when the current finishes.
+        self._pending_heavy = (target_game_id, game_data_dir)
+        if not self._app_workers.is_running("game_switch"):
+            self._start_heavy_reload()
+
+    def _start_heavy_reload(self):
+        if self._pending_heavy is None:
+            return
+        if self._app_workers.is_running("game_switch"):
+            QTimer.singleShot(30, self._start_heavy_reload)
+            return
+        target_game_id, game_data_dir = self._pending_heavy
+        self._pending_heavy = None
+        worker = FunctionWorker(
+            lambda: self._switch_active_game_heavy(target_game_id, game_data_dir)
+        )
+        worker.workerFinished.connect(self._on_heavy_reload_done)
+        self._app_workers.start("game_switch", worker)
+
+    def _on_heavy_reload_done(self):
+        # Apply the latest pending switch on the next event-loop turn, once the slot has cleared.
+        if self._pending_heavy is not None:
+            QTimer.singleShot(0, self._start_heavy_reload)
 
     def _store_game_data_dir_settings(
         self, settings, game_data_dir, target_game_id, set_active=False
@@ -321,7 +344,7 @@ class SettingsConnector:
         self.settings_page.languageChanged.connect(self.on_language_changed)
         self.settings_page.uiScaleSelected.connect(self.on_ui_scale_changed)
         self.settings_page.hircEditorToggled.connect(self.on_hirc_editor_toggled)
-        self.root.swapGameRequested.connect(self.on_swap_game_requested)
+        self.root.selectGameRequested.connect(self.on_select_game_requested)
 
         self.mod_manager_bridge.modCreationModeChanged.connect(
             self.on_mod_creation_mode_changed
@@ -636,7 +659,7 @@ class SettingsConnector:
         self.settings_page.setModsDirectory("")
 
     def on_auto_detect(self):
-        if self.auto_detect_worker and self.auto_detect_worker.isRunning():
+        if self._app_workers.is_running("auto_detect"):
             return
 
         if self.settings_page:
@@ -648,13 +671,13 @@ class SettingsConnector:
         game = get_game(game_id)
 
         from src.gui.main_qml import AutoDetectWorker
-        self.auto_detect_worker = AutoDetectWorker(
+        worker = AutoDetectWorker(
             install_dir_name=game.install_dir_name,
             data_dir_name=game.data_dir_name,
         )
-        self.auto_detect_worker.found.connect(self.on_auto_detect_found_settings)
-        self.auto_detect_worker.notFound.connect(self.on_auto_detect_not_found_settings)
-        self.auto_detect_worker.start()
+        worker.found.connect(self.on_auto_detect_found_settings)
+        worker.notFound.connect(self.on_auto_detect_not_found_settings)
+        self._app_workers.start("auto_detect", worker)
 
     def on_auto_detect_found_settings(self, game_data_dir):
         if self.settings_page:
@@ -1183,7 +1206,7 @@ class SettingsConnector:
     def on_welcome_auto_detect(self):
         logger.info(f"[{APP_NAME}] Welcome auto-detect button clicked!")
 
-        if self.auto_detect_worker and self.auto_detect_worker.isRunning():
+        if self._app_workers.is_running("auto_detect"):
             return
 
         if self.welcome_dialog:
@@ -1199,13 +1222,13 @@ class SettingsConnector:
         game = get_game(game_id)
 
         from src.gui.main_qml import AutoDetectWorker
-        self.auto_detect_worker = AutoDetectWorker(
+        worker = AutoDetectWorker(
             install_dir_name=game.install_dir_name,
             data_dir_name=game.data_dir_name,
         )
-        self.auto_detect_worker.found.connect(self.on_auto_detect_found_welcome)
-        self.auto_detect_worker.notFound.connect(self.on_auto_detect_not_found_welcome)
-        self.auto_detect_worker.start()
+        worker.found.connect(self.on_auto_detect_found_welcome)
+        worker.notFound.connect(self.on_auto_detect_not_found_welcome)
+        self._app_workers.start("auto_detect", worker)
 
     def on_auto_detect_found_welcome(self, game_data_dir):
         if self.welcome_dialog:

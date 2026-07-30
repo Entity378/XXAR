@@ -59,7 +59,8 @@ class FingerprintDatabase:
         self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
 
-        entry = self.database.get(sound_hash)
+        with self.lock:
+            entry = self.database.get(sound_hash)
         if entry and 'fingerprint' in entry:
 
             if entry.get('version') == self.FINGERPRINT_VERSION:
@@ -69,7 +70,8 @@ class FingerprintDatabase:
     def has_fingerprint(self, file_bytes):
         self.ensure_loaded()
         sound_hash = self.calculate_hash(file_bytes)
-        entry = self.database.get(sound_hash)
+        with self.lock:
+            entry = self.database.get(sound_hash)
         return entry is not None and entry.get('version') == self.FINGERPRINT_VERSION
 
     def load(self):
@@ -101,9 +103,10 @@ class FingerprintDatabase:
 
     def get_stats(self):
         self.ensure_loaded()
-        total = len(self.database)
-        current_version = sum(1 for e in self.database.values()
-                             if e.get('version') == self.FINGERPRINT_VERSION)
+        with self.lock:
+            total = len(self.database)
+            current_version = sum(1 for e in self.database.values()
+                                 if e.get('version') == self.FINGERPRINT_VERSION)
 
         return {
             'total_fingerprints': total,

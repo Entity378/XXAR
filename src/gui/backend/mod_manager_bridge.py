@@ -9,7 +9,6 @@ from urllib.request import url2pathname
 from PyQt6.QtCore import (
     QCoreApplication,
     QObject,
-    QThread,
     QTimer,
     pyqtSignal,
     pyqtSlot,
@@ -27,11 +26,11 @@ from src.core.config_manager import (
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
-    get_game,
     normalize_game_id,
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
@@ -45,10 +44,10 @@ from src.mods.persistent_originals import cleanup_persistent_overlay
 logger = get_logger(__name__)
 
 
-class WwiseSetupWorker(QThread):
+class WwiseSetupWorker(BaseWorker):
     finished = pyqtSignal(bool, str)
 
-    def run(self):
+    def work(self):
         try:
             if is_frozen():
 
@@ -72,6 +71,7 @@ class WwiseSetupWorker(QThread):
                     bufsize=1,
                     **SUBPROCESS_KWARGS,
                 )
+                self.set_process(process)
 
                 output_lines = []
                 for line in iter(process.stdout.readline, ''):
@@ -96,11 +96,11 @@ class WwiseSetupWorker(QThread):
             self.finished.emit(False, str(e))
 
 
-class WindowsAudioToolsSetupWorker(QThread):
+class WindowsAudioToolsSetupWorker(BaseWorker):
 
     finished = pyqtSignal(bool, str)
 
-    def run(self):
+    def work(self):
         try:
             if is_frozen():
 
@@ -123,6 +123,7 @@ class WindowsAudioToolsSetupWorker(QThread):
                     bufsize=1,
                     **SUBPROCESS_KWARGS,
                 )
+                self.set_process(process)
 
                 output_lines = []
                 for line in iter(process.stdout.readline, ''):
@@ -173,8 +174,7 @@ class ModManagerBridge(QObject):
         self.settings_file = get_settings_file()
 
         self.mod_creation_mode = False
-        self.wwise_worker = None
-        self.audio_tools_worker = None
+        self._workers = WorkerRegistry("mod_manager")
         self.game_audio_dir = ""
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
@@ -313,12 +313,12 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def startWwiseSetup(self):
 
-        if self.wwise_worker and self.wwise_worker.isRunning():
+        if self._workers.is_running("wwise"):
             return
 
-        self.wwise_worker = WwiseSetupWorker()
-        self.wwise_worker.finished.connect(self._on_wwise_setup_finished)
-        self.wwise_worker.start()
+        worker = WwiseSetupWorker()
+        worker.finished.connect(self._on_wwise_setup_finished)
+        self._workers.start("wwise", worker)
         self.progressUpdate.emit("Starting Wwise setup...")
 
     def _on_wwise_setup_finished(self, success, message):
@@ -382,12 +382,12 @@ class ModManagerBridge(QObject):
             )
             return
 
-        if self.audio_tools_worker and self.audio_tools_worker.isRunning():
+        if self._workers.is_running("audio_tools"):
             return
 
-        self.audio_tools_worker = WindowsAudioToolsSetupWorker()
-        self.audio_tools_worker.finished.connect(self._on_audio_tools_setup_finished)
-        self.audio_tools_worker.start()
+        worker = WindowsAudioToolsSetupWorker()
+        worker.finished.connect(self._on_audio_tools_setup_finished)
+        self._workers.start("audio_tools", worker)
         self.progressUpdate.emit("Starting Windows audio tools setup...")
 
     def _on_audio_tools_setup_finished(self, success, message):
@@ -548,7 +548,9 @@ class ModManagerBridge(QObject):
             logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
 
             logger.info(f"[Mod Manager] Installing mod: {metadata['name']}")
-            install_result = self.mod_package_manager.install_mod(file_path)
+            install_result = self.mod_package_manager.install_mod(
+                file_path, game_audio_dir=self.game_audio_dir or None
+            )
 
             if install_result is None:
 
@@ -1077,7 +1079,10 @@ class ModManagerBridge(QObject):
                             bnk_id = bnk_id_str
                         sub_dir = wem_dir / str(bnk_id)
                     for file_id, file_info in files.items():
-                        wem_file = sub_dir / f"{file_id}.wem"
+                        # Use the stored relative path; a migrated entry keeps its original
+                        # wem_files/<bnk_id>/ location even when its target PCK changed.
+                        rel = file_info.get('wem_file', '')
+                        wem_file = mod_dir / rel if rel else sub_dir / f"{file_id}.wem"
                         if not wem_file.exists():
                             continue
                         tracker_key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
@@ -1091,6 +1096,9 @@ class ModManagerBridge(QObject):
                         for audio_key in _AUDIO_SETTING_KEYS:
                             if audio_key in file_info:
                                 entry[audio_key] = file_info[audio_key]
+                        # HIRC-editor mods add a new WEM id; keep the flag or apply won't guard the add.
+                        if file_info.get('is_add'):
+                            entry['is_add'] = True
                         current_replacements[pck_name][tracker_key] = entry
 
             export_metadata = {
@@ -1101,11 +1109,13 @@ class ModManagerBridge(QObject):
             }
 
             self.progressUpdate.emit(f"Exporting {mod_name}...")
+            # Forward the HIRC track patches so re-export round-trips an editor mod, not a bare WEM add.
             self.mod_package_manager.create_mod_package(
                 save_path,
                 export_metadata,
                 current_replacements,
-                thumbnail_path
+                thumbnail_path,
+                hirc_patches=full_metadata.get('hirc_patches')
             )
 
             logger.info(f"[Mod Manager] Mod exported successfully to: {save_path}")

@@ -19,8 +19,8 @@ namespace XXAR.Installer.Dialogs
 
         public void Init()
         {
-            // Silent update: close automatically once the install finishes (deferred — a
-            // synchronous Exit() here rolls the install back via CancelRequestHandler).
+            // Silent update: close automatically once the install finishes.
+            // Deferred because a synchronous Exit() here rolls the install back via CancelRequestHandler.
             if (XXARSilentUpdate.IsActive(ManagedFormHost)) { XXARSilentUpdate.SkipTo(this, ManagedFormHost.Shell.Exit); return; }
             XXARHostStyling.ApplyDarkHost(ManagedFormHost);
             UpdateTitles(ManagedFormHost.Runtime.Session);
@@ -73,7 +73,7 @@ namespace XXAR.Installer.Dialogs
                 }
                 catch
                 {
-                    // intentionally swallowed — log viewer is a nice-to-have, not critical
+                    // Swallowed because the log viewer is a nice-to-have, not critical.
                 }
             }
         }

@@ -7,13 +7,13 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
-import zipfile
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.core.app_config import APP_NAME
-from src.core.config_manager import get_cache_dir, get_settings_file
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
+from src.core.config_manager import get_settings_file, get_updates_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS, is_frozen
 
@@ -126,18 +126,6 @@ def parse_version(version_str):
     return base_tuple + (-1, 0)
 
 
-def _safe_extract_zip(zf, dest):
-    # zipfile has no filter API, so reject any entry resolving outside dest (path traversal).
-    dest_resolved = Path(dest).resolve()
-    for name in zf.namelist():
-        target = (dest_resolved / name).resolve()
-        try:
-            target.relative_to(dest_resolved)
-        except ValueError:
-            raise RuntimeError(f"Refusing to extract path-traversal entry: {name!r}")
-    zf.extractall(dest)
-
-
 def _safe_extract_tar(tf, dest):
     # filter='data' (Python 3.11.4+) blocks traversal/symlink escapes; older Python validates manually below.
     try:
@@ -164,7 +152,7 @@ def _safe_extract_tar(tf, dest):
     tf.extractall(dest)
 
 
-class UpdateCheckWorker(QThread):
+class UpdateCheckWorker(BaseWorker):
     # version, download_url, asset_name, release_notes
     updateAvailable = pyqtSignal(str, str, str, str)
     noUpdateAvailable = pyqtSignal()
@@ -175,7 +163,7 @@ class UpdateCheckWorker(QThread):
         self.current_version = current_version
         self.github_token = github_token
 
-    def run(self):
+    def work(self):
         try:
             req = urllib.request.Request(GITHUB_API_URL)
             req.add_header("Accept", "application/vnd.github.v3+json")
@@ -200,7 +188,6 @@ class UpdateCheckWorker(QThread):
                 return
 
             if IS_WINDOWS:
-                # MSI install -> MSI asset (version-tagged), else portable ZIP.
                 version_tag = clean_version_string(tag)
                 if _is_msi_install():
                     asset_candidates = [
@@ -208,7 +195,9 @@ class UpdateCheckWorker(QThread):
                         f"{APP_NAME}-Installer.msi",
                     ]
                 else:
-                    asset_candidates = [f"{APP_NAME}-windows-x64.zip"]
+                    # Portable/dev builds have no auto-update; notify only (like Flatpak) so the user grabs the ZIP.
+                    self.updateAvailable.emit(version_tag, "", "", data.get("body", "") or "")
+                    return
             else:
                 asset_candidates = [f"{APP_NAME}-linux-x86_64.flatpak"]
 
@@ -266,9 +255,9 @@ def _prune_stale_update_artifacts(update_dir, keep=""):
         logger.warning(f"[Updater] Could not scan update cache for cleanup: {e}")
 
 
-class UpdateDownloadWorker(QThread):
+class UpdateDownloadWorker(BaseWorker):
     downloadProgress = pyqtSignal(int)  # percent
-    # Emits (kind, path). kind is one of: "msi", "zip_staging", "flatpak".
+    # Emits (kind, path). kind is one of: "msi", "flatpak".
     downloadFinished = pyqtSignal(str, str)
     errorOccurred = pyqtSignal(str)
 
@@ -278,9 +267,9 @@ class UpdateDownloadWorker(QThread):
         self.asset_name = asset_name
         self.github_token = github_token
 
-    def run(self):
+    def work(self):
         try:
-            update_dir = get_cache_dir() / "updates"
+            update_dir = get_updates_dir()
             update_dir.mkdir(parents=True, exist_ok=True)
             archive_path = update_dir / self.asset_name
 
@@ -300,6 +289,8 @@ class UpdateDownloadWorker(QThread):
 
                 with open(archive_path, "wb") as f:
                     while True:
+                        if self.is_cancelled():
+                            return
                         chunk = response.read(block_size)
                         if not chunk:
                             break
@@ -313,23 +304,6 @@ class UpdateDownloadWorker(QThread):
             if lower.endswith(".msi"):
                 # msiexec consumes the .msi directly; no extraction.
                 self.downloadFinished.emit("msi", str(archive_path))
-            elif lower.endswith(".zip"):
-                # Portable zip carries Resources/Bin/ + Resources/Updater/; the helper swaps only Bin (it can't rewrite itself).
-                staging_parent = update_dir / "staging"
-                if staging_parent.exists():
-                    shutil.rmtree(str(staging_parent), ignore_errors=True)
-                staging_parent.mkdir(parents=True, exist_ok=True)
-                with zipfile.ZipFile(archive_path, "r") as zf:
-                    _safe_extract_zip(zf, staging_parent)
-                archive_path.unlink(missing_ok=True)
-
-                staging_root = staging_parent / "Resources" / "Bin"
-                if not (staging_root / f"{APP_NAME}.exe").exists():
-                    self.errorOccurred.emit(
-                        f"{APP_NAME}.exe not found at Resources/Bin inside {self.asset_name}"
-                    )
-                    return
-                self.downloadFinished.emit("zip_staging", str(staging_root))
             elif lower.endswith(".flatpak"):
                 self.downloadFinished.emit("flatpak", str(archive_path))
             else:
@@ -357,12 +331,11 @@ class UpdateManagerBridge(QObject):
 
     def __init__(self):
         super().__init__()
-        self._check_worker = None
-        self._download_worker = None
+        self._workers = WorkerRegistry("updater")
         self._download_url = ""
         self._asset_name = ""
         self._downloaded_path = ""
-        self._downloaded_kind = ""  # "msi", "zip_staging", "flatpak"
+        self._downloaded_kind = ""  # "msi", "flatpak"
         self._current_version = ""
         self._github_token = ""
 
@@ -398,16 +371,16 @@ class UpdateManagerBridge(QObject):
 
     @pyqtSlot()
     def checkForUpdates(self):
-        if self._check_worker and self._check_worker.isRunning():
+        if self._workers.is_running("check"):
             return
 
         logger.info(f"[Updater] Checking for updates (current: {self._current_version})")
 
-        self._check_worker = UpdateCheckWorker(self._current_version, self._github_token)
-        self._check_worker.updateAvailable.connect(self._on_update_available)
-        self._check_worker.noUpdateAvailable.connect(self._on_no_update)
-        self._check_worker.errorOccurred.connect(self._on_check_error)
-        self._check_worker.start()
+        worker = UpdateCheckWorker(self._current_version, self._github_token)
+        worker.updateAvailable.connect(self._on_update_available)
+        worker.noUpdateAvailable.connect(self._on_no_update)
+        worker.errorOccurred.connect(self._on_check_error)
+        self._workers.start("check", worker)
 
     def _on_update_available(self, version, download_url, asset_name, release_notes):
         logger.info(f"[Updater] Update available: {version} ({asset_name})")
@@ -426,21 +399,25 @@ class UpdateManagerBridge(QObject):
     @pyqtSlot()
     def downloadAndInstall(self):
         if not self._download_url:
-            self.updateError.emit("No download URL available")
+            # Portable/dev builds have no downloadable installer; point the user at the releases page.
+            self.updateError.emit(
+                "Automatic update is only available for the installed version. "
+                "Download the latest release from https://github.com/Entity378/XXAR/releases"
+            )
             return
 
-        if self._download_worker and self._download_worker.isRunning():
+        if self._workers.is_running("download"):
             return
 
         logger.info(f"[Updater] Starting download from: {self._download_url}")
 
-        self._download_worker = UpdateDownloadWorker(
+        worker = UpdateDownloadWorker(
             self._download_url, self._asset_name, self._github_token
         )
-        self._download_worker.downloadProgress.connect(self._on_download_progress)
-        self._download_worker.downloadFinished.connect(self._on_download_finished)
-        self._download_worker.errorOccurred.connect(self._on_download_error)
-        self._download_worker.start()
+        worker.downloadProgress.connect(self._on_download_progress)
+        worker.downloadFinished.connect(self._on_download_finished)
+        worker.errorOccurred.connect(self._on_download_error)
+        self._workers.start("download", worker)
 
     def _on_download_progress(self, percent):
         self.updateProgress.emit(percent)
@@ -455,23 +432,9 @@ class UpdateManagerBridge(QObject):
         logger.error(f"[Updater] Download error: {message}")
         self.updateError.emit(message)
 
-    @staticmethod
-    def _get_install_root(current_exe):
-        # Onefolder layout <root>/Resources/Bin/XXAR.exe -> root is exe's grand-grandparent.
-        exe = Path(current_exe).resolve()
-        parent = exe.parent
-        if parent.name.lower() == "bin" and parent.parent.name.lower() == "resources":
-            return parent.parent.parent
-        # Fallback: exe directly in install root (dev runs, or unexpected layout).
-        return parent
-
-    def _helper_exe_path(self, install_root):
-        helper = install_root / "Resources" / "Updater" / f"{APP_NAME} Updater.exe"
-        return helper if helper.exists() else None
-
     @pyqtSlot()
     def applyUpdate(self):
-        # Two helpers fighting the same Bin rename deadlock; block re-entry from the Restart button.
+        # A second msiexec fighting the same install deadlocks; block re-entry from the Restart button.
         if getattr(self, "_apply_in_progress", False):
             return
         self._apply_in_progress = True
@@ -488,8 +451,6 @@ class UpdateManagerBridge(QObject):
 
             if self._downloaded_kind == "msi":
                 self._apply_msi_update(current_exe)
-            elif self._downloaded_kind == "zip_staging":
-                self._apply_zip_update(current_exe)
             elif self._downloaded_kind == "flatpak":
                 self._apply_linux_update(current_exe)
             else:
@@ -512,35 +473,9 @@ class UpdateManagerBridge(QObject):
 
         # Build the cmdline as a string and pass it directly
         cmd_line = f'msiexec /i "{msi_path}" /norestart XXAR_SILENT=1'
-        # cwd outside Resources/Bin so msiexec can rename/delete that dir during upgrade (see _apply_zip_update).
+        # cwd outside the install dir so msiexec can rename/delete resources\ during the upgrade.
         logger.info(f"[Updater] Running: {cmd_line}")
         subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
-
-    def _apply_zip_update(self, current_exe):
-        staging_dir = Path(self._downloaded_path)
-        install_root = self._get_install_root(current_exe)
-        helper = self._helper_exe_path(install_root)
-        if helper is None:
-            raise RuntimeError(
-                f"Updater helper not found under {install_root / 'Resources' / 'Updater'}"
-            )
-
-        DETACHED_PROCESS = 0x00000008
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        args = [
-            str(helper),
-            "--dist-dir", str(install_root),
-            "--staging-dir", str(staging_dir),
-        ]
-        # Spawn cwd outside Resources/Bin so the helper's inherited handle doesn't block the rename-to-Bin.old.
-        spawn_cwd = tempfile.gettempdir()
-        logger.info(f"[Updater] Spawning helper (cwd={spawn_cwd}): {' '.join(args)}")
-        subprocess.Popen(
-            args,
-            cwd=spawn_cwd,
-            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-            close_fds=True,
-        )
 
     def _apply_linux_update(self, current_exe):
         bundle = Path(self._downloaded_path)

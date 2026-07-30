@@ -31,6 +31,7 @@ class HircEditorConnector:
         page.editTrackVolumeRequested.connect(db.setDraftTrackVolume)
         page.editRemapTargetRequested.connect(db.setDraftRemapTarget)
         page.applyAllRequested.connect(db.applyDraftLive)
+        page.importModForEditingRequested.connect(db.browseAndImportMod)
         page.exportModRequested.connect(db.exportDraftAsMod)
         page.resetDraftRequested.connect(db.resetDraft)
         page.browseThumbnailRequested.connect(db.browseThumbnail)

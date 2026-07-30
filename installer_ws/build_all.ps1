@@ -1,14 +1,12 @@
 <#
 .SYNOPSIS
-    Full release build for Windows: app (onefolder) + helper + portable ZIP + MSI.
+    Full release build for Windows: onefolder app + portable ZIP + MSI.
 
 .DESCRIPTION
     Produces these artifacts under dist/:
       - XXAR/                            (onefolder app, from XXAR.spec)
-      - Updater/XXAR Updater.exe         (helper, from updater/XXAR_Updater.spec)
-      - release/Resources/Bin/           (staged layout for zipping)
-      - release/Resources/Updater/
-      - XXAR-windows-x64.zip             (portable)
+      - release/resources/               (staged portable layout for zipping)
+      - XXAR-windows-x64.zip             (portable; both MSI and portable install flat under resources\)
       - XXAR-Installer-v<version>.msi    (WixSharp ManagedUI, dark theme)
 
     Expects python + pyinstaller + .NET SDK + WiX 7 CLI on PATH.
@@ -37,34 +35,21 @@ $repo = Split-Path -Parent $PSScriptRoot
 Push-Location $repo
 try {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
-        "dist\XXAR", "dist\Updater", "dist\release", `
-        "dist\XXAR-windows-x64.zip", "build"
+        "dist\XXAR", "dist\release", "dist\XXAR-windows-x64.zip", "build"
 
-    Write-Host "==> [1/4] Building app (onefolder)"
+    Write-Host "==> [1/3] Building app (onefolder)"
     pyinstaller --noconfirm --clean XXAR.spec
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for app" }
     if (-not (Test-Path "dist\XXAR\XXAR.exe")) {
         throw "Expected dist\XXAR\XXAR.exe after app build"
     }
 
-    Write-Host "==> [2/4] Building updater helper"
-    pyinstaller --noconfirm --clean `
-        --distpath "dist\Updater" `
-        --workpath "build\Updater" `
-        "updater\XXAR_Updater.spec"
-    if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for updater" }
-    if (-not (Test-Path "dist\Updater\XXAR Updater.exe")) {
-        throw "Expected dist\Updater\XXAR Updater.exe after updater build"
-    }
-
-    Write-Host "==> [3/4] Staging release layout and zipping"
+    Write-Host "==> [2/3] Staging portable layout and zipping"
+    # Both channels install flat under resources\; the portable self-updates with a generated script (no helper).
     $release = "dist\release"
-    $releaseBin = Join-Path $release "Resources\Bin"
-    $releaseUpd = Join-Path $release "Resources\Updater"
-    New-Item -ItemType Directory -Force -Path $releaseBin | Out-Null
-    New-Item -ItemType Directory -Force -Path $releaseUpd | Out-Null
-    Copy-Item "dist\XXAR\*" $releaseBin -Recurse -Force
-    Copy-Item "dist\Updater\XXAR Updater.exe" $releaseUpd -Force
+    $releaseRes = Join-Path $release "resources"
+    New-Item -ItemType Directory -Force -Path $releaseRes | Out-Null
+    Copy-Item "dist\XXAR\*" $releaseRes -Recurse -Force
 
     $zipPath = Join-Path $repo "dist\XXAR-windows-x64.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -92,15 +77,14 @@ try {
     Write-Host "    portable zip -> $zipPath"
 
     if ($SkipMsi) {
-        Write-Host "==> [4/4] SkipMsi flag set - done."
+        Write-Host "==> [3/3] SkipMsi flag set - done."
         return
     }
 
-    Write-Host "==> [4/4] Building MSI (WixSharp + custom WPF dialogs)"
+    Write-Host "==> [3/3] Building MSI (WixSharp + custom WPF dialogs)"
     dotnet run --project installer_ws -- `
         --version $Version `
         --bin-dir "dist\XXAR" `
-        --updater-dir "dist\Updater" `
         --output-dir "dist"
     if ($LASTEXITCODE -ne 0) { throw "WixSharp MSI build failed" }
 }

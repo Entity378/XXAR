@@ -314,10 +314,12 @@ Item {
                                     clip: true
                                     Image {
                                         anchors.centerIn: parent
+                                        anchors.horizontalCenterOffset: width * 32 / 256
                                         width: 64; height: 64
                                         source: root.gameLogos["hsr"] || ""
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
+                                        mipmap: true
                                         visible: source !== ""
                                     }
                                     Text { anchors.centerIn: parent; text: "HSR"; color: "#000000"; font.family: "Stretch Pro"; font.pixelSize: 22; visible: !root.gameLogos["hsr"] }

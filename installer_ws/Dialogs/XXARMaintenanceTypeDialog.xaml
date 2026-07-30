@@ -61,15 +61,15 @@
                 </StackPanel>
             </Button>
 
-            <Button x:Name="Remove" Style="{StaticResource XXARSecondaryButton}"
-                    Click="Remove_Click"
+            <Button x:Name="Uninstall" Style="{StaticResource XXARSecondaryButton}"
+                    Click="Uninstall_Click"
                     HorizontalContentAlignment="Left" Padding="16,12"
                     Height="Auto">
                 <StackPanel>
-                    <TextBlock Text="Remove"
+                    <TextBlock Text="Uninstall"
                                Foreground="{DynamicResource XXARTextPrimaryBrush}"
                                FontSize="13" FontWeight="SemiBold" />
-                    <TextBlock Text="Uninstall XXAR from this computer. Mods and user data remain untouched."
+                    <TextBlock Text="Remove XXAR and its downloaded tools and caches from this computer."
                                Foreground="{DynamicResource XXARTextSecondaryBrush}"
                                FontSize="11" Margin="0,2,0,0"
                                TextWrapping="Wrap" />

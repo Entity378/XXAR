@@ -533,7 +533,27 @@ Item {
                 flickDeceleration: 5000
                 maximumFlickVelocity: 2500
                 visible: !gridViewMode
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    minimumSize: 0.1
+
+                    contentItem: Rectangle {
+                        implicitWidth: 8
+                        radius: 4
+                        HoverHandler { id: modsListScrollHover }
+                        color: parent.pressed ? Theme.primaryAccent : (modsListScrollHover.hovered ? Qt.lighter(Theme.primaryAccent, 1.3) : "#555555")
+                        opacity: parent.active ? 1.0 : 0.5
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                    }
+
+                    background: Rectangle {
+                        implicitWidth: 8
+                        radius: 4
+                        color: "#2a2a2a"
+                        opacity: 0.3
+                    }
+                }
 
                 model: modsModel
 
@@ -549,7 +569,7 @@ Item {
 
                 delegate: Rectangle {
                     id: modItem
-                    width: modsList.width
+                    width: modsList.width - 16
                     height: 108
                     color: modMouseArea.containsMouse ? "#6e6e6e" : "#666666"
                     radius: 36.44
@@ -795,10 +815,31 @@ Item {
                 flickDeceleration: 5000
                 maximumFlickVelocity: 2500
                 visible: gridViewMode
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    minimumSize: 0.1
 
-                property int cols: Math.max(2, Math.floor(width / 210))
-                cellWidth: Math.floor(width / cols)
+                    contentItem: Rectangle {
+                        implicitWidth: 8
+                        radius: 4
+                        HoverHandler { id: modsGridScrollHover }
+                        color: parent.pressed ? Theme.primaryAccent : (modsGridScrollHover.hovered ? Qt.lighter(Theme.primaryAccent, 1.3) : "#555555")
+                        opacity: parent.active ? 1.0 : 0.5
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                    }
+
+                    background: Rectangle {
+                        implicitWidth: 8
+                        radius: 4
+                        color: "#2a2a2a"
+                        opacity: 0.3
+                    }
+                }
+
+                property int gridWidth: width - 16
+                property int cols: Math.max(2, Math.floor(gridWidth / 210))
+                cellWidth: Math.floor(gridWidth / cols)
                 cellHeight: 300
 
                 model: modsModel

@@ -6,7 +6,7 @@ from src.core.game_registry import (
 )
 
 APP_NAME = "XXAR"
-APP_VERSION = "0.9.5"
+APP_VERSION = "1.0.0"
 CONFIG_DIR_NAME = "XXAR"
 
 FLATPAK_ENV_VAR = "XXAR_FLATPAK"
@@ -58,7 +58,6 @@ MOD_FILE_EXT = _active_game.mod_file_ext
 MOD_FILE_EXT_UPPER = _active_game.mod_file_ext_upper
 ASSETS_DIR = _active_game.assets_dir
 LOGO_PNG = _active_game.logo_png
-LOGO_ICO = _active_game.logo_ico
 LOGO_256 = _active_game.logo_256
 
 DATA_SUBDIR = _active_game.build_target
@@ -101,6 +100,5 @@ def switch_active_game(game_id: str):
     _self.MOD_FILE_EXT_UPPER = game.mod_file_ext_upper
     _self.ASSETS_DIR = game.assets_dir
     _self.LOGO_PNG = game.logo_png
-    _self.LOGO_ICO = game.logo_ico
     _self.LOGO_256 = game.logo_256
     _self.DATA_SUBDIR = game.build_target

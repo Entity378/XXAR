@@ -5,10 +5,10 @@ from PyQt6.QtWidgets import QApplication
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
-from src.core.config_manager import get_cache_dir
+from src.core.config_manager import get_updates_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS
-from src.gui.backend.update_manager_bridge import _get_real_exe_path, _prune_stale_update_artifacts
+from src.gui.backend.update_manager_bridge import _get_real_exe_path, _is_msi_install, _prune_stale_update_artifacts
 
 logger = get_logger(__name__)
 
@@ -69,6 +69,19 @@ class UpdateConnector:
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "Update your Flatpak to the latest version:\n\n"
                            "new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases")),
+                    Q_ARG("QVariant", ""),
+                )
+        elif IS_WINDOWS and not _is_msi_install():
+            if self._startup_update_check:
+                QMetaObject.invokeMethod(
+                    self.root,
+                    "showAlertDialog",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
+                    Q_ARG("QVariant",
+                           QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
+                           "The portable build does not auto-update. Download the latest "
+                           "XXAR-windows-x64.zip from https://github.com/Entity378/XXAR/releases")),
                     Q_ARG("QVariant", ""),
                 )
         elif self._startup_update_check and self.update_dialog:
@@ -175,7 +188,7 @@ class UpdateConnector:
     def _on_update_applied(self):
         logger.info(f"[{APP_NAME}]Update applied successfully, restarting application...")
         try:
-            flag_file = get_cache_dir() / "update_success"
+            flag_file = get_updates_dir() / "update_success"
             flag_file.parent.mkdir(parents=True, exist_ok=True)
             flag_file.write_text(QCoreApplication.applicationVersion())
             logger.info(f"[{APP_NAME}]Update success flag written: {flag_file}")
@@ -195,13 +208,13 @@ class UpdateConnector:
 
     def _check_update_success_flag(self):
         try:
-            flag_file = get_cache_dir() / "update_success"
+            flag_file = get_updates_dir() / "update_success"
             if flag_file.exists():
                 old_version = flag_file.read_text().strip()
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
                 logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
-                _prune_stale_update_artifacts(get_cache_dir() / "updates")
+                _prune_stale_update_artifacts(get_updates_dir())
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",

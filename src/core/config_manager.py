@@ -14,10 +14,11 @@ class ConfigManager:
     def __init__(self):
         self._config_dir = None
         self._data_dir = None
-        self._launcher_dir = None
+        self._cache_dir = None
+        self._updates_dir = None
         self._games_dir = None
         self._tools_dir = None
-        self._backup_dir = None
+        self._state_dir = None
         self._custom_mod_library_dir = None
 
     @property
@@ -55,13 +56,26 @@ class ConfigManager:
         return self._data_dir
 
     @property
-    def launcher_dir(self):
-        if self._launcher_dir:
-            return self._launcher_dir
+    def cache_dir(self):
+        if self._cache_dir:
+            return self._cache_dir
 
-        self._launcher_dir = self.data_dir / "launcher"
-        self._launcher_dir.mkdir(parents=True, exist_ok=True)
-        return self._launcher_dir
+        # Local: regenerable caches (Qt scenegraph pipeline + QML bytecode).
+        # Qt's QStandardPaths::CacheLocation already resolves to data_dir/cache, so co-locating
+        # our QML cache here keeps a single cache/ root instead of a second launcher/cache.
+        self._cache_dir = self.data_dir / "cache"
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        return self._cache_dir
+
+    @property
+    def updates_dir(self):
+        if self._updates_dir:
+            return self._updates_dir
+
+        # Local: downloaded update archives plus the updater's log/flag, all transient.
+        self._updates_dir = self.data_dir / "updates"
+        self._updates_dir.mkdir(parents=True, exist_ok=True)
+        return self._updates_dir
 
     @property
     def games_dir(self):
@@ -100,10 +114,6 @@ class ConfigManager:
             self._custom_mod_library_dir = None
 
     @property
-    def cache_dir(self):
-        return self.launcher_dir / "cache"
-
-    @property
     def tools_dir(self):
         if self._tools_dir:
             return self._tools_dir
@@ -114,18 +124,18 @@ class ConfigManager:
         return self._tools_dir
 
     @property
-    def backup_dir(self):
-        if self._backup_dir:
-            return self._backup_dir
+    def state_dir(self):
+        if self._state_dir:
+            return self._state_dir
 
-        # Local: backups can be multi-GB (HSR VO originals), must not roam
-        self._backup_dir = self.data_dir / "backup"
-        self._backup_dir.mkdir(parents=True, exist_ok=True)
-        return self._backup_dir
+        # Local: per-game originals ledger (originals_index.json), machine-local.
+        self._state_dir = self.data_dir / "state"
+        self._state_dir.mkdir(parents=True, exist_ok=True)
+        return self._state_dir
 
-    def game_backup_dir(self, game_id=DEFAULT_GAME_ID):
+    def game_state_dir(self, game_id=DEFAULT_GAME_ID):
         game = normalize_game_id_from_registry(game_id, default=DEFAULT_GAME_ID)
-        p = self.backup_dir / game
+        p = self.state_dir / game
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -157,10 +167,6 @@ def get_data_dir():
     return _config_manager.data_dir
 
 
-def get_launcher_dir():
-    return _config_manager.launcher_dir
-
-
 def get_games_dir():
     return _config_manager.games_dir
 
@@ -189,16 +195,20 @@ def get_cache_dir():
     return _config_manager.cache_dir
 
 
+def get_updates_dir():
+    return _config_manager.updates_dir
+
+
 def get_tools_dir():
     return _config_manager.tools_dir
 
 
-def get_backup_dir():
-    return _config_manager.backup_dir
+def get_state_dir():
+    return _config_manager.state_dir
 
 
-def get_game_backup_dir(game_id=DEFAULT_GAME_ID):
-    return _config_manager.game_backup_dir(game_id)
+def get_game_state_dir(game_id=DEFAULT_GAME_ID):
+    return _config_manager.game_state_dir(game_id)
 
 
 def get_sound_database_file():

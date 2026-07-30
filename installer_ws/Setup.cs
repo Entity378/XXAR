@@ -18,8 +18,6 @@ namespace XXAR.Installer
 
             if (!Directory.Exists(opts.BinDir))
                 throw new DirectoryNotFoundException($"Bin source not found: {opts.BinDir}");
-            if (!Directory.Exists(opts.UpdaterDir))
-                throw new DirectoryNotFoundException($"Updater source not found: {opts.UpdaterDir}");
 
             var appExe = Path.Combine(opts.BinDir, "XXAR.exe");
             if (!System.IO.File.Exists(appExe))
@@ -49,34 +47,17 @@ namespace XXAR.Installer
                 },
                 Dirs = new[]
                 {
-                    new Dir(@"%LocalAppDataFolder%\XXAR",
-                        // Resources\Bin\  — all files under dist\XXAR
-                        new Dir("Resources",
-                            new Dir(new Id("BIN_DIR"), "Bin", new Files(Path.Combine(opts.BinDir, "*.*"))),
-                            new Dir(new Id("UPDATER_DIR"), "Updater", new Files(Path.Combine(opts.UpdaterDir, "*.*")))),
-                        // Shortcut at install root (XXMI-style)
-                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
-                        {
-                            IconFile = appExe,
-                            WorkingDirectory = "BIN_DIR",
-                        }),
+                    // Pin INSTALLDIR to the XXAR root, else WixSharp auto-picks the resources\ child and breaks [INSTALLDIR] paths.
+                    // The app installs flat under resources\; there is no Bin/Updater split since the MSI updates via msiexec.
+                    new Dir(new Id("INSTALLDIR"), @"%LocalAppDataFolder%\XXAR",
+                        new Dir(new Id("RESOURCES_DIR"), "resources", new Files(Path.Combine(opts.BinDir, "*.*")))),
                     // Start Menu shortcut
                     new Dir(@"%ProgramMenu%\XXAR",
-                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
+                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]resources\XXAR.exe", "")
                         {
                             IconFile = appExe,
                             Description = "Cross-game Audio Replacer",
-                            WorkingDirectory = "BIN_DIR",
-                        }),
-                    // Desktop shortcut (gated by INSTALLDESKTOPSHORTCUT=1).
-                    // Suppressed when XXAR_SILENT=1: the in-app updater runs msiexec silently and must not recreate a desktop shortcut on every update.
-                    // No custom Id: it would break %Desktop% mapping and cause Warning 1909.
-                    new Dir(@"%Desktop%",
-                        new ExeFileShortcut("XXAR", @"[INSTALLDIR]Resources\Bin\XXAR.exe", "")
-                        {
-                            IconFile = appExe,
-                            Condition = new Condition("INSTALLDESKTOPSHORTCUT=\"1\" AND XXAR_SILENT<>\"1\""),
-                            WorkingDirectory = "BIN_DIR",
+                            WorkingDirectory = "RESOURCES_DIR",
                         }),
                 },
                 // Registry marker read by update_manager_bridge._is_msi_install()
@@ -93,22 +74,59 @@ namespace XXAR.Installer
                     new Property("INSTALLDIR",
                         new RegistrySearch(RegistryHive.CurrentUser, @"Software\XXAR",
                                            "InstallLocation", RegistrySearchType.raw)),
-                    new Property("INSTALLDESKTOPSHORTCUT", "1") { AttributesDefinition = "Secure=yes" },
                     // Set to "1" by the in-app updater to show only the progress dialog.
                     new Property("XXAR_SILENT", "0") { AttributesDefinition = "Secure=yes" },
+                    // Set to "1" by the maintenance dialog checkbox to also wipe mods + settings on uninstall.
+                    new Property("XXAR_PURGE_USERDATA", "0") { AttributesDefinition = "Secure=yes" },
                     new Property("ARPHELPLINK", "https://github.com/Entity378/XXAR"),
                     new Property("ARPURLINFOABOUT", "https://github.com/Entity378/XXAR"),
+                },
+                Actions = new WixSharp.Action[]
+                {
+                    // Remove runtime data MSI doesn't track (tools, caches, and optionally mods).
+                    // Runs only on a real uninstall, never during a major upgrade, so updates keep tools + mods.
+                    new ManagedAction(CustomActions.CleanupXXARData)
+                    {
+                        Execute = Execute.deferred,
+                        Return = Return.ignore,
+                        When = When.Before,
+                        Step = Step.InstallFinalize,
+                        Condition = new Condition("(REMOVE=\"ALL\") AND (NOT UPGRADINGPRODUCTCODE)"),
+                        UsesProperties = "LOCAL_XXAR=[LocalAppDataFolder]XXAR,ROAMING_XXAR=[AppDataFolder]XXAR,STARTMENU_XXAR=[ProgramMenuFolder]XXAR,XXAR_PURGE_USERDATA=[XXAR_PURGE_USERDATA]",
+                    },
+                    // On install/upgrade only, drop a wrongly-cased "Resources" folder left by a pre-flatten install.
+                    // It must run before InstallFiles so InstallFiles then recreates the folder lowercase and flat.
+                    new ManagedAction(CustomActions.NormalizeResourcesCasing)
+                    {
+                        Execute = Execute.deferred,
+                        Return = Return.ignore,
+                        When = When.Before,
+                        Step = Step.InstallFiles,
+                        Condition = new Condition("NOT (REMOVE=\"ALL\")"),
+                        UsesProperties = "INSTALLDIR=[INSTALLDIR]",
+                    },
                 },
             };
 
             project.ControlPanelInfo.Manufacturer = "Entity378";
             project.ControlPanelInfo.HelpLink = "https://github.com/Entity378/XXAR";
             project.ControlPanelInfo.ProductIcon = appExe;
+            // Hide the separate ARP "Repair" — repair is offered as a tile inside our maintenance dialog.
+            project.ControlPanelInfo.NoRepair = true;
 
             // Custom WPF UI — defined in InstallerUI.cs.
             InstallerUI.Attach(project);
 
             var msiPath = project.BuildMsi();
+
+            // WixSharp's ManagedUI writes ARPNOMODIFY=1 into the built MSI, which hides the Control Panel "Change" entry.
+            // Strip it here so "Change" opens our maintenance dialog (Repair/Remove + purge checkbox).
+            using (var db = new WixToolset.Dtf.WindowsInstaller.Database(msiPath, WixToolset.Dtf.WindowsInstaller.DatabaseOpenMode.Direct))
+            {
+                db.Execute("DELETE FROM `Property` WHERE `Property` = 'ARPNOMODIFY'");
+                db.Commit();
+            }
+
             Console.WriteLine($"==> Built: {msiPath}");
             return 0;
         }
@@ -118,7 +136,6 @@ namespace XXAR.Installer
     {
         public string Version { get; set; } = "0.0.0";
         public string BinDir { get; set; } = @"dist\XXAR";
-        public string UpdaterDir { get; set; } = @"dist\Updater";
         public string OutputDir { get; set; } = @"dist";
 
         public static Options Parse(string[] args)
@@ -130,7 +147,6 @@ namespace XXAR.Installer
                 {
                     case "--version": o.Version = args[++i]; break;
                     case "--bin-dir": o.BinDir = args[++i]; break;
-                    case "--updater-dir": o.UpdaterDir = args[++i]; break;
                     case "--output-dir": o.OutputDir = args[++i]; break;
                     default: throw new ArgumentException($"unknown arg: {args[i]}");
                 }

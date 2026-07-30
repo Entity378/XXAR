@@ -3,6 +3,7 @@ import os
 import re
 import ssl
 import tempfile
+import time
 import traceback
 import urllib.error
 import urllib.parse
@@ -13,7 +14,9 @@ from pathlib import Path
 
 import py7zr
 import rarfile
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
+
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
@@ -73,6 +76,11 @@ def _thumb_dir():
 _cache: dict = {}
 _cache_dirty = False
 
+# Sections whose GameBanana values can change (XXAR-support flags, thumbnails); expired on read so they re-fetch.
+# Structural sections (file archive trees, url->id) are immutable facts and kept forever.
+_VOLATILE_SECTIONS = ("mod_support", "mod_support_misc", "mod_thumbnail", "thumbnails")
+_CACHE_TTL_SECONDS = 24 * 3600
+
 
 def _load_cache():
     global _cache
@@ -96,13 +104,32 @@ def _save_cache():
 
 
 def _cache_get(section: str, mod_id: int):
-    return _cache.get(section, {}).get(str(mod_id))
+    entry = _cache.get(section, {}).get(str(mod_id))
+    if section not in _VOLATILE_SECTIONS:
+        return entry
+    # Volatile entries are wrapped {"v", "ts"}; legacy flat and expired ones read as absent so they re-fetch.
+    if not isinstance(entry, dict) or "ts" not in entry:
+        return None
+    if time.time() - entry["ts"] > _CACHE_TTL_SECONDS:
+        return None
+    return entry["v"]
 
 
 def _cache_set(section: str, mod_id: int, value):
     global _cache_dirty
+    if section in _VOLATILE_SECTIONS:
+        value = {"v": value, "ts": time.time()}
     _cache.setdefault(section, {})[str(mod_id)] = value
     _cache_dirty = True
+
+
+def _cache_clear_volatile():
+    # Drop the changeable sections so the next fetch re-evaluates support flags and thumbnails.
+    global _cache_dirty
+    for section in _VOLATILE_SECTIONS:
+        if _cache.pop(section, None) is not None:
+            _cache_dirty = True
+    _save_cache()
 
 
 _load_cache()
@@ -176,7 +203,7 @@ def is_audio_media(url):
 GAMEBANANA_API_BASE = "https://gamebanana.com/apiv11"
 
 
-class FetchModsWorker(QThread):
+class FetchModsWorker(BaseWorker):
 
     finished = pyqtSignal(bool, object)
 
@@ -188,7 +215,7 @@ class FetchModsWorker(QThread):
         self.category = category
         self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
-    def run(self):
+    def work(self):
         try:
 
             filters = f"_aFilters[Generic_Game]={self.gamebanana_game_id}"
@@ -231,6 +258,8 @@ class FetchModsWorker(QThread):
                 metadata = data.get('_aMetadata', {}) if isinstance(data, dict) else {}
                 total_count = metadata.get('_nRecordCount', 0)
                 logger.info(f"[GameBanana] Parsed {len(mods)} mods from response (total: {total_count})")
+                if self.is_cancelled():
+                    return
                 self.finished.emit(True, (mods, total_count))
 
         except urllib.error.HTTPError as e:
@@ -297,7 +326,7 @@ class FetchModsWorker(QThread):
         }
 
 
-class FetchMiscModsWorker(QThread):
+class FetchMiscModsWorker(BaseWorker):
 
     finished = pyqtSignal(bool, object)
 
@@ -310,7 +339,7 @@ class FetchMiscModsWorker(QThread):
         self.sort = sort
         self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
-    def run(self):
+    def work(self):
         try:
             filters = f"_aFilters[Generic_Game]={self.gamebanana_game_id}"
             params = {'_nPage': self.page, '_nPerpage': self.per_page}
@@ -344,6 +373,8 @@ class FetchMiscModsWorker(QThread):
             with ThreadPoolExecutor(max_workers=self.CONCURRENT_CHECKS) as pool:
                 futures = {pool.submit(self._check_mod, mod['id']): mod for mod in candidates}
                 for future in as_completed(futures):
+                    if self.is_cancelled():
+                        break
                     mod = futures[future]
                     try:
                         is_supported, thumbnail = future.result()
@@ -357,6 +388,8 @@ class FetchMiscModsWorker(QThread):
                         pass
 
             logger.info(f"[GameBanana] Found {len(native_mods)} {APP_NAME}-native misc mods")
+            if self.is_cancelled():
+                return
             self.finished.emit(True, native_mods)
 
         except urllib.error.HTTPError as e:
@@ -502,7 +535,7 @@ class FetchMiscModsWorker(QThread):
         return False
 
 
-class FetchModDetailsWorker(QThread):
+class FetchModDetailsWorker(BaseWorker):
 
     finished = pyqtSignal(bool, object)
 
@@ -511,7 +544,7 @@ class FetchModDetailsWorker(QThread):
         self.mod_id = mod_id
         self.item_type = item_type
 
-    def run(self):
+    def work(self):
         try:
             if self.item_type == 'Mod':
                 self._run_mod_type()
@@ -755,7 +788,7 @@ class FetchModDetailsWorker(QThread):
         return False
 
 
-class FetchThumbnailsWorker(QThread):
+class FetchThumbnailsWorker(BaseWorker):
 
     thumbnailReady = pyqtSignal("qint64", str)
 
@@ -804,54 +837,19 @@ class FetchThumbnailsWorker(QThread):
             pass
         return None
 
-    def run(self):
+    def work(self):
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
             futures = {pool.submit(self._fetch_one, mid): mid for mid in self.mod_ids}
             for future in as_completed(futures):
+                if self.is_cancelled():
+                    break
                 result = future.result()
                 if result:
                     self.thumbnailReady.emit(result[0], result[1])
         _save_cache()
 
 
-class FetchDownloadCountsWorker(QThread):
-
-    downloadCountReady = pyqtSignal("qint64", int)
-
-    CONCURRENT_REQUESTS = 5
-
-    def __init__(self, mod_ids):
-        super().__init__()
-        self.mod_ids = mod_ids
-
-    def _fetch_one(self, mod_id):
-        cached = _cache_get("download_counts", mod_id)
-        if cached is not None:
-            return (mod_id, cached)
-        try:
-            url = f"https://api.gamebanana.com/Core/Item/Data?itemtype=Sound&itemid={mod_id}&fields=downloads"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
-            with _urlopen(req, timeout=8) as response:
-                data = json.loads(response.read().decode('utf-8'))
-
-            downloads = data[0] if isinstance(data, list) and data else 0
-            _cache_set("download_counts", mod_id, int(downloads))
-            return (mod_id, int(downloads))
-        except Exception:
-            pass
-        return None
-
-    def run(self):
-        with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
-            futures = {pool.submit(self._fetch_one, mid): mid for mid in self.mod_ids}
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    self.downloadCountReady.emit(result[0], result[1])
-        _save_cache()
-
-
-class FetchModSupportWorker(QThread):
+class FetchModSupportWorker(BaseWorker):
 
     modSupportReady = pyqtSignal("qint64", bool)
 
@@ -921,10 +919,12 @@ class FetchModSupportWorker(QThread):
                     return True
         return False
 
-    def run(self):
+    def work(self):
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
             futures = {pool.submit(self._check_one, mid): mid for mid in self.mod_ids}
             for future in as_completed(futures):
+                if self.is_cancelled():
+                    break
                 result = future.result()
                 if result:
                     self.modSupportReady.emit(result[0], result[1])
@@ -968,7 +968,7 @@ def _open_archive(path):
         raise RuntimeError(f"Unsupported archive format: {suffix}")
 
 
-class InstallModWorker(QThread):
+class InstallModWorker(BaseWorker):
 
     finished = pyqtSignal(bool, str)
     multipleFound = pyqtSignal(list)
@@ -982,7 +982,7 @@ class InstallModWorker(QThread):
         self.item_type = item_type
         self.game_id = game_id
 
-    def run(self):
+    def work(self):
         try:
             archive, namelist_fn, read_fn = _open_archive(self.archive_path)
             with archive:
@@ -1034,7 +1034,7 @@ class InstallModWorker(QThread):
             self.finished.emit(False, f"Install failed: {str(e)}\n{traceback.format_exc()}")
 
 
-class DownloadModWorker(QThread):
+class DownloadModWorker(BaseWorker):
 
     progress = pyqtSignal(int)
     finished = pyqtSignal(bool, str)
@@ -1044,7 +1044,7 @@ class DownloadModWorker(QThread):
         self.download_url = download_url
         self.save_path = Path(save_path)
 
-    def run(self):
+    def work(self):
         try:
             logger.info(f"[GameBanana] Downloading: {self.download_url}")
 
@@ -1059,6 +1059,8 @@ class DownloadModWorker(QThread):
 
                 with open(self.save_path, 'wb') as f:
                     while True:
+                        if self.is_cancelled():
+                            return
                         chunk = response.read(8192)
                         if not chunk:
                             break
@@ -1097,15 +1099,7 @@ class GameBananaBridge(QObject):
 
     def __init__(self):
         super().__init__()
-        self.fetch_worker = None
-        self.misc_fetch_worker = None
-        self.details_worker = None
-        self.download_worker = None
-        self.install_worker = None
-        self.thumbnail_worker = None
-        self.download_counts_worker = None
-        self.mod_support_worker = None
-        self._thumb_worker = None
+        self._workers = WorkerRegistry("gamebanana")
         self._thumb_queue = []
         self._thumb_inflight = set()
         self.current_page = 1
@@ -1124,21 +1118,34 @@ class GameBananaBridge(QObject):
             DEFAULT_GAME_ID, default=app_config.GAMEBANANA_GAME_ID
         )
 
-    def _stop_worker(self, worker_attr):
-        worker = getattr(self, worker_attr, None)
-        if worker and worker.isRunning():
-            worker.terminate()
-            worker.wait(300)
-
     def _cancel_fetch_pipeline(self):
-        self._stop_worker("fetch_worker")
-        self._stop_worker("misc_fetch_worker")
-        self._stop_worker("mod_support_worker")
+        # Cooperative cancel; the workers drop their results via is_cancelled() instead of being terminated.
+        self._workers.cancel("fetch")
+        self._workers.cancel("misc_fetch")
+        self._cancel_mod_support()
         self._pending_fetch_count = 0
         self._combined_mods = []
         self._sound_mod_ids = []
         self._total_sound_mods = 0
         self.loadingStateChanged.emit(False)
+
+    @pyqtSlot("qint64", str)
+    def _forward_thumbnail(self, mod_id, url):
+        # Re-emit on the GUI thread instead of letting the worker thread fire the GUI-facing signal.
+        self.thumbnailUpdated.emit(mod_id, url)
+
+    @pyqtSlot("qint64", bool)
+    def _forward_mod_support(self, mod_id, supported):
+        self.modSupportUpdated.emit(mod_id, supported)
+
+    @pyqtSlot(int)
+    def _forward_download_progress(self, percent):
+        self.downloadProgress.emit(percent)
+
+    def _cancel_mod_support(self):
+        seq = getattr(self, "_mod_support_seq", 0)
+        if seq:
+            self._workers.cancel(f"mod_support:{seq}")
 
     @pyqtSlot(str)
     def setActiveGame(self, game_id):
@@ -1195,7 +1202,7 @@ class GameBananaBridge(QObject):
             self._maybe_start_thumb_worker()
 
     def _maybe_start_thumb_worker(self):
-        if self._thumb_worker and self._thumb_worker.isRunning():
+        if self._workers.is_running("thumb"):
             return
         if not self._thumb_queue:
             return
@@ -1204,10 +1211,10 @@ class GameBananaBridge(QObject):
         self._thumb_queue = self._thumb_queue[5:]
         for mid in batch:
             self._thumb_inflight.add(mid)
-        self._thumb_worker = FetchThumbnailsWorker(batch)
-        self._thumb_worker.thumbnailReady.connect(self.thumbnailUpdated.emit)
-        self._thumb_worker.finished.connect(self._on_thumb_batch_done)
-        self._thumb_worker.start()
+        worker = FetchThumbnailsWorker(batch)
+        worker.thumbnailReady.connect(self._forward_thumbnail)
+        worker.finished.connect(self._on_thumb_batch_done)
+        self._workers.start("thumb", worker)
 
     def _on_thumb_batch_done(self):
         self._thumb_inflight.clear()
@@ -1216,8 +1223,7 @@ class GameBananaBridge(QObject):
     @pyqtSlot(int, str, str)
     def fetchMods(self, page=1, sort="default", search=""):
 
-        if (self.fetch_worker and self.fetch_worker.isRunning()) or \
-           (self.misc_fetch_worker and self.misc_fetch_worker.isRunning()):
+        if self._workers.is_running("fetch") or self._workers.is_running("misc_fetch"):
             logger.info("[GameBanana] Already fetching mods")
             return
 
@@ -1229,23 +1235,23 @@ class GameBananaBridge(QObject):
         self._total_sound_mods = 0
         self.loadingStateChanged.emit(True)
 
-        self.fetch_worker = FetchModsWorker(
+        fetch_worker = FetchModsWorker(
             page,
             per_page=50,
             sort=sort,
             gamebanana_game_id=self._active_gamebanana_game_id,
         )
-        self.fetch_worker.finished.connect(self._on_sound_mods_partial)
-        self.fetch_worker.start()
+        fetch_worker.finished.connect(self._on_sound_mods_partial)
+        self._workers.start("fetch", fetch_worker)
 
-        self.misc_fetch_worker = FetchMiscModsWorker(
+        misc_fetch_worker = FetchMiscModsWorker(
             page,
             per_page=50,
             sort=sort,
             gamebanana_game_id=self._active_gamebanana_game_id,
         )
-        self.misc_fetch_worker.finished.connect(self._on_misc_mods_partial)
-        self.misc_fetch_worker.start()
+        misc_fetch_worker.finished.connect(self._on_misc_mods_partial)
+        self._workers.start("misc_fetch", misc_fetch_worker)
 
     def _on_sound_mods_partial(self, success, data):
         if success:
@@ -1284,11 +1290,12 @@ class GameBananaBridge(QObject):
             logger.info(f"[GameBanana] Loaded {len(data)} mods ({len(self._sound_mod_ids)} Sound + {len(data) - len(self._sound_mod_ids)} Misc {APP_NAME}), total Sound: {self._total_sound_mods}")
 
             if self._sound_mod_ids:
-                if self.mod_support_worker and self.mod_support_worker.isRunning():
-                    self.mod_support_worker.terminate()
-                self.mod_support_worker = FetchModSupportWorker(self._sound_mod_ids)
-                self.mod_support_worker.modSupportReady.connect(self.modSupportUpdated.emit)
-                self.mod_support_worker.start()
+                # Unique key so a re-fetch is never refused; the prior worker is cancelled cooperatively.
+                self._cancel_mod_support()
+                self._mod_support_seq = getattr(self, "_mod_support_seq", 0) + 1
+                worker = FetchModSupportWorker(self._sound_mod_ids)
+                worker.modSupportReady.connect(self._forward_mod_support)
+                self._workers.start(f"mod_support:{self._mod_support_seq}", worker)
         else:
             self.errorOccurred.emit("Failed to Load Mods", str(data))
             logger.error(f"[GameBanana] Error: {data}")
@@ -1296,16 +1303,16 @@ class GameBananaBridge(QObject):
     @pyqtSlot("qint64")
     def fetchModDetails(self, mod_id):
 
-        if self.details_worker and self.details_worker.isRunning():
+        if self._workers.is_running("details"):
             logger.info("[GameBanana] Already fetching details")
             return
 
         self.loadingStateChanged.emit(True)
 
         item_type = self._mod_item_types.get(mod_id, 'Sound')
-        self.details_worker = FetchModDetailsWorker(mod_id, item_type)
-        self.details_worker.finished.connect(self._on_details_fetched)
-        self.details_worker.start()
+        worker = FetchModDetailsWorker(mod_id, item_type)
+        worker.finished.connect(self._on_details_fetched)
+        self._workers.start("details", worker)
 
     def _on_details_fetched(self, success, data):
 
@@ -1334,7 +1341,7 @@ class GameBananaBridge(QObject):
     @pyqtSlot(str, str, str, "qint64")
     def downloadMod(self, download_url, filename, mod_name, mod_id=0):
 
-        if self.download_worker and self.download_worker.isRunning():
+        if self._workers.is_running("download"):
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
             return
 
@@ -1343,10 +1350,10 @@ class GameBananaBridge(QObject):
 
         self._current_download_url = download_url
         self._current_download_mod_id = mod_id
-        self.download_worker = DownloadModWorker(download_url, save_path)
-        self.download_worker.progress.connect(self.downloadProgress.emit)
-        self.download_worker.finished.connect(self._on_download_finished)
-        self.download_worker.start()
+        worker = DownloadModWorker(download_url, save_path)
+        worker.progress.connect(self._forward_download_progress)
+        worker.finished.connect(self._on_download_finished)
+        self._workers.start("download", worker)
 
         logger.info(f"[GameBanana] Starting download: {mod_name}")
 
@@ -1362,15 +1369,15 @@ class GameBananaBridge(QObject):
         if not save_path:
             return
 
-        if self.download_worker and self.download_worker.isRunning():
+        if self._workers.is_running("download"):
             self.errorOccurred.emit("Download in Progress", "Please wait for the current download to complete")
             return
 
         self._non_native_save_path = save_path
-        self.download_worker = DownloadModWorker(download_url, save_path)
-        self.download_worker.progress.connect(self.downloadProgress.emit)
-        self.download_worker.finished.connect(self._on_non_native_download_finished)
-        self.download_worker.start()
+        worker = DownloadModWorker(download_url, save_path)
+        worker.progress.connect(self._forward_download_progress)
+        worker.finished.connect(self._on_non_native_download_finished)
+        self._workers.start("download", worker)
 
     def _on_non_native_download_finished(self, success, result):
         if success:
@@ -1390,12 +1397,12 @@ class GameBananaBridge(QObject):
             logger.error(f"[GameBanana] Download error: {result}")
 
     def _run_install(self, archive_path, chosen_mod, gamebanana_id=0, download_url="", item_type="Sound"):
-        if self.install_worker and self.install_worker.isRunning():
+        if self._workers.is_running("install"):
             self._install_queue.append((archive_path, chosen_mod, gamebanana_id, download_url, item_type))
             return
         self.installStateChanged.emit(True)
-        self.install_worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type, game_id=self._active_game_id)
-        self.install_worker.finished.connect(self._on_install_finished)
+        worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type, game_id=self._active_game_id)
+        worker.finished.connect(self._on_install_finished)
         captured_url = download_url
 
         def _on_multiple_found(names):
@@ -1403,8 +1410,8 @@ class GameBananaBridge(QObject):
                 _cache_set("mod_totals_by_url", captured_url, len(names))
                 _save_cache()
             self.multipleModsFound.emit(names, archive_path)
-        self.install_worker.multipleFound.connect(_on_multiple_found)
-        self.install_worker.start()
+        worker.multipleFound.connect(_on_multiple_found)
+        self._workers.start("install", worker)
 
     @pyqtSlot(str, str)
     def installChosenMod(self, zip_path, mod_name):
@@ -1420,16 +1427,23 @@ class GameBananaBridge(QObject):
             self.errorOccurred.emit("Install Failed", message)
             logger.error(f"[GameBanana] Install error: {message}")
 
+        # Start the next queued install on the next event-loop turn, once the finished
+        # worker has cleared the registry slot (so the double-start guard sees it gone).
         if self._install_queue:
-            next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)
-            self.install_worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type, game_id=self._active_game_id)
-            self.install_worker.finished.connect(self._on_install_finished)
-            self.install_worker.multipleFound.connect(
-                lambda names: self.multipleModsFound.emit(names, next_path)
-            )
-            self.install_worker.start()
+            QTimer.singleShot(0, self._start_next_install)
         else:
             self.installStateChanged.emit(False)
+
+    def _start_next_install(self):
+        if not self._install_queue or self._workers.is_running("install"):
+            return
+        next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)
+        worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type, game_id=self._active_game_id)
+        worker.finished.connect(self._on_install_finished)
+        worker.multipleFound.connect(
+            lambda names: self.multipleModsFound.emit(names, next_path)
+        )
+        self._workers.start("install", worker)
 
     @pyqtSlot(result='QVariantList')
     def getInstalledModNames(self):
@@ -1527,5 +1541,6 @@ class GameBananaBridge(QObject):
 
     @pyqtSlot()
     def refresh(self):
-
+        # A manual Refresh busts the volatile cache so badges/thumbnails/misc membership re-evaluate now.
+        _cache_clear_volatile()
         self.fetchMods(self.current_page, self.current_sort)

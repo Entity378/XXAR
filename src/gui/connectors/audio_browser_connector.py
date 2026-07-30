@@ -105,6 +105,12 @@ class AudioBrowserConnector:
         ab.hideEmptyBnkChanged.connect(
             lambda enabled: self.audio_page.setProperty("hideEmptyBnkChecked", enabled)
         )
+        ab.mergeWemChanged.connect(
+            lambda enabled: self.audio_page.setProperty("mergeWemChecked", enabled)
+        )
+        ab.hideUselessPckChanged.connect(
+            lambda enabled: self.audio_page.setProperty("hideUselessPckChecked", enabled)
+        )
 
         self.audio_page.downloadOfficialTagDbClicked.connect(ab.downloadOfficialTagDb)
         self.audio_page.applyOfficialTagDb.connect(ab.applyOfficialTagDb)

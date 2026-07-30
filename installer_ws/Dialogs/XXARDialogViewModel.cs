@@ -29,10 +29,8 @@ namespace XXAR.Installer.Dialogs
     // True when the in-app updater set XXAR_SILENT=1: dialogs auto-advance, only progress shows.
     internal static class XXARSilentUpdate
     {
-        // Cached from the first dialog that can read it. The Exit dialog runs after
-        // InstallFinalize, where the session property is no longer reliably readable —
-        // without the cache it would read empty, fall through to false, and wait for a
-        // manual Finish click instead of auto-closing.
+        // Cached from the first dialog that can read it, because the Exit dialog runs after InstallFinalize.
+        // There the session property reads empty, so without the cache it would wait for a manual Finish click.
         private static bool? _cached;
 
         public static bool IsActive(ManagedForm host)
@@ -51,9 +49,8 @@ namespace XXAR.Installer.Dialogs
             return false;
         }
 
-        // Skip a dialog. Must be deferred: calling Shell.GoNext()/Exit() synchronously from
-        // Init() reenters the shell, overshoots past the progress dialog, and trips
-        // CancelRequestHandler during InstallFinalize → the install rolls back (1602).
+        // Skip a dialog, deferred via BeginInvoke rather than synchronously from Init().
+        // A synchronous Shell.GoNext()/Exit() reenters the shell and rolls the install back at InstallFinalize (1602).
         public static void SkipTo(System.Windows.Threading.DispatcherObject dialog, System.Action navigate)
             => dialog.Dispatcher.BeginInvoke(navigate, System.Windows.Threading.DispatcherPriority.Background);
     }

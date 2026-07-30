@@ -19,6 +19,7 @@ class GameDefinition:
     streamed_pck_prefix: str = "Streamed"
     soundbank_pck_prefix: str = "SoundBank"
     soundbank_pck_filter_prefix: str = "SoundBank"
+    streamed_pck_filter_prefix: str = "Streamed"
     music_pck_globs: tuple[str, ...] = ()
     language_folders: tuple[tuple[str, str], ...] = ()
     audio_root_friendly_name: str = "Audio"
@@ -37,7 +38,6 @@ class GameDefinition:
     mod_file_ext_upper: str = ""
     assets_dir: str = ""
     logo_png: str = ""
-    logo_ico: str = ""
     logo_256: str = ""
 
 
@@ -57,6 +57,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed_SFX_",
         soundbank_pck_prefix="SoundBank_SFX_",
         soundbank_pck_filter_prefix="SoundBank_",
+        streamed_pck_filter_prefix="Streamed_",
         music_pck_globs=("Streamed_SFX_*.pck",),
         language_folders=(
             ("En", "English"),
@@ -78,7 +79,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="ZZAR",
         assets_dir="ZZAR",
         logo_png="ZZAR-Logo2.png",
-        logo_ico="ZZAR-Logo2.ico",
         logo_256="ZZAR-Logo2-256.png",
     ),
     GameDefinition(
@@ -96,6 +96,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed",
         soundbank_pck_prefix="Bank",
         soundbank_pck_filter_prefix="Bank",
+        streamed_pck_filter_prefix="Streamed",
         music_pck_globs=("Music*.pck",),
         language_folders=(
             ("English(US)", "English"),
@@ -106,7 +107,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         audio_root_friendly_name="SFX/Music",
         subfolder_sort_priority=(("BeyondUGC", 1), ("MusicGame", 2)),
         non_language_tabs=("Full", "Common"),
-        merge_wem_default=True,
+        merge_wem_default=False,
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
         loop_point_modes=("auto", "manual", "disabled"),
@@ -116,7 +117,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="GIAR",
         assets_dir="GIAR",
         logo_png="GIAR-Logo2.png",
-        logo_ico="GIAR-Logo2.ico",
         logo_256="GIAR-Logo2-256.png",
     ),
     GameDefinition(
@@ -134,6 +134,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         streamed_pck_prefix="Streamed",
         soundbank_pck_prefix="Banks",
         soundbank_pck_filter_prefix="Banks",
+        streamed_pck_filter_prefix="Streamed",
         music_pck_globs=("Music*.pck",),
         language_folders=(
             ("English", "English"),
@@ -154,7 +155,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         mod_file_ext_upper="SRAR",
         assets_dir="SRAR",
         logo_png="SRAR-Logo2.png",
-        logo_ico="SRAR-Logo2.ico",
         logo_256="SRAR-Logo2-256.png",
     ),
 )

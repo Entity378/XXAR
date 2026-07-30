@@ -18,7 +18,6 @@ def _natural_pck_key(name: str) -> list:
 
 from PyQt6.QtCore import (
     QObject,
-    QThread,
     pyqtSignal,
     pyqtSlot,
 )
@@ -38,6 +37,7 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.data.sound_database import SoundDatabase
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.wwise.hirc_music import (
@@ -50,6 +50,7 @@ from src.wwise.hirc_patcher import (
     apply_duration_patches,
     scan_bank_for_patch_targets,
 )
+from src.wwise.patch_target_resolver import soundbank_bnk_ids
 from src.wwise.pck_indexer import PCKIndexer
 from src.wwise.pck_packer import PCKPacker
 
@@ -61,7 +62,7 @@ logger = get_logger(__name__)
 # Walks every .pck under the active game's audio roots.
 # Lists bnks that contain at least one music HIRC object.
 # Cancellable from the bridge.
-class BnkListLoaderWorker(QThread):
+class BnkListLoaderWorker(BaseWorker):
 
     progress = pyqtSignal(str)
     finished_ok = pyqtSignal("QVariant")
@@ -71,19 +72,15 @@ class BnkListLoaderWorker(QThread):
         super().__init__()
         self._audio_root = audio_root
         self._persistent_audio_root = persistent_audio_root
-        self._cancel = False
 
-    def cancel(self):
-        self._cancel = True
-
-    def run(self):
+    def work(self):
         try:
             result = self._scan()
-            if not self._cancel:
+            if not self.is_cancelled():
                 self.finished_ok.emit(result)
         except Exception as e:
             logger.exception("[HIRC Editor] Bnk list scan failed")
-            if not self._cancel:
+            if not self.is_cancelled():
                 self.failed.emit(str(e))
 
     def _scan(self) -> List[dict]:
@@ -100,11 +97,18 @@ class BnkListLoaderWorker(QThread):
 
         all_pcks = sorted(pck_map.values(), key=lambda t: t[0].name)
 
+        # A protected override (Patch.pck/Hotfix.pck) contributes only its orphan banks with no SoundBank counterpart.
+        # Counterpart-present banks are reached via their SoundBank entry, mirroring the Browser.
+        game = app_config._active_game
+        protected = set(game.protected_pcks)
+        counterpart_ids = soundbank_bnk_ids(self._audio_root, game) if protected else set()
+
         result: List[dict] = []
         total = len(all_pcks)
         for i, (pck_path, is_override) in enumerate(all_pcks, 1):
-            if self._cancel:
+            if self.is_cancelled():
                 return []
+            is_protected = pck_path.name in protected
             try:
                 indexer = PCKIndexer(str(pck_path))
                 indexer.build_index()
@@ -116,8 +120,10 @@ class BnkListLoaderWorker(QThread):
                 continue
             with open(pck_path, "rb") as f:
                 for binfo in banks:
-                    if self._cancel:
+                    if self.is_cancelled():
                         return []
+                    if is_protected and binfo["id"] in counterpart_ids:
+                        continue
                     f.seek(binfo["offset"])
                     content = f.read(binfo["size"])
                     n_music, src_ids = _collect_bnk_music_index(content)
@@ -140,7 +146,7 @@ class BnkListLoaderWorker(QThread):
         return result
 
 
-class WemConvertWorker(QThread):
+class WemConvertWorker(BaseWorker):
     # Convert an arbitrary audio file to .wem off the UI thread (Wwise shellout is slow).
     # .wem inputs are copied as-is.
     finished_ok = pyqtSignal(str, str)  # (wem_path, source_name)
@@ -155,7 +161,7 @@ class WemConvertWorker(QThread):
         self._streaming_root = streaming_root
         self._wem_id = wem_id
 
-    def run(self):
+    def work(self):
         try:
             # An add must use a new id, so reject one that already exists in the originals.
             # Building the index here keeps it off the UI thread.
@@ -185,7 +191,7 @@ class WemConvertWorker(QThread):
             self.failed.emit(str(e))
 
 
-class ApplyDraftWorker(QThread):
+class ApplyDraftWorker(BaseWorker):
     # Replay a HIRC draft onto the live game (Persistent): media WEM adds + track patches.
     progress = pyqtSignal(str)
     finished_ok = pyqtSignal(str)
@@ -199,7 +205,7 @@ class ApplyDraftWorker(QThread):
         self._streaming_root = streaming_root
         self._persistent_root = persistent_root
 
-    def run(self):
+    def work(self):
         try:
             for item in self._media_adds:
                 self.progress.emit(
@@ -249,11 +255,9 @@ class HircEditorBridge(QObject):
 
     def __init__(self):
         super().__init__()
-        self._loader: Optional[BnkListLoaderWorker] = None
+        self._workers = WorkerRegistry("hirc_editor")
         self._draft = {"media_adds": [], "track_patches": []}
         self._draft_game_id: Optional[str] = None
-        self._convert_worker: Optional[WemConvertWorker] = None
-        self._apply_worker: Optional[ApplyDraftWorker] = None
         # Reverse index {wem_id: name} from the per-game sound database.
         # It is built lazily and refreshed on game switch to label HIRC sources.
         self._id_name_map: Optional[Dict[int, str]] = None
@@ -288,13 +292,7 @@ class HircEditorBridge(QObject):
         worker.progress.connect(self._onLoaderProgress)
         worker.finished_ok.connect(self._onLoaderFinished)
         worker.failed.connect(self._onLoaderFailed)
-        worker.finished.connect(self._onLoaderThreadDone)
-        # Let Qt destroy the QThread on its own once run() has returned.
-        # Without this, a stale worker's `finished` slot could null `self._loader` after we've already replaced it.
-        # The live worker would lose its Python reference, then get GC'd mid-run, causing a segfault.
-        worker.finished.connect(worker.deleteLater)
-        self._loader = worker
-        worker.start()
+        self._workers.start("loader", worker)
 
     @pyqtSlot()
     def unloadAll(self):
@@ -481,12 +479,12 @@ class HircEditorBridge(QObject):
     # ── Internal: loader callbacks ──────────────────────────────────────
 
     def _onLoaderProgress(self, msg):
-        if self.sender() is not self._loader:
+        if self.sender() is not self._workers.get("loader"):
             return
         self.statusUpdate.emit(msg)
 
     def _onLoaderFinished(self, data):
-        if self.sender() is not self._loader:
+        if self.sender() is not self._workers.get("loader"):
             return
         n = len(data) if data is not None else 0
         logger.info(f"[HIRC Editor] Bnk scan finished: {n} bnks")
@@ -507,22 +505,16 @@ class HircEditorBridge(QObject):
             entry["search"] = " ".join(parts)
 
     def _onLoaderFailed(self, msg):
-        if self.sender() is not self._loader:
+        if self.sender() is not self._workers.get("loader"):
             return
         logger.error(f"[HIRC Editor] Bnk scan failed: {msg}")
         self.errorOccurred.emit("Scan Error", f"Bnk scan failed:\n{msg}")
 
-    def _onLoaderThreadDone(self):
-        # Only drop the reference if the worker that just finished is the one we still hold.
-        # A stale (cancelled-but-late) worker firing this slot must NOT clear the pointer to the active worker.
-        if self.sender() is self._loader:
-            self._loader = None
-
     def _cancel_loader(self):
-        if self._loader is not None and self._loader.isRunning():
-            self._loader.cancel()
-            self._loader.wait(2000)
-        self._loader = None
+        worker = self._workers.get("loader")
+        if worker is not None and worker.isRunning():
+            worker.cancel()
+            worker.wait(2000)
 
     # ── Internal: HIRC loading ──────────────────────────────────────────
 
@@ -799,6 +791,9 @@ class HircEditorBridge(QObject):
         except (TypeError, ValueError):
             lid = 0
 
+        if self._workers.is_running("convert"):
+            self.statusUpdate.emit("A conversion is already in progress...")
+            return
         gid = self._current_game_id()
         dest = get_game_hirc_draft_wem_dir(gid) / f"{wid}.wem"
         self.statusUpdate.emit(f"Converting {src.name} to WEM...")
@@ -811,9 +806,7 @@ class HircEditorBridge(QObject):
         worker.failed.connect(
             lambda msg: self.errorOccurred.emit("Add WEM", f"Conversion failed:\n{msg}")
         )
-        worker.finished.connect(worker.deleteLater)
-        self._convert_worker = worker
-        worker.start()
+        self._workers.start("convert", worker)
 
     def _on_wem_converted(self, pck, wem_id, lang_id, wem_path, source_name):
         d = self._get_draft()
@@ -941,6 +934,19 @@ class HircEditorBridge(QObject):
                 "loop_ms": "",
                 "volume_db": "",
             })
+        # Resolve the track's current loop and sources so the overlay shows what a patch preserves.
+        # Without it a volume-only row would render loop 0 and no source, reading as destructive.
+        bnk_cache = {}
+
+        def _current_track(pck, bnk_id, obj_id):
+            key = (pck, int(bnk_id))
+            if key not in bnk_cache:
+                try:
+                    bnk_cache[key] = {o["obj_id"]: o for o in self._load_bnk_objects(pck, int(bnk_id))}
+                except Exception:
+                    bnk_cache[key] = {}
+            return bnk_cache[key].get(int(obj_id))
+
         for tp in d.get("track_patches", []):
             remaps = [{
                 "slot": str(r.get("slot", "src")),
@@ -948,6 +954,15 @@ class HircEditorBridge(QObject):
                 "old_source_id": r.get("old_source_id"),
                 "new_source_id": r.get("new_source_id"),
             } for r in (tp.get("source_remaps") or [])]
+            cur = _current_track(tp.get("pck_name"), tp.get("bnk_id"), tp.get("track_obj_id"))
+            current_loop_ms = ""
+            current_sources = []
+            if cur:
+                current_loop_ms = self._num_str(cur.get("loop_ms"))
+                for s in (cur.get("sources") or []):
+                    current_sources.append(f"Source[{s['index']}]: {s['source_id']}")
+                for p in (cur.get("playlist") or []):
+                    current_sources.append(f"Playlist[{p['index']}]: {p['source_id']}")
             changes.append({
                 "kind": "track",
                 "pck_name": tp.get("pck_name"),
@@ -958,6 +973,8 @@ class HircEditorBridge(QObject):
                 "source_display": "",
                 "loop_ms": self._num_str(tp.get("loop_ms")),
                 "volume_db": self._num_str(tp.get("volume_db")),
+                "current_loop_ms": current_loop_ms,
+                "current_sources": current_sources,
             })
         self.draftChangesReady.emit(changes)
 
@@ -1148,7 +1165,7 @@ class HircEditorBridge(QObject):
         if self._draft_count() == 0:
             self.errorOccurred.emit("Apply", "Nothing staged to apply.")
             return
-        if self._apply_worker is not None and self._apply_worker.isRunning():
+        if self._workers.is_running("apply"):
             self.statusUpdate.emit("Apply already in progress...")
             return
         streaming = self._game_audio_dir()
@@ -1170,9 +1187,7 @@ class HircEditorBridge(QObject):
         worker.finished_ok.connect(lambda m: self.draftApplied.emit(True, m))
         worker.failed.connect(lambda m: self.errorOccurred.emit("Apply Error", m))
         worker.failed.connect(lambda m: self.draftApplied.emit(False, m))
-        worker.finished.connect(worker.deleteLater)
-        self._apply_worker = worker
-        worker.start()
+        self._workers.start("apply", worker)
 
     @pyqtSlot()
     def exportDraftAsMod(self):
@@ -1190,6 +1205,82 @@ class HircEditorBridge(QObject):
         )
         if filename:
             self.thumbnailPathSelected.emit(filename)
+
+    @pyqtSlot()
+    def browseAndImportMod(self):
+        filename = NativeDialogs.get_open_file(
+            "Import Mod for Editing",
+            filter_str=f"{app_config.MOD_FILE_EXT_UPPER} Mod Packages (*{app_config.MOD_FILE_EXT});;All Files (*)",
+            remember_key="import_mod",
+        )
+        if filename:
+            self.importModForEditing(filename)
+
+    @pyqtSlot(str)
+    def importModForEditing(self, mod_path):
+        # Rebuild the draft from a HIRC-editor mod package, replacing the current draft.
+        # Plain replacement mods belong in the Browser and are refused here.
+        import tempfile
+        import zipfile
+        from src.mods.package_manager import ModPackageManager, is_hirc_mod
+        try:
+            mgr = ModPackageManager(game_id=self._current_game_id())
+            metadata = mgr.validate_mod_package(mod_path)
+        except Exception as e:
+            self.errorOccurred.emit("Import", f"Not a valid mod package:\n{e}")
+            return
+        if not is_hirc_mod(metadata):
+            self.errorOccurred.emit(
+                "Wrong mod type",
+                "This is a standard audio-replacement mod, not a HIRC edit.\n"
+                "Import it from the Browser instead.",
+            )
+            return
+
+        tmp = Path(tempfile.mkdtemp(prefix="hirc_import_"))
+        try:
+            with zipfile.ZipFile(mod_path) as zf:
+                zf.extractall(tmp)
+            # Replace-always: clear the current draft (and its staged WEMs) before rebuilding.
+            self.resetDraft()
+            d = self._get_draft()
+            wem_dir = get_game_hirc_draft_wem_dir(self._current_game_id())
+            wem_dir.mkdir(parents=True, exist_ok=True)
+
+            media_adds = []
+            for pck_name, entries in mgr._normalize_metadata_replacements(metadata).items():
+                for info in entries.values():
+                    if not info.get("is_add"):
+                        continue
+                    file_id = str(info.get("file_id", "")).strip()
+                    rel = info.get("wem_file", "")
+                    src = tmp / rel if rel else None
+                    if not file_id or src is None or not src.exists():
+                        logger.warning(f"[HIRC Editor] Skipping add {pck_name}/{file_id}: WEM missing in package")
+                        continue
+                    dest = wem_dir / f"{file_id}.wem"
+                    shutil.copy2(src, dest)
+                    media_adds.append({
+                        "pck_name": pck_name,
+                        "wem_id": int(file_id),
+                        "wem_path": str(dest),
+                        "lang_id": int(info.get("lang_id", 0)),
+                        "source_name": info.get("sound_name", ""),
+                    })
+
+            d["media_adds"] = media_adds
+            d["track_patches"] = [dict(p) for p in (metadata.get("hirc_patches") or [])]
+            self._save_draft()
+            self._emit_draft_count()
+            self.statusUpdate.emit(
+                f"Imported '{metadata.get('name', 'mod')}' for editing "
+                f"({self._draft_count()} change(s))."
+            )
+        except Exception as e:
+            logger.exception("[HIRC Editor] Import for editing failed")
+            self.errorOccurred.emit("Import Error", f"Failed to import mod:\n{e}")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     @pyqtSlot(str, str, str, str, str)
     def createModPackage(self, name, author, version, description, thumbnail_path):

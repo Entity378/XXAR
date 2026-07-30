@@ -28,15 +28,20 @@ namespace XXAR.Installer.Dialogs
             {
                 s["REINSTALL"] = "ALL";
                 s["REINSTALLMODE"] = "emus";
+                s["REMOVE"] = "";   // clear any stale Remove so the options page stays skipped on repair
             }
             model.GoNext();
         }
 
-        private void Remove_Click(object sender, RoutedEventArgs e)
+        private void Uninstall_Click(object sender, RoutedEventArgs e)
         {
+            // The purge-mods choice is made on the next page (XXARRemoveOptionsDialog).
             var s = model.Session;
             if (s != null)
+            {
                 s["REMOVE"] = "ALL";
+                s["REINSTALL"] = "";   // clear any stale Repair selection
+            }
             model.GoNext();
         }
 
