@@ -17,6 +17,9 @@ Pillow==12.2.0
 py7zr==1.1.0
 rarfile==4.2
 
+# Patch.pck backup verification (audio_version_persist tags are xxh64 of content)
+xxhash==3.8.1
+
 # Build / packaging
 pyinstaller==6.20.0
 

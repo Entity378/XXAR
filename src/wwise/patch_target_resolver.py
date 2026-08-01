@@ -29,10 +29,9 @@ def find_patch_pck_sources(persistent_root, game):
     if not persistent_root or not persistent_root.exists():
         return []
 
-    protected = set(game.protected_pcks)
     sources = []
     for p in persistent_root.rglob("*.pck"):
-        if p.name not in protected:
+        if not game.is_protected_pck(p.name):
             continue
         sources.append((str(p), p.name))
     return sources
@@ -135,15 +134,14 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
     # Pristine content comes per target pck from the language that owns it (the override holding the modded WEM).
     streaming_root = Path(streaming_root) if streaming_root else None
     persistent_root = Path(persistent_root) if persistent_root else None
-    protected_names = set(game.protected_pcks)
 
-    has_protected_targets = any(pck in protected_names for pck in resolved.keys())
+    has_protected_targets = any(game.is_protected_pck(pck) for pck in resolved.keys())
 
     persistent_overrides = []
     if persistent_root and persistent_root.exists():
         persistent_overrides = [
             p for p in persistent_root.rglob("*.pck")
-            if p.name in protected_names
+            if game.is_protected_pck(p.name)
         ]
 
     if not has_protected_targets and not persistent_overrides:
@@ -268,7 +266,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
     orphan_added = 0
     dropped = 0
 
-    for pck_name in [n for n in list(resolved.keys()) if n in protected_names]:
+    for pck_name in [n for n in list(resolved.keys()) if game.is_protected_pck(n)]:
         entries = resolved.pop(pck_name)
         for key, info in entries.items():
             file_type = str(info.get("file_type", "wem")).lower()
