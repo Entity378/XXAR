@@ -50,6 +50,16 @@
   </requires>
 
   <releases>
+    <release version="1.0.1" date="2026-08-02">
+      <description>
+        <p>Fixes Patch.pck corruption and misplaced voice-mod overlays.</p>
+        <ul>
+          <li>Muting a Patch.pck sound no longer corrupts the live file and its backup</li>
+          <li>Voice-mod overlays land in the correct language subfolder and stray root-level copies are cleaned up automatically</li>
+          <li>Patch.pck backups are verified against the game's own manifest before being captured</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-07-12">
       <description>
         <p>HIRC Editor mod import, Patch.pck browser fix, and quality-of-life improvements.</p>
