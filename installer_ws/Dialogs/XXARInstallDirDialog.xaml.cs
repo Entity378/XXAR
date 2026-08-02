@@ -57,7 +57,33 @@ namespace XXAR.Installer.Dialogs
                     if (session != null)
                         session[installDirProperty] = value;
                     OnChanged();
+                    OnChanged(nameof(WarningVisibility));
                 }
+            }
+
+            private static readonly string SystemVolume =
+                Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+
+            public string WarningHeading => $"This folder is not on the Windows drive ({SystemVolume})";
+
+            // Off the Windows volume msiexec cannot secure its own Config.Msi rollback backups, which is a Windows Installer limitation we cannot patch.
+            // The install still succeeds, so this only warns instead of blocking.
+            public Visibility WarningVisibility
+            {
+                get
+                {
+                    var root = PathRootOrEmpty(InstallDirPath);
+                    return root.Length > 0 && !root.Equals(SystemVolume, StringComparison.OrdinalIgnoreCase)
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
+                }
+            }
+
+            private static string PathRootOrEmpty(string path)
+            {
+                // The path box is editable, so a half-typed value must never throw out of the binding.
+                try { return string.IsNullOrWhiteSpace(path) ? "" : (Path.GetPathRoot(path) ?? ""); }
+                catch { return ""; }
             }
 
             // Resolve WixSharp's symbolic path (e.g. "LocalApp\XXAR") to an absolute one for display.

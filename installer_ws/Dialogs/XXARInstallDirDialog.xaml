@@ -59,6 +59,20 @@
                         Style="{StaticResource XXARSecondaryButton}"
                         Margin="8,0,0,0" Click="Change_Click" />
             </Grid>
+
+            <Border Margin="0,16,0,0" Padding="12,10" CornerRadius="4"
+                    Background="#1A1430"
+                    BorderBrush="{DynamicResource XXARWarningBrush}" BorderThickness="1"
+                    Visibility="{Binding WarningVisibility}">
+                <StackPanel>
+                    <TextBlock Text="{Binding WarningHeading}"
+                               Foreground="{DynamicResource XXARWarningBrush}"
+                               FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="11" TextWrapping="Wrap" LineHeight="16" Margin="0,5,0,0"
+                               Text="Windows Installer can report repeated &quot;Could not set file security&quot; errors when updating or repairing from here, and on some systems it leaves backup files behind that antivirus software flags. The installation itself still completes normally. Installing on the Windows drive, or using the portable ZIP, avoids this." />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <Border Grid.Row="2" Background="#080922"

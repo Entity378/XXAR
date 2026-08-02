@@ -124,11 +124,6 @@ namespace XXAR.Installer
             using (var db = new WixToolset.Dtf.WindowsInstaller.Database(msiPath, WixToolset.Dtf.WindowsInstaller.DatabaseOpenMode.Direct))
             {
                 db.Execute("DELETE FROM `Property` WHERE `Property` = 'ARPNOMODIFY'");
-
-                // On a non-system install volume msiexec can't set the owner on its own <drive>:\Config.Msi\*.rbf backups and fails with error 1926/1307.
-                // Dropping rollback before InstallInitialize skips those backups entirely; installs on the Windows volume keep it.
-                db.Execute("INSERT INTO `InstallExecuteSequence` (`Action`, `Condition`, `Sequence`) " +
-                           "VALUES ('DisableRollback', 'INSTALLDIR AND NOT (INSTALLDIR ~<< WindowsVolume)', 1350)");
                 db.Commit();
             }
 

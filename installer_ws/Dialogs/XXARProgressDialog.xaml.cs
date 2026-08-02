@@ -25,6 +25,10 @@ namespace XXAR.Installer.Dialogs
             UpdateTitles(ManagedFormHost.Runtime.Session);
             model = new Model { Host = ManagedFormHost };
             DataContext = model;
+            // Installed here rather than in InstallerUI because this is the last point before execution starts where Shell is live.
+            var shell = ManagedFormHost.Shell;
+            if (shell != null)
+                shell.MessageDialog = new XXARMessageFilter { Shell = shell };
             model.StartExecute();
         }
 

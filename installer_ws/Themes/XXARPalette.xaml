@@ -12,6 +12,7 @@
     <Color x:Key="XXARTextPrimaryColor">#F0F0F5</Color>
     <Color x:Key="XXARTextSecondaryColor">#B0B0C8</Color>
     <Color x:Key="XXARBorderColor">#2E316A</Color>
+    <Color x:Key="XXARWarningColor">#E6B455</Color>
 
     <!-- Brushes -->
     <LinearGradientBrush x:Key="XXARWindowBg" StartPoint="0,0" EndPoint="0,1">
@@ -25,6 +26,7 @@
     <SolidColorBrush x:Key="XXARTextPrimaryBrush" Color="{StaticResource XXARTextPrimaryColor}" />
     <SolidColorBrush x:Key="XXARTextSecondaryBrush" Color="{StaticResource XXARTextSecondaryColor}" />
     <SolidColorBrush x:Key="XXARBorderBrush" Color="{StaticResource XXARBorderColor}" />
+    <SolidColorBrush x:Key="XXARWarningBrush" Color="{StaticResource XXARWarningColor}" />
 
     <!-- Primary button (accent) -->
     <Style x:Key="XXARPrimaryButton" TargetType="Button">
