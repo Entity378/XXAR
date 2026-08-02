@@ -50,6 +50,15 @@
   </requires>
 
   <releases>
+    <release version="1.0.2" date="2026-08-02">
+      <description>
+        <p>Windows installer fix and build hardening.</p>
+        <ul>
+          <li>Windows: installing on a drive other than the one holding Windows no longer fails with "Could not set file security" (error 1926/1307)</li>
+          <li>Windows: the executable now carries proper version details and is no longer compressed, which reduces antivirus false positives</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-08-02">
       <description>
         <p>Fixes Patch.pck corruption and misplaced voice-mod overlays.</p>
