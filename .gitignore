@@ -44,12 +44,10 @@ docs*/
 # Reference MSIs placed locally for analysis (not part of the source tree)
 XXMI-Launcher-Installer-Online-*.msi
 
-# C# / WixSharp build output
+# C# build output (WixSharp MSI + custom setup)
 installer_ws/bin/
 installer_ws/obj/
+installer_custom/bin/
+installer_custom/obj/
 *.wixpdb
 *.user
-
-# WixSharp build intermediates
-installer_ws/bin/
-installer_ws/obj/

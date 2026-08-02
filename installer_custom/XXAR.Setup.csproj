@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- net48 ships with Windows 10 1903+, so the stub needs no runtime install. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>XXAR.Setup</RootNamespace>
+    <AssemblyName>XXAR-Setup</AssemblyName>
+    <ApplicationIcon>..\installer_ws\Assets\XXAR-Logo2.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- The installer's own version, deliberately independent of the XXAR release it carries.
+         Keeping it fixed leaves the stub byte-identical across app releases, so its hash and reputation survive. -->
+    <Version>1.0.0</Version>
+    <Company>Entity378</Company>
+    <Product>XXAR</Product>
+    <!-- Rich version-info resource. A bare or empty description is itself an AV heuristic signal;
+         these fields fill FileDescription, Comments and LegalCopyright the way shipping software does. -->
+    <AssemblyTitle>XXAR Setup</AssemblyTitle>
+    <Description>Setup and uninstaller for XXAR, the cross-game audio replacer.</Description>
+    <Copyright>Copyright (c) 2026 Entity378 - GPL-3.0</Copyright>
+    <!-- Keep ProductVersion clean; the SDK would append the git commit hash. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Zip support is a separate assembly on net48. -->
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\installer_ws\Assets\XXAR-Logo2-512.png" Link="Assets\XXAR-Logo2-512.png" />
+    <Resource Include="..\installer_ws\License.rtf" Link="License.rtf" />
+  </ItemGroup>
+
+</Project>
