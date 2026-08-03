@@ -23,10 +23,10 @@
     <Copyright>Copyright (c) 2026 Entity378 - GPL-3.0</Copyright>
     <!-- Keep ProductVersion clean; the SDK would otherwise append the git commit id. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <!-- Reproducible output: without these the build directory leaks in through the debug directory
-         and the embedded source paths, so a CI build would differ from a local one. -->
+    <!-- Same sources must give the same bytes, so two builds of one commit can be compared.
+         The symbol file is kept: a release binary without a debug directory is an unusual shape. -->
     <Deterministic>true</Deterministic>
-    <DebugType>none</DebugType>
+    <DebugType>portable</DebugType>
     <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
   </PropertyGroup>
 
