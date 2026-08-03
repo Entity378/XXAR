@@ -28,10 +28,6 @@
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
     <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
-    <!-- Source Link would write the absolute repository root into the symbol file, which changes
-         its checksum and with it the module id and the timestamp of the executable. -->
-    <EnableSourceLink>false</EnableSourceLink>
-    <EmbedUntrackedSources>false</EmbedUntrackedSources>
   </PropertyGroup>
 
   <ItemGroup>
