@@ -22,18 +22,18 @@ logger = get_logger(__name__)
 _DEFAULT_GITHUB_API_URL = f"https://api.github.com/repos/Entity378/{APP_NAME}/releases/latest"
 GITHUB_API_URL = os.environ.get("XXAR_UPDATE_API_URL_OVERRIDE", _DEFAULT_GITHUB_API_URL)
 
-# MSI install marker; absent means portable/ZIP install (route through helper exe).
-_MSI_REGISTRY_PATH = rf"Software\{APP_NAME}"
-_MSI_REGISTRY_VALUE = "InstallLocation"
+# Written by the installer; absent means a portable/ZIP copy, which has no auto-update.
+_INSTALL_REGISTRY_PATH = rf"Software\{APP_NAME}"
+_INSTALL_REGISTRY_VALUE = "InstallLocation"
 
 
-def _read_msi_install_location():
+def _read_install_location():
     if not IS_WINDOWS:
         return None
     try:
         import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _MSI_REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, _MSI_REGISTRY_VALUE)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _INSTALL_REGISTRY_PATH) as key:
+            value, _ = winreg.QueryValueEx(key, _INSTALL_REGISTRY_VALUE)
             p = Path(value)
             return p if p.exists() else None
     except (OSError, ImportError):
@@ -57,19 +57,19 @@ def _get_real_exe_path():
     return sys.executable
 
 
-def _is_msi_install():
+def _is_managed_install():
+    # True for anything the installer put there, whichever channel wrote the marker: the installer
+    # removes a leftover MSI product itself, so both are upgraded with the same .exe.
     if os.environ.get("XXAR_UPDATE_FORCE_PORTABLE") == "1":
         return False
-    msi_root = _read_msi_install_location()
-    if msi_root is None:
+    install_root = _read_install_location()
+    if install_root is None:
         return False
-    # If the running exe isn't under the registered root, use the ZIP flow so we don't upgrade a different install.
+    # If the running exe isn't under the registered root, notify only so we never upgrade a different copy.
     try:
         exe = Path(_get_real_exe_path()).resolve()
-        msi_resolved = msi_root.resolve()
-        exe_norm = os.path.normcase(str(exe))
-        root_norm = os.path.normcase(str(msi_resolved))
-        return exe_norm.startswith(root_norm + os.sep)
+        root = Path(install_root).resolve()
+        return os.path.normcase(str(exe)).startswith(os.path.normcase(str(root)) + os.sep)
     except OSError:
         return False
 
@@ -189,10 +189,11 @@ class UpdateCheckWorker(BaseWorker):
 
             if IS_WINDOWS:
                 version_tag = clean_version_string(tag)
-                if _is_msi_install():
+                if _is_managed_install():
+                    # -Setup- was the file name before 1.0.3; releases carrying it are still installable.
                     asset_candidates = [
-                        f"{APP_NAME}-Installer-v{version_tag}.msi",
-                        f"{APP_NAME}-Installer.msi",
+                        f"{APP_NAME}-Installer-v{version_tag}.exe",
+                        f"{APP_NAME}-Setup-v{version_tag}.exe",
                     ]
                 else:
                     # Portable/dev builds have no auto-update; notify only (like Flatpak) so the user grabs the ZIP.
@@ -235,7 +236,7 @@ class UpdateCheckWorker(BaseWorker):
 
 
 # Downloaded installer/portable artifacts left in cache/updates from previous versions.
-_STALE_UPDATE_SUFFIXES = (".msi", ".zip", ".tar.gz", ".flatpak")
+_STALE_UPDATE_SUFFIXES = (".exe", ".msi", ".zip", ".tar.gz", ".flatpak")
 
 
 def _prune_stale_update_artifacts(update_dir, keep=""):
@@ -257,7 +258,7 @@ def _prune_stale_update_artifacts(update_dir, keep=""):
 
 class UpdateDownloadWorker(BaseWorker):
     downloadProgress = pyqtSignal(int)  # percent
-    # Emits (kind, path). kind is one of: "msi", "flatpak".
+    # Emits (kind, path). kind is one of: "installer", "flatpak".
     downloadFinished = pyqtSignal(str, str)
     errorOccurred = pyqtSignal(str)
 
@@ -273,7 +274,7 @@ class UpdateDownloadWorker(BaseWorker):
             update_dir.mkdir(parents=True, exist_ok=True)
             archive_path = update_dir / self.asset_name
 
-            # Old .msi files are handed to msiexec and never deleted, so they pile up across versions; prune every prior artifact before fetching the new one.
+            # Downloaded installers are never deleted after they run, and each is well over 100 MB, so prune every prior artifact before fetching the new one.
             _prune_stale_update_artifacts(update_dir, keep=self.asset_name)
 
             req = urllib.request.Request(self.download_url)
@@ -301,9 +302,9 @@ class UpdateDownloadWorker(BaseWorker):
                             self.downloadProgress.emit(percent)
 
             lower = self.asset_name.lower()
-            if lower.endswith(".msi"):
-                # msiexec consumes the .msi directly; no extraction.
-                self.downloadFinished.emit("msi", str(archive_path))
+            if lower.endswith(".exe"):
+                # The installer carries its own payload; nothing to extract here.
+                self.downloadFinished.emit("installer", str(archive_path))
             elif lower.endswith(".flatpak"):
                 self.downloadFinished.emit("flatpak", str(archive_path))
             else:
@@ -335,7 +336,7 @@ class UpdateManagerBridge(QObject):
         self._download_url = ""
         self._asset_name = ""
         self._downloaded_path = ""
-        self._downloaded_kind = ""  # "msi", "flatpak"
+        self._downloaded_kind = ""  # "installer", "flatpak"
         self._current_version = ""
         self._github_token = ""
 
@@ -434,7 +435,7 @@ class UpdateManagerBridge(QObject):
 
     @pyqtSlot()
     def applyUpdate(self):
-        # A second msiexec fighting the same install deadlocks; block re-entry from the Restart button.
+        # Two installers writing the same folder would fight; block re-entry from the Restart button.
         if getattr(self, "_apply_in_progress", False):
             return
         self._apply_in_progress = True
@@ -449,8 +450,8 @@ class UpdateManagerBridge(QObject):
             logger.info(f"[Updater] Real exe path: {current_exe}")
             logger.info(f"[Updater] Source: {self._downloaded_path}")
 
-            if self._downloaded_kind == "msi":
-                self._apply_msi_update(current_exe)
+            if self._downloaded_kind == "installer":
+                self._apply_installer_update(current_exe)
             elif self._downloaded_kind == "flatpak":
                 self._apply_linux_update(current_exe)
             else:
@@ -468,14 +469,17 @@ class UpdateManagerBridge(QObject):
             if not handed_off:
                 self._apply_in_progress = False
 
-    def _apply_msi_update(self, current_exe):
-        msi_path = Path(self._downloaded_path)
+    def _apply_installer_update(self, current_exe):
+        installer = Path(self._downloaded_path)
 
-        # Build the cmdline as a string and pass it directly
-        cmd_line = f'msiexec /i "{msi_path}" /norestart XXAR_SILENT=1'
-        # cwd outside the install dir so msiexec can rename/delete resources\ during the upgrade.
-        logger.info(f"[Updater] Running: {cmd_line}")
-        subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
+        # The caller quits the app right after this returns; the installer waits for our files to be
+        # released before it starts. cwd stays outside the install dir so it can replace resources\.
+        logger.info(f"[Updater] Running: {installer} /silent")
+        subprocess.Popen(
+            [str(installer), "/silent"],
+            cwd=tempfile.gettempdir(),
+            creationflags=0x00000008,  # DETACHED_PROCESS
+        )
 
     def _apply_linux_update(self, current_exe):
         bundle = Path(self._downloaded_path)
