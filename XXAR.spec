@@ -8,12 +8,28 @@ block_cipher = None
 # the Flatpak runtime provides them instead.
 is_flatpak_build = os.environ.get('XXAR_FLATPAK_BUILD') == '1'
 
+# Wwise recreates these inside the project the moment anything is converted, so they are not in
+# the repository and must not reach a release either: together they were 48 MB of every download.
+wwise_regenerated_folders = ('.cache', 'Originals')
+
+
+def bundled_resources(source='src/resources', destination='resources'):
+    files = []
+    for folder, subfolders, names in os.walk(source):
+        if os.path.basename(folder) == 'WAVtoWEM':
+            subfolders[:] = [s for s in subfolders if s not in wwise_regenerated_folders]
+        relative = os.path.relpath(folder, source)
+        target = destination if relative == '.' else os.path.join(destination, relative)
+        files += [(os.path.join(folder, name), target) for name in names]
+    return files
+
+
 added_files = [
     ('src/gui/qml', 'src/gui/qml'),
     ('src/gui/assets', 'src/gui/assets'),
     ('src/gui/components', 'src/gui/components'),
     ('src/gui/translations', 'src/gui/translations'),
-    ('src/resources', 'resources'),
+    *bundled_resources(),
     ('setup_wwise.py', '.'),
     ('setup_windows_audio_tools.py', '.'),
 ]
@@ -183,7 +199,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 icon_file = 'src/gui/assets/XXAR/XXAR-Logo2.ico' if sys.platform.startswith('win') else None
 
-# An unsigned exe carrying no VERSIONINFO resource scores badly with AV heuristics and SmartScreen.
+# Without a VERSIONINFO resource the exe shows no publisher or version anywhere in Windows.
 # Generated from APP_VERSION so a release bump stays a single-file edit.
 version_file = None
 if sys.platform.startswith('win'):

@@ -12,6 +12,10 @@ venv/
 env/
 ENV/
 
+# Wwise rebuilds these inside the bundled project; the wrapper recreates Originals when missing.
+src/resources/WAVtoWEM/.cache/
+src/resources/WAVtoWEM/Originals/
+
 # IDE
 .vscode/
 .idea/
@@ -44,10 +48,12 @@ docs*/
 # Reference MSIs placed locally for analysis (not part of the source tree)
 XXMI-Launcher-Installer-Online-*.msi
 
-# C# build output (WixSharp MSI + custom setup)
-installer_ws/bin/
-installer_ws/obj/
-installer_custom/bin/
-installer_custom/obj/
+# C# build output
+installer/setup/bin/
+installer/setup/obj/
+installer/uninstall/bin/
+installer/uninstall/obj/
+archive/installer_ws/bin/
+archive/installer_ws/obj/
 *.wixpdb
 *.user
