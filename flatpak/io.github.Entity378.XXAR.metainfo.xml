@@ -50,6 +50,16 @@
   </requires>
 
   <releases>
+    <release version="1.1.0" date="2026-08-04">
+      <description>
+        <p>New Windows installer and a smaller download.</p>
+        <ul>
+          <li>Windows: XXAR now ships with its own uninstaller, which shows how much space each part takes and lets you keep your mods and settings</li>
+          <li>Windows: the installer replaces the old MSI package, and updates install through it</li>
+          <li>The download is about 34 MB smaller: build leftovers are no longer bundled</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-08-02">
       <description>
         <p>Windows installer fix and build hardening.</p>
