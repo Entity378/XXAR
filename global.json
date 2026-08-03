@@ -1,7 +1,7 @@
 {
-  "//": "Pinned so the setup stub compiles to the same bytes locally and in CI. A different SDK is a different compiler and a different binary.",
+  "//": "Pinned so the setup stub compiles to the same bytes locally and in CI. Kept at 9.x because Visual Studio 2022 cannot resolve the .NET 10 SDK, and rollForward is disabled so a missing SDK fails loudly instead of silently building with another one.",
   "sdk": {
-    "version": "10.0.302",
+    "version": "9.0.316",
     "rollForward": "disable"
   }
 }
