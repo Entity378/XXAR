@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 # Manual trigger only (Actions -> Run workflow): build + create a draft release
 # with artifacts attached, ready to be edited and published.
@@ -26,10 +26,10 @@ jobs:
           else { throw "Could not determine version" }
           echo "version=$v" >> $env:GITHUB_OUTPUT
 
-      # Pinned via global.json: a different SDK compiles the setup stub to different bytes.
+      # Pinned via global.json: the released installers are built and validated against .NET 9.
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
+          dotnet-version: "9.0.x"
 
       - uses: actions/setup-python@v5
         with:
@@ -41,33 +41,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install WiX 7 toolset
+      - name: Build app, portable zip and installer
         shell: pwsh
         run: |
-          dotnet tool install --global wix
-          # WiX 7 requires OSMF EULA acceptance once per machine.
-          wix eula accept wix7
-          wix extension add -g WixToolset.UI.wixext
-          wix extension add -g WixToolset.Util.wixext
-
-      - name: Build app, portable zip and setup
-        shell: pwsh
-        run: |
-          pwsh -File installer_custom\build.ps1 -Version "${{ steps.ver.outputs.version }}"
-
-      - name: Build MSI
-        shell: pwsh
-        # -SkipApp: the setup build already produced dist\XXAR, no need to compile the app twice.
-        run: |
-          pwsh -File installer_ws\build.ps1 -Version "${{ steps.ver.outputs.version }}" -SkipApp
+          pwsh -File installer\build.ps1 -Version "${{ steps.ver.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
           path: |
             dist/XXAR-windows-x64.zip
-            dist/XXAR-Setup-v*.exe
-            dist/XXAR-Installer-v*.msi
+            dist/XXAR-Installer-v*.exe
           if-no-files-found: error
 
       - name: Attach to GitHub Release
@@ -77,8 +61,7 @@ jobs:
           tag_name: v${{ steps.ver.outputs.version }}
           files: |
             dist/XXAR-windows-x64.zip
-            dist/XXAR-Setup-v*.exe
-            dist/XXAR-Installer-v*.msi
+            dist/XXAR-Installer-v*.exe
           fail_on_unmatched_files: true
           draft: true
 

@@ -1,0 +1,23 @@
+﻿<UserControl x:Class="XXAR.Setup.Steps.FinishStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wizard="clr-namespace:XXAR.Wizard">
+    <wizard:WizardFrame x:Name="Frame" UseSidebar="True"
+                       Heading="Completed the XXAR Installer"
+                       Subheading="Click the Finish button to exit.">
+        <wizard:WizardFrame.Buttons>
+            <Grid Margin="20,0">
+                <Button Content="View log" Click="ViewLog_Click"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <Button Content="Finish" Click="Leave_Click"
+                            Style="{StaticResource XXARPrimaryButton}" Margin="4,0" />
+                    <Button x:Name="Cancel" Content="Cancel" Click="Leave_Click"
+                            Style="{StaticResource XXARSecondaryButton}" Margin="12,0,0,0" />
+                </StackPanel>
+            </Grid>
+        </wizard:WizardFrame.Buttons>
+    </wizard:WizardFrame>
+</UserControl>

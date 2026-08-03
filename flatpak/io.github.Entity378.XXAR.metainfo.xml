@@ -55,7 +55,7 @@
         <p>Windows installer fix and build hardening.</p>
         <ul>
           <li>Windows: installing on a drive other than the one holding Windows no longer fails with "Could not set file security" (error 1926/1307)</li>
-          <li>Windows: the executable now carries proper version details and is no longer compressed, which reduces antivirus false positives</li>
+          <li>Windows: the executable now carries proper version details and is no longer compressed</li>
         </ul>
       </description>
     </release>
