@@ -3,9 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace XXAR.Setup
 {
-    // Vista-style folder browser through the shell's IFileOpenDialog, so the project needs neither
-    // System.Windows.Forms nor System.Drawing. Fewer referenced assemblies means a smaller import surface,
-    // which is one of the inputs a static antivirus classifier weighs.
+    // Vista-style folder browser through the shell's IFileOpenDialog.
     public static class FolderPicker
     {
         public static string Pick(IntPtr owner, string initialPath)

@@ -5,39 +5,42 @@ using System.Text;
 
 namespace XXAR.Setup
 {
-    // The build appends the portable zip to the stub exe, followed by a 16-byte trailer:
-    // 8-byte magic "XXARSFX1" + int64 little-endian offset where the zip starts (= stub length).
+    // What the setup carries, read from the trailer the build appends.
+    public class PayloadInfo
+    {
+        public long ZipOffset;
+        public string Version;
+    }
+
+    // The build appends the payload zip to the stub, followed by a 48-byte trailer:
+    // magic "XXARSFX2" (8) + zip offset as int64 little-endian (8) + version as NUL-padded ASCII (32).
     public static class PayloadReader
     {
-        private const string Magic = "XXARSFX1";
+        private const string Magic = "XXARSFX2";
+        private const int VersionFieldSize = 32;
+        private const int TrailerSize = 8 + 8 + VersionFieldSize;
 
-        // Returns the stub length (zip start) or -1 when the exe carries no payload (uninstaller copy).
-        public static long FindPayloadOffset(string exePath)
-        {
-            using (var fs = File.OpenRead(exePath))
-            {
-                if (fs.Length < 16) return -1;
-                fs.Seek(-16, SeekOrigin.End);
-                var trailer = new byte[16];
-                if (fs.Read(trailer, 0, 16) != 16) return -1;
-                if (Encoding.ASCII.GetString(trailer, 0, 8) != Magic) return -1;
-                long offset = BitConverter.ToInt64(trailer, 8);
-                return offset > 0 && offset < fs.Length - 16 ? offset : -1;
-            }
-        }
-
-        // The version travels in the payload rather than in the stub's own resources, so the stub does not
-        // have to be recompiled for a new XXAR release. Reading it only touches the zip's central directory.
-        public static string ReadPayloadVersion(string exePath, long offset)
+        // Returns null when the executable carries no payload, as is the case for the installed uninstaller.
+        public static PayloadInfo FindPayload(string exePath)
         {
             try
             {
-                using (var zip = OpenPayload(exePath, offset))
+                using (var fs = File.OpenRead(exePath))
                 {
-                    var entry = zip.GetEntry("version.txt");
-                    if (entry == null) return null;
-                    using (var reader = new StreamReader(entry.Open()))
-                        return reader.ReadToEnd().Trim();
+                    if (fs.Length < TrailerSize) return null;
+                    fs.Seek(-TrailerSize, SeekOrigin.End);
+                    var trailer = new byte[TrailerSize];
+                    if (fs.Read(trailer, 0, TrailerSize) != TrailerSize) return null;
+                    if (Encoding.ASCII.GetString(trailer, 0, 8) != Magic) return null;
+
+                    long offset = BitConverter.ToInt64(trailer, 8);
+                    if (offset <= 0 || offset >= fs.Length - TrailerSize) return null;
+
+                    return new PayloadInfo
+                    {
+                        ZipOffset = offset,
+                        Version = Encoding.ASCII.GetString(trailer, 16, VersionFieldSize).TrimEnd('\0').Trim(),
+                    };
                 }
             }
             catch
@@ -49,8 +52,8 @@ namespace XXAR.Setup
         public static ZipArchive OpenPayload(string exePath, long offset)
         {
             var fs = File.OpenRead(exePath);
-            // The sub-stream ends before the trailer so the zip reader finds its end-of-directory record at the true end.
-            var zipStream = new SubStream(fs, offset, fs.Length - 16 - offset);
+            // The window stops before the trailer so the zip reader finds its end-of-directory record at the true end.
+            var zipStream = new SubStream(fs, offset, fs.Length - TrailerSize - offset);
             return new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: false);
         }
 

@@ -1,0 +1,7 @@
+{
+  "//": "Pinned so the setup stub compiles to the same bytes locally and in CI. A different SDK is a different compiler and a different binary.",
+  "sdk": {
+    "version": "10.0.302",
+    "rollForward": "disable"
+  }
+}

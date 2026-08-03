@@ -16,12 +16,11 @@ namespace XXAR.Setup
     {
         private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\XXAR";
 
-        // Shipped inside the payload and extracted like any other file. Producing it by reading our own
-        // image and writing a PE is a self-copy shape that antivirus machine-learning models flag.
+        // Shipped inside the payload and extracted like any other file.
         private const string UninstallerName = "XXAR-Uninstall.exe";
 
-        // Child processes are always launched by absolute path, so a binary planted next to the
-        // downloaded setup can never be picked up ahead of the real system one.
+        // Child processes are always launched by absolute path,
+        // a binary planted next to the downloaded setup can never be picked up ahead of the real system one.
         private static string SystemExe(string fileName)
             => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), fileName);
 
@@ -58,7 +57,7 @@ namespace XXAR.Setup
 
                 progress?.Report((95, "Creating shortcuts..."));
                 WriteRegistry(ctx, app);
-                WriteStartMenuShortcut(app);
+                WriteShortcuts(app);
                 progress?.Report((100, "Done"));
                 SetupLog.Info($"installed to {app}");
             }
@@ -76,7 +75,7 @@ namespace XXAR.Setup
             if (!stagingRoot.EndsWith(Path.DirectorySeparatorChar.ToString()))
                 stagingRoot += Path.DirectorySeparatorChar;
 
-            using (var zip = PayloadReader.OpenPayload(ctx.ExePath, ctx.PayloadOffset))
+            using (var zip = PayloadReader.OpenPayload(ctx.ExePath, ctx.Payload.ZipOffset))
             {
                 var entries = zip.Entries;
                 int done = 0, rejected = 0;
@@ -268,20 +267,23 @@ namespace XXAR.Setup
             }
         }
 
-        private static void WriteStartMenuShortcut(string app)
+        private static void WriteShortcuts(string app)
         {
-            var dir = Path.Combine(
+            var exe = Path.Combine(app, "resources", "XXAR.exe");
+            var workingDir = Path.Combine(app, "resources");
+            const string description = "Cross-game Audio Replacer";
+
+            var startMenu = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 @"Microsoft\Windows\Start Menu\Programs\XXAR");
-            Directory.CreateDirectory(dir);
+            Directory.CreateDirectory(startMenu);
 
-            var exe = Path.Combine(app, "resources", "XXAR.exe");
-            ShellShortcut.Create(Path.Combine(dir, "XXAR.lnk"), exe,
-                                 Path.Combine(app, "resources"), "Cross-game Audio Replacer");
+            ShellShortcut.Create(Path.Combine(startMenu, "XXAR.lnk"), exe, workingDir, description);
+            ShellShortcut.Create(Path.Combine(app, "XXAR.lnk"), exe, workingDir, description);
         }
 
-        // Windows will not delete a running image, and a per-user installer cannot register a delete-at-reboot
-        // because that list lives under HKLM. Renaming the file out of the way empties the install folder now.
+        // Windows will not delete a running image, and a per-user installer cannot register a delete-at-reboot because that list lives under HKLM.
+        // Renaming the file out of the way empties the install folder now.
         private static void ParkSelfForCleanup(string exePath, string appDir)
         {
             try

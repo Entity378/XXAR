@@ -56,9 +56,6 @@ try {
     $releaseRes = Join-Path $release "resources"
     New-Item -ItemType Directory -Force -Path $releaseRes | Out-Null
     Copy-Item "dist\XXAR\*" $releaseRes -Recurse -Force
-    # The setup reads the version from here instead of carrying it in its own resources,
-    # which keeps the stub byte-identical across releases and preserves its antivirus reputation.
-    Set-Content -Path (Join-Path $release "version.txt") -Value $Version -Encoding ascii -NoNewline
 
     $zipPath = Join-Path $repo "dist\XXAR-windows-x64.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -86,15 +83,13 @@ try {
     Write-Host "    portable zip -> $zipPath"
 
     Write-Host "==> [3/3] Building setup (WPF stub + zip payload)"
-    # An incremental build can emit different bytes than a clean one, and the stub's hash is what
-    # carries its antivirus reputation, so it is always compiled from scratch.
+    # Always compiled from scratch: an incremental build can emit different bytes than a clean one.
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "installer_custom\obj", "installer_custom\bin"
-    # No -p:Version on purpose: the stub carries its own fixed version so its bytes stay stable.
+    # No -p:Version on purpose: the stub keeps its own version, the app's travels in the trailer.
     dotnet build installer_custom -c Release
     if ($LASTEXITCODE -ne 0) { throw "Setup stub build failed" }
 
-    # The stub doubles as the uninstaller, so it rides inside the payload and gets extracted like any
-    # other file. Having the setup read its own image to write it was flagged as a self-copy by Defender.
+    # The stub doubles as the uninstaller, so it rides inside the payload and is extracted like any other file.
     $stubPath = Join-Path $repo "installer_custom\bin\Release\XXAR-Setup.exe"
     $payloadPath = Join-Path $repo "dist\setup-payload.zip"
     if (Test-Path $payloadPath) { Remove-Item $payloadPath -Force }
@@ -106,17 +101,24 @@ try {
     }
     finally { $payloadZip.Dispose() }
 
-    # Self-extracting layout: stub exe + payload zip + 16-byte trailer (magic + zip offset).
+    # Self-extracting layout: stub exe + payload zip + 48-byte trailer.
+    # The version rides in the trailer so a new release needs no recompiling; the field is a fixed 32 bytes
+    # because the trailer is read backwards from the end of the file.
     $setupPath = Join-Path $repo "dist\XXAR-Setup-v$Version.exe"
     if (Test-Path $setupPath) { Remove-Item $setupPath -Force }
+    if ($Version.Length -gt 32) { throw "Version string does not fit the 32-byte trailer field: $Version" }
+    $versionField = New-Object byte[] 32
+    [System.Text.Encoding]::ASCII.GetBytes($Version).CopyTo($versionField, 0)
+
     $stubBytes = [System.IO.File]::ReadAllBytes($stubPath)
     $dstStream = [System.IO.File]::Create($setupPath)
     try {
         $dstStream.Write($stubBytes, 0, $stubBytes.Length)
         $srcStream = [System.IO.File]::OpenRead($payloadPath)
         try { $srcStream.CopyTo($dstStream) } finally { $srcStream.Close() }
-        $dstStream.Write([System.Text.Encoding]::ASCII.GetBytes("XXARSFX1"), 0, 8)
+        $dstStream.Write([System.Text.Encoding]::ASCII.GetBytes("XXARSFX2"), 0, 8)
         $dstStream.Write([BitConverter]::GetBytes([int64]$stubBytes.Length), 0, 8)
+        $dstStream.Write($versionField, 0, 32)
     }
     finally { $dstStream.Close() }
     Remove-Item $payloadPath -Force

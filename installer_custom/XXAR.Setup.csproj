@@ -12,18 +12,22 @@
     <ApplicationIcon>..\installer_ws\Assets\XXAR-Logo2.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <!-- The installer's own version, deliberately independent of the XXAR release it carries.
-         Keeping it fixed leaves the stub byte-identical across app releases, so its hash and reputation survive. -->
+    <!-- The installer's own version, independent of the XXAR release it carries. Bump it when this
+         project changes; the app version travels in the payload trailer instead. -->
     <Version>1.0.0</Version>
     <Company>Entity378</Company>
     <Product>XXAR</Product>
-    <!-- Rich version-info resource. A bare or empty description is itself an AV heuristic signal;
-         these fields fill FileDescription, Comments and LegalCopyright the way shipping software does. -->
+    <!-- Fills FileDescription, Comments and LegalCopyright in the version-info resource. -->
     <AssemblyTitle>XXAR Setup</AssemblyTitle>
     <Description>Setup and uninstaller for XXAR, the cross-game audio replacer.</Description>
     <Copyright>Copyright (c) 2026 Entity378 - GPL-3.0</Copyright>
-    <!-- Keep ProductVersion clean; the SDK would append the git commit hash. -->
+    <!-- Keep ProductVersion clean; the SDK would otherwise append the git commit id. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- Reproducible output: without these the build directory leaks in through the debug directory
+         and the embedded source paths, so a CI build would differ from a local one. -->
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
   </PropertyGroup>
 
   <ItemGroup>

@@ -26,6 +26,11 @@ jobs:
           else { throw "Could not determine version" }
           echo "version=$v" >> $env:GITHUB_OUTPUT
 
+      # Pinned via global.json: a different SDK compiles the setup stub to different bytes.
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

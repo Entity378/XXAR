@@ -9,7 +9,7 @@ namespace XXAR.Setup
     public class SetupContext
     {
         public string ExePath;
-        public long PayloadOffset = -1;
+        public PayloadInfo Payload;
         public string PayloadVersion;
 
         public string InstalledLocation;
@@ -22,7 +22,7 @@ namespace XXAR.Setup
         public bool Cancelled;
         public string FailureText;
 
-        public bool HasPayload => PayloadOffset > 0;
+        public bool HasPayload => Payload != null;
         public bool IsInstalled => InstalledLocation != null;
         public bool UninstallOnly { get; private set; }
 
@@ -33,9 +33,8 @@ namespace XXAR.Setup
         {
             var ctx = new SetupContext();
             ctx.ExePath = Process.GetCurrentProcess().MainModule.FileName;
-            ctx.PayloadOffset = PayloadReader.FindPayloadOffset(ctx.ExePath);
-            if (ctx.PayloadOffset > 0)
-                ctx.PayloadVersion = PayloadReader.ReadPayloadVersion(ctx.ExePath, ctx.PayloadOffset) ?? "";
+            ctx.Payload = PayloadReader.FindPayload(ctx.ExePath);
+            ctx.PayloadVersion = ctx.Payload?.Version ?? "";
 
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\XXAR"))
             {

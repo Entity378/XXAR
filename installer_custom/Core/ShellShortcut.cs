@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 namespace XXAR.Setup
 {
     // Writes .lnk files through the shell's own IShellLink, the API every installer uses.
-    // The alternative, late-bound WScript.Shell, is the script-host object droppers reach for and scores badly with heuristics.
     public static class ShellShortcut
     {
         public static void Create(string linkPath, string target, string workingDirectory, string description)

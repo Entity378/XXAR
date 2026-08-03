@@ -5,8 +5,6 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- Explicit: the file name contains "Setup", which without a manifest makes Windows'
-             installer-detection heuristic demand elevation for a per-user install that never needs it. -->
         <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
