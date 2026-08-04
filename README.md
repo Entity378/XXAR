@@ -61,10 +61,14 @@ See all our [Planned Features](FEATURES.md).
 
 Grab the latest release from the [Releases](../../releases) page.
 
-- **Windows:** Download `XXAR-Installer-v*.msi` (or the portable `XXAR-windows-x64.zip`)
+- **Windows:** Download `XXAR-Installer-v*.exe` (or the portable `XXAR-windows-x64.zip`)
 - **Linux:** Download `XXAR-linux-x86_64.flatpak` and install it with
   `flatpak install --user XXAR-linux-x86_64.flatpak`. After that the app
   auto-updates from inside via subsequent bundles.
+
+The Windows binaries are digitally signed. Free code signing provided by
+[SignPath.io](https://signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
 
 ### Option 2: Run from Source
 
@@ -138,6 +142,12 @@ Found a bug or have an idea? Open an issue! Pull requests are welcome too.
 ### Translators
 
 - **Luafile_Gabriel** - Spanish translation.
+
+## Policies
+
+- [Code Signing Policy](CODE_SIGNING_POLICY.md) — signed artifacts, project roles, build and signing process
+- [Privacy Policy](PRIVACY.md) — no telemetry; every network request the app makes, and why
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## License
 
