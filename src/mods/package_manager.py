@@ -23,7 +23,7 @@ from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.mod_relinker import GameAudioIndex, relink_metadata
 from src.mods.persistent_originals import locate_pck_paths
 from src.wwise.override_pck_patcher import patch_override_pcks
-from src.wwise.patch_target_resolver import add_streamed_duplicates, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
+from src.wwise.patch_target_resolver import add_streamed_duplicates, canonicalize_pck_keys, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_packer import PCKPacker
 
 logger = get_logger(__name__)
@@ -763,6 +763,15 @@ class ModPackageManager:
 
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
         merged_hirc_patches = self._collect_hirc_patches()
+
+        # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
+        # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
+        try:
+            merged_aliases = canonicalize_pck_keys(resolved, game_audio_dir, game)
+            if merged_aliases:
+                logger.info(f"[Mod Manager] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
+        except Exception as e:
+            logger.error(f"[Mod Manager] Warning: pck key canonicalization failed: {e}")
 
         # An add whose id already exists in the originals would overwrite original audio.
         # Move it to a free id before anything is written.

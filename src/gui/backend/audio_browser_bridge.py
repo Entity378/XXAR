@@ -69,6 +69,7 @@ from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_backup import BACKUP_SUFFIX
 from src.wwise.patch_target_resolver import (
     add_streamed_duplicates,
+    canonicalize_pck_keys,
     find_patch_pck_sources,
     install_whole_patch_bnks,
     resolve_and_extract,
@@ -2079,6 +2080,15 @@ class AudioBrowserBridge(QObject):
             # The resolver rewrites keys in place: never hand it the live tracker.
             replacements = {pck: {key: dict(info) for key, info in files.items()}
                             for pck, files in self.mod_manager.get_all_replacements().items()}
+
+            # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
+            # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
+            try:
+                merged_aliases = canonicalize_pck_keys(replacements, streaming_base, game)
+                if merged_aliases:
+                    logger.info(f"[Audio Browser] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
+            except Exception as e:
+                logger.error(f"[Audio Browser] Warning: pck key canonicalization failed: {e}")
 
             # Index the streamed pcks once and share it with both the resolver and the mirror step below.
             streamed_index = streamed_wem_pcks(streaming_base, game)

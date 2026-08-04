@@ -48,6 +48,44 @@ def plain_wem_id(info, key):
         return None
 
 
+def canonicalize_pck_keys(resolved, streaming_root, game):
+    # Bare and folder-qualified keys can name the same physical pck, which then rebuilds twice with the second output clobbering the first.
+    # Rekeys every non-protected bucket to the posix path relative to streaming_root and merges aliases in place.
+    streaming_root = Path(streaming_root) if streaming_root else None
+    if not streaming_root or not streaming_root.exists():
+        return 0
+    merged_buckets = 0
+    for pck_name in list(resolved.keys()):
+        if game.is_protected_pck(pck_name):
+            continue
+        pck_basename = Path(pck_name).name
+        if (streaming_root / pck_name).exists():
+            canonical = Path(pck_name).as_posix()
+        else:
+            candidates = []
+            try:
+                for subdir in sorted(streaming_root.iterdir()):
+                    if subdir.is_dir() and (subdir / pck_basename).exists():
+                        candidates.append(subdir / pck_basename)
+            except OSError:
+                continue
+            if not candidates:
+                continue
+            canonical = candidates[0].relative_to(streaming_root).as_posix()
+        if canonical == pck_name:
+            continue
+        alias_entries = resolved.pop(pck_name)
+        dest = resolved.setdefault(canonical, {})
+        for key, info in alias_entries.items():
+            if key in dest:
+                logger.info(f"[Patch Resolver] Duplicate key {key} while merging {pck_name} into {canonical}, keeping existing (load order precedence)")
+                continue
+            dest[key] = info
+        merged_buckets += 1
+        logger.info(f"[Patch Resolver] Merged pck bucket {pck_name} into canonical {canonical}")
+    return merged_buckets
+
+
 def soundbank_bnk_ids(streaming_root, game):
     # Set of every bnk_id present in the StreamingAssets SoundBank pcks (the counterpart set for Patch BNKs).
     result = set()
@@ -77,7 +115,7 @@ def streamed_wem_pcks(streaming_root, game):
             logger.warning(f"[Patch Resolver] Could not index {pck_file.name}: {e}")
             continue
         for streamed_wem in index.get("sounds", []) + index.get("externals", []):
-            result.setdefault(streamed_wem["id"], (pck_file.name, streamed_wem.get("lang_id", 0)))
+            result.setdefault(streamed_wem["id"], (pck_file.relative_to(streaming_root).as_posix(), streamed_wem.get("lang_id", 0)))
     return result
 
 
@@ -97,7 +135,7 @@ def add_streamed_duplicates(resolved, streaming_root, game, streamed_index=None)
             if wem_id is None:
                 continue
             match = streamed_index.get(wem_id)
-            if not match or match[0] == pck_name:
+            if not match or Path(match[0]).name == Path(pck_name).name:
                 continue
             streamed_pck, lang_id = match
             dest = resolved.setdefault(streamed_pck, {})
@@ -211,6 +249,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
             try:
                 soundbank_pcks.append({
                     "name": pck_file.name,
+                    "rel": pck_file.relative_to(streaming_root).as_posix(),
                     "size": pck_file.stat().st_size,
                     "folder": pck_file.parent.name,
                 })
@@ -227,7 +266,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
         in_folder = [pck for pck in soundbank_pcks if pck["folder"] == folder]
         candidates = in_folder or soundbank_pcks
         smallest = min(candidates, key=lambda pck: pck["size"], default=None)
-        host_by_folder[folder] = smallest["name"] if smallest else ""
+        host_by_folder[folder] = smallest["rel"] if smallest else ""
         return host_by_folder[folder]
 
     def _build_bnk_index():
@@ -294,7 +333,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
                 )
                 if chosen_counterpart is not None:
                     # The SoundBank copy already holds the WEM: a plain merge there suffices.
-                    target_pck = chosen_counterpart[0].name
+                    target_pck = chosen_counterpart[0].relative_to(streaming_root).as_posix()
                 else:
                     # No SoundBank copy holds the WEM, so bring the whole Patch BNK in.
                     # Target a counterpart in the WEM's language, else a fresh host in that folder.
@@ -304,7 +343,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
                         (counterpart for counterpart in counterparts if counterpart[0].parent.name == folder),
                         None,
                     )
-                    target_pck = counterpart_in_folder[0].name if counterpart_in_folder else _pick_host_soundbank(folder)
+                    target_pck = counterpart_in_folder[0].relative_to(streaming_root).as_posix() if counterpart_in_folder else _pick_host_soundbank(folder)
                     if not target_pck:
                         logger.info(f"[Patch Resolver] BNK {bnk_id} has no host SoundBank, dropping entry {key}")
                         dropped += 1
