@@ -460,9 +460,12 @@ class Application(
         self._check_update_success_flag()
 
         if is_frozen():
-            logger.info(f"[{APP_NAME}] Frozen build detected, checking for updates...")
-            self._startup_update_check = True
-            self.update_manager_bridge.checkForUpdates()
+            if self.load_settings().get("auto_check_updates", True):
+                logger.info(f"[{APP_NAME}] Frozen build detected, checking for updates...")
+                self._startup_update_check = True
+                self.update_manager_bridge.checkForUpdates()
+            else:
+                logger.info(f"[{APP_NAME}] Automatic update check disabled by the user")
 
         return self.app.exec()
 
