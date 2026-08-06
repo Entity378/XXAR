@@ -2233,9 +2233,9 @@ Item {
             opacity: (!searchResultsOverlay.closing && searchResultsOverlay.visible) ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: searchDialog
+                onClickedOutside: {
                     searchResultsOverlay.closing = true
                     searchHideTimer.start()
                 }
@@ -2395,9 +2395,9 @@ Item {
             opacity: (!matchResultsOverlay.closing && matchResultsOverlay.visible) ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: matchDialog
+                onClickedOutside: {
                     matchResultsOverlay.closing = true
                     matchHideTimer.start()
                 }
@@ -2641,9 +2641,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: changesDialog
+                onClickedOutside: {
                     changesOverlay.closing = true
                     changesHideTimer.start()
                 }
@@ -2665,13 +2665,6 @@ Item {
             opacity: (!changesOverlay.closing && changesOverlay.visible) ? 1.0 : 0.0
             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
-
-            // Block mouse events from reaching the backdrop/page behind the dialog.
-            // z: -1 keeps it below all child controls so buttons/combos still work.
-            MouseArea {
-                anchors.fill: parent
-                z: -1
-            }
 
             ColumnLayout {
                 id: changesColumns
@@ -3293,9 +3286,9 @@ Item {
             opacity: (!tagOverlay.closing && tagOverlay.visible) ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: tagDialog
+                onClickedOutside: {
                     tagOverlay.closing = true
                     tagHideTimer.start()
                 }
@@ -3536,9 +3529,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: metadataDialog
+                onClickedOutside: {
                     metadataOverlay.closing = true
                     metadataHideTimer.start()
                 }
@@ -3558,13 +3551,6 @@ Item {
             opacity: (!metadataOverlay.closing && metadataOverlay.visible) ? 1.0 : 0.0
             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
-
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
-
-                }
-            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -3829,9 +3815,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: tagDbDialog
+                onClickedOutside: {
                     tagDbOverlay.closing = true
                     tagDbHideTimer.start()
                 }
@@ -4031,9 +4017,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
+            OverlayBackdropMouseArea {
+                dialog: tagDbNotifyDialog
+                onClickedOutside: {
                     tagDbNotifyOverlay.closing = true
                     tagDbNotifyHideTimer.start()
                     dismissTagDbNotify(false)
@@ -4042,6 +4028,7 @@ Item {
         }
 
         Rectangle {
+            id: tagDbNotifyDialog
             width: Math.min(500, parent.width - 40)
             height: notifyCol.height + 60
             anchors.centerIn: parent

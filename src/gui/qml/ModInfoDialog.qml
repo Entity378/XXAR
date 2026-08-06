@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Effects
+import "../components"
 
 Item {
     id: modInfoDialog
@@ -45,10 +46,7 @@ Item {
             opacity: 0.6
         }
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {}
-        }
+        OverlayBackdropMouseArea {}
     }
 
     Rectangle {
