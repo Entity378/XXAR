@@ -40,6 +40,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          
+      - name: Rebuild PyInstaller bootloader from source
+        shell: pwsh
+        run: |
+          $ver = (pip show pyinstaller | Select-String '^Version:').Line.Split(' ')[1]
+          Write-Host "Rebuilding PyInstaller $ver from sdist..."
+          pip install --no-binary pyinstaller --force-reinstall "pyinstaller==$ver"
 
       - name: Build app, portable zip and installer
         shell: pwsh

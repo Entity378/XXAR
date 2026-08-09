@@ -44,6 +44,9 @@ def _load_ui_scale():
             with open(settings_file, 'r') as f:
                 scale = json.load(f).get('ui_scale', 1.0)
             if scale != 1.0:
+                orig_scale = os.environ.get('QT_SCALE_FACTOR', False)
+                if orig_scale:
+                    os.environ['QT_SCALE_FACTOR_ORIG'] = orig_scale
                 os.environ['QT_SCALE_FACTOR'] = str(scale)
     except Exception:
         pass
