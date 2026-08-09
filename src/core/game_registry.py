@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,10 @@ class GameDefinition:
     assets_dir: str = ""
     logo_png: str = ""
     logo_256: str = ""
+
+    def is_protected_pck(self, pck_key):
+        # Tracker keys may be bare names, folder-qualified ("En/Patch.pck") or full paths: match by basename.
+        return Path(str(pck_key)).name in self.protected_pcks
 
 
 _ALL_GAMES: tuple[GameDefinition, ...] = (
@@ -163,7 +167,6 @@ DEFAULT_GAME_ID = "zzz"
 
 _GAME_BY_ID = {game.id: game for game in _ALL_GAMES}
 _DATA_DIR_TO_GAME = {game.data_dir_name: game for game in _ALL_GAMES}
-_BUILD_TARGET_TO_GAME_ID = {game.build_target: game.id for game in _ALL_GAMES}
 _GAME_MODE_ALIASES = {
     "zzz": "zzz",
     "zzar": "zzz",
@@ -175,39 +178,16 @@ _GAME_MODE_ALIASES = {
 }
 
 
-def get_game_id_for_build_target(build_target, default: str = DEFAULT_GAME_ID) -> str:
-    key = str(build_target or "").strip().upper()
-    return _BUILD_TARGET_TO_GAME_ID.get(key, default)
-
-
-def get_game_for_build_target(build_target, default: str = DEFAULT_GAME_ID) -> GameDefinition:
-    return get_game(get_game_id_for_build_target(build_target, default=default))
-
-
-def get_game_mode_aliases() -> dict[str, str]:
-    return dict(_GAME_MODE_ALIASES)
-
-
 def get_data_dir_to_game_id_map() -> dict[str, str]:
     return {name: game.id for name, game in _DATA_DIR_TO_GAME.items()}
 
 
-def get_supported_games(build_target=None) -> tuple[GameDefinition, ...]:
-    if build_target is None:
-        return _ALL_GAMES
-    return (get_game_for_build_target(build_target),)
+def get_supported_games() -> tuple[GameDefinition, ...]:
+    return _ALL_GAMES
 
 
-def get_supported_game_ids(build_target=None) -> tuple[str, ...]:
-    return tuple(game.id for game in get_supported_games(build_target))
-
-
-def get_supported_game_short_labels(build_target=None) -> dict[str, str]:
-    return {game.id: game.short_label for game in get_supported_games(build_target)}
-
-
-def get_known_data_dir_names() -> tuple[str, ...]:
-    return tuple(game.data_dir_name for game in _ALL_GAMES)
+def get_supported_game_ids() -> tuple[str, ...]:
+    return tuple(game.id for game in _ALL_GAMES)
 
 
 def normalize_game_mode(game_mode, default: str = DEFAULT_GAME_ID) -> str:
@@ -223,10 +203,6 @@ def normalize_game_id(game_id, default: str = DEFAULT_GAME_ID) -> str:
 
 def get_game(game_id, default: str = DEFAULT_GAME_ID) -> GameDefinition:
     return _GAME_BY_ID[normalize_game_id(game_id, default=default)]
-
-
-def get_game_display_name(game_id, default: str = DEFAULT_GAME_ID) -> str:
-    return get_game(game_id, default=default).display_name
 
 
 def get_gamebanana_game_id(game_id, default=None):
@@ -245,10 +221,6 @@ def get_game_subfolder_sort_priority(game_id) -> dict[str, int]:
 def get_audio_settings_keys(game_id) -> tuple[str, str]:
     normalized = normalize_game_id(game_id)
     return (f"{normalized}_game_audio_dir", f"{normalized}_persistent_audio_dir")
-
-
-def get_conflict_preferences_key(game_id) -> str:
-    return f"{normalize_game_id(game_id)}_conflict_preferences"
 
 
 def build_audio_paths(game_id, game_data_path) -> tuple[Path, Path]:
@@ -271,22 +243,6 @@ def normalize_game_data_dir(path) -> Path:
             return nested
 
     return candidate
-
-
-def resolve_game_data_dir(path):
-    if not path:
-        return None
-
-    candidate = normalize_game_data_dir(path)
-    if is_valid_game_data_dir(candidate):
-        return candidate
-
-    candidate = Path(path)
-    for parent in [candidate, *candidate.parents]:
-        if parent.name in _DATA_DIR_TO_GAME and is_valid_game_data_dir(parent):
-            return parent
-
-    return None
 
 
 def is_valid_game_data_dir(path) -> bool:
@@ -323,14 +279,3 @@ def extract_game_data_dir_from_audio_path(audio_dir) -> str:
         if parent.name in _DATA_DIR_TO_GAME:
             return str(parent)
     return str(audio_path)
-
-
-def iter_windows_autodetect_data_dirs() -> Iterable[Path]:
-    for game in _ALL_GAMES:
-        for drive in ("C", "D", "E"):
-            yield (
-                Path(f"{drive}:/Program Files/HoYoPlay/games")
-                / game.install_dir_name
-                / game.data_dir_name
-            )
-        yield Path.home() / "Games" / game.install_dir_name / game.data_dir_name

@@ -28,6 +28,7 @@ Item {
     signal languageChanged(string langCode)
     signal uiScaleSelected(real scale)
     signal hircEditorToggled(bool enabled)
+    signal autoCheckUpdatesToggled(bool enabled)
 
     property string gameDirectory: ""
     property string gameDataFolderName: gameDataFolder
@@ -51,6 +52,7 @@ Item {
     property string latestVersion: ""
     property int downloadPercent: 0
     property bool updateDownloaded: false
+    property bool autoCheckUpdates: true
     property bool devMode: false
     property bool hircEditorEnabled: false
     property string githubToken: ""
@@ -1778,6 +1780,63 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: testLanguageDialogClicked()
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                width: parent.width
+                                spacing: 20
+
+                                Column {
+                                    Layout.fillWidth: true
+                                    spacing: 5
+
+                                    Text {
+                                        text: qsTranslate("Application", "Check Automatically at Startup")
+                                        color: "#ffffff"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 16
+                                    }
+
+                                    Text {
+                                        text: qsTranslate("Application", "Contact GitHub on launch to look for a new version. Turn this off to keep %1 fully offline.").replace("%1", appName)
+                                        color: "#888888"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 14
+                                        wrapMode: Text.WordWrap
+                                        width: parent.width
+                                    }
+                                }
+
+                                Item {
+                                    width: 60
+                                    height: 30
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 15
+                                        color: settingsPage.autoCheckUpdates ? Theme.primaryAccent : "#555555"
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+
+                                        Rectangle {
+                                            width: 26
+                                            height: 26
+                                            radius: 13
+                                            color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: settingsPage.autoCheckUpdates ? parent.width - width - 2 : 2
+                                            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            settingsPage.autoCheckUpdates = !settingsPage.autoCheckUpdates
+                                            autoCheckUpdatesToggled(settingsPage.autoCheckUpdates)
+                                        }
                                     }
                                 }
                             }

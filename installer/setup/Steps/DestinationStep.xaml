@@ -1,0 +1,35 @@
+﻿<UserControl x:Class="XXAR.Setup.Steps.DestinationStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wizard="clr-namespace:XXAR.Wizard">
+    <wizard:WizardFrame Heading="Destination Folder"
+                       Subheading="Click Next to install to the default folder or Change to choose another.">
+        <StackPanel Margin="20,24,20,10">
+            <TextBlock Text="Install XXAR to:"
+                       Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                       FontSize="12" Margin="0,0,0,8" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="ChosenFolder"
+                         Style="{StaticResource XXARTextBox}" />
+                <Button Grid.Column="1" Content="Change..." Click="Change_Click"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="8,0,0,0" />
+            </Grid>
+        </StackPanel>
+
+        <wizard:WizardFrame.Buttons>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button Content="Back" Click="GoPrev_Click"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="4,0" />
+                <Button Content="Next" Click="GoNext_Click"
+                        Style="{StaticResource XXARPrimaryButton}" Margin="4,0" />
+                <Button Content="Cancel" Click="Cancel_Click"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="12,0,0,0" />
+            </StackPanel>
+        </wizard:WizardFrame.Buttons>
+    </wizard:WizardFrame>
+</UserControl>

@@ -1,0 +1,19 @@
+<UserControl x:Class="XXAR.Uninstall.Steps.FinishStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wizard="clr-namespace:XXAR.Wizard">
+    <wizard:WizardFrame x:Name="Frame" UseSidebar="True"
+                        Heading="XXAR has been removed"
+                        Subheading="Click Finish to close.">
+        <wizard:WizardFrame.Buttons>
+            <Grid Margin="20,0">
+                <Button Content="View log" Click="ViewLog_Click"
+                        Style="{StaticResource XXARSecondaryButton}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <Button Content="Finish" Click="Leave_Click"
+                        Style="{StaticResource XXARPrimaryButton}"
+                        HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+        </wizard:WizardFrame.Buttons>
+    </wizard:WizardFrame>
+</UserControl>

@@ -8,12 +8,28 @@ block_cipher = None
 # the Flatpak runtime provides them instead.
 is_flatpak_build = os.environ.get('XXAR_FLATPAK_BUILD') == '1'
 
+# Wwise recreates these inside the project the moment anything is converted, so they are not in
+# the repository and must not reach a release either: together they were 48 MB of every download.
+wwise_regenerated_folders = ('.cache', 'Originals')
+
+
+def bundled_resources(source='src/resources', destination='resources'):
+    files = []
+    for folder, subfolders, names in os.walk(source):
+        if os.path.basename(folder) == 'WAVtoWEM':
+            subfolders[:] = [s for s in subfolders if s not in wwise_regenerated_folders]
+        relative = os.path.relpath(folder, source)
+        target = destination if relative == '.' else os.path.join(destination, relative)
+        files += [(os.path.join(folder, name), target) for name in names]
+    return files
+
+
 added_files = [
     ('src/gui/qml', 'src/gui/qml'),
     ('src/gui/assets', 'src/gui/assets'),
     ('src/gui/components', 'src/gui/components'),
     ('src/gui/translations', 'src/gui/translations'),
-    ('src/resources', 'resources'),
+    *bundled_resources(),
     ('setup_wwise.py', '.'),
     ('setup_windows_audio_tools.py', '.'),
 ]
@@ -183,6 +199,41 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 icon_file = 'src/gui/assets/XXAR/XXAR-Logo2.ico' if sys.platform.startswith('win') else None
 
+# Without a VERSIONINFO resource the exe shows no publisher or version anywhere in Windows.
+# Generated from APP_VERSION so a release bump stays a single-file edit.
+version_file = None
+if sys.platform.startswith('win'):
+    import re
+
+    with open('src/core/app_config.py', encoding='utf-8') as fh:
+        app_version = re.search(r'^APP_VERSION\s*=\s*"([^"]+)"', fh.read(), re.M).group(1)
+    numeric_version = re.match(r'\d+(?:\.\d+)*', app_version).group(0)
+    version_quad = tuple((list(map(int, numeric_version.split('.'))) + [0, 0, 0, 0])[:4])
+
+    os.makedirs(workpath, exist_ok=True)
+    version_file = os.path.join(workpath, 'version_info.txt')
+    with open(version_file, 'w', encoding='utf-8') as fh:
+        fh.write(f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_quad}, prodvers={version_quad},
+    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('CompanyName', 'Entity378'),
+      StringStruct('FileDescription', 'XXAR - Cross-game Audio Replacer'),
+      StringStruct('FileVersion', '{app_version}'),
+      StringStruct('InternalName', 'XXAR'),
+      StringStruct('LegalCopyright', 'Entity378 - GPL-3.0'),
+      StringStruct('OriginalFilename', 'XXAR.exe'),
+      StringStruct('ProductName', 'XXAR'),
+      StringStruct('ProductVersion', '{app_version}'),
+    ])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+""")
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -192,9 +243,10 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     icon=icon_file,
+    version=version_file,
 )
 
 coll = COLLECT(
@@ -203,7 +255,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='XXAR',
 )

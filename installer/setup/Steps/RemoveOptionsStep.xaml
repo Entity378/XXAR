@@ -1,0 +1,34 @@
+﻿<UserControl x:Class="XXAR.Setup.Steps.RemoveOptionsStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wizard="clr-namespace:XXAR.Wizard">
+    <wizard:WizardFrame Heading="Uninstall XXAR"
+                       Subheading="Choose what to remove, then click Uninstall.">
+        <StackPanel Margin="20,24,20,10">
+            <TextBlock Text="XXAR and its downloaded tools and caches will be removed from this computer."
+                       Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                       FontSize="12" TextWrapping="Wrap" Margin="0,0,0,18" />
+
+            <CheckBox x:Name="PurgeUserData" Foreground="{DynamicResource XXARTextSecondaryBrush}">
+                <TextBlock Text="Also remove my mods and settings"
+                           Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                           FontSize="12" TextWrapping="Wrap" />
+            </CheckBox>
+            <TextBlock Text="Your mod library and configuration will be permanently deleted. Leave unchecked to keep them for a future reinstall."
+                       Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                       FontSize="11" TextWrapping="Wrap" Margin="24,4,0,0" />
+        </StackPanel>
+
+        <wizard:WizardFrame.Buttons>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button x:Name="GoPrev" Content="Back" Click="GoPrev_Click"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="4,0" />
+                <Button Content="Uninstall" Click="Remove_Click"
+                        Style="{StaticResource XXARPrimaryButton}" Margin="4,0" />
+                <Button Content="Cancel" Click="Cancel_Click"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="12,0,0,0" />
+            </StackPanel>
+        </wizard:WizardFrame.Buttons>
+    </wizard:WizardFrame>
+</UserControl>

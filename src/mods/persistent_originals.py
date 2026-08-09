@@ -10,6 +10,8 @@ from src.core.config_manager import get_game_state_dir
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
 from src.wwise.override_pck_patcher import restore_override_pck_backups
+from src.wwise.patch_target_resolver import plain_wem_id
+from src.wwise.pck_indexer import PCKIndexer
 
 logger = get_logger(__name__)
 
@@ -106,6 +108,51 @@ def load_manifest_md5s(streaming_root):
     return {}
 
 
+def _entry_target_ids(entries):
+    # The integer ids a set of tracker entries targets, for candidate disambiguation.
+    ids = {plain_wem_id(info, key) for key, info in (entries or {}).items()}
+    ids.discard(None)
+    return ids
+
+
+def _candidate_contains(candidate, target_ids):
+    try:
+        indexer = PCKIndexer(str(candidate))
+        indexer.build_index()
+        return any(entry["id"] in target_ids for entry in indexer.get_file_list())
+    except Exception:
+        return False
+
+
+def locate_pck_paths(streaming_root, persistent_root, pck_name, entries=None):
+    # Every rebuild resolves here: source under StreamingAssets, output mirroring its subpath under Persistent.
+    # pck_name may be a bare name or a folder-qualified key; (None, None) when no source exists.
+    streaming_root = Path(streaming_root)
+    persistent_root = Path(persistent_root)
+    direct = streaming_root / pck_name
+    if direct.exists():
+        return direct, persistent_root / pck_name
+    candidates = []
+    try:
+        for subdir in sorted(streaming_root.iterdir()):
+            if subdir.is_dir() and (subdir / pck_name).exists():
+                candidates.append(subdir / pck_name)
+    except OSError:
+        return None, None
+    if not candidates:
+        return None, None
+    chosen = candidates[0]
+    if len(candidates) > 1:
+        target_ids = _entry_target_ids(entries)
+        if target_ids:
+            for candidate in candidates:
+                if _candidate_contains(candidate, target_ids):
+                    chosen = candidate
+                    break
+    rel = chosen.relative_to(streaming_root)
+    return chosen, persistent_root / rel
+
+
 class _Md5Cache:
     # size+mtime keyed md5 cache; losing it only costs rehashing.
 
@@ -180,7 +227,7 @@ def _ground_truth(manifest, sidecar_cache, pck, rel):
     return (None, -1)
 
 
-def promote_originals(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None):
+def promote_originals(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None, manifest=None):
     # Returns (stats, keep); rels in keep must never be deleted by cleanup.
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
@@ -189,14 +236,20 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
     if not persistent_root.is_dir():
         return stats, keep
 
-    protected = get_game(game_id).protected_pcks
-    modded_names = set(modded_keys or ())
+    game = get_game(game_id)
+    # Tracker keys come in both shapes: folder-qualified keys match the rel, bare keys match the name.
+    modded_rels = set()
+    modded_basenames = set()
+    for key in (modded_keys or ()):
+        key = str(key)
+        (modded_rels if "/" in key else modded_basenames).add(key)
     cache = _Md5Cache(get_game_state_dir(game_id))
-    manifest = load_manifest_md5s(streaming_root)
+    if manifest is None:
+        manifest = load_manifest_md5s(streaming_root)
     sidecar_cache = {}
 
     for pck in persistent_root.rglob("*.pck"):
-        if pck.name in protected:
+        if game.is_protected_pck(pck.name):
             continue
         try:
             rel = pck.relative_to(persistent_root).as_posix()
@@ -239,12 +292,19 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
                 logger.error(f"[Persistent Originals] Failed to promote {rel}: {e}")
             continue
 
-        if pck.name in modded_names:
+        if rel in modded_rels or pck.name in modded_basenames:
             stats["kept_mod"] += 1
             if not s_path.is_file():
                 stats["orphan"] += 1
                 if progress_cb:
                     progress_cb(f"Warning: no original for modded {rel}")
+            continue
+        if manifest:
+            # A non-empty manifest lists every original under this root: an unlisted pck is not game data.
+            # Never adopt it into StreamingAssets; the misplaced-copy sweep handles our own leftovers.
+            keep.add(rel)
+            stats["conflict"] += 1
+            logger.warning(f"[Persistent Originals] {rel} has no manifest entry; not promoting")
             continue
         if not s_path.is_file():
             try:
@@ -276,23 +336,63 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
     return stats, keep
 
 
+def remove_misplaced_copies(game_id, streaming_root, persistent_root, manifest=None):
+    # Old builds wrote resolver targets at the audio-root level and promotion then adopted them.
+    # Deletes a root-level pck only when the manifest skips it there, lists its name under a subfolder, and that original exists on disk.
+    streaming_root = Path(streaming_root)
+    persistent_root = Path(persistent_root)
+    if manifest is None:
+        manifest = load_manifest_md5s(streaming_root)
+    if not manifest:
+        return 0
+    game = get_game(game_id)
+    subfolder_rels = {}
+    for rel_key in manifest:
+        if "/" in rel_key:
+            subfolder_rels.setdefault(Path(rel_key).name, []).append(rel_key)
+    removed = 0
+    for root in (streaming_root, persistent_root):
+        if not root.is_dir():
+            continue
+        for pck in root.glob("*.pck"):
+            if game.is_protected_pck(pck.name) or pck.name in manifest:
+                continue
+            true_rels = subfolder_rels.get(pck.name, [])
+            if not any((streaming_root / r).is_file() for r in true_rels):
+                continue
+            try:
+                pck.chmod(0o644)
+                pck.unlink()
+                removed += 1
+                logger.info(f"[Persistent Originals] Removed misplaced {pck} (original lives at {true_rels[0]})")
+            except Exception as e:
+                logger.error(f"[Persistent Originals] Failed to remove misplaced {pck.name}: {e}")
+    return removed
+
+
 def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None):
-    # Promote -> wipe overlay where the fallback exists -> restore protected backups.
+    # Sweep misplaced copies -> promote -> wipe overlay where the fallback exists -> restore protected backups.
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
     result = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0,
-              "deleted": 0, "kept": 0, "override_restored": 0}
+              "deleted": 0, "kept": 0, "override_restored": 0, "misplaced_removed": 0}
     if not persistent_root.is_dir():
         return result
 
+    manifest = load_manifest_md5s(streaming_root)
+    try:
+        result["misplaced_removed"] = remove_misplaced_copies(game_id, streaming_root, persistent_root, manifest)
+    except Exception as e:
+        logger.error(f"[Persistent Originals] Misplaced-copy sweep failed: {e}")
+
     stats, keep = promote_originals(
-        game_id, streaming_root, persistent_root, modded_keys, progress_cb
+        game_id, streaming_root, persistent_root, modded_keys, progress_cb, manifest
     )
     result.update(stats)
 
-    protected = get_game(game_id).protected_pcks
+    game = get_game(game_id)
     for pck in persistent_root.rglob("*.pck"):
-        if pck.name in protected:
+        if game.is_protected_pck(pck.name):
             continue
         try:
             rel = pck.relative_to(persistent_root).as_posix()

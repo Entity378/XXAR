@@ -344,6 +344,9 @@ class SettingsConnector:
         self.settings_page.languageChanged.connect(self.on_language_changed)
         self.settings_page.uiScaleSelected.connect(self.on_ui_scale_changed)
         self.settings_page.hircEditorToggled.connect(self.on_hirc_editor_toggled)
+        self.settings_page.autoCheckUpdatesToggled.connect(
+            self.on_auto_check_updates_toggled
+        )
         self.root.selectGameRequested.connect(self.on_select_game_requested)
 
         self.mod_manager_bridge.modCreationModeChanged.connect(
@@ -457,6 +460,10 @@ class SettingsConnector:
         self.settings_page.setProperty("hircEditorEnabled", hirc_editor_enabled)
         self.root.setProperty("hircEditorTabEnabled", hirc_editor_enabled)
 
+        self.settings_page.setProperty(
+            "autoCheckUpdates", bool(settings.get("auto_check_updates", True))
+        )
+
         if mod_creation_mode:
             self.mod_manager_bridge.checkWwiseInstalled()
 
@@ -496,6 +503,20 @@ class SettingsConnector:
             logger.info(f"[{APP_NAME}] Language changed to: {lang_code}")
         except Exception as e:
             logger.error(f"[{APP_NAME}] Error saving language preference: {e}")
+
+    def on_auto_check_updates_toggled(self, enabled):
+        enabled = bool(enabled)
+        if self.settings_page:
+            self.settings_page.setProperty("autoCheckUpdates", enabled)
+        try:
+            settings = self.load_settings()
+            settings["auto_check_updates"] = enabled
+            self.settings_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=2)
+            logger.info(f"[{APP_NAME}] Automatic update check toggled: {enabled}")
+        except Exception as e:
+            logger.error(f"[{APP_NAME}] Error saving update check preference: {e}")
 
     def on_hirc_editor_toggled(self, enabled):
         enabled = bool(enabled)
@@ -1086,7 +1107,13 @@ class SettingsConnector:
                     gd = gd.toVariant()
                 game_dirs_map = dict(gd) if gd else {}
 
-            primary_game = normalize_game_id(selected_games[0]) if selected_games else None
+            # Primary = the game currently shown in the dialog (the last one configured), not the first clicked.
+            # Using selectedGames[0] made the app swap game right as the tutorial started.
+            current_game = self.welcome_dialog.property("selectedGame") if self.welcome_dialog else ""
+            if current_game:
+                primary_game = normalize_game_id(current_game)
+            else:
+                primary_game = normalize_game_id(selected_games[0]) if selected_games else None
             if primary_game:
                 settings["selected_game"] = primary_game
 

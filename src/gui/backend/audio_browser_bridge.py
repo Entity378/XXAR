@@ -62,13 +62,14 @@ from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
-from src.mods.persistent_originals import cleanup_persistent_overlay
+from src.mods.persistent_originals import cleanup_persistent_overlay, locate_pck_paths
 from src.wwise import patch_backup
 from src.wwise.bnk_indexer import BNKIndexer
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_backup import BACKUP_SUFFIX
 from src.wwise.patch_target_resolver import (
     add_streamed_duplicates,
+    canonicalize_pck_keys,
     find_patch_pck_sources,
     install_whole_patch_bnks,
     resolve_and_extract,
@@ -91,8 +92,12 @@ def _get_tag_db_url():
     return f"https://raw.githubusercontent.com/Entity378/{APP_NAME}/main/data/{app_config.DATA_SUBDIR}/official_sound_database.json"
 
 
-def _pck_rel_key(pck_file_path, audio_root):
-    # Return relative path like 'English/Banks0.pck' from audio_root, falling back to filename.
+def _staging_pck_key(meta, audio_root):
+    # The one staging key for every action on an item: rel path like 'En/Patch.pck' from the audio root, name as fallback.
+    # Items surfaced from a protected override carry pck_name and stage under that live name.
+    if meta.get("pck_name"):
+        return meta["pck_name"]
+    pck_file_path = Path(meta["pck_path"])
     try:
         norm_pck = Path(str(pck_file_path).replace("Persistent", "StreamingAssets"))
         norm_root = Path(str(audio_root).replace("Persistent", "StreamingAssets"))
@@ -119,10 +124,7 @@ class ReplaceAudioWorker(BaseWorker):
     def work(self):
         try:
             pck_file_path = Path(self.meta["pck_path"])
-            # Orphan Patch.pck items read from the pristine source but must stage under the live override name.
-            pck_filename = self.meta.get("pck_name") or (
-                _pck_rel_key(pck_file_path, self.audio_root) if self.audio_root else pck_file_path.name
-            )
+            pck_filename = _staging_pck_key(self.meta, self.audio_root)
 
             if self.meta["type"] == "wem":
                 file_id = self.meta["file_id"]
@@ -385,7 +387,7 @@ class AudioBrowserBridge(QObject):
         path = Path(pck_path)
         if path.name.endswith(BACKUP_SUFFIX):
             return str(path)
-        if path.name not in self._active_game().protected_pcks or not self.game_root_dir:
+        if not self._active_game().is_protected_pck(path.name) or not self.game_root_dir:
             return pck_path
         game = self._active_game()
         persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
@@ -866,7 +868,7 @@ class AudioBrowserBridge(QObject):
             pck_base_name = Path(pck_path).name
             if pck_base_name.endswith(BACKUP_SUFFIX):
                 pck_base_name = pck_base_name[:-len(BACKUP_SUFFIX)]
-            is_protected_source = pck_base_name in self._active_game().protected_pcks
+            is_protected_source = self._active_game().is_protected_pck(pck_base_name)
             orphan_ids = {
                 info["bnk_id"] for info in self._get_orphan_patch_bnks().values()
                 if info["path"] == pck_path
@@ -1095,8 +1097,9 @@ class AudioBrowserBridge(QObject):
                     for patch_path, override_name in find_patch_pck_sources(
                         persistent_root, self._active_game()
                     ):
+                        read_path = self._pristine_read_path(patch_path)
                         try:
-                            patch_pck_idx = PCKIndexer(str(patch_path)).build_index()
+                            patch_pck_idx = PCKIndexer(read_path).build_index()
                         except Exception:
                             continue
                         matching_bank = next(
@@ -1107,7 +1110,7 @@ class AudioBrowserBridge(QObject):
                         if not matching_bank:
                             continue
                         try:
-                            with open(patch_path, "rb") as pf:
+                            with open(read_path, "rb") as pf:
                                 pf.seek(matching_bank["offset"])
                                 patch_bnk_bytes = pf.read(matching_bank["size"])
                             patch_bnk_indexer = BNKIndexer(patch_bnk_bytes)
@@ -1652,8 +1655,14 @@ class AudioBrowserBridge(QObject):
         # Filter prefix covers voices too, not only Streamed_SFX_.
         streamed_prefix = self._active_game().streamed_pck_filter_prefix
         if self.merge_wem_enabled and matches:
-            matches = [m for m in matches
-                       if not Path(m["pckPath"]).name.startswith(streamed_prefix)]
+            # Drop a streamed copy only when the same id also lives in a non-streamed pck (its BNK/SoundBank/Patch).
+            # A streamed-only WEM (a full track with no embedded copy) has no duplicate, so keep it findable.
+            tagged = [(m, Path(m["pckPath"]).name.startswith(streamed_prefix)) for m in matches]
+
+            non_streamed_ids = {m["fileId"] for m, streamed in tagged if not streamed}
+
+            matches = [m for m, streamed in tagged
+                       if not (streamed and m["fileId"] in non_streamed_ids)]
 
         if matches:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Found %1 match(es) for '%2'").replace("%1", str(len(matches))).replace("%2", query))
@@ -1830,7 +1839,7 @@ class AudioBrowserBridge(QObject):
 
         try:
             pck_file_path = Path(meta["pck_path"])
-            pck_filename = _pck_rel_key(pck_file_path, self._audio_root) if self._audio_root else pck_file_path.name
+            pck_filename = _staging_pck_key(meta, self._audio_root)
 
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating silent audio replacement..."))
 
@@ -2065,9 +2074,21 @@ class AudioBrowserBridge(QObject):
                     self.mod_manager, streaming_base, game,
                     progress_callback=lambda msg: self.statusUpdate.emit(msg),
                 )
-                replacements = self.mod_manager.get_all_replacements()
             except Exception:
                 logger.exception("[Audio Browser] Relink before apply failed")
+
+            # The resolver rewrites keys in place: never hand it the live tracker.
+            replacements = {pck: {key: dict(info) for key, info in files.items()}
+                            for pck, files in self.mod_manager.get_all_replacements().items()}
+
+            # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
+            # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
+            try:
+                merged_aliases = canonicalize_pck_keys(replacements, streaming_base, game)
+                if merged_aliases:
+                    logger.info(f"[Audio Browser] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
+            except Exception as e:
+                logger.error(f"[Audio Browser] Warning: pck key canonicalization failed: {e}")
 
             # Index the streamed pcks once and share it with both the resolver and the mirror step below.
             streamed_index = streamed_wem_pcks(streaming_base, game)
@@ -2102,21 +2123,15 @@ class AudioBrowserBridge(QObject):
 
             for pck_filename, files in replacements.items():
                 # Defensive: protected PCKs should have been remapped above.
-                if pck_filename in game.protected_pcks:
+                if game.is_protected_pck(pck_filename):
                     logger.info(f"[Audio Browser] Skipping rebuild of protected PCK {pck_filename} (unexpected post-remap)")
                     continue
 
-                pck_file_path = streaming_base / pck_filename
-
-                if not pck_file_path.exists():
-                    for subfolder in streaming_base.iterdir():
-                        if subfolder.is_dir():
-                            candidate = subfolder / pck_filename
-                            if candidate.exists():
-                                pck_file_path = candidate
-                                break
-
-                if not pck_file_path.exists():
+                # The output mirrors the source subpath so the game actually loads the overlay.
+                pck_file_path, output_pck = locate_pck_paths(
+                    streaming_base, persistent_path, pck_filename, entries=files,
+                )
+                if pck_file_path is None:
                     self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", pck_filename))
                     continue
 
@@ -2125,7 +2140,6 @@ class AudioBrowserBridge(QObject):
                 self.mod_manager.set_persistent_path(str(persistent_path))
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating modded %1...").replace("%1", pck_filename))
-                output_pck = self.mod_manager.get_persistent_pck_path(pck_filename)
                 output_pck.parent.mkdir(parents=True, exist_ok=True)
 
                 if output_pck.exists():
@@ -2409,7 +2423,7 @@ class AudioBrowserBridge(QObject):
 
         # Protected overrides (Patch.pck/Hotfix.pck) have only a stub in StreamingAssets, so the tree lists them under the pristine Persistent source.
         # Resolve via the index so pck_path matches the tree node.
-        if pck_filename in self._active_game().protected_pcks:
+        if self._active_game().is_protected_pck(pck_filename):
             lookup_id = int(file_id) if str(file_id).isdigit() else file_id
             embedded = [location for location in self.file_id_index.get(lookup_id, []) if location.get("type") == "wem_embedded"]
             match = next((location for location in embedded if not bnk_id or str(location.get("bnk_id", "")) == str(bnk_id)), None)
@@ -2469,19 +2483,19 @@ class AudioBrowserBridge(QObject):
                         else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
                     )
                     modded_keys = set(self.mod_manager.get_all_replacements().keys())
-                    stats = cleanup_persistent_overlay(
+                    cleanup_stats = cleanup_persistent_overlay(
                         game.id,
                         streaming_base,
                         persistent_path,
                         modded_keys,
                         progress_cb=lambda msg: self.statusUpdate.emit(msg),
                     )
-                    cleaned_files = stats["deleted"]
-                    logger.info(f"[Audio Browser] Reset cleanup: {stats}")
+                    cleaned_files = cleanup_stats["deleted"]
+                    logger.info(f"[Audio Browser] Reset cleanup: {cleanup_stats}")
 
             if cleaned_files == 0 and self.mod_manager.persistent_base_path:
                 for pck_name in stats["pcks"]:
-                    if pck_name in self._active_game().protected_pcks:
+                    if self._active_game().is_protected_pck(pck_name):
                         continue
                     pck_path = self.mod_manager.get_persistent_pck_path(pck_name)
                     if not pck_path.exists():
@@ -3228,13 +3242,14 @@ class AudioBrowserBridge(QObject):
             for patch_path, override_name in find_patch_pck_sources(
                 persistent_root, self._active_game()
             ):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    patch_idx = PCKIndexer(str(patch_path)).build_index()
+                    patch_idx = PCKIndexer(read_path).build_index()
                 except Exception:
                     continue
                 for bank in patch_idx.get("banks", []):
                     try:
-                        with open(patch_path, "rb") as pf:
+                        with open(read_path, "rb") as pf:
                             pf.seek(bank["offset"])
                             patch_bnk_bytes = pf.read(bank["size"])
                         pbi = BNKIndexer(patch_bnk_bytes)
@@ -3254,7 +3269,7 @@ class AudioBrowserBridge(QObject):
 
     def _get_orphan_patch_bnks(self):
         # {(path, bnk_id): {...}} for Patch/Hotfix BNKs absent from every SoundBank pck; keyed by path so each language's copy of a shared bnk_id is kept.
-        # "path" is the pristine source (backup preferred) for reading; "override" is the live name (Patch.pck) for staging.
+        # "path" is the live override under Persistent (its folder scopes it to a tab); reads redirect to the pristine backup.
         if not self.game_root_dir:
             return {}
         cache_key = str(self.game_root_dir)
@@ -3267,8 +3282,9 @@ class AudioBrowserBridge(QObject):
             persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
             counterpart_ids = soundbank_bnk_ids(streaming_root, game)
             for patch_path, override_name in find_patch_pck_sources(persistent_root, game):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    banks = PCKIndexer(str(patch_path)).build_index().get("banks", [])
+                    banks = PCKIndexer(read_path).build_index().get("banks", [])
                 except Exception:
                     continue
                 for bank in banks:
@@ -3305,12 +3321,13 @@ class AudioBrowserBridge(QObject):
             # Index it so a Patch BNK prefetch pairs with the full WEM, not the ~0.5s prefetch.
             persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
             for patch_path, _override_name in find_patch_pck_sources(persistent_root, game):
+                read_path = self._pristine_read_path(patch_path)
                 try:
-                    index = PCKIndexer(str(patch_path)).build_index()
+                    index = PCKIndexer(read_path).build_index()
                 except Exception:
                     continue
                 for streamed_wem in index.get("sounds", []) + index.get("externals", []):
-                    result.setdefault(streamed_wem["id"], (streamed_wem, str(patch_path)))
+                    result.setdefault(streamed_wem["id"], (streamed_wem, read_path))
         except Exception as e:
             logger.error(f"[Browser] Streamed WEM index scan failed: {e}")
         self._streaming_streamed_index_key = cache_key

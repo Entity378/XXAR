@@ -50,6 +50,35 @@
   </requires>
 
   <releases>
+    <release version="1.1.0" date="2026-08-04">
+      <description>
+        <p>New Windows installer and a smaller download.</p>
+        <ul>
+          <li>Windows: XXAR now ships with its own uninstaller, which shows how much space each part takes and lets you keep your mods and settings</li>
+          <li>Windows: the installer replaces the old MSI package, and updates install through it</li>
+          <li>The download is about 34 MB smaller: build leftovers are no longer bundled</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.2" date="2026-08-02">
+      <description>
+        <p>Windows installer fix and build hardening.</p>
+        <ul>
+          <li>Windows: installing on a drive other than the one holding Windows no longer fails with "Could not set file security" (error 1926/1307)</li>
+          <li>Windows: the executable now carries proper version details and is no longer compressed</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.1" date="2026-08-02">
+      <description>
+        <p>Fixes Patch.pck corruption and misplaced voice-mod overlays.</p>
+        <ul>
+          <li>Muting a Patch.pck sound no longer corrupts the live file and its backup</li>
+          <li>Voice-mod overlays land in the correct language subfolder and stray root-level copies are cleaned up automatically</li>
+          <li>Patch.pck backups are verified against the game's own manifest before being captured</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-07-12">
       <description>
         <p>HIRC Editor mod import, Patch.pck browser fix, and quality-of-life improvements.</p>

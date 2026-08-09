@@ -4,6 +4,7 @@
 import json
 import shutil
 from pathlib import Path
+import xxhash
 
 from src.core.config_manager import get_game_state_dir
 from src.core.logger import get_logger
@@ -13,7 +14,7 @@ logger = get_logger(__name__)
 BACKUP_SUFFIX = ".xxar_backup"
 _MANIFEST_NAME = "audio_version_persist"
 
-# {manifest_path: (mtime, {remoteName: md5})} so a manifest is parsed once per change.
+# {manifest_path: (mtime, {remoteName: entry})} so a manifest is parsed once per change.
 _manifest_cache = {}
 
 
@@ -60,8 +61,8 @@ def _save_ledger(game_id, ledger):
         logger.error(f"[Patch Backup] Failed to write ledger: {e}")
 
 
-def _manifest_md5_map(persistent_root, game):
-    # {remoteName: md5} from audio_version_persist at the Persistent root, cached by mtime.
+def _manifest_entry_map(persistent_root, game):
+    # {remoteName: manifest entry} from audio_version_persist at the Persistent root, cached by mtime.
     # The manifest sits above the audio subpath, e.g. Persistent/audio_version_persist.
     persistent_root = Path(persistent_root)
     top = persistent_root
@@ -79,7 +80,7 @@ def _manifest_md5_map(persistent_root, game):
         return cached[1]
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        result = {f["remoteName"]: f.get("md5") for f in data.get("files", [])}
+        result = {f["remoteName"]: f for f in data.get("files", [])}
     except Exception as e:
         logger.error(f"[Patch Backup] Failed to parse {manifest.name}: {e}")
         result = {}
@@ -96,12 +97,57 @@ def _remote_name(live_pck, persistent_root, game):
     return "/".join([*prefix, *rel.parts])
 
 
-def _current_tag(live_pck, persistent_root, game):
-    # The game's own md5 for this override, or None when the manifest can't answer.
+def _manifest_entry(live_pck, persistent_root, game):
     name = _remote_name(live_pck, persistent_root, game)
     if name is None:
+        return {}
+    return _manifest_entry_map(persistent_root, game).get(name) or {}
+
+
+def _current_tag(live_pck, persistent_root, game):
+    # The game's own content tag for this override (decimal xxh64 in a field named "md5"), or None.
+    return _manifest_entry(live_pck, persistent_root, game).get("md5")
+
+
+def _expected_size(live_pck, persistent_root, game):
+    try:
+        return int(_manifest_entry(live_pck, persistent_root, game).get("fileSize"))
+    except (TypeError, ValueError):
         return None
-    return _manifest_md5_map(persistent_root, game).get(name)
+
+
+def _size_matches(path, expected_size):
+    if expected_size is None:
+        return True
+    try:
+        return Path(path).stat().st_size == expected_size
+    except OSError:
+        return False
+
+
+def _capture_backup(live_pck, bpath, tag):
+    # Copy while hashing so the live file is read once; a decimal-tag mismatch discards the capture.
+    h = xxhash.xxh64()
+    with open(live_pck, "rb") as src, open(bpath, "wb") as dst:
+        for chunk in iter(lambda: src.read(1 << 20), b""):
+            h.update(chunk)
+            dst.write(chunk)
+    if str(tag).isdigit() and h.intdigest() != int(tag):
+        bpath.unlink()
+        return False
+    shutil.copystat(live_pck, bpath)
+    return True
+
+
+def _drop_backup(bpath, rel_key, game_id, ledger):
+    try:
+        bpath.chmod(0o644)
+        bpath.unlink()
+    except OSError as e:
+        logger.error(f"[Patch Backup] Failed to drop invalid backup {bpath.name}: {e}")
+        return
+    ledger.pop(rel_key, None)
+    _save_ledger(game_id, ledger)
 
 
 def _migrate_legacy_backup(live_pck, persistent_root, game):
@@ -140,32 +186,47 @@ def pristine_path(live_pck, persistent_root, game):
         return live_pck
     rel = _rel(live_pck, persistent_root)
     rel_key = rel.as_posix()
-    if bpath.exists() and not _is_stale(rel_key, _current_tag(live_pck, persistent_root, game), _load_ledger(game.id)):
+    if (bpath.exists()
+            and not _is_stale(rel_key, _current_tag(live_pck, persistent_root, game), _load_ledger(game.id))
+            and _size_matches(bpath, _expected_size(live_pck, persistent_root, game))):
         return str(bpath)
     return live_pck
 
 
 def ensure_backup(live_pck, persistent_root, game):
     # Write side: capture a pristine backup when missing, or recapture when the game's tag says the override changed.
-    # Callers invoke this while the live file is pristine (before nulling, or after the game re-downloaded it).
+    # The live file is verified against the manifest (size, then xxh64 while copying), so a non-pristine live is never enshrined.
     _migrate_legacy_backup(live_pck, persistent_root, game)
     bpath = backup_path(live_pck, persistent_root, game.id)
     if bpath is None:
         return None
     rel_key = _rel(live_pck, persistent_root).as_posix()
     current_tag = _current_tag(live_pck, persistent_root, game)
+    expected_size = _expected_size(live_pck, persistent_root, game)
     ledger = _load_ledger(game.id)
     if bpath.exists() and not _is_stale(rel_key, current_tag, ledger):
-        return bpath
+        if _size_matches(bpath, expected_size):
+            return bpath
+        logger.error(f"[Patch Backup] Backup of {Path(live_pck).name} has the wrong size; discarding it")
+        _drop_backup(bpath, rel_key, game.id, ledger)
+    if not _size_matches(live_pck, expected_size):
+        logger.error(f"[Patch Backup] Live {Path(live_pck).name} has the wrong size vs the manifest; refusing capture")
+        return None
     try:
         bpath.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(live_pck, bpath)
+        if not _capture_backup(live_pck, bpath, current_tag):
+            logger.error(f"[Patch Backup] Live {Path(live_pck).name} does not match the manifest tag; refusing capture")
+            return None
         ledger[rel_key] = current_tag
         _save_ledger(game.id, ledger)
         logger.info(f"[Patch Backup] Captured pristine {Path(live_pck).name} (tag={current_tag})")
     except Exception as e:
         logger.error(f"[Patch Backup] Failed to capture {Path(live_pck).name}: {e}")
-        return bpath if bpath.exists() else None
+        try:
+            bpath.unlink()
+        except OSError:
+            pass
+        return None
     return bpath
 
 
@@ -181,6 +242,10 @@ def restore_backups(persistent_root, game):
         rel = bfile.relative_to(root)
         live_rel = rel.with_name(rel.name[:-len(BACKUP_SUFFIX)])
         target = persistent_root / live_rel
+        if not _size_matches(bfile, _expected_size(target, persistent_root, game)):
+            logger.error(f"[Patch Backup] Backup of {live_rel.as_posix()} has the wrong size; dropping it without restore")
+            _drop_backup(bfile, live_rel.as_posix(), game.id, ledger)
+            continue
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists():
@@ -202,11 +267,10 @@ def migrate_persistent_backups(persistent_root, game):
     persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return 0
-    protected = set(game.protected_pcks)
     moved = 0
     for old in persistent_root.rglob(f"*{BACKUP_SUFFIX}"):
         original_name = old.name[:-len(BACKUP_SUFFIX)]
-        if original_name not in protected:
+        if not game.is_protected_pck(original_name):
             continue
         _migrate_legacy_backup(old.with_name(original_name), persistent_root, game)
         moved += 1

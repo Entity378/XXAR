@@ -90,11 +90,13 @@ class WwiseConsole:
             return
 
         project_root = self.project_path.parent
+        # The bundle ships the project without Originals or .cache, so both are recreated here.
         required_dirs = [
-            "GeneratedSoundBanks", 
-            "Originals", 
-            "Attenuations", 
-            "Conversion Settings", 
+            "GeneratedSoundBanks",
+            "Originals",
+            "Originals/ExternalSources",
+            "Attenuations",
+            "Conversion Settings",
             "Actor-Mixer Hierarchy"
         ]
 

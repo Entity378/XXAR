@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- net48 ships with Windows 10 1903+, so the stub needs no runtime install. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <!-- The app it installs is 64-bit only, so a 32-bit installer would only fail later. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>XXAR.Installer</RootNamespace>
+    <AssemblyName>XXAR-Installer</AssemblyName>
+    <ApplicationIcon>..\shared\Assets\XXAR-Logo2.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Placeholder for local builds; build.ps1 passes the release version. -->
+    <Version>1.0.0</Version>
+    <Company>Entity378</Company>
+    <Product>XXAR</Product>
+    <!-- Fills FileDescription and Comments in the version-info resource. -->
+    <AssemblyTitle>XXAR Installer</AssemblyTitle>
+    <Description>Cross-game audio replacer</Description>
+    <!-- Keep ProductVersion clean; the SDK would otherwise append the git commit id. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Zip support is a separate assembly on net48. -->
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Everything under shared\ is linked, not copied, so the uninstaller cannot drift from it. -->
+    <Compile Include="..\shared\Wizard\*.cs" Link="Wizard\%(Filename)%(Extension)" />
+    <Page Include="..\shared\Wizard\WizardFrame.xaml" Link="Wizard\WizardFrame.xaml" />
+    <Page Include="..\shared\Themes\XXARPalette.xaml" Link="Themes\XXARPalette.xaml" />
+    <!-- Uncompressed BMP, and 256px because the logo is drawn at 116pt: sharp to 220% scaling. -->
+    <Resource Include="..\shared\Assets\XXAR-Logo2-256.bmp" Link="Assets\XXAR-Logo2.bmp" />
+    <Resource Include="..\shared\License.rtf" Link="License.rtf" />
+  </ItemGroup>
+
+</Project>

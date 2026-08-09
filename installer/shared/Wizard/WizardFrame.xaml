@@ -1,0 +1,100 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:wizard="clr-namespace:XXAR.Wizard">
+
+    <!-- Shared by both layouts: the strip along the bottom that holds each step's buttons. -->
+    <ControlTemplate x:Key="WizardButtonBar" TargetType="ContentControl">
+        <Border Background="#080922"
+                BorderBrush="{DynamicResource XXARBorderBrush}" BorderThickness="0,1,0,0">
+            <ContentPresenter />
+        </Border>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="WizardBannerLayout" TargetType="wizard:WizardFrame">
+        <Grid Background="{DynamicResource XXARWindowBg}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="60" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="53" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#0A0B28"
+                    BorderBrush="{DynamicResource XXARAccentBrush}" BorderThickness="0,0,0,1">
+                <Grid Margin="20,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="{TemplateBinding Heading}"
+                                   Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                                   FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="{TemplateBinding Subheading}"
+                                   Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                                   FontSize="11" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <Image Grid.Column="1"
+                           Source="pack://application:,,,/Assets/XXAR-Logo2.bmp"
+                           Height="44" Stretch="Uniform"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                </Grid>
+            </Border>
+
+            <ContentPresenter Grid.Row="1" />
+
+            <ContentControl Grid.Row="2" Content="{TemplateBinding Buttons}"
+                            Template="{StaticResource WizardButtonBar}" />
+        </Grid>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="WizardSidebarLayout" TargetType="wizard:WizardFrame">
+        <Grid Background="{DynamicResource XXARWindowBg}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="53" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="156" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="#0A0B28">
+                    <Image Source="pack://application:,,,/Assets/XXAR-Logo2.bmp"
+                           Margin="20" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                </Border>
+                <Border Grid.Column="0" HorizontalAlignment="Right" Width="1"
+                        Background="{DynamicResource XXARAccentBrush}" />
+
+                <StackPanel Grid.Column="1" Margin="20,25,20,20" VerticalAlignment="Top">
+                    <TextBlock Text="{TemplateBinding Heading}"
+                               Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                               FontSize="16" TextWrapping="WrapWithOverflow" />
+                    <TextBlock Text="{TemplateBinding Subheading}"
+                               Foreground="{DynamicResource XXARTextSecondaryBrush}"
+                               FontSize="13" Margin="0,14,0,0"
+                               TextWrapping="WrapWithOverflow" LineHeight="20" />
+                    <ContentPresenter />
+                </StackPanel>
+            </Grid>
+
+            <ContentControl Grid.Row="1" Content="{TemplateBinding Buttons}"
+                            Template="{StaticResource WizardButtonBar}" />
+        </Grid>
+    </ControlTemplate>
+
+    <!-- No key: this applies to every WizardFrame in the app without each one asking for it. -->
+    <Style TargetType="{x:Type wizard:WizardFrame}">
+        <Setter Property="Template" Value="{StaticResource WizardBannerLayout}" />
+        <Style.Triggers>
+            <Trigger Property="UseSidebar" Value="True">
+                <Setter Property="Template" Value="{StaticResource WizardSidebarLayout}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+</ResourceDictionary>

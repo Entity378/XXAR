@@ -3,22 +3,13 @@
 from pathlib import Path
 
 from src.core.logger import get_logger
+from src.wwise import patch_backup
 from src.wwise.bnk_handler import BNKFile
 from src.wwise.bnk_indexer import BNKIndexer
-from src.wwise.patch_target_resolver import find_patch_pck_sources
+from src.wwise.patch_target_resolver import find_patch_pck_sources, plain_wem_id
 from src.wwise.pck_indexer import PCKIndexer
 
 logger = get_logger(__name__)
-
-
-def _plain_id(info, key):
-    raw = info.get("file_id")
-    if raw is None:
-        raw = str(key).split("|")[-1] if "|" in str(key) else key
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return None
 
 
 def _is_broken(index, pck, file_type, bnk_id, wem_id):
@@ -43,7 +34,6 @@ class GameAudioIndex:
         else:
             self.persistent_audio_dir = None
         self.game = game
-        self.protected = set(game.protected_pcks)
         self._pck_cache = {}        # path -> PCKIndexer (index built)
         self._bnk_wems = {}         # (path, bnk_id) -> set(wem_id)
         self._direct_index = None   # wem_id -> [pck_basename]
@@ -85,10 +75,11 @@ class GameAudioIndex:
         self._patch_index = {}
         if not self.persistent_audio_dir:
             return
-        for source_path, override_name in find_patch_pck_sources(self.persistent_audio_dir, self.game):
+        for live_path, override_name in find_patch_pck_sources(self.persistent_audio_dir, self.game):
+            read_path = patch_backup.pristine_path(live_path, self.persistent_audio_dir, self.game)
             try:
-                banks = self._indexer(source_path).index_data["banks"]
-                with open(source_path, "rb") as f:
+                banks = self._indexer(read_path).index_data["banks"]
+                with open(read_path, "rb") as f:
                     for bank in banks:
                         f.seek(bank["offset"])
                         didx = BNKIndexer(f.read(min(bank["size"], 131072)))
@@ -96,7 +87,7 @@ class GameAudioIndex:
                         for wem_id in didx.get_wem_ids():
                             self._patch_index.setdefault(wem_id, (override_name, bank["id"]))
             except Exception as e:
-                logger.warning(f"[Relink] Could not scan {Path(source_path).name}: {e}")
+                logger.warning(f"[Relink] Could not scan {Path(read_path).name}: {e}")
 
     def patch_home(self, wem_id):
         # (override_name, bnk_id) if the wem is embedded in a Patch.pck BNK, else None.
@@ -129,7 +120,7 @@ class GameAudioIndex:
             return
         self._direct_index = {}
         for pck in sorted(self.game_audio_dir.rglob("*.pck")):
-            if pck.name in self.protected:
+            if self.game.is_protected_pck(pck.name):
                 continue
             try:
                 data = self._indexer(pck).index_data
@@ -145,7 +136,7 @@ class GameAudioIndex:
         self._embedded_index = {}
         soundbank_pcks = sorted(self.game_audio_dir.rglob(self.game.soundbank_pck_glob))
         for idx, pck in enumerate(soundbank_pcks):
-            if pck.name in self.protected:
+            if self.game.is_protected_pck(pck.name):
                 continue
             if progress_callback:
                 progress_callback(f"Scanning {pck.name} for relocated sounds...")
@@ -202,12 +193,12 @@ def relink_replacements(replacements, game_audio_dir, game, progress_callback=No
     broken = []
 
     for pck_name, entries in list(replacements.items()):
-        if pck_name in index.protected:
+        if index.game.is_protected_pck(pck_name):
             continue
         for key, info in list(entries.items()):
             if info.get("is_add"):
                 continue
-            wem_id = _plain_id(info, key)
+            wem_id = plain_wem_id(info, key)
             if wem_id is None:
                 continue
             file_type = str(info.get("file_type", "wem")).lower()
@@ -318,9 +309,9 @@ def relink_metadata(metadata, game_audio_dir, game, progress_callback=None, inde
     broken = []
 
     for pck, bnk_id, file_key, info in _metadata_entries(metadata):
-        if pck in index.protected or info.get("is_add"):
+        if index.game.is_protected_pck(pck) or info.get("is_add"):
             continue
-        wem_id = _plain_id(info, file_key)
+        wem_id = plain_wem_id(info, file_key)
         if wem_id is None:
             continue
         file_type = str(info.get("file_type", "wem")).lower()

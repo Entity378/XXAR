@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- net48 ships with Windows 10 1903+, so it needs no runtime install. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <!-- The app it removes is 64-bit only, so a 32-bit uninstaller would be pointless. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>XXAR.Uninstall</RootNamespace>
+    <AssemblyName>XXAR-Uninstall</AssemblyName>
+    <ApplicationIcon>..\shared\Assets\XXAR-Logo2.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Placeholder for local builds; build.ps1 passes the release version. -->
+    <Version>1.0.1</Version>
+    <Company>Entity378</Company>
+    <Product>XXAR</Product>
+    <AssemblyTitle>XXAR Uninstaller</AssemblyTitle>
+    <Description>Cross-game audio replacer installer</Description>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Everything under shared\ is linked, not copied, so the two programs cannot drift apart. -->
+    <Compile Include="..\shared\Wizard\*.cs" Link="Wizard\%(Filename)%(Extension)" />
+    <Page Include="..\shared\Wizard\WizardFrame.xaml" Link="Wizard\WizardFrame.xaml" />
+    <Page Include="..\shared\Themes\XXARPalette.xaml" Link="Themes\XXARPalette.xaml" />
+    <!-- Uncompressed BMP, and 256px because the logo is drawn at 116pt: sharp to 220% scaling. -->
+    <Resource Include="..\shared\Assets\XXAR-Logo2-256.bmp" Link="Assets\XXAR-Logo2.bmp" />
+  </ItemGroup>
+
+</Project>

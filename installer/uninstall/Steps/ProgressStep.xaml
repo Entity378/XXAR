@@ -1,0 +1,33 @@
+<UserControl x:Class="XXAR.Uninstall.Steps.ProgressStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wizard="clr-namespace:XXAR.Wizard"
+             Loaded="Step_Loaded">
+    <wizard:WizardFrame Heading="Removing XXAR"
+                        Subheading="Please wait while XXAR is removed from your computer.">
+        <StackPanel Margin="20,24,20,10">
+            <StackPanel Orientation="Horizontal" MinHeight="20">
+                <TextBlock Text="Status:"
+                           Foreground="{DynamicResource XXARTextSecondaryBrush}" FontSize="12" />
+                <TextBlock x:Name="CurrentAction"
+                           Foreground="{DynamicResource XXARTextPrimaryBrush}"
+                           FontSize="12" Margin="6,0,0,0" />
+            </StackPanel>
+            <ProgressBar x:Name="Bar" Height="8" Margin="0,12,0,0" Maximum="100"
+                         Background="#0E1030"
+                         Foreground="{DynamicResource XXARAccentBrush}"
+                         BorderBrush="{DynamicResource XXARBorderBrush}"
+                         BorderThickness="1" />
+        </StackPanel>
+
+        <wizard:WizardFrame.Buttons>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,20,0">
+                <Button Content="Uninstall" IsEnabled="False"
+                        Style="{StaticResource XXARPrimaryButton}" Margin="4,0" />
+                <Button Content="Cancel" IsEnabled="False"
+                        Style="{StaticResource XXARSecondaryButton}" Margin="12,0,0,0" />
+            </StackPanel>
+        </wizard:WizardFrame.Buttons>
+    </wizard:WizardFrame>
+</UserControl>

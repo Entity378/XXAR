@@ -1,0 +1,7 @@
+{
+  "//": "Pinned to .NET 9 on purpose: the released installers are built and validated against it, so do not raise this without re-testing the published binaries. Visual Studio 2022 also cannot resolve the .NET 10 SDK. latestFeature so any 9.0.x the CI runner installs is accepted.",
+  "sdk": {
+    "version": "9.0.316",
+    "rollForward": "latestFeature"
+  }
+}

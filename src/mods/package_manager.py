@@ -21,9 +21,9 @@ from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.mod_relinker import GameAudioIndex, relink_metadata
+from src.mods.persistent_originals import locate_pck_paths
 from src.wwise.override_pck_patcher import patch_override_pcks
-from src.wwise.patch_target_resolver import add_streamed_duplicates, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
-from src.wwise.pck_indexer import PCKIndexer
+from src.wwise.patch_target_resolver import add_streamed_duplicates, canonicalize_pck_keys, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_packer import PCKPacker
 
 logger = get_logger(__name__)
@@ -39,6 +39,14 @@ def _get_active_game_id():
     except Exception:
         pass
     return DEFAULT_GAME_ID
+
+
+def _find_overlay_pck(persistent_audio_dir, pck_name):
+    # The overlay a tracker key points at: direct join, else the same basename anywhere under Persistent.
+    direct = Path(persistent_audio_dir) / pck_name
+    if direct.exists():
+        return direct
+    return next(Path(persistent_audio_dir).rglob(Path(pck_name).name), direct)
 
 
 class InvalidModPackageError(Exception):
@@ -756,6 +764,15 @@ class ModPackageManager:
         resolved = self.resolve_conflicts(preferences=conflict_preferences)
         merged_hirc_patches = self._collect_hirc_patches()
 
+        # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
+        # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
+        try:
+            merged_aliases = canonicalize_pck_keys(resolved, game_audio_dir, game)
+            if merged_aliases:
+                logger.info(f"[Mod Manager] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
+        except Exception as e:
+            logger.error(f"[Mod Manager] Warning: pck key canonicalization failed: {e}")
+
         # An add whose id already exists in the originals would overwrite original audio.
         # Move it to a free id before anything is written.
         try:
@@ -808,9 +825,9 @@ class ModPackageManager:
 
             deleted_count = 0
             for pck_name in old_replacements.keys():
-                if pck_name in game.protected_pcks:
+                if game.is_protected_pck(pck_name):
                     continue
-                pck_path = persistent_audio_dir / pck_name
+                pck_path = _find_overlay_pck(persistent_audio_dir, pck_name)
                 if pck_path.exists():
                     try:
 
@@ -832,9 +849,9 @@ class ModPackageManager:
                 progress_callback(f"Removing {len(pcks_to_remove)} PCK file(s) from disabled mods...", 0, 1)
 
             for pck_name in pcks_to_remove:
-                if pck_name in game.protected_pcks:
+                if game.is_protected_pck(pck_name):
                     continue
-                pck_path = persistent_audio_dir / pck_name
+                pck_path = _find_overlay_pck(persistent_audio_dir, pck_name)
                 if pck_path.exists():
                     try:
 
@@ -852,55 +869,17 @@ class ModPackageManager:
                 progress_callback(f"Processing {pck_name}...", idx, total_pcks)
 
             # Skip protected PCKs that slipped past remapping; rebuilding them produces a broken stub.
-            if pck_name in game.protected_pcks:
+            if game.is_protected_pck(pck_name):
                 logger.info(f"[Mod Manager] Skipping rebuild of protected PCK {pck_name} (unexpected post-remap)")
                 continue
 
-            original_pck = None
-
-            if (game_audio_dir / pck_name).exists():
-                original_pck = game_audio_dir / pck_name
-                output_pck = persistent_audio_dir / pck_name
-                output_pck.parent.mkdir(parents=True, exist_ok=True)
-            else:
-
-                candidates = []
-                for subdir in sorted(game_audio_dir.iterdir()):
-                    if subdir.is_dir():
-                        candidate = subdir / pck_name
-                        if candidate.exists():
-                            candidates.append((subdir, candidate))
-
-                if candidates:
-                    target_int_ids = set()
-                    for key, file_info in resolved[pck_name].items():
-                        raw = file_info.get('file_id') or (str(key).split('|')[-1] if '|' in str(key) else key)
-                        try:
-                            target_int_ids.add(int(raw))
-                        except (ValueError, TypeError):
-                            pass
-
-                    chosen_subdir, chosen_candidate = candidates[0]
-                    if target_int_ids and len(candidates) > 1:
-                        for subdir, candidate in candidates:
-                            try:
-                                idx = PCKIndexer(str(candidate))
-                                data = idx.build_index()
-                                pck_ids = {e['id'] for e in data['banks'] + data['sounds'] + data['externals']}
-                                if target_int_ids & pck_ids:
-                                    chosen_subdir, chosen_candidate = subdir, candidate
-                                    break
-                            except Exception:
-                                pass
-
-                    original_pck = chosen_candidate
-                    persistent_subdir = persistent_audio_dir / chosen_subdir.name
-                    persistent_subdir.mkdir(parents=True, exist_ok=True)
-                    output_pck = persistent_subdir / pck_name
-
-            if not original_pck or not original_pck.exists():
+            original_pck, output_pck = locate_pck_paths(
+                game_audio_dir, persistent_audio_dir, pck_name, entries=resolved[pck_name],
+            )
+            if original_pck is None:
                 logger.warning(f"Warning: Original PCK not found: {pck_name}, skipping...")
                 continue
+            output_pck.parent.mkdir(parents=True, exist_ok=True)
 
             if output_pck.exists():
                 try:

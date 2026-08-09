@@ -1,0 +1,127 @@
+<#
+.SYNOPSIS
+    Windows release build for the custom setup channel: onefolder app + portable ZIP + setup exe.
+
+.DESCRIPTION
+    Produces these artifacts under dist/:
+      - XXAR/                      (onefolder app, from XXAR.spec)
+      - release/resources/         (staged portable layout for zipping)
+      - XXAR-windows-x64.zip       (portable channel; installs flat under resources\)
+      - XXAR-Installer-v<version>.exe  (WPF stub + zip payload + trailer)
+
+    Expects python + pyinstaller + .NET SDK on PATH.
+
+.PARAMETER Version
+    Product version, e.g. "1.2.3".
+
+.PARAMETER SkipApp
+    Reuse an existing dist\XXAR instead of running PyInstaller.
+
+.EXAMPLE
+    pwsh -File installer\build.ps1 -Version 1.2.3
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+    [switch]$SkipApp
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$repo = Split-Path -Parent $PSScriptRoot
+Push-Location $repo
+try {
+    # Under -SkipApp the app bundle is left alone, so whatever already sits in dist\XXAR is what ends up packaged.
+    $stalePaths = @("dist\release", "dist\XXAR-windows-x64.zip")
+    if (-not $SkipApp) { $stalePaths += @("dist\XXAR", "build") }
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stalePaths
+
+    if ($SkipApp) {
+        Write-Host "==> [1/3] SkipApp flag set - reusing existing dist\XXAR"
+    }
+    else {
+        Write-Host "==> [1/3] Building app (onefolder)"
+        pyinstaller --noconfirm --clean XXAR.spec
+        if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for app" }
+    }
+    if (-not (Test-Path "dist\XXAR\XXAR.exe")) {
+        throw "Expected dist\XXAR\XXAR.exe after app build"
+    }
+
+    Write-Host "==> [2/3] Staging portable layout and zipping"
+    $release = "dist\release"
+    $releaseRes = Join-Path $release "resources"
+    New-Item -ItemType Directory -Force -Path $releaseRes | Out-Null
+    Copy-Item "dist\XXAR\*" $releaseRes -Recurse -Force
+
+    $zipPath = Join-Path $repo "dist\XXAR-windows-x64.zip"
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+
+    # Use .NET ZipFile with retries - Compress-Archive fails when a file is still locked by background scanning.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $releaseAbs = (Resolve-Path $release).Path
+    $zipped = $false
+    for ($i = 1; $i -le 5; $i++) {
+        try {
+            [System.IO.Compression.ZipFile]::CreateFromDirectory(
+                $releaseAbs, $zipPath,
+                [System.IO.Compression.CompressionLevel]::Optimal,
+                $false
+            )
+            $zipped = $true
+            break
+        } catch [System.IO.IOException] {
+            Write-Host "    zip attempt $i locked, retrying..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+            if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+        }
+    }
+    if (-not $zipped) { throw "Failed to create $zipPath after 5 attempts" }
+    Write-Host "    portable zip -> $zipPath"
+
+    Write-Host "==> [3/3] Building setup and uninstaller (WPF)"
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
+        "installer\setup\obj", "installer\setup\bin", "installer\uninstall\obj", "installer\uninstall\bin"
+    dotnet build installer\uninstall -c Release "-p:Version=$Version"
+    if ($LASTEXITCODE -ne 0) { throw "Uninstaller build failed" }
+    dotnet build installer\setup -c Release "-p:Version=$Version"
+    if ($LASTEXITCODE -ne 0) { throw "Setup stub build failed" }
+
+    # The uninstaller is its own program: it rides inside the payload and is extracted like any other file.
+    $stubPath = Join-Path $repo "installer\setup\bin\Release\XXAR-Installer.exe"
+    $uninstallPath = Join-Path $repo "installer\uninstall\bin\Release\XXAR-Uninstall.exe"
+    $payloadPath = Join-Path $repo "dist\setup-payload.zip"
+    if (Test-Path $payloadPath) { Remove-Item $payloadPath -Force }
+    Copy-Item $zipPath $payloadPath -Force
+    $payloadZip = [System.IO.Compression.ZipFile]::Open($payloadPath, 'Update')
+    try {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $payloadZip, $uninstallPath, "XXAR-Uninstall.exe") | Out-Null
+    }
+    finally { $payloadZip.Dispose() }
+
+    # Self-extracting layout: stub exe + payload zip + 16-byte trailer.
+    $setupPath = Join-Path $repo "dist\XXAR-Installer-v$Version.exe"
+    if (Test-Path $setupPath) { Remove-Item $setupPath -Force }
+
+    $stubBytes = [System.IO.File]::ReadAllBytes($stubPath)
+    $dstStream = [System.IO.File]::Create($setupPath)
+    try {
+        $dstStream.Write($stubBytes, 0, $stubBytes.Length)
+        $srcStream = [System.IO.File]::OpenRead($payloadPath)
+        try { $srcStream.CopyTo($dstStream) } finally { $srcStream.Close() }
+        $dstStream.Write([System.Text.Encoding]::ASCII.GetBytes("XXARSFX1"), 0, 8)
+        $dstStream.Write([BitConverter]::GetBytes([int64]$stubBytes.Length), 0, 8)
+    }
+    finally { $dstStream.Close() }
+    Remove-Item $payloadPath -Force
+    Write-Host "    setup -> $setupPath"
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "Done."

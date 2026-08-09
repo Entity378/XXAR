@@ -81,10 +81,9 @@ def patch_override_pcks(persistent_root, replacements, game, streaming_root=None
     if not target_bnk_ids:
         return _empty_result()
 
-    protected = game.protected_pcks
     override_pcks = [
         p for p in persistent_root.rglob("*.pck")
-        if p.name in protected
+        if game.is_protected_pck(p.name)
     ]
     if not override_pcks:
         return _empty_result()
