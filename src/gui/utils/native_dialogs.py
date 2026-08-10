@@ -21,6 +21,12 @@ class NativeDialogs:
         # PyInstaller's LD_LIBRARY_PATH points at bundled libs and crashes system GTK apps.
         # Restore the original so zenity etc. find their own libs.
         env = os.environ.copy()
+        orig_scale = os.environ.get('QT_SCALE_FACTOR_ORIG', False)
+        if orig_scale:
+            os.environ['QT_SCALE_FACTOR'] = orig_scale
+        else:
+            env.pop('QT_SCALE_FACTOR', None)
+        env.pop('QT_SCALE_FACTOR_ORIG', None)
         if is_frozen():
             orig = env.get('LD_LIBRARY_PATH_ORIG')
             if orig is not None:

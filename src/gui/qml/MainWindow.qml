@@ -960,10 +960,7 @@ ApplicationWindow {
                     opacity: 0.6
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {}
-                }
+                OverlayBackdropMouseArea {}
             }
 
             Rectangle {
@@ -1462,10 +1459,7 @@ ApplicationWindow {
                 opacity: (!loadingPopup.closing && loadingPopup.visible) ? 1.0 : 0.0
                 Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {}
-                }
+                OverlayBackdropMouseArea {}
             }
 
             Rectangle {

@@ -1266,9 +1266,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: { changesOverlay.closing = true; changesHideTimer.start() }
+            OverlayBackdropMouseArea {
+                dialog: changesDialog
+                onClickedOutside: { changesOverlay.closing = true; changesHideTimer.start() }
             }
         }
 
@@ -1285,8 +1285,6 @@ Item {
             opacity: (!changesOverlay.closing && changesOverlay.visible) ? 1.0 : 0.0
             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
-
-            MouseArea { anchors.fill: parent; z: -1 }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -1702,9 +1700,9 @@ Item {
                 opacity: 0.6
             }
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: { metadataOverlay.closing = true; metadataHideTimer.start() }
+            OverlayBackdropMouseArea {
+                dialog: metadataDialog
+                onClickedOutside: { metadataOverlay.closing = true; metadataHideTimer.start() }
             }
         }
 
@@ -1721,8 +1719,6 @@ Item {
             opacity: (!metadataOverlay.closing && metadataOverlay.visible) ? 1.0 : 0.0
             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on opacity { NumberAnimation { duration: 200 } }
-
-            MouseArea { anchors.fill: parent; z: -1 }
 
             ColumnLayout {
                 anchors.fill: parent

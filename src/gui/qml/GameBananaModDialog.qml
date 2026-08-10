@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Effects
+import "../components"
 import "."
 
 Rectangle {
@@ -85,10 +86,9 @@ Rectangle {
             opacity: 0.6
         }
 
-        MouseArea {
-            anchors.fill: parent
-            onWheel: {}
-            onClicked: {
+        OverlayBackdropMouseArea {
+            dialog: dialogPanel
+            onClickedOutside: {
                 modDialog.closing = true
                 hideTimer.start()
             }
@@ -113,11 +113,6 @@ Rectangle {
             radius: 20
             border.color: "#3c3d3f"
             border.width: 1
-
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {}
-            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -974,7 +969,7 @@ Rectangle {
                 opacity: 0.6
             }
 
-            MouseArea { anchors.fill: parent }
+            OverlayBackdropMouseArea {}
         }
 
         Rectangle {
