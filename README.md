@@ -66,10 +66,6 @@ Grab the latest release from the [Releases](../../releases) page.
   `flatpak install --user XXAR-linux-x86_64.flatpak`. After that the app
   auto-updates from inside via subsequent bundles.
 
-The Windows binaries are digitally signed. Free code signing provided by
-[SignPath.io](https://signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
-
 ### Option 2: Run from Source
 
 ```bash
@@ -145,9 +141,8 @@ Found a bug or have an idea? Open an issue! Pull requests are welcome too.
 
 ## Policies
 
-- [Code Signing Policy](CODE_SIGNING_POLICY.md) — signed artifacts, project roles, build and signing process
+- [Build and Distribution Policy](CODE_SIGNING_POLICY.md) — release artifacts, build process, what the app changes on your system
 - [Privacy Policy](PRIVACY.md) — no telemetry; every network request the app makes, and why
-- [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## License
 
