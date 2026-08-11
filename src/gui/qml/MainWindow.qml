@@ -198,6 +198,9 @@ ApplicationWindow {
                         height: 75
                         source: "../assets/" + activeAssetsDir + "/" + activeLogoPng
                         fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
+                        transform: Translate { x: activeAssetsDir === "SRAR" ? 75 * 32 / 256 : 0 }
                         visible: !horizontalGameSwapEnabled
                     }
 
@@ -215,6 +218,8 @@ ApplicationWindow {
                             height: parent.height - 5
                             source: "../assets/GIAR/GIAR-Logo2.png"
                             fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
                             property bool hovered: false
                             MouseArea {
                                     id: swapGameMouseGI
@@ -247,6 +252,9 @@ ApplicationWindow {
                             height: parent.height - 5
                             source: "../assets/SRAR/SRAR-Logo2.png"
                             fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            transform: Translate { x: 75 * 32 / 256 }
                             property bool hovered: false
                             MouseArea {
                                     id: swapGameMouseHSR
@@ -279,6 +287,8 @@ ApplicationWindow {
                             height: parent.height - 5
                             source: "../assets/ZZAR/ZZAR-Logo2.png"
                             fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
                             property bool hovered: false
                             MouseArea {
                                     id: swapGameMouseZZZ
