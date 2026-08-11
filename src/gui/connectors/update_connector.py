@@ -57,6 +57,7 @@ class UpdateConnector:
             self.settings_page.setProperty("isCheckingUpdates", False)
             self.settings_page.setProperty("updateAvailable", True)
             self.settings_page.setProperty("latestVersion", version)
+            self.settings_page.setProperty("updateManualOnly", not self.update_manager_bridge.canAutoUpdate())
 
         if IS_FLATPAK:
             if self._startup_update_check:
@@ -82,6 +83,20 @@ class UpdateConnector:
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "The portable build does not auto-update. Download the latest "
                            "XXAR-windows-x64.zip from https://github.com/Entity378/XXAR/releases")),
+                    Q_ARG("QVariant", ""),
+                )
+        elif not self.update_manager_bridge.canAutoUpdate():
+            # The release carries no installer this build can run; the notice with the link is all we can offer.
+            if self._startup_update_check:
+                QMetaObject.invokeMethod(
+                    self.root,
+                    "showAlertDialog",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
+                    Q_ARG("QVariant",
+                           QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
+                           "This version of XXAR cannot install it automatically. Download the new "
+                           "installer from https://github.com/Entity378/XXAR/releases")),
                     Q_ARG("QVariant", ""),
                 )
         elif self._startup_update_check and self.update_dialog:

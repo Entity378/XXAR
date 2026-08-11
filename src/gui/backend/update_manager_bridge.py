@@ -74,6 +74,17 @@ def _is_managed_install():
         return False
 
 
+def _find_installer_asset(assets):
+    # Prefix match instead of an exact name, so a renamed installer still resolves for already-shipped clients.
+    for suffix in (".exe", ".msi"):
+        for prefix in (f"{APP_NAME}-Installer-", f"{APP_NAME}-Setup-"):
+            for asset in assets:
+                name = asset.get("name", "")
+                if name.startswith(prefix) and name.lower().endswith(suffix):
+                    return asset
+    return None
+
+
 def _urlopen(req, timeout=10):
     # Fallback to an unverified SSL context
     try:
@@ -187,40 +198,28 @@ class UpdateCheckWorker(BaseWorker):
                 self.noUpdateAvailable.emit()
                 return
 
-            if IS_WINDOWS:
-                version_tag = clean_version_string(tag)
-                if _is_managed_install():
-                    # -Setup- was the file name before 1.0.3; releases carrying it are still installable.
-                    asset_candidates = [
-                        f"{APP_NAME}-Installer-v{version_tag}.exe",
-                        f"{APP_NAME}-Setup-v{version_tag}.exe",
-                    ]
-                else:
-                    # Portable/dev builds have no auto-update; notify only (like Flatpak) so the user grabs the ZIP.
-                    self.updateAvailable.emit(version_tag, "", "", data.get("body", "") or "")
-                    return
-            else:
-                asset_candidates = [f"{APP_NAME}-linux-x86_64.flatpak"]
-
-            download_url = ""
-            asset_name = ""
-            assets_by_name = {a["name"]: a for a in data.get("assets", [])}
-            for candidate in asset_candidates:
-                asset = assets_by_name.get(candidate)
-                if asset:
-                    asset_name = candidate
-                    # api url needs token auth, browser url works without
-                    download_url = asset["url"] if self.github_token else asset["browser_download_url"]
-                    break
-
-            if not download_url:
-                tried = ", ".join(asset_candidates)
-                self.errorOccurred.emit(f"No matching asset found in release (tried: {tried})")
-                return
-
             version_str = clean_version_string(tag)
             release_notes = data.get("body", "") or ""
-            self.updateAvailable.emit(version_str, download_url, asset_name, release_notes)
+            assets = data.get("assets", [])
+
+            if IS_WINDOWS:
+                if not _is_managed_install():
+                    # Portable/dev builds have no auto-update; notify only (like Flatpak) so the user grabs the ZIP.
+                    self.updateAvailable.emit(version_str, "", "", release_notes)
+                    return
+                asset = _find_installer_asset(assets)
+            else:
+                asset = next((a for a in assets if a.get("name") == f"{APP_NAME}-linux-x86_64.flatpak"), None)
+
+            if asset is None:
+                # A release this build cannot install is never an error: the notification is the only message channel to frozen clients.
+                logger.warning(f"[Updater] No runnable installer asset in release {tag}; notifying for manual update")
+                self.updateAvailable.emit(version_str, "", "", release_notes)
+                return
+
+            # api url needs token auth, browser url works without
+            download_url = asset["url"] if self.github_token else asset["browser_download_url"]
+            self.updateAvailable.emit(version_str, download_url, asset["name"], release_notes)
 
         except urllib.error.HTTPError as e:
             if e.code == 404:
@@ -235,10 +234,6 @@ class UpdateCheckWorker(BaseWorker):
             self.errorOccurred.emit(f"Update check failed: {e}")
 
 
-# Downloaded installer/portable artifacts left in cache/updates from previous versions.
-_STALE_UPDATE_SUFFIXES = (".exe", ".msi", ".zip", ".tar.gz", ".flatpak")
-
-
 def _prune_stale_update_artifacts(update_dir, keep=""):
     # Delete every prior update download except the one we are about to (re)fetch; leaves staging/ and updater.log alone.
     try:
@@ -246,7 +241,7 @@ def _prune_stale_update_artifacts(update_dir, keep=""):
             if not entry.is_file() or entry.name == keep:
                 continue
             name = entry.name.lower()
-            if any(name.endswith(suffix) for suffix in _STALE_UPDATE_SUFFIXES):
+            if name.endswith((".exe", ".msi", ".zip", ".tar.gz", ".flatpak")):
                 try:
                     entry.unlink()
                     logger.info(f"[Updater] Removed stale update artifact: {entry.name}")
@@ -258,7 +253,7 @@ def _prune_stale_update_artifacts(update_dir, keep=""):
 
 class UpdateDownloadWorker(BaseWorker):
     downloadProgress = pyqtSignal(int)  # percent
-    # Emits (kind, path). kind is one of: "installer", "flatpak".
+    # Emits (kind, path). kind is one of: "exe", "msi", "flatpak".
     downloadFinished = pyqtSignal(str, str)
     errorOccurred = pyqtSignal(str)
 
@@ -304,7 +299,10 @@ class UpdateDownloadWorker(BaseWorker):
             lower = self.asset_name.lower()
             if lower.endswith(".exe"):
                 # The installer carries its own payload; nothing to extract here.
-                self.downloadFinished.emit("installer", str(archive_path))
+                self.downloadFinished.emit("exe", str(archive_path))
+            elif lower.endswith(".msi"):
+                # msiexec consumes the .msi directly; kept runnable so a future return to MSI needs no new client.
+                self.downloadFinished.emit("msi", str(archive_path))
             elif lower.endswith(".flatpak"):
                 self.downloadFinished.emit("flatpak", str(archive_path))
             else:
@@ -336,7 +334,7 @@ class UpdateManagerBridge(QObject):
         self._download_url = ""
         self._asset_name = ""
         self._downloaded_path = ""
-        self._downloaded_kind = ""  # "installer", "flatpak"
+        self._downloaded_kind = ""  # "exe", "msi", "flatpak"
         self._current_version = ""
         self._github_token = ""
 
@@ -354,6 +352,10 @@ class UpdateManagerBridge(QObject):
 
     def setCurrentVersion(self, version):
         self._current_version = version
+
+    def canAutoUpdate(self):
+        # False when the last check resolved no runnable asset
+        return bool(self._download_url)
 
     def setGithubToken(self, token):
         self._github_token = token
@@ -400,9 +402,9 @@ class UpdateManagerBridge(QObject):
     @pyqtSlot()
     def downloadAndInstall(self):
         if not self._download_url:
-            # Portable/dev builds have no downloadable installer; point the user at the releases page.
+            # Portable build or a release this build cannot install; point the user at the releases page.
             self.updateError.emit(
-                "Automatic update is only available for the installed version. "
+                "This update cannot be installed automatically. "
                 "Download the latest release from https://github.com/Entity378/XXAR/releases"
             )
             return
@@ -450,8 +452,10 @@ class UpdateManagerBridge(QObject):
             logger.info(f"[Updater] Real exe path: {current_exe}")
             logger.info(f"[Updater] Source: {self._downloaded_path}")
 
-            if self._downloaded_kind == "installer":
-                self._apply_installer_update(current_exe)
+            if self._downloaded_kind == "exe":
+                self._apply_exe_update(current_exe)
+            elif self._downloaded_kind == "msi":
+                self._apply_msi_update(current_exe)
             elif self._downloaded_kind == "flatpak":
                 self._apply_linux_update(current_exe)
             else:
@@ -469,17 +473,23 @@ class UpdateManagerBridge(QObject):
             if not handed_off:
                 self._apply_in_progress = False
 
-    def _apply_installer_update(self, current_exe):
-        installer = Path(self._downloaded_path)
+    def _apply_exe_update(self, current_exe):
+        exe_path = Path(self._downloaded_path)
 
-        # The caller quits the app right after this returns; the installer waits for our files to be
-        # released before it starts. cwd stays outside the install dir so it can replace resources\.
-        logger.info(f"[Updater] Running: {installer} /silent")
+        logger.info(f"[Updater] Running: {exe_path} /silent")
         subprocess.Popen(
-            [str(installer), "/silent"],
+            [str(exe_path), "/silent"],
             cwd=tempfile.gettempdir(),
             creationflags=0x00000008,  # DETACHED_PROCESS
         )
+
+    def _apply_msi_update(self, current_exe):
+        msi_path = Path(self._downloaded_path)
+
+        # Same command line as the old MSI, XXAR_SILENT=1 auto-advances and shows only progress.
+        cmd_line = f'msiexec /i "{msi_path}" /norestart XXAR_SILENT=1'
+        logger.info(f"[Updater] Running: {cmd_line}")
+        subprocess.Popen(cmd_line, cwd=tempfile.gettempdir(), creationflags=0x00000008)  # DETACHED_PROCESS
 
     def _apply_linux_update(self, current_exe):
         bundle = Path(self._downloaded_path)

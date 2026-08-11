@@ -50,6 +50,7 @@ Item {
     property bool isCheckingUpdates: false
     property bool isDownloadingUpdate: false
     property bool updateAvailable: false
+    property bool updateManualOnly: false
     property string latestVersion: ""
     property int downloadPercent: 0
     property bool updateDownloaded: false
@@ -1989,7 +1990,7 @@ Item {
                                             }
 
                                             Text {
-                                                text: settingsPage.isDownloadingUpdate ? qsTranslate("Application", "Downloading... %1%").arg(settingsPage.downloadPercent) : qsTranslate("Application", "Download & Install")
+                                                text: settingsPage.isDownloadingUpdate ? qsTranslate("Application", "Downloading... %1%").arg(settingsPage.downloadPercent) : settingsPage.updateManualOnly ? qsTranslate("Application", "Open Download Page") : qsTranslate("Application", "Download & Install")
                                                 color: "#000000"
                                                 font.family: "Alatsi"
                                                 font.pixelSize: 16
@@ -2003,7 +2004,9 @@ Item {
                                             hoverEnabled: !settingsPage.isDownloadingUpdate
                                             cursorShape: settingsPage.isDownloadingUpdate ? Qt.ArrowCursor : Qt.PointingHandCursor
                                             onClicked: {
-                                                if (!settingsPage.isDownloadingUpdate) {
+                                                if (settingsPage.updateManualOnly) {
+                                                    Qt.openUrlExternally("https://github.com/Entity378/XXAR/releases")
+                                                } else if (!settingsPage.isDownloadingUpdate) {
                                                     settingsPage.isDownloadingUpdate = true
                                                     downloadUpdateClicked()
                                                 }
