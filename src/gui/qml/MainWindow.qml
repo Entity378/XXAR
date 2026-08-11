@@ -20,6 +20,7 @@ ApplicationWindow {
     property int currentTab: 1
     property bool modCreationEnabled: false
     property bool hircEditorTabEnabled: false
+    property bool horizontalGameSwapEnabled: false
     property string activeGameShort: gameShort
     property string activeGameName: gameName
     property string activeAssetsDir: assetsDir
@@ -57,7 +58,7 @@ ApplicationWindow {
     signal languageWarningDontShowAgain(bool dontShow)
     signal moveLanguageToStreaming(string folderName)
     signal moveHashPckToStreaming(string pckName)
-    signal selectGameRequested(string gameId)
+    signal selectGameRequested(string gameID)
 
     function showConfirmDialog(title, message, actionId, customSticker) {
         customDialog.title = title
@@ -200,8 +201,111 @@ ApplicationWindow {
                         smooth: true
                         mipmap: true
                         transform: Translate { x: activeAssetsDir === "SRAR" ? 75 * 32 / 256 : 0 }
+                        visible: !horizontalGameSwapEnabled
                     }
 
+                    Rectangle{
+                        width: 75
+                        height: 75
+                        color: "transparent"
+                        radius: 15
+                        border.color: activeGameShort == "GI" ? Theme.primaryAccent  : "transparent"
+                        border.width: 2
+                        visible: horizontalGameSwapEnabled
+                        Image {
+                            anchors.centerIn: parent
+                            width: parent.width - 5
+                            height: parent.height - 5
+                            source: "../assets/GIAR/GIAR-Logo2.png"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            property bool hovered: false
+                            MouseArea {
+                                    id: swapGameMouseGI
+                                    anchors.fill: parent
+                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
+                                    onExited: parent.hovered = false
+                                    onClicked: {
+                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "GI")
+                                            mainWindow.selectGameRequested('genshin')
+                                    }
+                                }
+                            ToolTip.visible: swapGameMouseGI.containsMouse && activeGameShort != "GI"
+                            ToolTip.text: qsTranslate("Application", "Swap to Genshin Impact")
+                        }
+                    }
+
+                    Rectangle{
+                        width: 75
+                        height: 75
+                        color: "transparent"
+                        radius: 15
+                        border.color:  activeGameShort == "HSR" ? Theme.primaryAccent  : "transparent"
+                        border.width: 2
+                        visible: horizontalGameSwapEnabled
+                        Image {
+                            anchors.centerIn: parent
+                            width: parent.width - 5
+                            height: parent.height - 5
+                            source: "../assets/SRAR/SRAR-Logo2.png"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            transform: Translate { x: 75 * 32 / 256 }
+                            property bool hovered: false
+                            MouseArea {
+                                    id: swapGameMouseHSR
+                                    anchors.fill: parent
+                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
+                                    onExited: parent.hovered = false
+                                    onClicked: {
+                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "HSR")
+                                            mainWindow.selectGameRequested('hsr')
+                                    }
+                                }
+                            ToolTip.visible: swapGameMouseHSR.containsMouse && activeGameShort != "HSR"
+                            ToolTip.text: qsTranslate("Application", "Swap to Honkai Star Rail")
+                        }
+                    }
+
+                    Rectangle{
+                        width: 75
+                        height: 75
+                        color: "transparent"
+                        radius: 15
+                        border.color:  activeGameShort == "ZZZ" ? Theme.primaryAccent  : "transparent"
+                        border.width: 2
+                        visible: horizontalGameSwapEnabled
+                        Image {
+                            anchors.centerIn: parent
+                            width: parent.width - 5
+                            height: parent.height - 5
+                            source: "../assets/ZZAR/ZZAR-Logo2.png"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            property bool hovered: false
+                            MouseArea {
+                                    id: swapGameMouseZZZ
+                                    anchors.fill: parent
+                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
+                                    onExited: parent.hovered = false
+                                    onClicked: {
+                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "ZZZ")
+                                            mainWindow.selectGameRequested('zzz')
+                                    }
+                                }
+                            ToolTip.visible: swapGameMouseZZZ.containsMouse && activeGameShort != "ZZZ"
+                            ToolTip.text: qsTranslate("Application", "Swap to Zenless Zone Zero")
+                        }
+                    }
                 }
 
                 Column {
@@ -316,7 +420,7 @@ ApplicationWindow {
                     anchors.rightMargin: 15
                     anchors.verticalCenter: parent.verticalCenter
                     height: 70
-                    width: (modCreationEnabled ? 475 : 325) + (hircEditorTabEnabled ? 75 : 0)
+                    width: (modCreationEnabled ? 400 : 250) + (horizontalGameSwapEnabled ? 0 : 75) + (hircEditorTabEnabled ? 75 : 0)
                     color: "#3c3d3f"
                     radius: 20
 
@@ -724,6 +828,7 @@ ApplicationWindow {
                             id: swapGame
                             height: 60
                             width: 60
+                            visible: !horizontalGameSwapEnabled
 
                             property bool hovered: false
 

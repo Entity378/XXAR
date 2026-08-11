@@ -449,6 +449,10 @@ class SettingsConnector:
         enable_gb_thumbnails = settings.get("enable_gb_thumbnails", False)
         self.settings_page.setProperty("enableGbThumbnails", enable_gb_thumbnails)
 
+        horizontal_game_swap = settings.get("horizontal_game_swap", False)
+        self.settings_page.setProperty("enableHorizontalGameSwap", horizontal_game_swap)
+        self.root.setProperty("horizontalGameSwapEnabled", horizontal_game_swap)
+
         gb_page = self.root.findChild(QObject, "gameBananaPage")
         if gb_page:
             gb_page.setProperty("thumbnailsEnabled", enable_gb_thumbnails)
@@ -737,6 +741,7 @@ class SettingsConnector:
 
         mod_creation_mode = self.settings_page.property("modCreationEnabled")
         enable_gb_thumbnails = self.settings_page.property("enableGbThumbnails")
+        horizontal_game_swap = self.settings_page.property("enableHorizontalGameSwap")
         hide_gb_thumbnail_warning = self.settings_page.property("hideGbThumbnailWarning")
         custom_mods_dir = self.settings_page.property("modsDirectory") or ""
 
@@ -751,7 +756,9 @@ class SettingsConnector:
 
         settings["mod_creation_mode"] = mod_creation_mode
         settings["enable_gb_thumbnails"] = enable_gb_thumbnails
+        settings["horizontal_game_swap"] = horizontal_game_swap
         settings["hide_gb_thumbnail_warning"] = hide_gb_thumbnail_warning
+        self.root.setProperty("horizontalGameSwapEnabled", horizontal_game_swap)
         current_game = normalize_game_id(
             settings.get("selected_game", DEFAULT_GAME_ID)
         )
