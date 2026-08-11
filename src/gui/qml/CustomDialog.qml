@@ -18,6 +18,10 @@ Item {
     property bool closing: false
     property string customStickerPath: ""
 
+    // Optional clickable line under the message, so URLs are not buried in wrapped text.
+    property string linkUrl: ""
+    property string linkText: ""
+
     property bool showCheckbox: false
     property string checkboxText: ""
     property bool isChecked: false
@@ -32,6 +36,8 @@ Item {
             randomSticker = Math.floor(Math.random() * 3)
         } else if (!visible) {
             customStickerPath = ""
+            linkUrl = ""
+            linkText = ""
         }
     }
 
@@ -106,15 +112,40 @@ Item {
                 wrapMode: Text.WordWrap
             }
 
-            Text {
-                text: root.message
-                color: "#ffffff"
-                font.family: "Alatsi"
-                font.pixelSize: 16
+            Column {
                 width: parent.width
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-                lineHeight: 1.4
+                spacing: 12
+
+                Text {
+                    text: root.message
+                    color: "#ffffff"
+                    font.family: "Alatsi"
+                    font.pixelSize: 16
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    lineHeight: 1.4
+                }
+
+                Text {
+                    visible: root.linkUrl !== ""
+                    text: root.linkText
+                    color: Theme.primaryAccent
+                    font.family: "Alatsi"
+                    font.pixelSize: 16
+                    font.underline: linkMouse.containsMouse
+                    width: parent.width
+                    wrapMode: Text.WrapAnywhere
+                    horizontalAlignment: Text.AlignHCenter
+
+                    MouseArea {
+                        id: linkMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Qt.openUrlExternally(root.linkUrl)
+                    }
+                }
             }
 
             RowLayout {

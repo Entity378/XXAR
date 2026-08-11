@@ -12,6 +12,9 @@ from src.gui.backend.update_manager_bridge import _get_real_exe_path, _is_manage
 
 logger = get_logger(__name__)
 
+RELEASES_PAGE_URL = "https://github.com/Entity378/XXAR/releases"
+RELEASES_PAGE_LABEL = "github.com/Entity378/XXAR/releases"
+
 
 class UpdateConnector:
 
@@ -68,9 +71,10 @@ class UpdateConnector:
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
-                           "Update your Flatpak to the latest version:\n\n"
-                           "new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/releases")),
+                           "Download the new .flatpak bundle from:")),
                     Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", RELEASES_PAGE_URL),
+                    Q_ARG("QVariant", RELEASES_PAGE_LABEL),
                 )
         elif IS_WINDOWS and not _is_managed_install():
             if self._startup_update_check:
@@ -82,8 +86,10 @@ class UpdateConnector:
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
                            "The portable build does not auto-update. Download the latest "
-                           "XXAR-windows-x64.zip from https://github.com/Entity378/XXAR/releases")),
+                           "XXAR-windows-x64.zip from:")),
                     Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", RELEASES_PAGE_URL),
+                    Q_ARG("QVariant", RELEASES_PAGE_LABEL),
                 )
         elif not self.update_manager_bridge.canAutoUpdate():
             # The release carries no installer this build can run; the notice with the link is all we can offer.
@@ -95,9 +101,10 @@ class UpdateConnector:
                     Q_ARG("QVariant", QCoreApplication.translate("Application", "Update Available -- v%1").replace("%1", version)),
                     Q_ARG("QVariant",
                            QCoreApplication.translate("Application", "A new version of XXAR is available!\n\n"
-                           "This version of XXAR cannot install it automatically. Download the new "
-                           "installer from https://github.com/Entity378/XXAR/releases")),
+                           "This version cannot install it automatically. Download the new installer from:")),
                     Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", RELEASES_PAGE_URL),
+                    Q_ARG("QVariant", RELEASES_PAGE_LABEL),
                 )
         elif self._startup_update_check and self.update_dialog:
             QMetaObject.invokeMethod(

@@ -71,13 +71,15 @@ ApplicationWindow {
         customDialog.visible = true
     }
 
-    function showAlertDialog(title, message, customSticker) {
+    function showAlertDialog(title, message, customSticker, linkUrl, linkText) {
         customDialog.title = title
         customDialog.message = message
         customDialog.actionId = ""
         customDialog.isConfirmation = false
         customDialog.confirmText = qsTranslate("Application", "OK")
         customDialog.customStickerPath = customSticker || ""
+        customDialog.linkUrl = linkUrl || ""
+        customDialog.linkText = linkText || ""
         customDialog.visible = true
     }
 
