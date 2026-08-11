@@ -210,7 +210,7 @@ ApplicationWindow {
                         color: "transparent"
                         radius: 15
                         border.color: activeGameShort == "GI" ? Theme.primaryAccent  : "transparent"
-                        border.width: 1
+                        border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
@@ -244,7 +244,7 @@ ApplicationWindow {
                         color: "transparent"
                         radius: 15
                         border.color:  activeGameShort == "HSR" ? Theme.primaryAccent  : "transparent"
-                        border.width: 1
+                        border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
@@ -279,7 +279,7 @@ ApplicationWindow {
                         color: "transparent"
                         radius: 15
                         border.color:  activeGameShort == "ZZZ" ? Theme.primaryAccent  : "transparent"
-                        border.width: 1
+                        border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
