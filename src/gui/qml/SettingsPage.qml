@@ -44,6 +44,7 @@ Item {
     property bool isInstallingAudioTools: false
     property bool isAutoDetecting: false
     property bool enableGbThumbnails: false
+    property bool enableHorizontalGameSwap: false
     property bool hideGbThumbnailWarning: false
 
     property bool isCheckingUpdates: false
@@ -904,6 +905,85 @@ Item {
                                                 }
                                             } else {
                                                 settingsPage.enableGbThumbnails = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: enableHorizontalGameSwapContent.height + 40
+                        color: "#333333"
+                        radius: 20
+                        visible: currentCategory === 2
+
+                        Column {
+                            id: enableHorizontalGameSwapContent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 20
+                            spacing: 15
+
+                            RowLayout {
+                                width: parent.width
+                                spacing: 20
+
+                                Column {
+                                    Layout.fillWidth: true
+                                    spacing: 5
+
+                                    Text {
+                                        text: qsTranslate("Application", "Horizontal Game Swap")
+                                        color: Theme.primaryAccent
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 24
+                                        font.weight: Font.Normal
+                                    }
+
+                                    Text {
+                                        text: qsTranslate("Application", "Switch games using a horizontal list at the top of %1, similar to XXMI Launcher.").replace("%1", appName)
+                                        color: "#888888"
+                                        font.family: "Alatsi"
+                                        font.pixelSize: 14
+                                        wrapMode: Text.WordWrap
+                                        width: parent.width
+                                    }
+                                }
+
+                                Item {
+                                    width: 60
+                                    height: 30
+
+                                    Rectangle {
+                                        id: enableHorizontalGameSwapSwitchBg
+                                        anchors.fill: parent
+                                        radius: 15
+                                        color: settingsPage.enableHorizontalGameSwap ? Theme.primaryAccent : "#555555"
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+
+                                        Rectangle {
+                                            width: 26
+                                            height: 26
+                                            radius: 13
+                                            color: "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: settingsPage.enableHorizontalGameSwap ? parent.width - width - 2 : 2
+                                            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (!settingsPage.enableHorizontalGameSwap) {
+                                                settingsPage.enableHorizontalGameSwap = true;
+                                            } else {
+                                                settingsPage.enableHorizontalGameSwap = false;
                                             }
                                         }
                                     }
