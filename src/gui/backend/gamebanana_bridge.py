@@ -19,7 +19,7 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 
 import src.core.app_config as app_config
-from src.core.app_config import APP_NAME
+from src.core.app_config import APP_NAME, APP_VERSION
 from src.core.config_manager import ConfigManager, get_settings_file
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
@@ -201,6 +201,7 @@ def is_audio_media(url):
 
 
 GAMEBANANA_API_BASE = "https://gamebanana.com/apiv11"
+GAMEBANANA_USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
 
 
 class FetchModsWorker(BaseWorker):
@@ -237,7 +238,7 @@ class FetchModsWorker(BaseWorker):
             logger.info(f"[GameBanana] Fetching sound mods: {url}")
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'XXAR/1.1.0')
+            req.add_header('User-Agent', GAMEBANANA_USER_AGENT)
 
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
@@ -351,7 +352,7 @@ class FetchMiscModsWorker(BaseWorker):
             logger.info(f"[GameBanana] Fetching misc mods: {url}")
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'XXAR/1.1.0')
+            req.add_header('User-Agent', GAMEBANANA_USER_AGENT)
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -462,7 +463,7 @@ class FetchMiscModsWorker(BaseWorker):
             return (cached_support, cached_thumb)
         try:
             url = f"{GAMEBANANA_API_BASE}/Mod/{mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
             if isinstance(data, dict):
@@ -510,7 +511,7 @@ class FetchMiscModsWorker(BaseWorker):
     def _file_has_mod(self, file_id):
         try:
             url = f"{GAMEBANANA_API_BASE}/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
             tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
@@ -564,7 +565,7 @@ class FetchModDetailsWorker(BaseWorker):
         logger.info(f"[GameBanana] Fetching Sound details: {url}")
 
         req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'XXAR/1.1.0')
+        req.add_header('User-Agent', GAMEBANANA_USER_AGENT)
         with _urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
 
@@ -580,7 +581,7 @@ class FetchModDetailsWorker(BaseWorker):
         logger.info(f"[GameBanana] Fetching Mod details (ProfilePage): {url}")
 
         req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'XXAR/1.1.0')
+        req.add_header('User-Agent', GAMEBANANA_USER_AGENT)
         with _urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
 
@@ -736,7 +737,7 @@ class FetchModDetailsWorker(BaseWorker):
                     continue
                 try:
                     url = f"https://gamebanana.com/apiv11/File/{file_id}"
-                    req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+                    req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
                     with _urlopen(req, timeout=8) as response:
                         data = json.loads(response.read().decode('utf-8'))
                     tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
@@ -751,7 +752,7 @@ class FetchModDetailsWorker(BaseWorker):
 
         try:
             url = f"https://gamebanana.com/apiv11/{self.item_type}/{self.mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
             if isinstance(data, dict):
@@ -812,7 +813,7 @@ class FetchThumbnailsWorker(BaseWorker):
 
         try:
             url = f"https://api.gamebanana.com/Core/Item/Data?itemtype=Sound&itemid={mod_id}&fields=text"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -826,7 +827,7 @@ class FetchThumbnailsWorker(BaseWorker):
             img_url = images[0]
             ext = Path(urllib.parse.urlparse(img_url).path).suffix or ".jpg"
             dest = _thumb_dir() / f"{mod_id}{ext}"
-            img_req = urllib.request.Request(img_url, headers={'User-Agent': 'XXAR/1.1.0'})
+            img_req = urllib.request.Request(img_url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(img_req, timeout=10) as img_response:
                 dest.write_bytes(img_response.read())
 
@@ -866,7 +867,7 @@ class FetchModSupportWorker(BaseWorker):
         try:
 
             url = f"https://gamebanana.com/apiv11/Sound/{mod_id}/ProfilePage"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -894,7 +895,7 @@ class FetchModSupportWorker(BaseWorker):
     def _check_file_contents(self, file_id):
         try:
             url = f"https://gamebanana.com/apiv11/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'XXAR/1.1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
             with _urlopen(req, timeout=8) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -1049,7 +1050,7 @@ class DownloadModWorker(BaseWorker):
             logger.info(f"[GameBanana] Downloading: {self.download_url}")
 
             req = urllib.request.Request(self.download_url)
-            req.add_header('User-Agent', 'XXAR/1.1.0')
+            req.add_header('User-Agent', GAMEBANANA_USER_AGENT)
 
             with _urlopen(req, timeout=30) as response:
                 total_size = int(response.headers.get('Content-Length', 0))
