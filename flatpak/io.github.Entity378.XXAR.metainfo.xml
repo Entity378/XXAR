@@ -50,6 +50,16 @@
   </requires>
 
   <releases>
+    <release version="1.1.2" date="2026-08-16">
+      <description>
+        <p>Better sounding audio conversion and a crash fix.</p>
+        <ul>
+          <li>Loudness normalization no longer squashes the dynamics: a track that cannot reach the target level is now simply turned down instead of being compressed</li>
+          <li>Audio is converted at the highest Vorbis quality, so a replacement stays closer to the file you picked</li>
+          <li>Showing the list of changes in the browser no longer closes the app when there is nothing to show</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-08-04">
       <description>
         <p>New Windows installer and a smaller download.</p>
