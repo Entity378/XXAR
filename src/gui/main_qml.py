@@ -567,6 +567,8 @@ class Application(
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
             Q_ARG("QVariant", sticker_path),
+            Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
         )
 
     def on_wip_dialog_requested(self):
@@ -586,6 +588,8 @@ class Application(
             Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
+            Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
             Q_ARG("QVariant", ""),
         )
 
@@ -616,6 +620,8 @@ class Application(
             Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", title),
             Q_ARG("QVariant", message),
+            Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
             Q_ARG("QVariant", ""),
         )
 

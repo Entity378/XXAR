@@ -664,6 +664,8 @@ class SettingsConnector:
                         QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", game_data_folder),
                     ),
                     Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", ""),
                 )
                 return
 
@@ -734,6 +736,8 @@ class SettingsConnector:
                 QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", game_data_folder),
             ),
             Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
         )
 
     def on_save_settings(self, game_path):
@@ -796,6 +800,8 @@ class SettingsConnector:
                     ).replace("%1", get_game(target_game_id).display_name).replace("%2", expected_folder),
                 ),
                 Q_ARG("QVariant", ""),
+                Q_ARG("QVariant", ""),
+                Q_ARG("QVariant", ""),
             )
         elif "selected_game" not in settings:
             settings["selected_game"] = DEFAULT_GAME_ID
@@ -845,6 +851,8 @@ class SettingsConnector:
                 Qt.ConnectionType.QueuedConnection,
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Error")),
                 Q_ARG("QVariant", QCoreApplication.translate("Application", "Failed to save settings:\n\n%1").replace("%1", str(e))),
+                Q_ARG("QVariant", ""),
+                Q_ARG("QVariant", ""),
                 Q_ARG("QVariant", ""),
             )
 
@@ -1227,6 +1235,8 @@ class SettingsConnector:
                         QCoreApplication.translate("Application", "Please select the %1 folder.\n\nThis folder should contain 'StreamingAssets' and other game data folders.").replace("%1", game_data_folder),
                     ),
                     Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", ""),
+                    Q_ARG("QVariant", ""),
                 )
                 return
 
@@ -1302,6 +1312,8 @@ class SettingsConnector:
                 "QVariant",
                 QCoreApplication.translate("Application", "Could not auto-detect game directory.\n\nPlease select the %1 folder manually using the Browse button.").replace("%1", game_data_folder),
             ),
+            Q_ARG("QVariant", ""),
+            Q_ARG("QVariant", ""),
             Q_ARG("QVariant", ""),
         )
 
