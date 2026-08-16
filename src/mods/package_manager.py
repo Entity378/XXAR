@@ -953,7 +953,7 @@ class ModPackageManager:
 
                 packer.pack(use_patching=False)
 
-                output_pck.chmod(0o444)
+                output_pck.chmod(0o644)
 
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")

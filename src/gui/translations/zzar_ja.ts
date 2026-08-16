@@ -2585,7 +2585,7 @@ new .flatpak file can be downloaded from https://github.com/Entity378/XXAR/relea
             <location filename="../backend/audio_browser_bridge.py" line="1495" />
             <source>No audio replacements found.
 
-Did you even replace anything?.</source>
+Did you even replace anything?</source>
             <translation type="unfinished"></translation>
         </message>
         <message>

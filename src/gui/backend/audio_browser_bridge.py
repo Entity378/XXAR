@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import shutil
-import stat
 import struct
 import tempfile
 import threading
@@ -1927,7 +1926,7 @@ class AudioBrowserBridge(QObject):
 
         replacements = self._get_user_replacements()
         if not replacements:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?."), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?"), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
             return
 
         changes = []
@@ -2143,7 +2142,7 @@ class AudioBrowserBridge(QObject):
                 output_pck.parent.mkdir(parents=True, exist_ok=True)
 
                 if output_pck.exists():
-                    os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+                    output_pck.chmod(0o644)
 
                 packer = PCKPacker(str(pck_file_path), str(output_pck))
                 packer.load_original_pck()
@@ -2211,7 +2210,7 @@ class AudioBrowserBridge(QObject):
                 packer.pack(use_patching=False)
                 packer.close()
 
-                os.chmod(str(output_pck), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+                output_pck.chmod(0o644)
 
             try:
                 patch_override_pcks(
