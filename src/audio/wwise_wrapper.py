@@ -4,6 +4,7 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from src.core.app_config import APP_VERSION
 from src.core.config_manager import get_tools_dir
 from src.core.logger import get_logger
 from src.core.subprocess_utils import (
@@ -23,11 +24,16 @@ logger = get_logger(__name__)
 _BUNDLED_RESOURCE_DIR = get_bundled_resources_dir()
 
 if IS_FLATPAK or is_frozen():
-    _RESOURCE_DIR = get_tools_dir() / "wwise_project"
+    # The copy is keyed by version because the conversion settings live inside the project.
+    # An upgrade lands on a path that does not exist yet, so it re-copies and drops every older copy.
+    _RESOURCE_DIR = get_tools_dir() / "wwise_project" / APP_VERSION
     _wproj = _RESOURCE_DIR / "WAVtoWEM" / "WAVtoWEM.wproj"
     src_wav = _BUNDLED_RESOURCE_DIR / "WAVtoWEM"
-    if not _wproj.exists() and src_wav.exists():
+    if src_wav.exists() and not _wproj.exists():
         shutil.copytree(str(src_wav), str(_RESOURCE_DIR / "WAVtoWEM"), dirs_exist_ok=True)
+        for stale_copy in _RESOURCE_DIR.parent.iterdir():
+            if stale_copy != _RESOURCE_DIR:
+                shutil.rmtree(stale_copy, ignore_errors=True)
 else:
     _RESOURCE_DIR = _BUNDLED_RESOURCE_DIR
 
