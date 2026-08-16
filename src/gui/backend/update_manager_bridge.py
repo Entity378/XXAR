@@ -15,7 +15,7 @@ from src.core.app_config import APP_NAME
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.core.config_manager import get_settings_file, get_updates_dir
 from src.core.logger import get_logger
-from src.core.subprocess_utils import IS_FLATPAK, IS_WINDOWS, is_frozen
+from src.core.subprocess_utils import HOST_SPAWN_KWARGS, IS_FLATPAK, IS_WINDOWS, is_frozen
 
 logger = get_logger(__name__)
 
@@ -517,4 +517,5 @@ class UpdateManagerBridge(QObject):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
+            **HOST_SPAWN_KWARGS,
         )

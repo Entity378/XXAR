@@ -11,7 +11,7 @@ from src.core.subprocess_utils import (
     IS_FLATPAK,
     IS_WINDOWS,
 )
-from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
+from src.core.subprocess_utils import HOST_SPAWN_KWARGS as _host_spawn_kwargs
 from src.core.subprocess_utils import (
     get_bundled_resources_dir,
     is_frozen,
@@ -75,12 +75,13 @@ class WwiseConsole:
             try:
                 result = subprocess.run(
                     ['flatpak-spawn', '--host', name, '--version'],
-                    capture_output=True, timeout=5,
+                    capture_output=True, timeout=5, **_host_spawn_kwargs,
                 )
                 if result.returncode == 0:
                     return ['flatpak-spawn', '--host', name]
-            except Exception:
-                continue
+                logger.warning(f"[WwiseConsole] Host probe for {name} exited with {result.returncode}")
+            except Exception as e:
+                logger.warning(f"[WwiseConsole] Host probe for {name} could not run: {e}")
         return None
 
     def is_installed(self):
@@ -120,7 +121,7 @@ class WwiseConsole:
             else:
                 cmd = self.wine_cmd + [str(self.wwise_console), "migrate", str(self.project_path)]
 
-            subprocess.run(cmd, capture_output=True, check=False, **_subprocess_kwargs)
+            subprocess.run(cmd, capture_output=True, check=False, **_host_spawn_kwargs)
         except Exception as e:
             logger.warning(f"Migration warning: {e}")
 
@@ -213,7 +214,7 @@ class WwiseConsole:
             ]
 
         logger.info(f"[WwiseConsole] Running: {' '.join(cmd)}")
-        proc = subprocess.run(cmd, capture_output=True, text=True, **_subprocess_kwargs)
+        proc = subprocess.run(cmd, capture_output=True, text=True, **_host_spawn_kwargs)
         if proc.returncode != 0:
             detail = (proc.stdout + proc.stderr).strip() or f"WwiseConsole exited with code {proc.returncode}"
             logger.error(f"[WwiseConsole] Batch failed: {detail}")

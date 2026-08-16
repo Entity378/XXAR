@@ -11,7 +11,7 @@ import urllib.request
 import urllib.error
 
 from src.core.logger import get_logger
-from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK
+from src.core.subprocess_utils import IS_WINDOWS, IS_LINUX, IS_FLATPAK, HOST_SPAWN_KWARGS
 from src.core.app_config import CONFIG_DIR_NAME
 logger = get_logger(__name__)
 
@@ -71,13 +71,14 @@ class WwiseSetup:
                 try:
                     result = subprocess.run(
                         ['flatpak-spawn', '--host', name, '--version'],
-                        capture_output=True, text=True, timeout=5
+                        capture_output=True, text=True, timeout=5, **HOST_SPAWN_KWARGS,
                     )
                     if result.returncode == 0:
                         logger.info(f"[OK] Wine found on host: {result.stdout.strip()}")
                         return True
-                except Exception:
-                    continue
+                    logger.warning(f"Host probe for {name} exited with {result.returncode}: {result.stderr.strip()}")
+                except Exception as e:
+                    logger.warning(f"Host probe for {name} could not run: {e}")
             logger.info("Wine not found on host system!")
             logger.info("\nInstall Wine on your system (outside Flatpak):")
             logger.info("  Arch: sudo pacman -S wine")
@@ -172,7 +173,7 @@ class WwiseSetup:
                     try:
                         r = subprocess.run(
                             ['flatpak-spawn', '--host', name, '--version'],
-                            capture_output=True, timeout=5,
+                            capture_output=True, timeout=5, **HOST_SPAWN_KWARGS,
                         )
                         if r.returncode == 0:
                             wine_name = name
@@ -187,7 +188,8 @@ class WwiseSetup:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                timeout=10
+                timeout=10,
+                **HOST_SPAWN_KWARGS,
             )
 
             logger.info("WwiseConsole is accessible!")

@@ -32,6 +32,19 @@ else:
     SUBPROCESS_KWARGS = {}
 
 
+# flatpak-spawn, wine and every host binary they start must not inherit PyInstaller's LD_LIBRARY_PATH.
+# The bundled libraries win over the host ones and the process dies on a symbol error before it runs.
+HOST_SPAWN_KWARGS = dict(SUBPROCESS_KWARGS)
+if IS_LINUX:
+    _host_env = os.environ.copy()
+    _host_ld_path = _host_env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if _host_ld_path:
+        _host_env["LD_LIBRARY_PATH"] = _host_ld_path
+    else:
+        _host_env.pop("LD_LIBRARY_PATH", None)
+    HOST_SPAWN_KWARGS["env"] = _host_env
+
+
 # Bundled resources live in different places depending on how XXAR was launched.
 # Resolve through the helpers below.
 
