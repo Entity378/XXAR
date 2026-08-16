@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import shutil
 import subprocess
@@ -14,6 +16,9 @@ from src.core.subprocess_utils import IS_WINDOWS
 from src.core.subprocess_utils import SUBPROCESS_KWARGS as _subprocess_kwargs
 
 logger = get_logger(__name__)
+
+# Loudness normalization never pushes the true peak above this.
+TRUE_PEAK_CEILING_DBTP = -1.5
 
 
 class AudioConverter:
@@ -134,6 +139,30 @@ class AudioConverter:
                 f"FFmpeg cannot decode this WEM file format.\n"
             )
 
+    def _reachable_lufs(self, input_file, target_lufs):
+        # Loudnorm drops its linear mode and compresses whenever the target needs more gain than the peak ceiling allows.
+        # The target is lowered here to the loudest level a plain gain can still reach.
+        cmd = [
+            self.ffmpeg_path, '-hide_banner', '-i', str(input_file),
+            '-af', 'loudnorm=print_format=json',
+            '-f', 'null', '-',
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **_subprocess_kwargs)
+        report = result.stderr.decode('utf-8', errors='replace')
+        try:
+            measured = json.loads(report[report.rfind('{'):report.rfind('}') + 1])
+            headroom_lufs = float(measured['input_i']) + TRUE_PEAK_CEILING_DBTP - float(measured['input_tp'])
+        except (ValueError, KeyError):
+            return target_lufs
+
+        if not math.isfinite(headroom_lufs) or headroom_lufs >= target_lufs:
+            return target_lufs
+        logger.info(
+            f"{input_file.name} peaks at {float(measured['input_tp']):.1f} dBTP: target lowered from "
+            f"{target_lufs} to {headroom_lufs:.1f} LUFS to keep the normalization linear"
+        )
+        return headroom_lufs
+
     def any_to_wav(self, input_file, output_file=None, sample_rate=48000, channels=2, normalize=True, normalize_lufs=-9):
 
         input_file = Path(input_file)
@@ -168,11 +197,12 @@ class AudioConverter:
         try:
             if normalize:
                 # EBU R128 two-pass loudness normalization
+                normalize_lufs = self._reachable_lufs(input_file, normalize_lufs)
                 os.environ["FFMPEG_PATH"] = self.ffmpeg_path
                 normalizer = FFmpegNormalize(
                     normalization_type="ebu",
                     target_level=normalize_lufs,
-                    true_peak=-1.5,
+                    true_peak=TRUE_PEAK_CEILING_DBTP,
                     loudness_range_target=11.0,
                     sample_rate=sample_rate,
                     audio_channels=channels,
