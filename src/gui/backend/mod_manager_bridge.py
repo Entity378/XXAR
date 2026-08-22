@@ -806,15 +806,31 @@ class ModManagerBridge(QObject):
                 logger.info(f"[Mod Manager] [{current}/{total}] {message}")
                 self.progressUpdate.emit(f"[{current}/{total}] {message}")
 
-            self.mod_package_manager.apply_mods(
+            summary = self.mod_package_manager.apply_mods(
                 self.game_audio_dir,
                 self.persistent_dir,
                 progress_callback,
                 conflict_preferences=self.conflict_preferences
-            )
+            ) or {}
 
-            logger.info("[Mod Manager] Mods applied successfully!")
-            self.progressUpdate.emit("Mods applied successfully!")
+            skipped = summary.get("skipped_missing_original") or []
+            if skipped:
+                logger.warning(f"[Mod Manager] {len(skipped)} PCK(s) skipped, original audio missing: {skipped}")
+                self.progressUpdate.emit(f"Applied with warnings: {len(skipped)} PCK(s) skipped")
+                listing = "\n".join(f"* {name}" for name in skipped[:8])
+                if len(skipped) > 8:
+                    listing += f"\n* ... +{len(skipped) - 8}"
+                self.alertDialogRequested.emit(
+                    QCoreApplication.translate("Application", "Original Audio Missing"),
+                    QCoreApplication.translate(
+                        "Application",
+                        "These mod targets do not exist in your game installation:\n%1\n\nThe game downloads voice-over content on demand, so this audio may simply not be downloaded yet. Download the affected voice content in the game (or repair the game files), then apply mods again."
+                    ).replace("%1", listing),
+                    ""
+                )
+            else:
+                logger.info("[Mod Manager] Mods applied successfully!")
+                self.progressUpdate.emit("Mods applied successfully!")
 
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")

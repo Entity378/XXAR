@@ -863,6 +863,8 @@ class ModPackageManager:
 
         pck_list = list(resolved.keys())
         total_pcks = len(pck_list)
+        applied_pcks = 0
+        skipped_missing_original = []
 
         for idx, pck_name in enumerate(pck_list):
             if progress_callback:
@@ -878,6 +880,7 @@ class ModPackageManager:
             )
             if original_pck is None:
                 logger.warning(f"Warning: Original PCK not found: {pck_name}, skipping...")
+                skipped_missing_original.append(pck_name)
                 continue
             output_pck.parent.mkdir(parents=True, exist_ok=True)
 
@@ -954,6 +957,7 @@ class ModPackageManager:
                 packer.pack(use_patching=False)
 
                 output_pck.chmod(0o644)
+                applied_pcks += 1
 
             except Exception as e:
                 raise ModApplicationError(f"Failed to process {pck_name}: {e}")
@@ -1046,7 +1050,14 @@ class ModPackageManager:
             self.persistent_mod_manager.import_replacements_from_mods(persistent_format)
 
         if progress_callback:
-            progress_callback(f"Applied {total_pcks} PCK(s) successfully", total_pcks, total_pcks)
+            if skipped_missing_original:
+                progress_callback(
+                    f"Applied {applied_pcks} of {total_pcks} PCK(s); {len(skipped_missing_original)} skipped (original audio missing)",
+                    total_pcks, total_pcks,
+                )
+            else:
+                progress_callback(f"Applied {total_pcks} PCK(s) successfully", total_pcks, total_pcks)
+        return {"applied_pcks": applied_pcks, "skipped_missing_original": skipped_missing_original}
 
     def create_mod_package(self, output_path, metadata, current_replacements, thumbnail_path=None, hirc_patches=None):
 

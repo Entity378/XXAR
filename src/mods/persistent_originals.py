@@ -61,6 +61,68 @@ def _scan_sidecars(folder):
     return out
 
 
+def _sidecars_for_pck(folder, pck_name):
+    # The <stem>_<md5>.hash files describing pck_name inside folder.
+    out = []
+    try:
+        for h in folder.glob(f"{Path(pck_name).stem}_*.hash"):
+            parsed = _parse_hash_sidecar(h.name)
+            if parsed and parsed[0] == pck_name:
+                out.append(h)
+    except OSError:
+        pass
+    return out
+
+
+def _promote_sidecars(pck, s_path):
+    # The .hash travels with its pck, replacing any stale one next to the streaming copy.
+    sidecars = _sidecars_for_pck(pck.parent, pck.name)
+    if not sidecars:
+        return
+    names = {h.name for h in sidecars}
+    for stale in _sidecars_for_pck(s_path.parent, s_path.name):
+        if stale.name not in names:
+            stale.unlink(missing_ok=True)
+    for h in sidecars:
+        shutil.copy2(h, s_path.parent / h.name)
+
+
+def _reunite_sidecars(s_folder, p_folder, pck_name):
+    # Move the pck's .hash next to its StreamingAssets copy, or drop it when one is already there.
+    moved = 0
+    for h in _sidecars_for_pck(p_folder, pck_name):
+        try:
+            if _sidecars_for_pck(s_folder, pck_name):
+                h.unlink()
+            else:
+                shutil.move(str(h), str(s_folder / h.name))
+            moved += 1
+        except OSError as e:
+            logger.error(f"[Persistent Originals] Failed to relocate sidecar {h.name}: {e}")
+    return moved
+
+
+def relocate_orphan_sidecars(game, streaming_root, persistent_root):
+    # Earlier promotions moved the pck but stranded its .hash in Persistent; reunite them.
+    moved = 0
+    for h in persistent_root.rglob("*.hash"):
+        parsed = _parse_hash_sidecar(h.name)
+        if not parsed:
+            continue
+        pck_name = parsed[0]
+        if game.is_protected_pck(pck_name) or (h.parent / pck_name).exists():
+            continue
+        try:
+            rel_folder = h.parent.relative_to(persistent_root)
+        except ValueError:
+            continue
+        s_folder = streaming_root / rel_folder
+        if not (s_folder / pck_name).is_file():
+            continue
+        moved += _reunite_sidecars(s_folder, h.parent, pck_name)
+    return moved
+
+
 def load_manifest_md5s(streaming_root):
     # {rel_pck_path: (md5, size)} from the manifests found walking up to the game root.
     streaming_root = Path(streaming_root)
@@ -287,6 +349,7 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
                         cache.seed(s_path, f"streaming/{rel}", original_md5)
                         stats["updated"] += 1
                         logger.info(f"[Persistent Originals] Updated original {rel} in StreamingAssets")
+                _promote_sidecars(pck, s_path)
             except Exception as e:
                 keep.add(rel)  # securing failed: never delete the only good copy
                 logger.error(f"[Persistent Originals] Failed to promote {rel}: {e}")
@@ -375,7 +438,7 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
     result = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0,
-              "deleted": 0, "kept": 0, "override_restored": 0, "misplaced_removed": 0}
+              "deleted": 0, "kept": 0, "sidecars_moved": 0, "override_restored": 0, "misplaced_removed": 0}
     if not persistent_root.is_dir():
         return result
 
@@ -407,6 +470,13 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_
             result["deleted"] += 1
         except Exception as e:
             logger.error(f"[Persistent Originals] Failed to delete {rel}: {e}")
+            continue
+        result["sidecars_moved"] += _reunite_sidecars((streaming_root / rel).parent, pck.parent, pck.name)
+
+    try:
+        result["sidecars_moved"] += relocate_orphan_sidecars(game, streaming_root, persistent_root)
+    except Exception as e:
+        logger.error(f"[Persistent Originals] Sidecar relocation failed: {e}")
 
     try:
         result["override_restored"] = restore_override_pck_backups(persistent_root, get_game(game_id))

@@ -179,7 +179,7 @@ class BNKFile:
                     self.data['HIRC'] = HIRC(chunk_data)
                 else:
 
-                    logger.info(f"  Unknown BNK chunk: {tag_str} ({size} bytes)")
+                    logger.debug(f"  Unknown BNK chunk: {tag_str} ({size} bytes)")
 
             except (struct_error, UnicodeDecodeError):
                 break

@@ -380,6 +380,34 @@ class AudioBrowserBridge(QObject):
         self._streaming_streamed_wem_index = None
         self._streaming_streamed_index_key = None
 
+    def _repoint_language_folders_to_streaming(self):
+        # After promotion a folder first seen in Persistent exists in StreamingAssets too; retarget its tab to the clean copy.
+        # Returns True when at least one tab was repointed.
+        if not self.game_root_dir or not self.language_folders:
+            return False
+        game = self._active_game()
+        streaming_root = Path(self._audio_root) if self._audio_root else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+        persistent_root = Path(self.game_root_dir).joinpath(*game.persistent_audio_subpath)
+        repointed = False
+        for info in self.language_folders.values():
+            try:
+                rel = Path(info["path"]).relative_to(persistent_root)
+            except (KeyError, ValueError):
+                continue
+            candidate = streaming_root / rel
+            pck_count = len(list(candidate.glob("*.pck"))) if candidate.is_dir() else 0
+            if pck_count:
+                info["path"] = candidate
+                info["pck_count"] = pck_count
+                repointed = True
+        if repointed:
+            self._invalidate_caches()
+        return repointed
+
+    def _reload_language_tab_if_repointed(self):
+        if self._repoint_language_folders_to_streaming() and self.current_language_folder in self.language_folders:
+            self._load_pck_files(self.language_folders[self.current_language_folder]["path"])
+
     def _pristine_read_path(self, pck_path):
         # Protected overrides (Patch.pck/Hotfix.pck) get their modded BNKs nulled in the live file on apply.
         # Read the pristine source instead: the state-dir backup when valid, else the live file.
@@ -2064,6 +2092,7 @@ class AudioBrowserBridge(QObject):
                 return
 
             if not replacements:
+                self._reload_language_tab_if_repointed()
                 return
 
             # Relink targets against the current game (Patch-aware) before resolving.
@@ -2228,6 +2257,8 @@ class AudioBrowserBridge(QObject):
             )
             if callable(post_pack_steps):
                 post_pack_steps(replacements)
+
+            self._reload_language_tab_if_repointed()
 
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))
 
@@ -2526,6 +2557,7 @@ class AudioBrowserBridge(QObject):
                 self.statusUpdate.emit(
                     QCoreApplication.translate("Application", "All changes reset")
                 )
+            self._reload_language_tab_if_repointed()
             self._emit_changes_count()
         except Exception as e:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to reset: %1").replace("%1", str(e)))

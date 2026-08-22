@@ -219,7 +219,7 @@ def relink_replacements(replacements, game_audio_dir, game, progress_callback=No
         loc = index.locate(wem_id, progress_callback)
         if not loc:
             unresolved.append((old_pck, wem_id))
-            logger.warning(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")
+            logger.debug(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")
             continue
 
         info = replacements[old_pck].pop(key)
@@ -235,6 +235,9 @@ def relink_replacements(replacements, game_audio_dir, game, progress_callback=No
             f"{loc['pck_name']} ({loc['file_type']}/{loc['bnk_id']})"
         )
 
+    if unresolved:
+        sample = ", ".join(str(w) for _, w in unresolved[:5])
+        logger.warning(f"[Relink] {len(unresolved)} WEM(s) not found in any PCK, left unchanged (e.g. {sample})")
     return {"relinked": relinked, "unresolved": unresolved}
 
 
@@ -331,7 +334,7 @@ def relink_metadata(metadata, game_audio_dir, game, progress_callback=None, inde
         loc = index.locate(wem_id, progress_callback)
         if not loc:
             unresolved.append((old_pck, wem_id))
-            logger.warning(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")
+            logger.debug(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")
             continue
 
         _relocate_metadata_entry(
@@ -344,4 +347,7 @@ def relink_metadata(metadata, game_audio_dir, game, progress_callback=None, inde
             f"{loc['pck_name']} ({loc['file_type']}/{loc['bnk_id']})"
         )
 
+    if unresolved:
+        sample = ", ".join(str(w) for _, w in unresolved[:5])
+        logger.warning(f"[Relink] {len(unresolved)} WEM(s) not found in any PCK, left unchanged (e.g. {sample})")
     return {"relinked": relinked, "unresolved": unresolved}

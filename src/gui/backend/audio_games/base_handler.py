@@ -152,6 +152,8 @@ class BaseBrowserHandler:
 
     def load_language_tab(self, index):
         b = self.bridge
+        # A Persistent-pointed tab flips to StreamingAssets as soon as the promoted copy exists (e.g. after a Mod Manager apply).
+        b._repoint_language_folders_to_streaming()
         ordered = self._ordered_folder_keys()
         if index < 0 or index >= len(ordered):
             return
