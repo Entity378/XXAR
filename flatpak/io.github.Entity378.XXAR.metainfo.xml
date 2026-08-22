@@ -50,6 +50,17 @@
   </requires>
 
   <releases>
+    <release version="1.1.3" date="2026-08-22">
+      <description>
+        <p>Safer Honkai Star Rail voice-over handling and clearer apply results.</p>
+        <ul>
+          <li>Honkai Star Rail voice-over originals are now secured into the streaming folder together with their hash files, so mods survive game repairs and updates like in the other games</li>
+          <li>The audio browser automatically switches a voice-over tab to the secured copy after applying, no restart needed</li>
+          <li>Applying now reports mods whose target audio is not in your installation (for example voice content the game has not downloaded yet) instead of claiming success</li>
+          <li>Much less log noise while applying</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.2" date="2026-08-16">
       <description>
         <p>Better sounding audio conversion and a crash fix.</p>
