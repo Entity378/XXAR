@@ -102,6 +102,8 @@ class WorkerRegistry(QObject):
         if self.is_running(name):
             logger.debug("[%s] worker '%s' already running; start refused", self._owner_name, name)
             return False
+        # Set parent of worker so it doesn't get destroyed while it's still running
+        worker.setParent(self)
         worker.setObjectName(name)
         # Let Qt free the C++ object once run() returns, then drop our Python reference.
         # Keyed off workerFinished (not finished) so a subclass that shadows finished still cleans up.
