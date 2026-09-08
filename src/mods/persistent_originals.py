@@ -191,16 +191,7 @@ def locate_pck_paths(streaming_root, persistent_root, pck_name, entries=None):
     # pck_name may be a bare name or a folder-qualified key; (None, None) when no source exists.
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
-    direct = streaming_root / pck_name
-    if direct.exists():
-        return direct, persistent_root / pck_name
-    candidates = []
-    try:
-        for subdir in sorted(streaming_root.iterdir()):
-            if subdir.is_dir() and (subdir / pck_name).exists():
-                candidates.append(subdir / pck_name)
-    except OSError:
-        return None, None
+    candidates = sorted(streaming_root.rglob(f'*{pck_name}'), key=lambda pck: len(pck.parts))
     if not candidates:
         return None, None
     chosen = candidates[0]

@@ -79,7 +79,12 @@ class BaseBrowserHandler:
         if not audio_root.exists():
             self._emit_missing_audio_folder_error(audio_root)
             return
-
+        
+        main_dir = audio_root.joinpath(*self.game.main_audio_subpath)
+        if not main_dir.exists():
+            self._emit_missing_audio_folder_error(main_dir)
+            return
+        
         b._audio_root = audio_root
         b.language_folders = {}
         language_mapping = dict(self.game.language_folders)
@@ -87,16 +92,16 @@ class BaseBrowserHandler:
         known_dirs = set(language_mapping) | special_dirs
         include_all_subdirs = not known_dirs
 
-        pck_files = list(audio_root.glob("*.pck"))
+        pck_files = list(main_dir.glob("*.pck"))
         if pck_files:
             b.language_folders["Full"] = {
-                "path": audio_root,
+                "path": main_dir,
                 "friendly_name": self.game.audio_root_friendly_name,
                 "pck_count": len(pck_files),
             }
 
-        for subfolder in audio_root.iterdir():
-            if not subfolder.is_dir():
+        for subfolder in audio_root.rglob('*/'):
+            if subfolder == main_dir:
                 continue
             if not include_all_subdirs and subfolder.name not in known_dirs:
                 continue
