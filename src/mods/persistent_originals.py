@@ -186,11 +186,12 @@ def _candidate_contains(candidate, target_ids):
         return False
 
 
-def locate_pck_paths(streaming_root, persistent_root, pck_name, entries=None):
+def locate_pck_paths(streaming_root: Path, persistent_root: Path, pck_name: str, entries=None):
     # Every rebuild resolves here: source under StreamingAssets, output mirroring its subpath under Persistent.
     # pck_name may be a bare name or a folder-qualified key; (None, None) when no source exists.
-    streaming_root = Path(streaming_root)
-    persistent_root = Path(persistent_root)
+    direct = streaming_root / pck_name
+    if direct.exists():
+        return direct, persistent_root / pck_name
     candidates = sorted(streaming_root.rglob(f'*{pck_name}'), key=lambda pck: len(pck.parts))
     if not candidates:
         return None, None
