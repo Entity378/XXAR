@@ -20,6 +20,7 @@ class SoundDatabase:
 
         self.database = {}
         self._loaded = False
+        self._by_file_id = None
 
     def ensure_loaded(self):
         # Deferred to first access — the JSON read isn't needed at app boot.
@@ -89,21 +90,24 @@ class SoundDatabase:
 
         return results
 
+    @staticmethod
+    def _file_id_key(value):
+        # Ids arrive as int from the pck index and as str from JSON, so both collapse to one key.
+        return str(value).strip()
+
+    def _file_id_index(self):
+        # Scanning every entry per lookup made the browser O(entries x wems) when expanding a pck.
+        if self._by_file_id is None:
+            index = {}
+            for sound_hash, info in self.database.items():
+                for file_id in (info.get('file_ids') or []):
+                    index.setdefault(self._file_id_key(file_id), {})[sound_hash] = info
+            self._by_file_id = index
+        return self._by_file_id
+
     def search_by_id(self, file_id):
         self.ensure_loaded()
-        results = {}
-        variants = {file_id, str(file_id)}
-        text = str(file_id).strip()
-        if text.isdigit():
-            try:
-                variants.add(int(text))
-            except Exception:
-                pass
-
-        for sound_hash, info in self.database.items():
-            file_ids = info.get('file_ids', []) or []
-            if any(variant in file_ids for variant in variants):
-                results[sound_hash] = info
+        results = dict(self._file_id_index().get(self._file_id_key(file_id), {}))
 
         return results
 
@@ -117,6 +121,7 @@ class SoundDatabase:
 
     def load(self):
 
+        self._by_file_id = None
         try:
             if self.db_path.exists():
                 with open(self.db_path, 'r', encoding='utf-8') as f:
@@ -127,6 +132,7 @@ class SoundDatabase:
 
     def save(self):
 
+        self._by_file_id = None
         try:
             with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(self.database, f, indent=2, ensure_ascii=False)

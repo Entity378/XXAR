@@ -66,7 +66,7 @@ from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay, locate_pck_paths
 from src.wwise import patch_backup
-from src.wwise.bnk_indexer import BNKIndexer
+from src.wwise.bnk_indexer import BNKIndexer, count_didx_wems
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_backup import BACKUP_SUFFIX
 from src.wwise.patch_target_resolver import (
@@ -939,23 +939,30 @@ class AudioBrowserBridge(QObject):
 
             items = []
 
+            # Sweep the banks once through a single handle, reading DIDX headers instead of whole banks.
+            # An unreadable bank stays listed, as it did when the per-bank parse raised.
+            non_empty_bnk_offsets = None
+            if self.hide_empty_bnk_enabled:
+                non_empty_bnk_offsets = set()
+                with open(self._pristine_read_path(pck_path), "rb") as bnk_scan:
+                    for bnk_info in indexer.index_data["banks"]:
+                        try:
+                            has_wems = count_didx_wems(
+                                bnk_scan, bnk_info["offset"], bnk_info["size"]
+                            ) > 0
+                        except Exception:
+                            has_wems = True
+                        if has_wems:
+                            non_empty_bnk_offsets.add(bnk_info["offset"])
+
             for bnk_info in indexer.index_data["banks"]:
                 bnk_id = str(bnk_info["id"])
 
                 if is_protected_source and bnk_info["id"] not in orphan_ids:
                     continue
 
-                if self.hide_empty_bnk_enabled:
-                    try:
-                        bnk_bytes = indexer.extract_single_file(
-                            bnk_info["id"], "bnk", bnk_info["lang_id"]
-                        )
-                        bnk_idx = BNKIndexer(bnk_bytes)
-                        bnk_idx.parse_didx()
-                        if bnk_idx.get_wem_count() == 0:
-                            continue
-                    except Exception:
-                        pass
+                if non_empty_bnk_offsets is not None and bnk_info["offset"] not in non_empty_bnk_offsets:
+                    continue
 
                 data_key = f"bnk:{pck_path}:{bnk_id}"
                 self._item_data[data_key] = {

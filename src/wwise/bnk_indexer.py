@@ -3,6 +3,24 @@ from io import BytesIO
 from struct import unpack
 
 
+def count_didx_wems(file_handle, bnk_offset, bnk_size):
+    # How many WEMs a bank embeds, without reading its DATA payload.
+    # DIDX holds 12 bytes per entry, so walking the chunk headers is enough.
+    end = bnk_offset + bnk_size
+    pos = bnk_offset
+    while pos + 8 <= end:
+        file_handle.seek(pos)
+        header = file_handle.read(8)
+        if len(header) < 8:
+            return 0
+        tag = header[:4]
+        size = unpack('<I', header[4:])[0]
+        if tag == b'DIDX':
+            return size // 12
+        pos += 8 + size
+    return 0
+
+
 class BNKIndexer:
 
     def __init__(self, bnk_bytes):

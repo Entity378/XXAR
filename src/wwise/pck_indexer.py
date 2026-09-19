@@ -18,6 +18,7 @@ class PCKIndexer:
             'sounds': [],
             'externals': []
         }
+        self._lookup = None
 
         self.lang_map = {
             0: 'sfx',
@@ -145,8 +146,23 @@ class PCKIndexer:
             self.index_data['banks'] = banks
             self.index_data['sounds'] = sounds
             self.index_data['externals'] = externals
+            self._lookup = None
 
         return self.index_data
+
+    def _build_lookup(self):
+        # Scanning the file table per extract is O(n) and turns a bulk extraction into O(n^2).
+        # setdefault keeps the first match, the entry the linear scan used to return.
+        self._lookup = {'bnk': {}, 'wem': {}}
+        for kind, file_lists in (
+            ('bnk', [self.index_data['banks']]),
+            ('wem', [self.index_data['sounds'], self.index_data['externals']]),
+        ):
+            table = self._lookup[kind]
+            for file_list in file_lists:
+                for info in file_list:
+                    table.setdefault((info['id'], info['lang_id']), info)
+                    table.setdefault((info['id'], None), info)
 
     def get_file_list(self, file_type='all'):
 
@@ -163,26 +179,20 @@ class PCKIndexer:
         else:
             raise ValueError(f"Invalid file_type: {file_type}")
 
-    def extract_single_file(self, file_id, file_type='wem', lang_id=None):
+    def extract_single_file(self, file_id, file_type='wem', lang_id=None, file_handle=None):
+        # Pass file_handle when extracting many entries: reopening the pck per call dominates bulk loops.
+        if self._lookup is None:
+            self._build_lookup()
 
-        file_info = None
-
-        if file_type == 'bnk':
-            search_lists = [self.index_data['banks']]
-        else:
-            search_lists = [self.index_data['sounds'], self.index_data['externals']]
-
-        for file_list in search_lists:
-            for info in file_list:
-                if info['id'] == file_id:
-                    if lang_id is None or info['lang_id'] == lang_id:
-                        file_info = info
-                        break
-            if file_info:
-                break
+        table = self._lookup['bnk' if file_type == 'bnk' else 'wem']
+        file_info = table.get((file_id, lang_id))
 
         if not file_info:
             raise KeyError(f"File {file_id} not found in PCK index")
+
+        if file_handle is not None:
+            file_handle.seek(file_info['offset'])
+            return file_handle.read(file_info['size'])
 
         with open(self.pck_path, 'rb') as f:
             f.seek(file_info['offset'])
