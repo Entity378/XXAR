@@ -15,7 +15,6 @@ from PyQt6.QtCore import (
 )
 
 import src.core.app_config as app_config
-from src.core.app_config import APP_NAME
 from src.core.config_manager import (
     get_custom_mod_library_root,
     get_settings_file,
@@ -23,6 +22,7 @@ from src.core.config_manager import (
     resolve_mod_library_dir,
     set_mod_library_dir,
 )
+from src.core.fs_errors import is_file_locked_error, is_permission_error
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -30,6 +30,7 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
+from src.gui.backend import dialogs
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
@@ -517,17 +518,7 @@ class ModManagerBridge(QObject):
             self.refreshMods()
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to clear mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to clear mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to clear mods: {str(e)}")
 
     @pyqtSlot(str)
     def installMod(self, file_path):
@@ -767,17 +758,7 @@ class ModManagerBridge(QObject):
 
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
 
     def _apply_mods_internal(self):
 
@@ -817,34 +798,23 @@ class ModManagerBridge(QObject):
             if skipped:
                 logger.warning(f"[Mod Manager] {len(skipped)} PCK(s) skipped, original audio missing: {skipped}")
                 self.progressUpdate.emit(f"Applied with warnings: {len(skipped)} PCK(s) skipped")
-                listing = "\n".join(f"* {name}" for name in skipped[:8])
-                if len(skipped) > 8:
-                    listing += f"\n* ... +{len(skipped) - 8}"
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Original Audio Missing"),
-                    QCoreApplication.translate(
-                        "Application",
-                        "These mod targets do not exist in your game installation:\n%1\n\nThe game downloads voice-over content on demand, so this audio may simply not be downloaded yet. Download the affected voice content in the game (or repair the game files), then apply mods again."
-                    ).replace("%1", listing),
-                    ""
-                )
+                self.alertDialogRequested.emit(*dialogs.original_audio_missing(skipped))
             else:
                 logger.info("[Mod Manager] Mods applied successfully!")
                 self.progressUpdate.emit("Mods applied successfully!")
 
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
+
+    def _report_write_failure(self, error, fallback_message):
+        # A file held open by the game needs the game closed, not admin rights.
+        if is_file_locked_error(error):
+            self.alertDialogRequested.emit(*dialogs.game_files_in_use())
+        elif is_permission_error(error):
+            self.alertDialogRequested.emit(*dialogs.permission_denied())
+        else:
+            self.errorOccurred.emit("Error", fallback_message)
 
     @pyqtSlot(result=str)
     def getModLibraryPath(self):

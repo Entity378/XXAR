@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from src.core.config_manager import get_game_state_dir
+from src.core.fs_errors import exists_or_raise
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
 from src.wwise.override_pck_patcher import restore_override_pck_backups
@@ -192,15 +193,12 @@ def locate_pck_paths(streaming_root, persistent_root, pck_name, entries=None):
     streaming_root = Path(streaming_root)
     persistent_root = Path(persistent_root)
     direct = streaming_root / pck_name
-    if direct.exists():
+    if exists_or_raise(direct):
         return direct, persistent_root / pck_name
     candidates = []
-    try:
-        for subdir in sorted(streaming_root.iterdir()):
-            if subdir.is_dir() and (subdir / pck_name).exists():
-                candidates.append(subdir / pck_name)
-    except OSError:
-        return None, None
+    for subdir in sorted(streaming_root.iterdir()):
+        if subdir.is_dir() and exists_or_raise(subdir / pck_name):
+            candidates.append(subdir / pck_name)
     if not candidates:
         return None, None
     chosen = candidates[0]

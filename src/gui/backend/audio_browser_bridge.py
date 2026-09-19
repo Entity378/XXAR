@@ -38,6 +38,7 @@ from src.core.config_manager import (
     get_game_sound_database_file,
     get_settings_file,
 )
+from src.core.fs_errors import is_file_locked_error, is_permission_error
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -57,6 +58,7 @@ from src.gui.backend.audio_games import (
     build_browser_handlers,
 )
 from src.gui.backend.update_manager_bridge import _urlopen
+from src.gui.backend import dialogs
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager, is_hirc_mod
@@ -605,16 +607,12 @@ class AudioBrowserBridge(QObject):
 
             if not streamed_files:
                 logger.warning("[File Check] WARNING: Missing all streamed PCK files!")
+                title, message, _ = dialogs.no_streamed_pcks()
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
                     Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
-                    Q_ARG(str,
-                        QCoreApplication.translate("Application", "No streamed PCK files were found in the game's audio folder.\n\n"
-                        "This means your game installation is incomplete or corrupted. "
-                        "Audio mods may not work correctly without these files.\n\n"
-                        "Please repair your game files through the game launcher.")
-                    ),
+                    Q_ARG(str, title),
+                    Q_ARG(str, message),
                 )
                 return
 
@@ -676,16 +674,12 @@ class AudioBrowserBridge(QObject):
             if problems:
                 detail = "\n\n".join(problems)
                 logger.warning("[File Check] WARNING: Issues found with streaming PCK files")
+                title, message, _ = dialogs.damaged_streamed_pcks(detail)
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
                     Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
-                    Q_ARG(str,
-                        detail + "\n\n" +
-                        QCoreApplication.translate("Application", "Your game installation may be incomplete or corrupted. "
-                        "Some audio mods may not work correctly without these files.\n\n"
-                        "Please repair your game files through the game launcher.")
-                    ),
+                    Q_ARG(str, title),
+                    Q_ARG(str, message),
                 )
             else:
                 logger.info(f"[File Check] All {len(streamed_files)} Streamed PCK files look healthy - all clear")
@@ -1954,7 +1948,7 @@ class AudioBrowserBridge(QObject):
 
         replacements = self._get_user_replacements()
         if not replacements:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?"), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(*dialogs.no_changes_to_show())
             return
 
         changes = []
@@ -2015,7 +2009,7 @@ class AudioBrowserBridge(QObject):
                 changes.append(change_entry)
 
         if not changes:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No manual audio replacements found.\n\nChanges from installed mods are managed in the Mod Manager."), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(*dialogs.no_manual_changes_to_show())
             return
 
         self.changesReady.emit(changes)
@@ -2264,7 +2258,13 @@ class AudioBrowserBridge(QObject):
 
         except Exception as e:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to apply changes"))
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to apply changes:\n%1").replace("%1", str(e)))
+            # A file held open by the game needs the game closed, not admin rights.
+            if is_file_locked_error(e):
+                self.alertDialogRequested.emit(*dialogs.game_files_in_use())
+            elif is_permission_error(e):
+                self.alertDialogRequested.emit(*dialogs.permission_denied())
+            else:
+                self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to apply changes:\n%1").replace("%1", str(e)))
             logger.exception("unhandled")
 
     @pyqtSlot()
