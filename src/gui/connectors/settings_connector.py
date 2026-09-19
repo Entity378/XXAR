@@ -26,25 +26,21 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.gui.backend import dialogs
-from src.gui.backend.base_worker import FunctionWorker, game_lock_holder
+from src.gui.backend.base_worker import game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
 
 logger = get_logger(__name__)
 
 
-GAME_SWITCH_WORKER = "game_switch"
-
-
 class SettingsConnector:
     _settings_target_game_id = None
     _pending_heavy = None
+    _heavy_running = False
 
     @staticmethod
     def _blocking_write():
-        # Another switch is fine: it is single-flight and latest-wins, so this one gets queued.
-        # A game-file write is not, because the switch would swap the managers it is still using.
-        holder = game_lock_holder()
-        return holder if holder and holder != GAME_SWITCH_WORKER else None
+        # A game-file write blocks a switch, which would swap the managers that write is still using.
+        return game_lock_holder()
 
     def _set_root_active_game_props(self, game_id):
         if not self.root:
@@ -204,6 +200,9 @@ class SettingsConnector:
         )
         if target == current:
             return
+        # A switch already in flight is not queued: its synchronous half would run again on top.
+        if self._heavy_running or self._pending_heavy is not None:
+            return
         # A switch rebinds app_config and swaps the bridge managers, which a running write still reads.
         if self._blocking_write() is not None:
             self.on_alert_dialog_requested(*dialogs.write_in_progress())
@@ -247,33 +246,35 @@ class SettingsConnector:
             )
 
     def _request_heavy_reload(self, target_game_id, game_data_dir):
-        # Single-flight, latest-wins: never run two heavy reloads at once (the concurrent reload
-        # was the rapid-swap hazard). A switch requested mid-reload is applied when the current finishes.
+        # Single-flight: never run two heavy reloads at once.
+        # Deferred one turn so the synchronous half of the switch repaints first.
         self._pending_heavy = (target_game_id, game_data_dir)
-        if not self._app_workers.is_running("game_switch"):
-            self._start_heavy_reload()
+        if not self._heavy_running:
+            self._set_game_switch_busy(True)
+            QTimer.singleShot(0, self._start_heavy_reload)
 
     def _start_heavy_reload(self):
+        # Deliberately on the GUI thread: this calls bridge slots that start their own workers.
+        # A worker born on another thread cannot be parented to its registry and is freed mid-run.
         if self._pending_heavy is None:
+            self._set_game_switch_busy(False)
             return
         if game_lock_holder() is not None:
             QTimer.singleShot(30, self._start_heavy_reload)
             return
         target_game_id, game_data_dir = self._pending_heavy
         self._pending_heavy = None
-        worker = FunctionWorker(
-            lambda: self._switch_active_game_heavy(target_game_id, game_data_dir)
-        )
-        worker.workerFinished.connect(self._on_heavy_reload_done)
-        if not self._app_workers.start(GAME_SWITCH_WORKER, worker, holds_game_lock=True):
-            # Put it back rather than lose it: the UI has already been switched synchronously.
-            self._pending_heavy = (target_game_id, game_data_dir)
-            QTimer.singleShot(30, self._start_heavy_reload)
+        self._heavy_running = True
+        try:
+            self._switch_active_game_heavy(target_game_id, game_data_dir)
+        finally:
+            self._heavy_running = False
+        self._set_game_switch_busy(False)
 
-    def _on_heavy_reload_done(self):
-        # Apply the latest pending switch on the next event-loop turn, once the slot has cleared.
-        if self._pending_heavy is not None:
-            QTimer.singleShot(0, self._start_heavy_reload)
+    def _set_game_switch_busy(self, busy):
+        # Gates the game selector for as long as the reload owns the GUI thread.
+        if self.root:
+            self.root.setProperty("gameSwitchInProgress", bool(busy))
 
     def _store_game_data_dir_settings(
         self, settings, game_data_dir, target_game_id, set_active=False

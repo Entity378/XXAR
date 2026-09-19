@@ -100,6 +100,16 @@ class WorkerRegistry(QObject):
     def start(self, name: str, worker: QThread, holds_game_lock: bool = False) -> bool:
         # Refuse to start over a still-running worker; the caller should report "busy".
         # Returns True if the worker was started.
+
+        # A worker born on another thread cannot be reparented here, so Qt leaves it unowned.
+        # Dropping the Python reference then frees a live QThread: qFatal, process gone, no log.
+        if QThread.currentThread() is not self.thread():
+            logger.error(
+                "[%s] worker '%s' started from a foreign thread; it will run unparented",
+                self._owner_name,
+                name,
+            )
+
         if self.is_running(name):
             logger.debug("[%s] worker '%s' already running; start refused", self._owner_name, name)
             return False
@@ -127,6 +137,9 @@ class WorkerRegistry(QObject):
         # Only drop the slot if the finished worker is still the one we hold.
         # A stale (superseded) worker must not clear the pointer to the live one.
         if self._workers.get(name) is worker:
+            # run() has returned but the thread may not have terminated yet.
+            # An unparented worker is owned by this reference alone, so dropping it now would destroy it live.
+            worker.wait()
             self._workers.pop(name, None)
             self._game_lock_holders.discard(name)
 

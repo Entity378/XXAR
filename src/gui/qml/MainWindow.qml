@@ -21,6 +21,8 @@ ApplicationWindow {
     property bool modCreationEnabled: false
     property bool hircEditorTabEnabled: false
     property bool horizontalGameSwapEnabled: false
+    property bool gameSwitchInProgress: false
+    readonly property bool gameSwapBlocked: audioBrowserPage.changesDialogOpen || gameSwitchInProgress
     property string activeGameShort: gameShort
     property string activeGameName: gameName
     property string activeAssetsDir: assetsDir
@@ -240,10 +242,10 @@ ApplicationWindow {
                         MouseArea {
                             id: swapGameMouseGI
                             anchors.fill: parent
-                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            cursorShape: gameSwapBlocked || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
                             hoverEnabled: true
                             onClicked: {
-                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "GI")
+                                if (!gameSwapBlocked && activeGameShort != "GI")
                                     mainWindow.selectGameRequested('genshin')
                             }
                         }
@@ -274,10 +276,10 @@ ApplicationWindow {
                         MouseArea {
                             id: swapGameMouseHSR
                             anchors.fill: parent
-                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            cursorShape: gameSwapBlocked || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
                             hoverEnabled: true
                             onClicked: {
-                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "HSR")
+                                if (!gameSwapBlocked && activeGameShort != "HSR")
                                     mainWindow.selectGameRequested('hsr')
                             }
                         }
@@ -308,10 +310,10 @@ ApplicationWindow {
                         MouseArea {
                             id: swapGameMouseZZZ
                             anchors.fill: parent
-                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            cursorShape: gameSwapBlocked || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
                             hoverEnabled: true
                             onClicked: {
-                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "ZZZ")
+                                if (!gameSwapBlocked && activeGameShort != "ZZZ")
                                     mainWindow.selectGameRequested('zzz')
                             }
                         }
@@ -999,12 +1001,12 @@ ApplicationWindow {
                             MouseArea {
                                 id: swapGameMouse
                                 anchors.fill: parent
-                                cursorShape: audioBrowserPage.changesDialogOpen ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                cursorShape: gameSwapBlocked ? Qt.ArrowCursor : Qt.PointingHandCursor
                                 hoverEnabled: true
-                                onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
+                                onEntered: parent.hovered = !gameSwapBlocked
                                 onExited: parent.hovered = false
                                 onClicked: {
-                                    if (!audioBrowserPage.changesDialogOpen)
+                                    if (!gameSwapBlocked)
                                         gameMenu.popup(swapGame.width - gameMenu.width, swapGame.height + 6)
                                 }
                             }
