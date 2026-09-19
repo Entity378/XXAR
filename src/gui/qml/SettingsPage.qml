@@ -2216,14 +2216,14 @@ Item {
                                 spacing: 10
 
                                 Text {
-                                    text: qsTranslate("Application", "Author:")
+                                    text: qsTranslate("Application", "Authors:")
                                     color: "#888888"
                                     font.family: "Alatsi"
                                     font.pixelSize: 14
                                 }
 
                                 Text {
-                                    text: "Entity378"
+                                    text: "Pucas01 and Entity378"
                                     color: "#ffffff"
                                     font.family: "Alatsi"
                                     font.pixelSize: 14
