@@ -50,6 +50,20 @@
   </requires>
 
   <releases>
+    <release version="1.1.4" date="2026-09-20">
+      <description>
+        <p>Fewer crashes, a smoother interface and a faster browser.</p>
+        <ul>
+          <li>Swapping games quickly no longer closes the app</li>
+          <li>Applying mods no longer freezes the window, because game files are now written in the background</li>
+          <li>The browser opens pck folders noticeably faster</li>
+          <li>Fixed occasional crashes on launch</li>
+          <li>Applying now tells a locked or permission-denied file apart from audio your installation is missing</li>
+          <li>Honkai Star Rail: the help button is back in the top bar</li>
+          <li>Genshin Impact: added the names for Sorrows Calmed and The Forbidding Ground</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.3" date="2026-08-22">
       <description>
         <p>Safer Honkai Star Rail voice-over handling and clearer apply results.</p>
