@@ -222,9 +222,11 @@ ApplicationWindow {
                         width: 75
                         height: 75
                         readonly property color chipAccent: mainWindow.gameAccent("genshin")
-                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
+                        readonly property bool chipActive: activeGameShort == "GI"
+                        color: chipActive ? Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5) : Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
                         radius: 15
-                        border.color: activeGameShort == "GI" ? Theme.primaryAccent  : "transparent"
+                        border.color: chipActive ? Theme.primaryAccent : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
@@ -257,9 +259,11 @@ ApplicationWindow {
                         width: 75
                         height: 75
                         readonly property color chipAccent: mainWindow.gameAccent("hsr")
-                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
+                        readonly property bool chipActive: activeGameShort == "HSR"
+                        color: chipActive ? Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5) : Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
                         radius: 15
-                        border.color:  activeGameShort == "HSR" ? Theme.primaryAccent  : "transparent"
+                        border.color: chipActive ? Theme.primaryAccent : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
@@ -291,9 +295,11 @@ ApplicationWindow {
                         width: 75
                         height: 75
                         readonly property color chipAccent: mainWindow.gameAccent("zzz")
-                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
+                        readonly property bool chipActive: activeGameShort == "ZZZ"
+                        color: chipActive ? Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5) : Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
                         radius: 15
-                        border.color:  activeGameShort == "ZZZ" ? Theme.primaryAccent  : "transparent"
+                        border.color: chipActive ? Theme.primaryAccent : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
