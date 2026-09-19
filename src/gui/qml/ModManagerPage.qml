@@ -28,7 +28,7 @@ Item {
     property bool gridViewMode: false
     property bool devMode: false
 
-    signal testPermissionDialogClicked()
+    signal testErrorClicked(string kind)
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
 
     ListModel {
@@ -1036,7 +1036,10 @@ Item {
             }
 
             Item {
-                id: devPermissionTestButton
+                id: devErrorTestButton
+                property int kindIndex: 0
+                readonly property var errorKinds: ["permission", "locked", "missing_original", "generic"]
+                readonly property var errorLabels: ["Sim: Permission", "Sim: Locked", "Sim: Missing Orig", "Sim: Generic"]
                 visible: mod_Manager.devMode
                 anchors.right: applyModsButton.left
                 anchors.bottom: parent.bottom
@@ -1048,12 +1051,12 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: 30
-                    color: devPermMouse.pressed ? "#a800cc" : devPermMouse.containsMouse ? "#cc33ff" : "#aa00ee"
+                    color: devErrorMouse.pressed ? "#a800cc" : devErrorMouse.containsMouse ? "#cc33ff" : "#aa00ee"
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Test Perm Error"
+                        text: devErrorTestButton.errorLabels[devErrorTestButton.kindIndex]
                         color: "#ffffff"
                         font.family: "Alatsi"
                         font.pixelSize: 14
@@ -1061,11 +1064,14 @@ Item {
                 }
 
                 MouseArea {
-                    id: devPermMouse
+                    id: devErrorMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: testPermissionDialogClicked()
+                    onClicked: {
+                        testErrorClicked(devErrorTestButton.errorKinds[devErrorTestButton.kindIndex])
+                        devErrorTestButton.kindIndex = (devErrorTestButton.kindIndex + 1) % devErrorTestButton.errorKinds.length
+                    }
                 }
             }
 

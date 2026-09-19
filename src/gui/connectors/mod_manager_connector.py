@@ -46,7 +46,7 @@ class ModManagerConnector:
         mod_page.enableAllClicked.connect(self.mod_manager_bridge.enableAllMods)
         mod_page.disableAllClicked.connect(self.mod_manager_bridge.disableAllMods)
         mod_page.clearModsClicked.connect(self.mod_manager_bridge.clearMods)
-        mod_page.testPermissionDialogClicked.connect(self._on_test_permission_dialog)
+        mod_page.testErrorClicked.connect(self.mod_manager_bridge.simulateApplyError)
         mod_page.modToggled.connect(self.on_mod_toggled)
         mod_page.modSelected.connect(self.on_mod_selected)
         mod_page.moreInfoClicked.connect(self.on_more_info_clicked)
@@ -63,13 +63,6 @@ class ModManagerConnector:
         mod_page.setProperty("devMode", app_config.DEBUG)
 
         logger.info(f"[{APP_NAME}] Mod manager page connected")
-
-    def _on_test_permission_dialog(self):
-        self.on_alert_dialog_requested(
-            QCoreApplication.translate("Application", "Permission Denied"),
-            QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-            ""
-        )
 
     def on_install_mod_clicked(self):
         logger.info("[Mod Manager] Opening file dialog for mod installation...")

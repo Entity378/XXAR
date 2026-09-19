@@ -36,6 +36,7 @@ from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
     InvalidModPackageError,
+    ModApplicationError,
     ModPackageManager,
     count_replacements,
 )
@@ -815,6 +816,31 @@ class ModManagerBridge(QObject):
             self.alertDialogRequested.emit(*dialogs.permission_denied())
         else:
             self.errorOccurred.emit("Error", fallback_message)
+
+    @pyqtSlot(str)
+    def simulateApplyError(self, kind):
+        # Temporary dev probe mirroring the _apply_mods_internal reporting above.
+        # Delete it together with the Sim button in ModManagerPage.qml.
+        try:
+            if kind == "missing_original":
+                self.alertDialogRequested.emit(*dialogs.original_audio_missing(["Streamed_Music.pck", "SoundBank_En.pck"]))
+                return
+            simulated_pck = str(Path(self.game_audio_dir or "C:/") / "Streamed_Music.pck")
+            # Shaped like the real Win32 failures: winerror 5 or 32, wrapped without "from e".
+            if kind == "permission":
+                try:
+                    raise PermissionError(13, "Access is denied", simulated_pck, 5)
+                except OSError as e:
+                    raise ModApplicationError(f"Failed to process Streamed_Music.pck: {e}")
+            if kind == "locked":
+                try:
+                    raise PermissionError(13, "The process cannot access the file because it is being used by another process", simulated_pck, 32)
+                except OSError as e:
+                    raise ModApplicationError(f"Failed to process Streamed_Music.pck: {e}")
+            raise ModApplicationError("Simulated failure with no permission cause")
+        except Exception as e:
+            logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
 
     @pyqtSlot(result=str)
     def getModLibraryPath(self):
