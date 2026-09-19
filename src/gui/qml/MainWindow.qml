@@ -52,6 +52,15 @@ ApplicationWindow {
         showToast(message, false)
     }
 
+    // Each swap tile is tinted with its own game's accent, not the active theme's.
+    function gameAccent(gameId) {
+        for (var i = 0; i < supportedGames.length; ++i) {
+            if (supportedGames[i].id === gameId)
+                return supportedGames[i].accent
+        }
+        return "transparent"
+    }
+
     signal dialogConfirmed(string actionId)
     signal dialogCancelled(string actionId)
     signal conflictsResolved()
@@ -198,115 +207,116 @@ ApplicationWindow {
                     Image {
                         width: 75
                         height: 75
-                        source: "../assets/" + activeAssetsDir + "/" + activeLogoPng
+                        source: "../assets/" + activeAssetsDir + "/" + activeLogo256
+                        sourceSize.width: width * Screen.devicePixelRatio
+                        sourceSize.height: height * Screen.devicePixelRatio
                         fillMode: Image.PreserveAspectFit
                         smooth: true
                         mipmap: true
-                        transform: Translate { x: activeAssetsDir === "SRAR" ? 75 * 32 / 256 : 0 }
                         visible: !horizontalGameSwapEnabled
                     }
 
                     Rectangle{
                         width: 75
                         height: 75
-                        color: "transparent"
+                        readonly property color chipAccent: mainWindow.gameAccent("genshin")
+                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
                         radius: 15
                         border.color: activeGameShort == "GI" ? Theme.primaryAccent  : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
-                            width: parent.width - 5
-                            height: parent.height - 5
-                            source: "../assets/GIAR/GIAR-Logo2.png"
+                            width: parent.width - 17
+                            height: parent.height - 17
+                            source: "../assets/GIAR/GIAR-Logo2-256.png"
+                            // Decoding at the drawn size avoids the GPU minifying a 256px logo down to 58.
+                            sourceSize.width: width * Screen.devicePixelRatio
+                            sourceSize.height: height * Screen.devicePixelRatio
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             mipmap: true
-                            property bool hovered: false
-                            MouseArea {
-                                    id: swapGameMouseGI
-                                    anchors.fill: parent
-                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    hoverEnabled: true
-                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
-                                    onExited: parent.hovered = false
-                                    onClicked: {
-                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "GI")
-                                            mainWindow.selectGameRequested('genshin')
-                                    }
-                                }
-                            ToolTip.visible: swapGameMouseGI.containsMouse && activeGameShort != "GI"
-                            ToolTip.text: qsTranslate("Application", "Swap to Genshin Impact")
                         }
+                        MouseArea {
+                            id: swapGameMouseGI
+                            anchors.fill: parent
+                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onClicked: {
+                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "GI")
+                                    mainWindow.selectGameRequested('genshin')
+                            }
+                        }
+                        ToolTip.visible: swapGameMouseGI.containsMouse && activeGameShort != "GI"
+                        ToolTip.text: qsTranslate("Application", "Swap to Genshin Impact")
                     }
 
                     Rectangle{
                         width: 75
                         height: 75
-                        color: "transparent"
+                        readonly property color chipAccent: mainWindow.gameAccent("hsr")
+                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
                         radius: 15
                         border.color:  activeGameShort == "HSR" ? Theme.primaryAccent  : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
-                            width: parent.width - 5
-                            height: parent.height - 5
-                            source: "../assets/SRAR/SRAR-Logo2.png"
+                            width: parent.width - 17
+                            height: parent.height - 17
+                            source: "../assets/SRAR/SRAR-Logo2-256.png"
+                            sourceSize.width: width * Screen.devicePixelRatio
+                            sourceSize.height: height * Screen.devicePixelRatio
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             mipmap: true
-                            transform: Translate { x: 75 * 32 / 256 }
-                            property bool hovered: false
-                            MouseArea {
-                                    id: swapGameMouseHSR
-                                    anchors.fill: parent
-                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    hoverEnabled: true
-                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
-                                    onExited: parent.hovered = false
-                                    onClicked: {
-                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "HSR")
-                                            mainWindow.selectGameRequested('hsr')
-                                    }
-                                }
-                            ToolTip.visible: swapGameMouseHSR.containsMouse && activeGameShort != "HSR"
-                            ToolTip.text: qsTranslate("Application", "Swap to Honkai Star Rail")
                         }
+                        MouseArea {
+                            id: swapGameMouseHSR
+                            anchors.fill: parent
+                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onClicked: {
+                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "HSR")
+                                    mainWindow.selectGameRequested('hsr')
+                            }
+                        }
+                        ToolTip.visible: swapGameMouseHSR.containsMouse && activeGameShort != "HSR"
+                        ToolTip.text: qsTranslate("Application", "Swap to Honkai Star Rail")
                     }
 
                     Rectangle{
                         width: 75
                         height: 75
-                        color: "transparent"
+                        readonly property color chipAccent: mainWindow.gameAccent("zzz")
+                        color: Qt.rgba(chipAccent.r, chipAccent.g, chipAccent.b, 0.5)
                         radius: 15
                         border.color:  activeGameShort == "ZZZ" ? Theme.primaryAccent  : "transparent"
                         border.width: 2
                         visible: horizontalGameSwapEnabled
                         Image {
                             anchors.centerIn: parent
-                            width: parent.width - 5
-                            height: parent.height - 5
-                            source: "../assets/ZZAR/ZZAR-Logo2.png"
+                            width: parent.width - 17
+                            height: parent.height - 17
+                            source: "../assets/ZZAR/ZZAR-Logo2-256.png"
+                            sourceSize.width: width * Screen.devicePixelRatio
+                            sourceSize.height: height * Screen.devicePixelRatio
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             mipmap: true
-                            property bool hovered: false
-                            MouseArea {
-                                    id: swapGameMouseZZZ
-                                    anchors.fill: parent
-                                    cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                    hoverEnabled: true
-                                    onEntered: parent.hovered = !audioBrowserPage.changesDialogOpen
-                                    onExited: parent.hovered = false
-                                    onClicked: {
-                                        if (!audioBrowserPage.changesDialogOpen && activeGameShort != "ZZZ")
-                                            mainWindow.selectGameRequested('zzz')
-                                    }
-                                }
-                            ToolTip.visible: swapGameMouseZZZ.containsMouse && activeGameShort != "ZZZ"
-                            ToolTip.text: qsTranslate("Application", "Swap to Zenless Zone Zero")
                         }
+                        MouseArea {
+                            id: swapGameMouseZZZ
+                            anchors.fill: parent
+                            cursorShape: audioBrowserPage.changesDialogOpen || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onClicked: {
+                                if (!audioBrowserPage.changesDialogOpen && activeGameShort != "ZZZ")
+                                    mainWindow.selectGameRequested('zzz')
+                            }
+                        }
+                        ToolTip.visible: swapGameMouseZZZ.containsMouse && activeGameShort != "ZZZ"
+                        ToolTip.text: qsTranslate("Application", "Swap to Zenless Zone Zero")
                     }
                 }
 
@@ -854,15 +864,17 @@ ApplicationWindow {
                                 width: 40
                                 height: 40
                                 radius: 20
-                                color: Theme.primaryAccent
+                                // Same tint as the menu chips and the swap tiles.
+                                color: Qt.rgba(Theme.primaryAccent.r, Theme.primaryAccent.g, Theme.primaryAccent.b, 0.5)
                                 clip: true
 
                                 Image {
                                     anchors.centerIn: parent
-                                    anchors.horizontalCenterOffset: activeAssetsDir === "SRAR" ? width * 32 / 256 : 0
                                     width: 32
                                     height: 32
                                     source: "../assets/" + activeAssetsDir + "/" + activeLogo256
+                                    sourceSize.width: width * Screen.devicePixelRatio
+                                    sourceSize.height: height * Screen.devicePixelRatio
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
                                     mipmap: true
@@ -873,7 +885,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     text: activeGameShort
                                     visible: activeLogo256 === ""
-                                    color: "#000000"
+                                    color: Theme.textPrimary
                                     font.family: "Stretch Pro"
                                     font.pixelSize: 13
                                 }
@@ -891,11 +903,14 @@ ApplicationWindow {
 
                             XXARContextMenu {
                                 id: gameMenu
+                                width: 235
                                 Instantiator {
                                     model: supportedGames
                                     delegate: MenuItem {
                                         id: gameItem
-                                        implicitWidth: 260
+                                        readonly property color itemAccent: modelData.accent
+                                        readonly property bool isActiveGame: modelData.shortLabel === activeGameShort
+                                        implicitWidth: gameMenu.width
                                         implicitHeight: 52
                                         leftPadding: Theme.spacingMedium
                                         rightPadding: Theme.spacingMedium
@@ -908,15 +923,19 @@ ApplicationWindow {
                                                 width: 36
                                                 height: 36
                                                 radius: 18
-                                                color: modelData.accent
+                                                // Same tint as the horizontal swap tiles, so a dark logo stays readable.
+                                                color: Qt.rgba(gameItem.itemAccent.r, gameItem.itemAccent.g, gameItem.itemAccent.b, 0.5)
+                                                border.color: gameItem.isActiveGame ? gameItem.itemAccent : "transparent"
+                                                border.width: 2
                                                 clip: true
 
                                                 Image {
                                                     anchors.centerIn: parent
-                                                    anchors.horizontalCenterOffset: modelData.id === "hsr" ? width * 32 / 256 : 0
                                                     width: 28
                                                     height: 28
                                                     source: modelData.logo
+                                                    sourceSize.width: width * Screen.devicePixelRatio
+                                                    sourceSize.height: height * Screen.devicePixelRatio
                                                     fillMode: Image.PreserveAspectFit
                                                     smooth: true
                                                     mipmap: true
@@ -926,7 +945,7 @@ ApplicationWindow {
                                                     anchors.centerIn: parent
                                                     text: modelData.shortLabel
                                                     visible: modelData.logo === ""
-                                                    color: "#000000"
+                                                    color: Theme.textPrimary
                                                     font.family: "Stretch Pro"
                                                     font.pixelSize: 12
                                                 }
@@ -936,8 +955,8 @@ ApplicationWindow {
                                                 id: itemCheck
                                                 anchors.right: parent.right
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: modelData.shortLabel === activeGameShort ? "✓" : ""
-                                                color: gameItem.highlighted ? Theme.textOnAccent : Theme.primaryAccent
+                                                text: gameItem.isActiveGame ? "✓" : ""
+                                                color: gameItem.itemAccent
                                                 font.pixelSize: 14
                                                 font.bold: true
                                             }
@@ -952,13 +971,13 @@ ApplicationWindow {
                                                 elide: Text.ElideRight
                                                 font.family: Theme.fontFamily
                                                 font.pixelSize: Theme.fontSizeSmall
-                                                color: gameItem.highlighted ? Theme.textOnAccent : Theme.textPrimary
-                                                Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                                                color: Theme.textPrimary
                                             }
                                         }
 
                                         background: Rectangle {
-                                            color: gameItem.highlighted ? Theme.primaryAccent : "transparent"
+                                            // Neutral hover: tinting with the theme accent painted every row in the active game's colour.
+                                            color: gameItem.highlighted ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
                                             radius: Theme.radiusSmall
                                             Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
                                         }
@@ -986,7 +1005,7 @@ ApplicationWindow {
                                 onExited: parent.hovered = false
                                 onClicked: {
                                     if (!audioBrowserPage.changesDialogOpen)
-                                        gameMenu.popup(swapGame.width + 4, 0)
+                                        gameMenu.popup(swapGame.width - gameMenu.width, swapGame.height + 6)
                                 }
                             }
 
