@@ -25,15 +25,26 @@ from src.core.game_registry import (
     normalize_game_data_dir,
 )
 from src.core.logger import get_logger
-from src.gui.backend.base_worker import FunctionWorker
+from src.gui.backend import dialogs
+from src.gui.backend.base_worker import FunctionWorker, game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
 
 logger = get_logger(__name__)
 
 
+GAME_SWITCH_WORKER = "game_switch"
+
+
 class SettingsConnector:
     _settings_target_game_id = None
     _pending_heavy = None
+
+    @staticmethod
+    def _blocking_write():
+        # Another switch is fine: it is single-flight and latest-wins, so this one gets queued.
+        # A game-file write is not, because the switch would swap the managers it is still using.
+        holder = game_lock_holder()
+        return holder if holder and holder != GAME_SWITCH_WORKER else None
 
     def _set_root_active_game_props(self, game_id):
         if not self.root:
@@ -193,6 +204,10 @@ class SettingsConnector:
         )
         if target == current:
             return
+        # A switch rebinds app_config and swaps the bridge managers, which a running write still reads.
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
         self._apply_game_switch(target)
 
     def _apply_game_switch(self, target_game_id):
@@ -241,7 +256,7 @@ class SettingsConnector:
     def _start_heavy_reload(self):
         if self._pending_heavy is None:
             return
-        if self._app_workers.is_running("game_switch"):
+        if game_lock_holder() is not None:
             QTimer.singleShot(30, self._start_heavy_reload)
             return
         target_game_id, game_data_dir = self._pending_heavy
@@ -250,7 +265,10 @@ class SettingsConnector:
             lambda: self._switch_active_game_heavy(target_game_id, game_data_dir)
         )
         worker.workerFinished.connect(self._on_heavy_reload_done)
-        self._app_workers.start("game_switch", worker)
+        if not self._app_workers.start(GAME_SWITCH_WORKER, worker, holds_game_lock=True):
+            # Put it back rather than lose it: the UI has already been switched synchronously.
+            self._pending_heavy = (target_game_id, game_data_dir)
+            QTimer.singleShot(30, self._start_heavy_reload)
 
     def _on_heavy_reload_done(self):
         # Apply the latest pending switch on the next event-loop turn, once the slot has cleared.
@@ -742,6 +760,10 @@ class SettingsConnector:
 
     def on_save_settings(self, game_path):
         logger.info(f"[Settings] Saving settings with game path: {game_path}")
+        # Saving swaps the bridge managers and can switch game, which a running write still reads.
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
 
         mod_creation_mode = self.settings_page.property("modCreationEnabled")
         enable_gb_thumbnails = self.settings_page.property("enableGbThumbnails")
@@ -1090,6 +1112,9 @@ class SettingsConnector:
     def on_welcome_game_selected(self, game_id):
         game_id = normalize_game_id(game_id)
         logger.info(f"[{APP_NAME}] User selected game: {game_id}")
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
         self._set_root_active_game_props(game_id)
         if self.welcome_dialog:
             game = get_game(game_id)
@@ -1099,6 +1124,9 @@ class SettingsConnector:
 
     def on_welcome_mode_selected(self, mode):
         logger.info(f"[{APP_NAME}] User selected mode: {mode}")
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
 
         try:
             settings = {}

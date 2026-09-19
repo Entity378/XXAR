@@ -27,6 +27,7 @@ Item {
     property int currentSortMode: 0
     property bool gridViewMode: false
     property bool devMode: false
+    readonly property bool writeInProgress: modManager ? modManager.writeInProgress : false
 
     signal testErrorClicked(string kind)
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
@@ -344,6 +345,7 @@ Item {
                     Text {
                         id: clearmods
                         anchors.centerIn: parent
+                        opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 20
@@ -356,6 +358,7 @@ Item {
                     MouseArea {
                         id: btn_clearmods_mouse
                         anchors.fill: parent
+                        enabled: !mod_Manager.writeInProgress
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: clearModsClicked()
@@ -1083,6 +1086,7 @@ Item {
                 anchors.margins: 16
                 height: 60
                 width: 220
+                opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
 
                 Rectangle {
                     anchors.fill: parent
@@ -1125,7 +1129,7 @@ Item {
                     }
 
                     Text {
-                        text: qsTranslate("Application", "Apply Mods")
+                        text: mod_Manager.writeInProgress ? qsTranslate("Application", "Working...") : qsTranslate("Application", "Apply Mods")
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 22
@@ -1138,6 +1142,7 @@ Item {
                 MouseArea {
                     id: btn_apply_mouse
                     anchors.fill: parent
+                    enabled: !mod_Manager.writeInProgress
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: applyModsClicked()

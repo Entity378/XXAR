@@ -75,9 +75,7 @@ class ModManagerConnector:
 
         if file_paths:
             logger.info(f"[Mod Manager] Installing {len(file_paths)} mod(s)...")
-            for file_path in file_paths:
-                logger.info(f"[Mod Manager] Installing mod from: {file_path}")
-                self.mod_manager_bridge.installMod(file_path)
+            self.mod_manager_bridge.installMods(list(file_paths))
         else:
             logger.info("[Mod Manager] Installation cancelled")
 

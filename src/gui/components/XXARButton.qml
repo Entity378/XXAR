@@ -4,6 +4,7 @@ import "../qml"
 
 Button {
     id: control
+    opacity: enabled ? 1.0 : 0.55
 
     property color buttonColor: Theme.primaryAccent
     property color textColor: Theme.textOnAccent

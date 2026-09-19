@@ -1024,6 +1024,7 @@ class ModPackageManager:
                     persistent_root=persistent_audio_dir,
                     fresh_clone=False,
                     status_cb=hirc_cb,
+                    soundbank_glob=game.soundbank_pck_glob,
                 )
         except Exception as e:
             raise ModApplicationError(f"Failed to apply HIRC track patches: {e}") from e

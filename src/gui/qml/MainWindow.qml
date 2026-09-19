@@ -1797,16 +1797,16 @@ ApplicationWindow {
             onDropped: {
                 mainWindow.isDraggingMod = false
                 if (drop.hasUrls) {
-                    var installed = 0
+                    var modPaths = []
                     for (var i = 0; i < drop.urls.length; i++) {
                         var filePath = mainWindow.urlToLocalPath(drop.urls[i])
                         if (filePath.toLowerCase().endsWith(activeModFileExt)) {
                             console.log("[Drag & Drop] Installing mod: " + filePath)
-                            modManagerBackend.installMod(filePath)
-                            installed++
+                            modPaths.push(filePath)
                         }
                     }
-                    if (installed > 0) {
+                    if (modPaths.length > 0) {
+                        modManagerBackend.installMods(modPaths)
                         currentTab = 1
                         drop.accept()
                     }

@@ -75,3 +75,11 @@ def damaged_streamed_pcks(problem_details):
         "Please repair your game files through the game launcher."),
         "",
     )
+
+
+def write_in_progress():
+    return (
+        QCoreApplication.translate("Application", "Operation In Progress"),
+        QCoreApplication.translate("Application", "%1 is still writing game files.\n\nWait for the current operation to finish, then try again.").replace("%1", APP_NAME),
+        "",
+    )
