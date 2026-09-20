@@ -56,16 +56,16 @@ class GameAudioIndex:
         return self._bnk_wems[cache_key]
 
     def find_live_pck(self, pck_name):
-        # Mirror apply_mods: prefer the audio root, fall back to the matching subdir.
-        base = Path(pck_name).name
+        # Mirror locate_pck_paths: prefer the audio root, then the shallowest match below it.
+        # Keys can name a folder (En/10100.pck) and languages share basenames, so ties break by path.
         direct = self.game_audio_dir / pck_name
         if direct.exists():
             return direct
-        for subdir in sorted(p for p in self.game_audio_dir.iterdir() if p.is_dir()):
-            candidate = subdir / base
-            if candidate.exists():
-                return candidate
-        return None
+        if Path(pck_name).is_absolute():
+            # A stale full-path key has nothing to search for relatively.
+            return None
+        candidates = sorted(self.game_audio_dir.rglob(pck_name), key=lambda pck: (len(pck.parts), pck))
+        return candidates[0] if candidates else None
 
     def _build_patch_index(self):
         # wem_id -> (override_name, bnk_id) for WEMs embedded in Patch.pck/Hotfix.pck BNKs (the copy the game plays).

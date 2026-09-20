@@ -193,7 +193,10 @@ def locate_pck_paths(streaming_root: Path, persistent_root: Path, pck_name: str,
     direct = streaming_root / pck_name
     if exists_or_raise(direct):
         return direct, persistent_root / pck_name
-    candidates = sorted(streaming_root.rglob(f'*{pck_name}'), key=lambda pck: len(pck.parts))
+    # A stale full-path key has nothing to search for relatively.
+    if Path(pck_name).is_absolute():
+        return None, None
+    candidates = sorted(streaming_root.rglob(pck_name), key=lambda pck: (len(pck.parts), pck))
     if not candidates:
         return None, None
     chosen = candidates[0]

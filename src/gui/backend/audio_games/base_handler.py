@@ -79,12 +79,12 @@ class BaseBrowserHandler:
         if not audio_root.exists():
             self._emit_missing_audio_folder_error(audio_root)
             return
-        
+
         main_dir = audio_root.joinpath(*self.game.main_audio_subpath)
         if not main_dir.exists():
             self._emit_missing_audio_folder_error(main_dir)
             return
-        
+
         b._audio_root = audio_root
         b.language_folders = {}
         language_mapping = dict(self.game.language_folders)
@@ -100,10 +100,13 @@ class BaseBrowserHandler:
                 "pck_count": len(pck_files),
             }
 
-        for subfolder in audio_root.rglob('*/'):
-            if subfolder == main_dir:
+        # Shallowest first: a nested namesake (HSR ships DecodedBanks/English) must never shadow the real folder.
+        for subfolder in sorted(audio_root.rglob("*/"), key=lambda folder: len(folder.parts)):
+            if subfolder == main_dir or not subfolder.is_dir():
                 continue
             if not include_all_subdirs and subfolder.name not in known_dirs:
+                continue
+            if subfolder.name in b.language_folders:
                 continue
             pck_files = list(subfolder.glob("*.pck"))
             if not pck_files:
@@ -116,7 +119,7 @@ class BaseBrowserHandler:
 
         persistent_root = data_folder.joinpath(*self.game.persistent_audio_subpath)
         if persistent_root.exists():
-            for subfolder in persistent_root.iterdir():
+            for subfolder in sorted(persistent_root.rglob("*/"), key=lambda folder: len(folder.parts)):
                 if not subfolder.is_dir():
                     continue
                 if not include_all_subdirs and subfolder.name not in known_dirs:
@@ -152,7 +155,7 @@ class BaseBrowserHandler:
 
         b.languageTabsReady.emit(tabs)
         if self.game.check_streaming_pairing:
-            b._check_missing_streaming_pcks(audio_root)
+            b._check_missing_streaming_pcks(main_dir)
         self.load_language_tab(0)
 
     def load_language_tab(self, index):
