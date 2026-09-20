@@ -7,7 +7,6 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
-import src.core.app_config as app_config
 from src.core.logger import get_logger
 from src.wwise.hirc_music import apply_track_patches_to_bnk
 from src.wwise.pck_indexer import PCKIndexer
@@ -64,7 +63,7 @@ def _ensure_writable_overlay(source_pck, streaming_root, persistent_root, fresh_
     return overlay_path
 
 
-def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fresh_clone=False, status_cb=None):
+def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fresh_clone=False, status_cb=None, soundbank_glob=None):
     # Each patch is {pck_name, bnk_id, track_obj_id, source_remaps, loop_ms?, volume_db?}.
     # The stored pck_name can be stale, so each bnk is found by id in whatever soundbank pck holds it.
     # Return counts of patched bank files and patched bnks.
@@ -85,7 +84,7 @@ def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fre
 
     # Only the soundbank pcks hold bnks, matching how patch_target_resolver locates them.
     # The scan stops once every requested bnk has been found.
-    soundbank_glob = app_config.SOUNDBANK_PCK_GLOB or "*.pck"
+    soundbank_glob = soundbank_glob or "*.pck"
     for soundbank_pck in sorted(streaming_root.rglob(soundbank_glob)):
         if not unresolved_bnk_ids:
             break

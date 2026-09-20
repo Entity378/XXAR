@@ -1228,6 +1228,7 @@ Item {
                     XXARButton {
                         objectName: "tutorialImportModBtn"
                         text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
+                        enabled: !audioBrowserBackend.writeInProgress
                         buttonColor: Theme.primaryAccent
                         onClicked: importModForEditingClicked()
                     }
@@ -1239,11 +1240,13 @@ Item {
                     XXARButton {
                         objectName: "tutorialExportBtn"
                         text: qsTranslate("Application", "Export as Mod Package")
+                        enabled: !audioBrowserBackend.writeInProgress
                         onClicked: exportModClicked()
                     }
                     XXARButton {
                         objectName: "tutorialResetBtn"
                         text: qsTranslate("Application", "Reset All Changes")
+                        enabled: !audioBrowserBackend.writeInProgress
                         buttonColor: Theme.disabledAccent
                         textColor: Theme.textPrimary
                         onClicked: resetAllClicked()
@@ -3245,6 +3248,7 @@ Item {
                         text: qsTranslate("Application", "Apply Changes")
                         buttonColor: Theme.primaryAccent
                         visible: changesModel.count > 0
+                        enabled: !audioBrowserBackend.writeInProgress
                         onClicked: {
                             applyChangesClicked()
                             changesOverlay.closing = true

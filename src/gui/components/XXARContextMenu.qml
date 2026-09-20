@@ -6,6 +6,12 @@ import "../qml"
 Menu {
     id: control
 
+    // Without this the first and last rows bleed into the panel's rounded corners.
+    topPadding: Theme.spacingSmall
+    bottomPadding: Theme.spacingSmall
+    leftPadding: 6
+    rightPadding: 6
+
     delegate: MenuItem {
         id: menuItem
 

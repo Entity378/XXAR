@@ -18,6 +18,8 @@ def _natural_pck_key(name: str) -> list:
 
 from PyQt6.QtCore import (
     QObject,
+    QTimer,
+    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
@@ -37,7 +39,8 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.data.sound_database import SoundDatabase
-from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
+from src.gui.backend import dialogs
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.wwise.hirc_music import (
@@ -197,13 +200,14 @@ class ApplyDraftWorker(BaseWorker):
     finished_ok = pyqtSignal(str)
     failed = pyqtSignal(str)
 
-    def __init__(self, media_adds, track_patches, add_fn, streaming_root, persistent_root):
+    def __init__(self, media_adds, track_patches, add_fn, streaming_root, persistent_root, soundbank_glob):
         super().__init__()
         self._media_adds = list(media_adds)
         self._track_patches = list(track_patches)
         self._add_fn = add_fn  # bound HircEditorBridge._add_wem_to_pck
         self._streaming_root = streaming_root
         self._persistent_root = persistent_root
+        self._soundbank_glob = soundbank_glob
 
     def work(self):
         try:
@@ -222,6 +226,7 @@ class ApplyDraftWorker(BaseWorker):
                     self._persistent_root,
                     fresh_clone=True,
                     status_cb=lambda m: self.progress.emit(str(m)),
+                    soundbank_glob=self._soundbank_glob,
                 )
             self.finished_ok.emit("Draft applied to the live game.")
         except Exception as e:
@@ -237,6 +242,7 @@ class HircEditorBridge(QObject):
     bnkHircReady = pyqtSignal(str, "qint64", "QVariant")
     statusUpdate = pyqtSignal(str)
     errorOccurred = pyqtSignal(str, str)
+    writeInProgressChanged = pyqtSignal()
     patchApplied = pyqtSignal(str, "qint64", "qint64", "qint64")
     loopPatchApplied = pyqtSignal(str, "qint64", "qint64", float)
     volumePatchApplied = pyqtSignal(str, "qint64", float)
@@ -256,6 +262,8 @@ class HircEditorBridge(QObject):
     def __init__(self):
         super().__init__()
         self._workers = WorkerRegistry("hirc_editor")
+        self._write_in_progress = False
+        self._write_done = None
         self._draft = {"media_adds": [], "track_patches": []}
         self._draft_game_id: Optional[str] = None
         # Reverse index {wem_id: name} from the per-game sound database.
@@ -727,6 +735,44 @@ class HircEditorBridge(QObject):
     # The draft holds media adds and track patches, persisted per game so it survives restarts.
     # Apply All replays it onto the live game and Export packages it as a .xxar.
 
+    @pyqtProperty(bool, notify=writeInProgressChanged)
+    def writeInProgress(self):
+        return self._write_in_progress
+
+    def _set_write_in_progress(self, value):
+        if self._write_in_progress == value:
+            return
+        self._write_in_progress = value
+        self.writeInProgressChanged.emit()
+
+    def _refuse_if_writing(self):
+        # Backstop for the disabled controls: the draft must not change under a running write.
+        if game_lock_holder() is None:
+            return False
+        title, message, _ = dialogs.write_in_progress()
+        self.errorOccurred.emit(title, message)
+        return True
+
+    def _start_write(self, name, worker, on_done=None):
+        # Every game-file write runs off the GUI thread and holds the game lock.
+        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it.
+        worker.workerFinished.connect(self._on_write_finished)
+        if not self._workers.start(name, worker, holds_game_lock=True):
+            logger.warning(f"[HIRC Editor] {name} refused: game lock held by {game_lock_holder()}")
+            title, message, _ = dialogs.write_in_progress()
+            self.errorOccurred.emit(title, message)
+            return
+        self._write_done = on_done
+        self._set_write_in_progress(True)
+
+    @pyqtSlot()
+    def _on_write_finished(self):
+        self._set_write_in_progress(False)
+        on_done, self._write_done = self._write_done, None
+        if on_done is not None:
+            # Deferred one turn so the registry has released the game lock before on_done runs.
+            QTimer.singleShot(0, on_done)
+
     def _get_draft(self) -> dict:
         gid = self._current_game_id()
         if self._draft_game_id != gid:
@@ -1165,8 +1211,7 @@ class HircEditorBridge(QObject):
         if self._draft_count() == 0:
             self.errorOccurred.emit("Apply", "Nothing staged to apply.")
             return
-        if self._workers.is_running("apply"):
-            self.statusUpdate.emit("Apply already in progress...")
+        if self._refuse_if_writing():
             return
         streaming = self._game_audio_dir()
         persistent = self._game_persistent_audio_dir()
@@ -1181,13 +1226,14 @@ class HircEditorBridge(QObject):
         worker = ApplyDraftWorker(
             media_adds, track_patches,
             self._add_wem_to_pck, streaming, persistent,
+            get_game(self._current_game_id()).soundbank_pck_glob,
         )
         worker.progress.connect(lambda m: self.statusUpdate.emit(m))
         worker.finished_ok.connect(lambda m: self.statusUpdate.emit(m))
         worker.finished_ok.connect(lambda m: self.draftApplied.emit(True, m))
         worker.failed.connect(lambda m: self.errorOccurred.emit("Apply Error", m))
         worker.failed.connect(lambda m: self.draftApplied.emit(False, m))
-        self._workers.start("apply", worker)
+        self._start_write("apply", worker)
 
     @pyqtSlot()
     def exportDraftAsMod(self):
@@ -1237,56 +1283,80 @@ class HircEditorBridge(QObject):
             )
             return
 
-        tmp = Path(tempfile.mkdtemp(prefix="hirc_import_"))
-        try:
-            with zipfile.ZipFile(mod_path) as zf:
-                zf.extractall(tmp)
-            # Replace-always: clear the current draft (and its staged WEMs) before rebuilding.
-            self.resetDraft()
-            d = self._get_draft()
-            wem_dir = get_game_hirc_draft_wem_dir(self._current_game_id())
-            wem_dir.mkdir(parents=True, exist_ok=True)
+        if self._refuse_if_writing():
+            return
+        game_id = self._current_game_id()
+        result = {}
 
-            media_adds = []
-            for pck_name, entries in mgr._normalize_metadata_replacements(metadata).items():
-                for info in entries.values():
-                    if not info.get("is_add"):
-                        continue
-                    file_id = str(info.get("file_id", "")).strip()
-                    rel = info.get("wem_file", "")
-                    src = tmp / rel if rel else None
-                    if not file_id or src is None or not src.exists():
-                        logger.warning(f"[HIRC Editor] Skipping add {pck_name}/{file_id}: WEM missing in package")
-                        continue
+        def work():
+            # Inflating the package is the heavy part; the draft itself is rebuilt back on the GUI thread.
+            tmp = Path(tempfile.mkdtemp(prefix="hirc_import_"))
+            try:
+                with zipfile.ZipFile(mod_path) as zf:
+                    zf.extractall(tmp)
+                staged = []
+                for pck_name, entries in mgr._normalize_metadata_replacements(metadata).items():
+                    for info in entries.values():
+                        if not info.get("is_add"):
+                            continue
+                        file_id = str(info.get("file_id", "")).strip()
+                        rel = info.get("wem_file", "")
+                        src = tmp / rel if rel else None
+                        if not file_id or src is None or not src.exists():
+                            logger.warning(f"[HIRC Editor] Skipping add {pck_name}/{file_id}: WEM missing in package")
+                            continue
+                        staged.append((pck_name, file_id, src, int(info.get("lang_id", 0)), info.get("source_name", "")))
+                result["tmp"] = tmp
+                result["staged"] = staged
+            except Exception as e:
+                shutil.rmtree(tmp, ignore_errors=True)
+                logger.exception("[HIRC Editor] Import for editing failed")
+                self.errorOccurred.emit("Import Error", f"Failed to import mod:\n{e}")
+
+        def on_done():
+            if "staged" not in result:
+                return
+            tmp = result["tmp"]
+            try:
+                # Replace-always: clear the current draft (and its staged WEMs) before rebuilding.
+                self.resetDraft()
+                d = self._get_draft()
+                wem_dir = get_game_hirc_draft_wem_dir(game_id)
+                wem_dir.mkdir(parents=True, exist_ok=True)
+                media_adds = []
+                for pck_name, file_id, src, lang_id, source_name in result["staged"]:
                     dest = wem_dir / f"{file_id}.wem"
                     shutil.copy2(src, dest)
                     media_adds.append({
                         "pck_name": pck_name,
                         "wem_id": int(file_id),
                         "wem_path": str(dest),
-                        "lang_id": int(info.get("lang_id", 0)),
-                        "source_name": info.get("sound_name", ""),
+                        "lang_id": lang_id,
+                        "source_name": source_name,
                     })
+                d["media_adds"] = media_adds
+                d["track_patches"] = [dict(p) for p in (metadata.get("hirc_patches") or [])]
+                self._save_draft()
+                self._emit_draft_count()
+                self.statusUpdate.emit(
+                    f"Imported '{metadata.get('name', 'mod')}' for editing "
+                    f"({self._draft_count()} change(s))."
+                )
+            except Exception as e:
+                logger.exception("[HIRC Editor] Import for editing failed")
+                self.errorOccurred.emit("Import Error", f"Failed to import mod:\n{e}")
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
 
-            d["media_adds"] = media_adds
-            d["track_patches"] = [dict(p) for p in (metadata.get("hirc_patches") or [])]
-            self._save_draft()
-            self._emit_draft_count()
-            self.statusUpdate.emit(
-                f"Imported '{metadata.get('name', 'mod')}' for editing "
-                f"({self._draft_count()} change(s))."
-            )
-        except Exception as e:
-            logger.exception("[HIRC Editor] Import for editing failed")
-            self.errorOccurred.emit("Import Error", f"Failed to import mod:\n{e}")
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
+        self._start_write("import", FunctionWorker(work), on_done=on_done)
 
     @pyqtSlot(str, str, str, str, str)
     def createModPackage(self, name, author, version, description, thumbnail_path):
         d = self._get_draft()
         if self._draft_count() == 0:
             self.errorOccurred.emit("Export", "Nothing staged to export.")
+            return
+        if self._refuse_if_writing():
             return
 
         replacements = {}
@@ -1321,24 +1391,29 @@ class HircEditorBridge(QObject):
         if not filename.lower().endswith(app_config.MOD_FILE_EXT.lower()):
             filename += app_config.MOD_FILE_EXT
 
-        try:
-            from src.mods.package_manager import ModPackageManager
-            mod_pkg = ModPackageManager(game_id=self._current_game_id())
-            metadata = {
-                "name": name or "Untitled",
-                "author": author or "",
-                "version": version,
-                "description": description or "",
-            }
-            thumb = thumbnail_path if (thumbnail_path and thumbnail_path.strip()) else None
-            mod_pkg.create_mod_package(
-                filename, metadata, replacements, thumb, hirc_patches=hirc_patches
-            )
-            self.statusUpdate.emit(f"Mod package created: {Path(filename).name}")
-            self.modExported.emit(True, Path(filename).name)
-        except Exception as e:
-            logger.exception("[HIRC Editor] Export failed")
-            self.errorOccurred.emit(
-                "Export Error", f"Failed to create mod package:\n{e}"
-            )
-            self.modExported.emit(False, str(e))
+        game_id = self._current_game_id()
+
+        def work():
+            try:
+                from src.mods.package_manager import ModPackageManager
+                mod_pkg = ModPackageManager(game_id=game_id)
+                metadata = {
+                    "name": name or "Untitled",
+                    "author": author or "",
+                    "version": version,
+                    "description": description or "",
+                }
+                thumb = thumbnail_path if (thumbnail_path and thumbnail_path.strip()) else None
+                mod_pkg.create_mod_package(
+                    filename, metadata, replacements, thumb, hirc_patches=hirc_patches
+                )
+                self.statusUpdate.emit(f"Mod package created: {Path(filename).name}")
+                self.modExported.emit(True, Path(filename).name)
+            except Exception as e:
+                logger.exception("[HIRC Editor] Export failed")
+                self.errorOccurred.emit(
+                    "Export Error", f"Failed to create mod package:\n{e}"
+                )
+                self.modExported.emit(False, str(e))
+
+        self._start_write("export", FunctionWorker(work))

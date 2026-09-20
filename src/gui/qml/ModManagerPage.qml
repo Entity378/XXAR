@@ -27,8 +27,9 @@ Item {
     property int currentSortMode: 0
     property bool gridViewMode: false
     property bool devMode: false
+    readonly property bool writeInProgress: modManager ? modManager.writeInProgress : false
 
-    signal testPermissionDialogClicked()
+    signal testErrorClicked(string kind)
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
 
     ListModel {
@@ -344,6 +345,7 @@ Item {
                     Text {
                         id: clearmods
                         anchors.centerIn: parent
+                        opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 20
@@ -356,6 +358,7 @@ Item {
                     MouseArea {
                         id: btn_clearmods_mouse
                         anchors.fill: parent
+                        enabled: !mod_Manager.writeInProgress
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: clearModsClicked()
@@ -1036,7 +1039,10 @@ Item {
             }
 
             Item {
-                id: devPermissionTestButton
+                id: devErrorTestButton
+                property int kindIndex: 0
+                readonly property var errorKinds: ["permission", "locked", "missing_original", "generic"]
+                readonly property var errorLabels: ["Sim: Permission", "Sim: Locked", "Sim: Missing Orig", "Sim: Generic"]
                 visible: mod_Manager.devMode
                 anchors.right: applyModsButton.left
                 anchors.bottom: parent.bottom
@@ -1048,12 +1054,12 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: 30
-                    color: devPermMouse.pressed ? "#a800cc" : devPermMouse.containsMouse ? "#cc33ff" : "#aa00ee"
+                    color: devErrorMouse.pressed ? "#a800cc" : devErrorMouse.containsMouse ? "#cc33ff" : "#aa00ee"
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Test Perm Error"
+                        text: devErrorTestButton.errorLabels[devErrorTestButton.kindIndex]
                         color: "#ffffff"
                         font.family: "Alatsi"
                         font.pixelSize: 14
@@ -1061,11 +1067,14 @@ Item {
                 }
 
                 MouseArea {
-                    id: devPermMouse
+                    id: devErrorMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: testPermissionDialogClicked()
+                    onClicked: {
+                        testErrorClicked(devErrorTestButton.errorKinds[devErrorTestButton.kindIndex])
+                        devErrorTestButton.kindIndex = (devErrorTestButton.kindIndex + 1) % devErrorTestButton.errorKinds.length
+                    }
                 }
             }
 
@@ -1077,6 +1086,7 @@ Item {
                 anchors.margins: 16
                 height: 60
                 width: 220
+                opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
 
                 Rectangle {
                     anchors.fill: parent
@@ -1119,7 +1129,7 @@ Item {
                     }
 
                     Text {
-                        text: qsTranslate("Application", "Apply Mods")
+                        text: mod_Manager.writeInProgress ? qsTranslate("Application", "Working...") : qsTranslate("Application", "Apply Mods")
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 22
@@ -1132,6 +1142,7 @@ Item {
                 MouseArea {
                     id: btn_apply_mouse
                     anchors.fill: parent
+                    enabled: !mod_Manager.writeInProgress
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: applyModsClicked()

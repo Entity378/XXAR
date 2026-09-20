@@ -25,6 +25,7 @@ Item {
     signal editTrackVolumeRequested(string pckName, var bnkId, var trackObjId, string value)
     signal editRemapTargetRequested(string pckName, var bnkId, var trackObjId, string slot, var index, string value)
     signal applyAllRequested()
+    property bool writeInProgress: false
     signal importModForEditingRequested()
     signal exportModRequested()
     signal resetDraftRequested()
@@ -1206,6 +1207,7 @@ Item {
 
                     XXARButton {
                         text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
+                        enabled: !hircEditorPage.writeInProgress
                         onClicked: hircEditorPage.importModForEditingRequested()
                     }
                     XXARButton {
@@ -1216,6 +1218,7 @@ Item {
                     }
                     XXARButton {
                         text: qsTranslate("Application", "Export as Mod Package")
+                        enabled: !hircEditorPage.writeInProgress
                         onClicked: hircEditorPage.exportModRequested()
                     }
                     XXARButton {

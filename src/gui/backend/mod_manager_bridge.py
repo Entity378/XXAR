@@ -10,12 +10,12 @@ from PyQt6.QtCore import (
     QCoreApplication,
     QObject,
     QTimer,
+    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
 
 import src.core.app_config as app_config
-from src.core.app_config import APP_NAME
 from src.core.config_manager import (
     get_custom_mod_library_root,
     get_settings_file,
@@ -23,6 +23,7 @@ from src.core.config_manager import (
     resolve_mod_library_dir,
     set_mod_library_dir,
 )
+from src.core.fs_errors import is_file_locked_error, is_permission_error
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -30,11 +31,13 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
-from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
+from src.gui.backend import dialogs
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
     InvalidModPackageError,
+    ModApplicationError,
     ModPackageManager,
     count_replacements,
 )
@@ -157,6 +160,7 @@ class ModManagerBridge(QObject):
     progressUpdate = pyqtSignal(str, arguments=["message"])
     errorOccurred = pyqtSignal(str, str, arguments=["title", "message"])
     alertDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "stickerPath"])
+    writeInProgressChanged = pyqtSignal()
 
     wwiseStatusChanged = pyqtSignal(bool, arguments=["installed"])
     modCreationModeChanged = pyqtSignal(bool, arguments=["enabled"])
@@ -179,6 +183,7 @@ class ModManagerBridge(QObject):
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
+        self._write_in_progress = False
 
         self.persistent_mod_manager = PersistentModManager(game_id=self.active_game_id)
         self.mod_package_manager = ModPackageManager(
@@ -483,6 +488,8 @@ class ModManagerBridge(QObject):
         # Revert the game to its original audio while leaving every mod enabled in the manager.
         # It wipes the Persistent overlay and the applied-mod tracker; "Apply Mods" re-applies later.
         logger.info("[Mod Manager] Clearing applied mods from the game...")
+        if self._refuse_if_writing():
+            return
         self.load_settings()
 
         if not self.game_audio_dir or not Path(self.game_audio_dir).exists():
@@ -498,44 +505,57 @@ class ModManagerBridge(QObject):
             )
             return
 
-        try:
-            self.progressUpdate.emit("Clearing mods from game...")
-            persistent_path = Path(self.persistent_dir)
-            modded_keys = set(self.persistent_mod_manager.get_all_replacements().keys())
-            if persistent_path.exists():
-                stats = cleanup_persistent_overlay(
-                    self.active_game_id,
-                    self.game_audio_dir,
-                    persistent_path,
-                    modded_keys,
-                    progress_cb=lambda msg: self.progressUpdate.emit(msg),
-                )
-                logger.info(f"[Mod Manager] Clear mods cleanup: {stats}")
-            self.persistent_mod_manager.clear_all_replacements()
-            logger.info("[Mod Manager] Mods cleared from game; manager enabled-states untouched")
-            self.progressUpdate.emit("Mods cleared (still enabled in the manager)")
-            self.refreshMods()
-        except Exception as e:
-            logger.error(f"[Mod Manager] ERROR: Failed to clear mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to clear mods: {str(e)}")
+        game_id = self.active_game_id
+        game_audio_dir = self.game_audio_dir
+        persistent_path = Path(self.persistent_dir)
+        persistent_mod_manager = self.persistent_mod_manager
+
+        def work():
+            try:
+                self.progressUpdate.emit("Clearing mods from game...")
+                modded_keys = set(persistent_mod_manager.get_all_replacements().keys())
+                if persistent_path.exists():
+                    stats = cleanup_persistent_overlay(
+                        game_id,
+                        game_audio_dir,
+                        persistent_path,
+                        modded_keys,
+                        progress_cb=lambda msg: self.progressUpdate.emit(msg),
+                    )
+                    logger.info(f"[Mod Manager] Clear mods cleanup: {stats}")
+                persistent_mod_manager.clear_all_replacements()
+                logger.info("[Mod Manager] Mods cleared from game; manager enabled-states untouched")
+                self.progressUpdate.emit("Mods cleared (still enabled in the manager)")
+            except Exception as e:
+                logger.error(f"[Mod Manager] ERROR: Failed to clear mods: {str(e)}")
+                self._report_write_failure(e, f"Failed to clear mods: {str(e)}")
+
+        self._start_write("clear", work, refresh=True)
 
     @pyqtSlot(str)
     def installMod(self, file_path):
+        self.installMods([file_path])
 
+    @pyqtSlot(list)
+    def installMods(self, file_paths):
+        if self._refuse_if_writing():
+            return
+        mod_package_manager = self.mod_package_manager
+        game_audio_dir = self.game_audio_dir or None
+        paths = [str(p) for p in file_paths]
+
+        def work():
+            for file_path in paths:
+                logger.info(f"[Mod Manager] Installing mod from: {file_path}")
+                self._install_one(mod_package_manager, game_audio_dir, file_path)
+
+        self._start_write("install", work, refresh=True)
+
+    def _install_one(self, mod_package_manager, game_audio_dir, file_path):
         try:
             logger.info(f"[Mod Manager] Validating mod package: {Path(file_path).name}")
 
-            metadata = self.mod_package_manager.validate_mod_package(file_path)
+            metadata = mod_package_manager.validate_mod_package(file_path)
 
             logger.info("[Mod Manager] Package valid:")
             logger.info(f"[Mod Manager]   Name: {metadata['name']}")
@@ -548,8 +568,8 @@ class ModManagerBridge(QObject):
             logger.info(f"[Mod Manager]   Replaces {replacement_count} file(s) in {pck_count} PCK(s)")
 
             logger.info(f"[Mod Manager] Installing mod: {metadata['name']}")
-            install_result = self.mod_package_manager.install_mod(
-                file_path, game_audio_dir=self.game_audio_dir or None
+            install_result = mod_package_manager.install_mod(
+                file_path, game_audio_dir=game_audio_dir
             )
 
             if install_result is None:
@@ -592,8 +612,6 @@ class ModManagerBridge(QObject):
                 )
 
             self.modInstalled.emit(mod_uuid)
-
-            self.refreshMods()
 
         except InvalidModPackageError as e:
             logger.error(f"[Mod Manager] ERROR: Invalid mod package: {str(e)}")
@@ -681,12 +699,14 @@ class ModManagerBridge(QObject):
     @pyqtSlot()
     def applyModsAfterConflictResolution(self):
 
-        self._apply_mods_internal()
+        self._start_apply()
 
     @pyqtSlot()
     def applyMods(self):
 
         logger.info("[Mod Manager] Starting mod application...")
+        if self._refuse_if_writing():
+            return
         self.load_settings()
 
         if not self.game_audio_dir or not Path(self.game_audio_dir).exists():
@@ -763,88 +783,134 @@ class ModManagerBridge(QObject):
                 logger.info("[Mod Manager] No conflicts detected")
                 self.progressUpdate.emit("Applying mods...")
 
-            self._apply_mods_internal()
+            self._start_apply()
 
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
 
-    def _apply_mods_internal(self):
+    def _start_apply(self):
+        game_id = self.active_game_id
+        game_audio_dir = self.game_audio_dir
+        persistent_dir = self.persistent_dir
+        persistent_mod_manager = self.persistent_mod_manager
+        mod_package_manager = self.mod_package_manager
+        conflict_preferences = dict(self.conflict_preferences)
 
-        try:
-
-            if self.persistent_dir and self.game_audio_dir:
-                try:
-                    persistent_path = Path(self.persistent_dir)
-                    if persistent_path.exists():
+        def work():
+            try:
+                # Both must be set: Path("") is Path("."), which exists and would clean the cwd.
+                persistent_path = Path(persistent_dir) if (persistent_dir and game_audio_dir) else None
+                if persistent_path is not None and persistent_path.exists():
+                    try:
                         self.progressUpdate.emit("Cleaning up old PCK files...")
-                        modded_keys = set(self.persistent_mod_manager.get_all_replacements().keys())
+                        modded_keys = set(persistent_mod_manager.get_all_replacements().keys())
                         stats = cleanup_persistent_overlay(
-                            self.active_game_id,
-                            self.game_audio_dir,
+                            game_id,
+                            game_audio_dir,
                             persistent_path,
                             modded_keys,
                             progress_cb=lambda msg: self.progressUpdate.emit(msg),
                         )
                         logger.info(f"[Mod Manager] Persistent cleanup: {stats}")
-                except Exception as e:
-                    logger.error(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
+                    except Exception as e:
+                        logger.error(f"[Mod Manager] Warning: Failed to clean up Persistent folder: {e}")
 
-            self.progressUpdate.emit("Applying mods...")
+                self.progressUpdate.emit("Applying mods...")
 
-            def progress_callback(message, current, total):
-                logger.info(f"[Mod Manager] [{current}/{total}] {message}")
-                self.progressUpdate.emit(f"[{current}/{total}] {message}")
+                def progress_callback(message, current, total):
+                    logger.info(f"[Mod Manager] [{current}/{total}] {message}")
+                    self.progressUpdate.emit(f"[{current}/{total}] {message}")
 
-            summary = self.mod_package_manager.apply_mods(
-                self.game_audio_dir,
-                self.persistent_dir,
-                progress_callback,
-                conflict_preferences=self.conflict_preferences
-            ) or {}
+                summary = mod_package_manager.apply_mods(
+                    game_audio_dir,
+                    persistent_dir,
+                    progress_callback,
+                    conflict_preferences=conflict_preferences
+                ) or {}
 
-            skipped = summary.get("skipped_missing_original") or []
-            if skipped:
-                logger.warning(f"[Mod Manager] {len(skipped)} PCK(s) skipped, original audio missing: {skipped}")
-                self.progressUpdate.emit(f"Applied with warnings: {len(skipped)} PCK(s) skipped")
-                listing = "\n".join(f"* {name}" for name in skipped[:8])
-                if len(skipped) > 8:
-                    listing += f"\n* ... +{len(skipped) - 8}"
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Original Audio Missing"),
-                    QCoreApplication.translate(
-                        "Application",
-                        "These mod targets do not exist in your game installation:\n%1\n\nThe game downloads voice-over content on demand, so this audio may simply not be downloaded yet. Download the affected voice content in the game (or repair the game files), then apply mods again."
-                    ).replace("%1", listing),
-                    ""
-                )
-            else:
-                logger.info("[Mod Manager] Mods applied successfully!")
-                self.progressUpdate.emit("Mods applied successfully!")
+                skipped = summary.get("skipped_missing_original") or []
+                if skipped:
+                    logger.warning(f"[Mod Manager] {len(skipped)} PCK(s) skipped, original audio missing: {skipped}")
+                    self.progressUpdate.emit(f"Applied with warnings: {len(skipped)} PCK(s) skipped")
+                    self.alertDialogRequested.emit(*dialogs.original_audio_missing(skipped))
+                else:
+                    logger.info("[Mod Manager] Mods applied successfully!")
+                    self.progressUpdate.emit("Mods applied successfully!")
 
+            except Exception as e:
+                logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
+                self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
+
+        self._start_write("apply", work)
+
+    @pyqtProperty(bool, notify=writeInProgressChanged)
+    def writeInProgress(self):
+        return self._write_in_progress
+
+    def _set_write_in_progress(self, value):
+        if self._write_in_progress == value:
+            return
+        self._write_in_progress = value
+        self.writeInProgressChanged.emit()
+
+    def _refuse_if_writing(self):
+        # Backstop for the disabled buttons: no second write, and none while a game switch runs.
+        if game_lock_holder() is None:
+            return False
+        self.alertDialogRequested.emit(*dialogs.write_in_progress())
+        return True
+
+    def _start_write(self, name, work, refresh=False):
+        # Every game-file write runs off the GUI thread and holds the game lock.
+        # work() must only touch what it captured on the GUI thread and report through signals.
+        worker = FunctionWorker(work)
+        worker.workerFinished.connect(self._on_write_finished)
+        if refresh:
+            worker.workerFinished.connect(self.refreshMods)
+        if not self._workers.start(name, worker, holds_game_lock=True):
+            logger.warning(f"[Mod Manager] {name} refused: game lock held by {game_lock_holder()}")
+            self.alertDialogRequested.emit(*dialogs.write_in_progress())
+            return
+        self._set_write_in_progress(True)
+
+    @pyqtSlot()
+    def _on_write_finished(self):
+        self._set_write_in_progress(False)
+
+    def _report_write_failure(self, error, fallback_message):
+        # A file held open by the game needs the game closed, not admin rights.
+        if is_file_locked_error(error):
+            self.alertDialogRequested.emit(*dialogs.game_files_in_use())
+        elif is_permission_error(error):
+            self.alertDialogRequested.emit(*dialogs.permission_denied())
+        else:
+            self.errorOccurred.emit("Error", fallback_message)
+
+    @pyqtSlot(str)
+    def simulateApplyError(self, kind):
+        # Temporary dev probe mirroring the _start_apply reporting above.
+        # Delete it together with the Sim button in ModManagerPage.qml.
+        try:
+            if kind == "missing_original":
+                self.alertDialogRequested.emit(*dialogs.original_audio_missing(["Streamed_Music.pck", "SoundBank_En.pck"]))
+                return
+            simulated_pck = str(Path(self.game_audio_dir or "C:/") / "Streamed_Music.pck")
+            # Shaped like the real Win32 failures: winerror 5 or 32, wrapped without "from e".
+            if kind == "permission":
+                try:
+                    raise PermissionError(13, "Access is denied", simulated_pck, 5)
+                except OSError as e:
+                    raise ModApplicationError(f"Failed to process Streamed_Music.pck: {e}")
+            if kind == "locked":
+                try:
+                    raise PermissionError(13, "The process cannot access the file because it is being used by another process", simulated_pck, 32)
+                except OSError as e:
+                    raise ModApplicationError(f"Failed to process Streamed_Music.pck: {e}")
+            raise ModApplicationError("Simulated failure with no permission cause")
         except Exception as e:
             logger.error(f"[Mod Manager] ERROR: Failed to apply mods: {str(e)}")
-            is_permission_error = isinstance(e, PermissionError) or (
-                e.__cause__ is not None and isinstance(e.__cause__, PermissionError)
-            ) or "permission denied" in str(e).lower()
-            if is_permission_error:
-                self.alertDialogRequested.emit(
-                    QCoreApplication.translate("Application", "Permission Denied"),
-                    QCoreApplication.translate("Application", "%1 does not have permission to write to the game folder.\n\nTry one of the following:\n* Run %1 as Administrator\n* Repair your game files in the launcher").replace("%1", APP_NAME),
-                    ""
-                )
-            else:
-                self.errorOccurred.emit("Error", f"Failed to apply mods: {str(e)}")
+            self._report_write_failure(e, f"Failed to apply mods: {str(e)}")
 
     @pyqtSlot(result=str)
     def getModLibraryPath(self):
@@ -1124,18 +1190,28 @@ class ModManagerBridge(QObject):
                 'description': full_metadata.get('description', '')
             }
 
-            self.progressUpdate.emit(f"Exporting {mod_name}...")
-            # Forward the HIRC track patches so re-export round-trips an editor mod, not a bare WEM add.
-            self.mod_package_manager.create_mod_package(
-                save_path,
-                export_metadata,
-                current_replacements,
-                thumbnail_path,
-                hirc_patches=full_metadata.get('hirc_patches')
-            )
+            mod_package_manager = self.mod_package_manager
+            hirc_patches = full_metadata.get('hirc_patches')
 
-            logger.info(f"[Mod Manager] Mod exported successfully to: {save_path}")
-            self.progressUpdate.emit(f"Mod exported to {Path(save_path).name}")
+            def work():
+                try:
+                    self.progressUpdate.emit(f"Exporting {mod_name}...")
+                    # Forward the HIRC track patches so re-export round-trips an editor mod, not a bare WEM add.
+                    mod_package_manager.create_mod_package(
+                        save_path,
+                        export_metadata,
+                        current_replacements,
+                        thumbnail_path,
+                        hirc_patches=hirc_patches
+                    )
+                    logger.info(f"[Mod Manager] Mod exported successfully to: {save_path}")
+                    self.progressUpdate.emit(f"Mod exported to {Path(save_path).name}")
+                except Exception as e:
+                    logger.exception(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
+                    self.errorOccurred.emit("Export Error", f"Failed to export mod: {str(e)}")
+
+            if not self._workers.start("export", FunctionWorker(work)):
+                self.errorOccurred.emit("Export", "An export is already in progress.")
 
         except Exception as e:
             logger.exception(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")

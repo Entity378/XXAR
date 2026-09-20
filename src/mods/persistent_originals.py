@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from src.core.config_manager import get_game_state_dir
+from src.core.fs_errors import exists_or_raise
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
 from src.wwise.override_pck_patcher import restore_override_pck_backups
@@ -190,7 +191,7 @@ def locate_pck_paths(streaming_root: Path, persistent_root: Path, pck_name: str,
     # Every rebuild resolves here: source under StreamingAssets, output mirroring its subpath under Persistent.
     # pck_name may be a bare name or a folder-qualified key; (None, None) when no source exists.
     direct = streaming_root / pck_name
-    if direct.exists():
+    if exists_or_raise(direct):
         return direct, persistent_root / pck_name
     candidates = sorted(streaming_root.rglob(f'*{pck_name}'), key=lambda pck: len(pck.parts))
     if not candidates:

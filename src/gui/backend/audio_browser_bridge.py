@@ -19,6 +19,7 @@ from PyQt6.QtCore import (
     QObject,
     Qt,
     QTimer,
+    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
@@ -26,7 +27,7 @@ from PyQt6.QtCore import (
 import src.core.app_config as app_config
 from src.audio import constellation
 from src.audio.converter import AudioConverter
-from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
 from src.audio.matcher import AudioMatcher
 from src.audio.player import AudioPlayer
 from src.core.app_config import APP_NAME
@@ -38,6 +39,7 @@ from src.core.config_manager import (
     get_game_sound_database_file,
     get_settings_file,
 )
+from src.core.fs_errors import is_file_locked_error, is_permission_error
 from src.core.game_registry import (
     DEFAULT_GAME_ID,
     detect_game_id_from_path,
@@ -57,13 +59,14 @@ from src.gui.backend.audio_games import (
     build_browser_handlers,
 )
 from src.gui.backend.update_manager_bridge import _urlopen
+from src.gui.backend import dialogs
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
 from src.mods.persistent_originals import cleanup_persistent_overlay, locate_pck_paths
 from src.wwise import patch_backup
-from src.wwise.bnk_indexer import BNKIndexer
+from src.wwise.bnk_indexer import BNKIndexer, count_didx_wems
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_backup import BACKUP_SUFFIX
 from src.wwise.patch_target_resolver import (
@@ -264,6 +267,7 @@ class AudioBrowserBridge(QObject):
     gameDirectoryReady = pyqtSignal(str, arguments=["path"])
     errorOccurred = pyqtSignal(str, str, arguments=["title", "message"])
     alertDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "stickerPath"])
+    writeInProgressChanged = pyqtSignal()
     wwiseErrorDialog = pyqtSignal(str, str, arguments=["title", "message"])
     successDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "imagePath"])
     searchResultsReady = pyqtSignal(str, list, arguments=["query", "results"])
@@ -350,6 +354,8 @@ class AudioBrowserBridge(QObject):
         )
 
         self._workers = WorkerRegistry("audio_browser")
+        self._write_in_progress = False
+        self._write_done = None
         self._index_cancel = threading.Event()
         self._playback_duration = 0
 
@@ -366,6 +372,42 @@ class AudioBrowserBridge(QObject):
         self.audio_player.duration_changed.connect(self._on_duration_changed)
         self.audio_player.error_occurred.connect(self._on_playback_error)
         self._set_active_game_databases(self.game_mode)
+
+    @pyqtProperty(bool, notify=writeInProgressChanged)
+    def writeInProgress(self):
+        return self._write_in_progress
+
+    def _set_write_in_progress(self, value):
+        if self._write_in_progress == value:
+            return
+        self._write_in_progress = value
+        self.writeInProgressChanged.emit()
+
+    def _refuse_if_writing(self):
+        # Backstop for the disabled controls: the tracker must not change under a running write.
+        if game_lock_holder() is None:
+            return False
+        self.alertDialogRequested.emit(*dialogs.write_in_progress())
+        return True
+
+    def _start_write(self, name, worker, on_done=None):
+        # Every game-file write runs off the GUI thread and holds the game lock.
+        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it.
+        worker.workerFinished.connect(self._on_write_finished)
+        if not self._workers.start(name, worker, holds_game_lock=True):
+            logger.warning(f"[Audio Browser] {name} refused: game lock held by {game_lock_holder()}")
+            self.alertDialogRequested.emit(*dialogs.write_in_progress())
+            return
+        self._write_done = on_done
+        self._set_write_in_progress(True)
+
+    @pyqtSlot()
+    def _on_write_finished(self):
+        self._set_write_in_progress(False)
+        on_done, self._write_done = self._write_done, None
+        if on_done is not None:
+            # Deferred one turn so the registry has released the game lock before on_done runs.
+            QTimer.singleShot(0, on_done)
 
     def _invalidate_caches(self):
         self._index_cache.clear()
@@ -555,6 +597,8 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str)
     def scanLanguageFolders(self, selected_dir):
+        if self._refuse_if_writing():
+            return
         selected_dir = Path(selected_dir)
 
         data_folder = None
@@ -605,16 +649,12 @@ class AudioBrowserBridge(QObject):
 
             if not streamed_files:
                 logger.warning("[File Check] WARNING: Missing all streamed PCK files!")
+                title, message, _ = dialogs.no_streamed_pcks()
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
                     Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
-                    Q_ARG(str,
-                        QCoreApplication.translate("Application", "No streamed PCK files were found in the game's audio folder.\n\n"
-                        "This means your game installation is incomplete or corrupted. "
-                        "Audio mods may not work correctly without these files.\n\n"
-                        "Please repair your game files through the game launcher.")
-                    ),
+                    Q_ARG(str, title),
+                    Q_ARG(str, message),
                 )
                 return
 
@@ -676,16 +716,12 @@ class AudioBrowserBridge(QObject):
             if problems:
                 detail = "\n\n".join(problems)
                 logger.warning("[File Check] WARNING: Issues found with streaming PCK files")
+                title, message, _ = dialogs.damaged_streamed_pcks(detail)
                 QMetaObject.invokeMethod(
                     self, "_emitStreamingAlert",
                     Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, QCoreApplication.translate("Application", "Missing Streaming Audio Files")),
-                    Q_ARG(str,
-                        detail + "\n\n" +
-                        QCoreApplication.translate("Application", "Your game installation may be incomplete or corrupted. "
-                        "Some audio mods may not work correctly without these files.\n\n"
-                        "Please repair your game files through the game launcher.")
-                    ),
+                    Q_ARG(str, title),
+                    Q_ARG(str, message),
                 )
             else:
                 logger.info(f"[File Check] All {len(streamed_files)} Streamed PCK files look healthy - all clear")
@@ -903,23 +939,30 @@ class AudioBrowserBridge(QObject):
 
             items = []
 
+            # Sweep the banks once through a single handle, reading DIDX headers instead of whole banks.
+            # An unreadable bank stays listed, as it did when the per-bank parse raised.
+            non_empty_bnk_offsets = None
+            if self.hide_empty_bnk_enabled:
+                non_empty_bnk_offsets = set()
+                with open(self._pristine_read_path(pck_path), "rb") as bnk_scan:
+                    for bnk_info in indexer.index_data["banks"]:
+                        try:
+                            has_wems = count_didx_wems(
+                                bnk_scan, bnk_info["offset"], bnk_info["size"]
+                            ) > 0
+                        except Exception:
+                            has_wems = True
+                        if has_wems:
+                            non_empty_bnk_offsets.add(bnk_info["offset"])
+
             for bnk_info in indexer.index_data["banks"]:
                 bnk_id = str(bnk_info["id"])
 
                 if is_protected_source and bnk_info["id"] not in orphan_ids:
                     continue
 
-                if self.hide_empty_bnk_enabled:
-                    try:
-                        bnk_bytes = indexer.extract_single_file(
-                            bnk_info["id"], "bnk", bnk_info["lang_id"]
-                        )
-                        bnk_idx = BNKIndexer(bnk_bytes)
-                        bnk_idx.parse_didx()
-                        if bnk_idx.get_wem_count() == 0:
-                            continue
-                    except Exception:
-                        pass
+                if non_empty_bnk_offsets is not None and bnk_info["offset"] not in non_empty_bnk_offsets:
+                    continue
 
                 data_key = f"bnk:{pck_path}:{bnk_id}"
                 self._item_data[data_key] = {
@@ -1461,6 +1504,8 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str, str, str)
     def setChangeLoopPointMode(self, pck_file, tracker_key, mode):
+        if self._refuse_if_writing():
+            return
         replacements = self.mod_manager.get_all_replacements()
         file_changes = replacements.get(pck_file, {})
         repl_info = file_changes.get(tracker_key)
@@ -1530,6 +1575,8 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str, str, str)
     def setChangeLoopPointManualMs(self, pck_file, tracker_key, duration_text):
+        if self._refuse_if_writing():
+            return
         replacements = self.mod_manager.get_all_replacements()
         file_changes = replacements.get(pck_file, {})
         repl_info = file_changes.get(tracker_key)
@@ -1575,6 +1622,8 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str, str, bool)
     def setChangeVolumeEnabled(self, pck_file, tracker_key, enabled):
+        if self._refuse_if_writing():
+            return
         replacements = self.mod_manager.get_all_replacements()
         file_changes = replacements.get(pck_file, {})
         repl_info = file_changes.get(tracker_key)
@@ -1589,6 +1638,8 @@ class AudioBrowserBridge(QObject):
 
     @pyqtSlot(str, str, str)
     def setChangeVolumeDb(self, pck_file, tracker_key, volume_text):
+        if self._refuse_if_writing():
+            return
         replacements = self.mod_manager.get_all_replacements()
         file_changes = replacements.get(pck_file, {})
         repl_info = file_changes.get(tracker_key)
@@ -1757,6 +1808,8 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot(str, str, str, bool, str)
     def replaceWithCustomAudio(self, item_id, item_type, pck_path, normalize=True, parent_bnk=""):
 
+        if self._refuse_if_writing():
+            return
         meta = self._find_item_meta(item_id, item_type, pck_path, parent_bnk)
         if not meta:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Could not find item data"))
@@ -1859,6 +1912,8 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot(str, str, str, str)
     def muteAudio(self, item_id, item_type, pck_path, parent_bnk=""):
 
+        if self._refuse_if_writing():
+            return
         meta = self._find_item_meta(item_id, item_type, pck_path, parent_bnk)
         if not meta:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Could not find item data"))
@@ -1930,11 +1985,13 @@ class AudioBrowserBridge(QObject):
             self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to mute audio:\n%1").replace("%1", str(e)))
             logger.exception("unhandled")
 
-    def _get_user_replacements(self):
-        all_replacements = self.mod_manager.get_all_replacements()
+    def _get_user_replacements(self, mod_manager=None):
+        # The tracker is the live dict and a write worker may be adding to it, so each level
+        # is snapshotted with list() before being walked.
+        all_replacements = (mod_manager or self.mod_manager).get_all_replacements()
         filtered = {}
-        for pck_name, files in all_replacements.items():
-            user_files = {fid: info for fid, info in files.items()
+        for pck_name, files in list(all_replacements.items()):
+            user_files = {fid: info for fid, info in list(files.items())
                           if info.get('source') != 'mod_manager'}
             if user_files:
                 filtered[pck_name] = user_files
@@ -1954,7 +2011,7 @@ class AudioBrowserBridge(QObject):
 
         replacements = self._get_user_replacements()
         if not replacements:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No audio replacements found.\n\nDid you even replace anything?"), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(*dialogs.no_changes_to_show())
             return
 
         changes = []
@@ -2015,7 +2072,7 @@ class AudioBrowserBridge(QObject):
                 changes.append(change_entry)
 
         if not changes:
-            self.alertDialogRequested.emit(QCoreApplication.translate("Application", "No Changes found"), QCoreApplication.translate("Application", "No manual audio replacements found.\n\nChanges from installed mods are managed in the Mod Manager."), f"../assets/{app_config.ASSETS_DIR}/EllenSleep.png")
+            self.alertDialogRequested.emit(*dialogs.no_manual_changes_to_show())
             return
 
         self.changesReady.emit(changes)
@@ -2040,232 +2097,247 @@ class AudioBrowserBridge(QObject):
                 )
             return
 
-        try:
-            game = self._active_game()
-            streaming_base = (
-                Path(self._audio_root)
-                if self._audio_root
-                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
-            )
-            persistent_path = Path(self.game_root_dir).joinpath(
-                *game.persistent_audio_subpath
-            )
+        if self._refuse_if_writing():
+            return
+        mod_manager = self.mod_manager
+        handler = self._active_browser_handler
+        active_game = self._active_game()
+        game_root_dir = self.game_root_dir
+        audio_root = self._audio_root
 
-            # Always rebuild from a clean Persistent state when applying changes.
-            if persistent_path.exists():
-                self.statusUpdate.emit(
-                    QCoreApplication.translate(
-                        "Application", "Cleaning up Persistent folder..."
-                    )
+        def work():
+            try:
+                game = active_game
+                streaming_base = (
+                    Path(audio_root)
+                    if audio_root
+                    else Path(game_root_dir).joinpath(*game.game_audio_subpath)
+                )
+                persistent_path = Path(game_root_dir).joinpath(
+                    *game.persistent_audio_subpath
                 )
 
-                modded_keys = set(self.mod_manager.get_all_replacements().keys())
-                stats = cleanup_persistent_overlay(
-                    game.id,
-                    streaming_base,
-                    persistent_path,
-                    modded_keys,
-                    progress_cb=lambda msg: self.statusUpdate.emit(msg),
-                )
-                logger.info(f"[Audio Browser] Persistent cleanup: {stats}")
-                if stats["deleted"] > 0:
+                # Always rebuild from a clean Persistent state when applying changes.
+                if persistent_path.exists():
                     self.statusUpdate.emit(
                         QCoreApplication.translate(
-                            "Application",
-                            "Cleaned up %1 modded PCK file(s) from Persistent folder",
-                        ).replace("%1", str(stats["deleted"]))
-                    )
-                else:
-                    self.statusUpdate.emit(
-                        QCoreApplication.translate(
-                            "Application", "No modded PCK files found in Persistent folder"
+                            "Application", "Cleaning up Persistent folder..."
                         )
                     )
-            elif not replacements:
-                self.errorOccurred.emit(
-                    QCoreApplication.translate("Application", "No Changes"),
-                    QCoreApplication.translate(
-                        "Application",
-                        "No changes to apply and no Persistent folder found.",
-                    ),
-                )
-                return
 
-            if not replacements:
-                self._reload_language_tab_if_repointed()
-                return
+                    modded_keys = set(mod_manager.get_all_replacements().keys())
+                    stats = cleanup_persistent_overlay(
+                        game.id,
+                        streaming_base,
+                        persistent_path,
+                        modded_keys,
+                        progress_cb=lambda msg: self.statusUpdate.emit(msg),
+                    )
+                    logger.info(f"[Audio Browser] Persistent cleanup: {stats}")
+                    if stats["deleted"] > 0:
+                        self.statusUpdate.emit(
+                            QCoreApplication.translate(
+                                "Application",
+                                "Cleaned up %1 modded PCK file(s) from Persistent folder",
+                            ).replace("%1", str(stats["deleted"]))
+                        )
+                    else:
+                        self.statusUpdate.emit(
+                            QCoreApplication.translate(
+                                "Application", "No modded PCK files found in Persistent folder"
+                            )
+                        )
+                elif not replacements:
+                    self.errorOccurred.emit(
+                        QCoreApplication.translate("Application", "No Changes"),
+                        QCoreApplication.translate(
+                            "Application",
+                            "No changes to apply and no Persistent folder found.",
+                        ),
+                    )
+                    return
 
-            # Relink targets against the current game (Patch-aware) before resolving.
-            # A Patch override shadowing a streamed/SoundBank target is retargeted to Patch.pck/bnk for the resolve below.
-            try:
-                relink_tracker(
-                    self.mod_manager, streaming_base, game,
-                    progress_callback=lambda msg: self.statusUpdate.emit(msg),
-                )
-            except Exception:
-                logger.exception("[Audio Browser] Relink before apply failed")
+                if not replacements:
+                    return
 
-            # The resolver rewrites keys in place: never hand it the live tracker.
-            replacements = {pck: {key: dict(info) for key, info in files.items()}
-                            for pck, files in self.mod_manager.get_all_replacements().items()}
+                # Relink targets against the current game (Patch-aware) before resolving.
+                # A Patch override shadowing a streamed/SoundBank target is retargeted to Patch.pck/bnk for the resolve below.
+                try:
+                    relink_tracker(
+                        mod_manager, streaming_base, game,
+                        progress_callback=lambda msg: self.statusUpdate.emit(msg),
+                    )
+                except Exception:
+                    logger.exception("[Audio Browser] Relink before apply failed")
 
-            # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
-            # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
-            try:
-                merged_aliases = canonicalize_pck_keys(replacements, streaming_base, game)
-                if merged_aliases:
-                    logger.info(f"[Audio Browser] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
-            except Exception as e:
-                logger.error(f"[Audio Browser] Warning: pck key canonicalization failed: {e}")
+                # The resolver rewrites keys in place: never hand it the live tracker.
+                replacements = {pck: {key: dict(info) for key, info in files.items()}
+                                for pck, files in mod_manager.get_all_replacements().items()}
 
-            # Index the streamed pcks once and share it with both the resolver and the mirror step below.
-            streamed_index = streamed_wem_pcks(streaming_base, game)
+                # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
+                # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
+                try:
+                    merged_aliases = canonicalize_pck_keys(replacements, streaming_base, game)
+                    if merged_aliases:
+                        logger.info(f"[Audio Browser] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
+                except Exception as e:
+                    logger.error(f"[Audio Browser] Warning: pck key canonicalization failed: {e}")
 
-            # Remap protected-PCK entries to StreamingAssets and pre-extract pristine BNK content.
-            patch_bnk_content = {}
-            try:
-                patch_info = resolve_and_extract(
-                    replacements, streaming_base, persistent_path, game,
-                    streamed_index=streamed_index,
-                )
-                patch_bnk_content = patch_info.get("patch_bnk_content", {})
-                if patch_info.get("remapped"):
-                    logger.info(f"[Audio Browser] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
-                if patch_info.get("orphan_added"):
-                    logger.info(f"[Audio Browser] Added {patch_info['orphan_added']} orphan Patch BNK(s) whole into a host SoundBank")
-                if patch_info.get("dropped"):
-                    logger.warning(f"[Audio Browser] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
-            except Exception as e:
-                logger.error(f"[Audio Browser] Warning: patch target resolution failed: {e}")
+                # Index the streamed pcks once and share it with both the resolver and the mirror step below.
+                streamed_index = streamed_wem_pcks(streaming_base, game)
 
-            # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
-            try:
-                mirrored = add_streamed_duplicates(replacements, streaming_base, game, streamed_index=streamed_index)
-                if mirrored:
-                    logger.info(f"[Audio Browser] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
-            except Exception as e:
-                logger.error(f"[Audio Browser] Warning: streamed-duplicate mirroring failed: {e}")
+                # Remap protected-PCK entries to StreamingAssets and pre-extract pristine BNK content.
+                patch_bnk_content = {}
+                try:
+                    patch_info = resolve_and_extract(
+                        replacements, streaming_base, persistent_path, game,
+                        streamed_index=streamed_index,
+                    )
+                    patch_bnk_content = patch_info.get("patch_bnk_content", {})
+                    if patch_info.get("remapped"):
+                        logger.info(f"[Audio Browser] Remapped {patch_info['remapped']} protected-PCK entries to SoundBank/Streamed targets")
+                    if patch_info.get("orphan_added"):
+                        logger.info(f"[Audio Browser] Added {patch_info['orphan_added']} orphan Patch BNK(s) whole into a host SoundBank")
+                    if patch_info.get("dropped"):
+                        logger.warning(f"[Audio Browser] WARNING: {patch_info['dropped']} protected-PCK entries had no matching PCK, dropped")
+                except Exception as e:
+                    logger.error(f"[Audio Browser] Warning: patch target resolution failed: {e}")
 
-            total_files = sum(len(files) for files in replacements.values())
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
+                # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
+                try:
+                    mirrored = add_streamed_duplicates(replacements, streaming_base, game, streamed_index=streamed_index)
+                    if mirrored:
+                        logger.info(f"[Audio Browser] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
+                except Exception as e:
+                    logger.error(f"[Audio Browser] Warning: streamed-duplicate mirroring failed: {e}")
 
-            for pck_filename, files in replacements.items():
-                # Defensive: protected PCKs should have been remapped above.
-                if game.is_protected_pck(pck_filename):
-                    logger.info(f"[Audio Browser] Skipping rebuild of protected PCK {pck_filename} (unexpected post-remap)")
-                    continue
+                total_files = sum(len(files) for files in replacements.values())
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
 
-                # The output mirrors the source subpath so the game actually loads the overlay.
-                pck_file_path, output_pck = locate_pck_paths(
-                    streaming_base, persistent_path, pck_filename, entries=files,
-                )
-                if pck_file_path is None:
-                    self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", pck_filename))
-                    continue
+                for pck_filename, files in replacements.items():
+                    # Defensive: protected PCKs should have been remapped above.
+                    if game.is_protected_pck(pck_filename):
+                        logger.info(f"[Audio Browser] Skipping rebuild of protected PCK {pck_filename} (unexpected post-remap)")
+                        continue
 
-                # Base must be the audio root: pck_filename can already include the lang folder.
-                persistent_path.mkdir(parents=True, exist_ok=True)
-                self.mod_manager.set_persistent_path(str(persistent_path))
+                    # The output mirrors the source subpath so the game actually loads the overlay.
+                    pck_file_path, output_pck = locate_pck_paths(
+                        streaming_base, persistent_path, pck_filename, entries=files,
+                    )
+                    if pck_file_path is None:
+                        self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", pck_filename))
+                        continue
 
-                self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating modded %1...").replace("%1", pck_filename))
-                output_pck.parent.mkdir(parents=True, exist_ok=True)
+                    # Base must be the audio root: pck_filename can already include the lang folder.
+                    persistent_path.mkdir(parents=True, exist_ok=True)
+                    mod_manager.set_persistent_path(str(persistent_path))
 
-                if output_pck.exists():
+                    self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating modded %1...").replace("%1", pck_filename))
+                    output_pck.parent.mkdir(parents=True, exist_ok=True)
+
+                    if output_pck.exists():
+                        output_pck.chmod(0o644)
+
+                    packer = PCKPacker(str(pck_file_path), str(output_pck))
+                    packer.load_original_pck()
+
+                    logger.info(f"[Apply] Packing {pck_filename}")
+                    logger.info(f"[Apply] Original PCK: {pck_file_path}")
+                    logger.info(f"[Apply] Language map: {packer.language_names}")
+
+                    self.statusUpdate.emit(QCoreApplication.translate("Application", "Adding %1 replacement(s) to %2...").replace("%1", str(len(files))).replace("%2", pck_filename))
+
+                    bnk_wem_maps = {}   # {bnk_id: {wem_id: wem_path}}
+                    bnk_lang_ids = {}   # {bnk_id: lang_id} fallback
+
+                    for file_id, repl_info in files.items():
+                        repl_wem = Path(repl_info["wem_path"])
+                        if not repl_wem.exists():
+                            self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", repl_wem.name))
+                            continue
+
+                        logger.info(f"[Apply] Replacing file_id={file_id}, lang_id={repl_info['lang_id']}, type={repl_info['file_type']}")
+
+                        if repl_info["file_type"] == "wem":
+                            packer.replace_file(int(file_id), str(repl_wem), repl_info["lang_id"])
+                        else:
+                            repl_bnk_id = repl_info.get("bnk_id")
+                            if not repl_bnk_id:
+                                continue
+                            plain_wem_id = int(self._tracker_plain_file_id(file_id))
+                            bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
+                            bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
+
+                    # Pristine override content scoped to this pck (keyed by bnk_id), so the rebuild uses its own language.
+                    pck_patch_content = patch_bnk_content.get(pck_filename, {})
+
+                    install_whole_patch_bnks(packer, bnk_wem_maps.keys(), pck_patch_content, bnk_lang_ids)
+
+                    # Schedule transport-only merges so pristine override BNKs aren't lost when patch_override_pcks nulls them.
+                    touched_bnks = set(bnk_wem_maps.keys())
+                    for patch_bnk_id in list(pck_patch_content.keys()):
+                        if patch_bnk_id in touched_bnks:
+                            continue
+                        if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
+                            bnk_wem_maps[patch_bnk_id] = {}
+
+                    for bnk_id, wem_map in bnk_wem_maps.items():
+                        lang_id = None
+                        for search_lang_id, bnks in packer.soundbank_titles.items():
+                            if bnk_id in bnks:
+                                lang_id = search_lang_id
+                                break
+                        if lang_id is None:
+                            lang_id = bnk_lang_ids.get(bnk_id, 0)
+                            logger.warning(f"[Apply] Warning: BNK {bnk_id} not found in {pck_filename}, skipping merge")
+                            continue
+
+                        patch_wems = None
+                        if bnk_id in pck_patch_content:
+                            patch_wems = pck_patch_content[bnk_id].get("wems")
+
+                        packer.merge_bnk_wems(
+                            bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,
+                        )
+
+                    self.statusUpdate.emit(QCoreApplication.translate("Application", "Packing %1...").replace("%1", pck_filename))
+                    packer.pack(use_patching=False)
+                    packer.close()
+
                     output_pck.chmod(0o644)
 
-                packer = PCKPacker(str(pck_file_path), str(output_pck))
-                packer.load_original_pck()
-
-                logger.info(f"[Apply] Packing {pck_filename}")
-                logger.info(f"[Apply] Original PCK: {pck_file_path}")
-                logger.info(f"[Apply] Language map: {packer.language_names}")
-
-                self.statusUpdate.emit(QCoreApplication.translate("Application", "Adding %1 replacement(s) to %2...").replace("%1", str(len(files))).replace("%2", pck_filename))
-
-                bnk_wem_maps = {}   # {bnk_id: {wem_id: wem_path}}
-                bnk_lang_ids = {}   # {bnk_id: lang_id} fallback
-
-                for file_id, repl_info in files.items():
-                    repl_wem = Path(repl_info["wem_path"])
-                    if not repl_wem.exists():
-                        self.statusUpdate.emit(QCoreApplication.translate("Application", "Warning: %1 not found, skipping").replace("%1", repl_wem.name))
-                        continue
-
-                    logger.info(f"[Apply] Replacing file_id={file_id}, lang_id={repl_info['lang_id']}, type={repl_info['file_type']}")
-
-                    if repl_info["file_type"] == "wem":
-                        packer.replace_file(int(file_id), str(repl_wem), repl_info["lang_id"])
-                    else:
-                        repl_bnk_id = repl_info.get("bnk_id")
-                        if not repl_bnk_id:
-                            continue
-                        plain_wem_id = int(self._tracker_plain_file_id(file_id))
-                        bnk_wem_maps.setdefault(int(repl_bnk_id), {})[plain_wem_id] = str(repl_wem)
-                        bnk_lang_ids[int(repl_bnk_id)] = repl_info.get("lang_id", 0)
-
-                # Pristine override content scoped to this pck (keyed by bnk_id), so the rebuild uses its own language.
-                pck_patch_content = patch_bnk_content.get(pck_filename, {})
-
-                install_whole_patch_bnks(packer, bnk_wem_maps.keys(), pck_patch_content, bnk_lang_ids)
-
-                # Schedule transport-only merges so pristine override BNKs aren't lost when patch_override_pcks nulls them.
-                touched_bnks = set(bnk_wem_maps.keys())
-                for patch_bnk_id in list(pck_patch_content.keys()):
-                    if patch_bnk_id in touched_bnks:
-                        continue
-                    if any(patch_bnk_id in bnks for bnks in packer.soundbank_titles.values()):
-                        bnk_wem_maps[patch_bnk_id] = {}
-
-                for bnk_id, wem_map in bnk_wem_maps.items():
-                    lang_id = None
-                    for search_lang_id, bnks in packer.soundbank_titles.items():
-                        if bnk_id in bnks:
-                            lang_id = search_lang_id
-                            break
-                    if lang_id is None:
-                        lang_id = bnk_lang_ids.get(bnk_id, 0)
-                        logger.warning(f"[Apply] Warning: BNK {bnk_id} not found in {pck_filename}, skipping merge")
-                        continue
-
-                    patch_wems = None
-                    if bnk_id in pck_patch_content:
-                        patch_wems = pck_patch_content[bnk_id].get("wems")
-
-                    packer.merge_bnk_wems(
-                        bnk_id, wem_map, patch_bnk_wems=patch_wems, lang_id=lang_id,
+                try:
+                    patch_override_pcks(
+                        persistent_path,
+                        replacements,
+                        game,
+                        streaming_root=streaming_base,
+                        progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
                     )
+                except Exception as e:
+                    logger.error(f"[Audio Browser] Warning: Override PCK patching failed: {e}")
 
-                self.statusUpdate.emit(QCoreApplication.translate("Application", "Packing %1...").replace("%1", pck_filename))
-                packer.pack(use_patching=False)
-                packer.close()
-
-                output_pck.chmod(0o644)
-
-            try:
-                patch_override_pcks(
-                    persistent_path,
-                    replacements,
-                    game,
-                    streaming_root=streaming_base,
-                    progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
+                post_pack_steps = getattr(
+                    handler, "apply_post_pack_steps", None
                 )
+                if callable(post_pack_steps):
+                    post_pack_steps(replacements)
+
+
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))
+
             except Exception as e:
-                logger.error(f"[Audio Browser] Warning: Override PCK patching failed: {e}")
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to apply changes"))
+                # A file held open by the game needs the game closed, not admin rights.
+                if is_file_locked_error(e):
+                    self.alertDialogRequested.emit(*dialogs.game_files_in_use())
+                elif is_permission_error(e):
+                    self.alertDialogRequested.emit(*dialogs.permission_denied())
+                else:
+                    self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to apply changes:\n%1").replace("%1", str(e)))
+                logger.exception("unhandled")
 
-            post_pack_steps = getattr(
-                self._active_browser_handler, "apply_post_pack_steps", None
-            )
-            if callable(post_pack_steps):
-                post_pack_steps(replacements)
-
-            self._reload_language_tab_if_repointed()
-
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))
-
-        except Exception as e:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to apply changes"))
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to apply changes:\n%1").replace("%1", str(e)))
-            logger.exception("unhandled")
+        self._start_write("apply", FunctionWorker(work), on_done=self._reload_language_tab_if_repointed)
 
     @pyqtSlot()
     def exportAsMod(self):
@@ -2296,16 +2368,8 @@ class AudioBrowserBridge(QObject):
         if not replacements:
             self.errorOccurred.emit(QCoreApplication.translate("Application", "No Replacements"), QCoreApplication.translate("Application", "No audio replacements found."))
             return
-
-        # Relink targets (Patch-aware) so the exported package carries the fix for the current game version.
-        if self.game_root_dir:
-            try:
-                game = self._active_game()
-                streaming_base = Path(self._audio_root) if self._audio_root else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
-                relink_tracker(self.mod_manager, streaming_base, game)
-                replacements = self._get_user_replacements()
-            except Exception:
-                logger.exception("[Audio Browser] Relink before export failed")
+        if self._refuse_if_writing():
+            return
 
         default_name = f"{name.replace(' ', '_')}_v{version}{app_config.MOD_FILE_EXT}"
 
@@ -2321,26 +2385,46 @@ class AudioBrowserBridge(QObject):
         if not filename.lower().endswith(app_config.MOD_FILE_EXT.lower()):
             filename += app_config.MOD_FILE_EXT
 
-        try:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating mod package..."))
-            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
+        mod_manager = self.mod_manager
+        game_mode = self.game_mode
+        active_game = self._active_game()
+        game_root_dir = self.game_root_dir
+        audio_root = self._audio_root
 
-            metadata = {
-                "name": name,
-                "author": author,
-                "version": version,
-                "description": description
-            }
+        def work():
+            # Relink targets (Patch-aware) so the exported package carries the fix for the current game version.
+            replacements = self._get_user_replacements(mod_manager)
+            if game_root_dir:
+                try:
+                    streaming_base = Path(audio_root) if audio_root else Path(game_root_dir).joinpath(*active_game.game_audio_subpath)
+                    relink_tracker(mod_manager, streaming_base, active_game)
+                    replacements = self._get_user_replacements(mod_manager)
+                except Exception:
+                    logger.exception("[Audio Browser] Relink before export failed")
+            try:
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Creating mod package..."))
+                mod_pkg = ModPackageManager(persistent_mod_manager=mod_manager, game_id=game_mode)
 
-            thumb_path = thumbnail_path if thumbnail_path and thumbnail_path.strip() else None
+                metadata = {
+                    "name": name,
+                    "author": author,
+                    "version": version,
+                    "description": description
+                }
 
-            mod_pkg.create_mod_package(filename, metadata, replacements, thumb_path)
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Mod package created: %1").replace("%1", Path(filename).name))
-        except Exception as e:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Export Error"), QCoreApplication.translate("Application", "Failed to create mod package:\n%1").replace("%1", str(e)))
+                thumb_path = thumbnail_path if thumbnail_path and thumbnail_path.strip() else None
+
+                mod_pkg.create_mod_package(filename, metadata, replacements, thumb_path)
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Mod package created: %1").replace("%1", Path(filename).name))
+            except Exception as e:
+                self.errorOccurred.emit(QCoreApplication.translate("Application", "Export Error"), QCoreApplication.translate("Application", "Failed to create mod package:\n%1").replace("%1", str(e)))
+
+        self._start_write("export", FunctionWorker(work))
 
     @pyqtSlot(str, str)
     def removeChange(self, pck_file, tracker_key):
+        if self._refuse_if_writing():
+            return
         display_id = self._tracker_display_file_id(tracker_key)
 
         try:
@@ -2496,71 +2580,86 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot()
     def resetAllChanges(self):
 
-        stats = self.mod_manager.get_stats()
+        if self._refuse_if_writing():
+            return
+        mod_manager = self.mod_manager
+        active_game = self._active_game()
+        game_root_dir = self.game_root_dir
+        audio_root = self._audio_root
+        result = {}
 
-        try:
-            cleaned_files = 0
+        def work():
+            stats = mod_manager.get_stats()
 
-            if self.game_root_dir:
-                game = self._active_game()
-                persistent_path = Path(self.game_root_dir).joinpath(
-                    *game.persistent_audio_subpath
-                )
-                if persistent_path.exists():
-                    streaming_base = (
-                        Path(self._audio_root)
-                        if self._audio_root
-                        else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
+            try:
+                cleaned_files = 0
+
+                if game_root_dir:
+                    game = active_game
+                    persistent_path = Path(game_root_dir).joinpath(
+                        *game.persistent_audio_subpath
                     )
-                    modded_keys = set(self.mod_manager.get_all_replacements().keys())
-                    cleanup_stats = cleanup_persistent_overlay(
-                        game.id,
-                        streaming_base,
-                        persistent_path,
-                        modded_keys,
-                        progress_cb=lambda msg: self.statusUpdate.emit(msg),
+                    if persistent_path.exists():
+                        streaming_base = (
+                            Path(audio_root)
+                            if audio_root
+                            else Path(game_root_dir).joinpath(*game.game_audio_subpath)
+                        )
+                        modded_keys = set(mod_manager.get_all_replacements().keys())
+                        cleanup_stats = cleanup_persistent_overlay(
+                            game.id,
+                            streaming_base,
+                            persistent_path,
+                            modded_keys,
+                            progress_cb=lambda msg: self.statusUpdate.emit(msg),
+                        )
+                        cleaned_files = cleanup_stats["deleted"]
+                        logger.info(f"[Audio Browser] Reset cleanup: {cleanup_stats}")
+
+                if cleaned_files == 0 and mod_manager.persistent_base_path:
+                    for pck_name in stats["pcks"]:
+                        if active_game.is_protected_pck(pck_name):
+                            continue
+                        pck_path = mod_manager.get_persistent_pck_path(pck_name)
+                        if not pck_path.exists():
+                            continue
+                        try:
+                            pck_path.chmod(0o644)
+                            pck_path.unlink()
+                            cleaned_files += 1
+                        except Exception as e:
+                            logger.error(f"[Audio Browser] Failed to delete {pck_path}: {e}")
+
+                if cleaned_files == 0 and stats["modded_pcks"] == 0:
+                    self.statusUpdate.emit(
+                        QCoreApplication.translate("Application", "No replacements to reset")
                     )
-                    cleaned_files = cleanup_stats["deleted"]
-                    logger.info(f"[Audio Browser] Reset cleanup: {cleanup_stats}")
+                    return
 
-            if cleaned_files == 0 and self.mod_manager.persistent_base_path:
-                for pck_name in stats["pcks"]:
-                    if self._active_game().is_protected_pck(pck_name):
-                        continue
-                    pck_path = self.mod_manager.get_persistent_pck_path(pck_name)
-                    if not pck_path.exists():
-                        continue
-                    try:
-                        pck_path.chmod(0o644)
-                        pck_path.unlink()
-                        cleaned_files += 1
-                    except Exception as e:
-                        logger.error(f"[Audio Browser] Failed to delete {pck_path}: {e}")
+                mod_manager.clear_all_replacements()
 
-            if cleaned_files == 0 and stats["modded_pcks"] == 0:
-                self.statusUpdate.emit(
-                    QCoreApplication.translate("Application", "No replacements to reset")
-                )
-                return
+                result["reset"] = True
 
-            self.mod_manager.clear_all_replacements()
+                if cleaned_files > 0:
+                    self.statusUpdate.emit(
+                        QCoreApplication.translate(
+                            "Application", "All changes reset (%1 PCK file(s) removed)."
+                        ).replace("%1", str(cleaned_files))
+                    )
+                else:
+                    self.statusUpdate.emit(
+                        QCoreApplication.translate("Application", "All changes reset")
+                    )
+            except Exception as e:
+                self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to reset: %1").replace("%1", str(e)))
 
-            self._imported_mod_metadata = None
-
-            if cleaned_files > 0:
-                self.statusUpdate.emit(
-                    QCoreApplication.translate(
-                        "Application", "All changes reset (%1 PCK file(s) removed)."
-                    ).replace("%1", str(cleaned_files))
-                )
-            else:
-                self.statusUpdate.emit(
-                    QCoreApplication.translate("Application", "All changes reset")
-                )
+        def on_done():
+            if result.get("reset"):
+                self._imported_mod_metadata = None
             self._reload_language_tab_if_repointed()
             self._emit_changes_count()
-        except Exception as e:
-            self.errorOccurred.emit(QCoreApplication.translate("Application", "Error"), QCoreApplication.translate("Application", "Failed to reset: %1").replace("%1", str(e)))
+
+        self._start_write("reset", FunctionWorker(work), on_done=on_done)
 
     @pyqtSlot(str, str, str)
     def tagSound(self, item_id, item_type, pck_path):
@@ -3105,157 +3204,173 @@ class AudioBrowserBridge(QObject):
     @pyqtSlot(str)
     def importModForEditing(self, mod_path):
 
-        try:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Importing %1 mod for editing...").replace("%1", app_config.MOD_FILE_EXT))
+        if self._refuse_if_writing():
+            return
+        mod_manager = self.mod_manager
+        game_mode = self.game_mode
+        active_game = self._active_game()
+        game_root_dir = self.game_root_dir
+        audio_root = self._audio_root
+        result = {}
 
-            mod_pkg = ModPackageManager(persistent_mod_manager=self.mod_manager, game_id=self.game_mode)
-            metadata = mod_pkg.validate_mod_package(mod_path)
+        def work():
+            try:
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Importing %1 mod for editing...").replace("%1", app_config.MOD_FILE_EXT))
 
-            # HIRC-editor mods carry track patches the Browser can't represent; refuse before touching current changes.
-            if is_hirc_mod(metadata):
-                self.statusUpdate.emit("")
-                self.errorOccurred.emit(
-                    QCoreApplication.translate("Application", "Wrong mod type"),
-                    QCoreApplication.translate("Application", "This mod contains HIRC edits.\nImport it from the HIRC Editor instead."),
-                )
-                return
+                mod_pkg = ModPackageManager(persistent_mod_manager=mod_manager, game_id=game_mode)
+                metadata = mod_pkg.validate_mod_package(mod_path)
 
-            if self.mod_manager.get_all_replacements():
-                logger.info("[Audio Browser] Clearing existing changes before importing new mod")
-                self.mod_manager.clear_all_replacements()
+                # HIRC-editor mods carry track patches the Browser can't represent; refuse before touching current changes.
+                if is_hirc_mod(metadata):
+                    self.statusUpdate.emit("")
+                    self.errorOccurred.emit(
+                        QCoreApplication.translate("Application", "Wrong mod type"),
+                        QCoreApplication.translate("Application", "This mod contains HIRC edits.\nImport it from the HIRC Editor instead."),
+                    )
+                    return
 
-            mod_name = metadata.get('name', 'Unknown')
-            mod_author = metadata.get('author', 'Unknown')
-            mod_version = metadata.get('version', '1.0.0')
-            mod_description = metadata.get('description', '')
+                if mod_manager.get_all_replacements():
+                    logger.info("[Audio Browser] Clearing existing changes before importing new mod")
+                    mod_manager.clear_all_replacements()
 
-            logger.info(f"[Audio Browser] Importing mod: {mod_name} v{mod_version} by {mod_author}")
+                mod_name = metadata.get('name', 'Unknown')
+                mod_author = metadata.get('author', 'Unknown')
+                mod_version = metadata.get('version', '1.0.0')
+                mod_description = metadata.get('description', '')
 
-            with zipfile.ZipFile(mod_path, 'r') as zf:
+                logger.info(f"[Audio Browser] Importing mod: {mod_name} v{mod_version} by {mod_author}")
 
-                temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
+                with zipfile.ZipFile(mod_path, 'r') as zf:
 
-                try:
-
-                    zf.extractall(temp_dir)
-
-                    thumbnail_path = ""
-                    thumbnail_filename = metadata.get('thumbnail', '')
-                    if thumbnail_filename:
-                        source_thumbnail = temp_dir / thumbnail_filename
-                        if source_thumbnail.exists():
-
-                            permanent_storage = get_config_dir() / "imported_mods"
-                            permanent_storage.mkdir(parents=True, exist_ok=True)
-
-                            thumbnail_ext = source_thumbnail.suffix
-                            permanent_thumbnail = permanent_storage / f"thumbnail_{mod_name.replace(' ', '_')}{thumbnail_ext}"
-
-                            shutil.copy2(source_thumbnail, permanent_thumbnail)
-                            thumbnail_path = str(permanent_thumbnail)
-                            logger.info(f"[Audio Browser] Saved thumbnail to: {thumbnail_path}")
-
-                    self._imported_mod_metadata = {
-                        'name': mod_name,
-                        'author': mod_author,
-                        'version': mod_version,
-                        'description': mod_description,
-                        'thumbnail': thumbnail_path
-                    }
-
-                    replacement_count = 0
-                    normalized_replacements = mod_pkg._normalize_metadata_replacements(metadata)
-                    for pck_name, files in normalized_replacements.items():
-                        for file_key, file_info in files.items():
-                            file_id = self._tracker_plain_file_id(file_key)
-                            wem_file = file_info.get('wem_file', '')
-                            if not wem_file:
-                                continue
-
-                            wem_path = temp_dir / wem_file
-                            if not wem_path.exists():
-                                logger.warning(f"[Audio Browser] Warning: WEM file not found: {wem_file}")
-                                continue
-
-                            permanent_storage = get_config_dir() / "imported_mods"
-                            permanent_storage.mkdir(parents=True, exist_ok=True)
-
-                            permanent_wem = permanent_storage / f"imported_{pck_name.replace('/','_')}_{file_id}_{replacement_count}.wem"
-                            shutil.copy2(wem_path, permanent_wem)
-
-                            file_type = file_info.get('file_type', 'wem')
-                            lang_id = file_info.get('lang_id', 0)
-                            bnk_id = file_info.get('bnk_id')
-                            loop_point_mode = file_info.get('loop_point_mode', 'disabled')
-                            loop_point_manual_ms = file_info.get('loop_point_manual_ms', 0)
-                            volume_enabled = file_info.get('volume_enabled', False)
-                            volume_db = file_info.get('volume_db', 0.0)
-                            self.mod_manager.add_replacement(
-                                pck_name,
-                                int(file_id),
-                                str(permanent_wem),
-                                file_type,
-                                lang_id,
-                                bnk_id,
-                                loop_point_mode,
-                                loop_point_manual_ms,
-                                volume_enabled,
-                                volume_db
-                            )
-
-                            replacement_count += 1
-
-                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    temp_dir = Path(tempfile.mkdtemp(prefix='mod_import_', dir=str(get_temp_dir())))
 
                     try:
-                        if self.game_root_dir:
-                            game = self._active_game()
-                            game_audio_dir = (
-                                Path(self._audio_root)
-                                if self._audio_root
-                                else Path(self.game_root_dir).joinpath(*game.game_audio_subpath)
-                            )
-                            relink_tracker(
-                                self.mod_manager, game_audio_dir, game,
-                                progress_callback=lambda msg: self.statusUpdate.emit(msg),
-                            )
-                    except Exception:
-                        logger.exception("[Audio Browser] Mod target relink failed")
 
-                    self._emit_changes_count()
-                    self.statusUpdate.emit(
-                        QCoreApplication.translate("Application", "Imported '%1' - %2 replacement(s) loaded. You can now view, edit, or add more replacements.")
-                        .replace("%1", mod_name).replace("%2", str(replacement_count))
-                    )
+                        zf.extractall(temp_dir)
 
-                    self.successDialogRequested.emit(
-                        QCoreApplication.translate("Application", "Mod Imported for Editing"),
-                        QCoreApplication.translate("Application", "Successfully imported:\n\n"
-                        "Name: %1\n"
-                        "Author: %2\n"
-                        "Version: %3\n"
-                        "Replacements: %4\n\n"
-                        "The replacements are now loaded in your session.\n"
-                        "You can view them in 'Show Changes', add more replacements, "
-                        "or export as a new mod package.")
-                        .replace("%1", mod_name).replace("%2", mod_author)
-                        .replace("%3", mod_version).replace("%4", str(replacement_count)),
-                        f"../assets/{app_config.ASSETS_DIR}/YanagiSmug.png"
-                    )
+                        thumbnail_path = ""
+                        thumbnail_filename = metadata.get('thumbnail', '')
+                        if thumbnail_filename:
+                            source_thumbnail = temp_dir / thumbnail_filename
+                            if source_thumbnail.exists():
 
-                except Exception:
+                                permanent_storage = get_config_dir() / "imported_mods"
+                                permanent_storage.mkdir(parents=True, exist_ok=True)
 
-                    if temp_dir.exists():
+                                thumbnail_ext = source_thumbnail.suffix
+                                permanent_thumbnail = permanent_storage / f"thumbnail_{mod_name.replace(' ', '_')}{thumbnail_ext}"
+
+                                shutil.copy2(source_thumbnail, permanent_thumbnail)
+                                thumbnail_path = str(permanent_thumbnail)
+                                logger.info(f"[Audio Browser] Saved thumbnail to: {thumbnail_path}")
+
+                        result["imported_mod_metadata"] = {
+                            'name': mod_name,
+                            'author': mod_author,
+                            'version': mod_version,
+                            'description': mod_description,
+                            'thumbnail': thumbnail_path
+                        }
+
+                        replacement_count = 0
+                        normalized_replacements = mod_pkg._normalize_metadata_replacements(metadata)
+                        for pck_name, files in normalized_replacements.items():
+                            for file_key, file_info in files.items():
+                                file_id = self._tracker_plain_file_id(file_key)
+                                wem_file = file_info.get('wem_file', '')
+                                if not wem_file:
+                                    continue
+
+                                wem_path = temp_dir / wem_file
+                                if not wem_path.exists():
+                                    logger.warning(f"[Audio Browser] Warning: WEM file not found: {wem_file}")
+                                    continue
+
+                                permanent_storage = get_config_dir() / "imported_mods"
+                                permanent_storage.mkdir(parents=True, exist_ok=True)
+
+                                permanent_wem = permanent_storage / f"imported_{pck_name.replace('/','_')}_{file_id}_{replacement_count}.wem"
+                                shutil.copy2(wem_path, permanent_wem)
+
+                                file_type = file_info.get('file_type', 'wem')
+                                lang_id = file_info.get('lang_id', 0)
+                                bnk_id = file_info.get('bnk_id')
+                                loop_point_mode = file_info.get('loop_point_mode', 'disabled')
+                                loop_point_manual_ms = file_info.get('loop_point_manual_ms', 0)
+                                volume_enabled = file_info.get('volume_enabled', False)
+                                volume_db = file_info.get('volume_db', 0.0)
+                                mod_manager.add_replacement(
+                                    pck_name,
+                                    int(file_id),
+                                    str(permanent_wem),
+                                    file_type,
+                                    lang_id,
+                                    bnk_id,
+                                    loop_point_mode,
+                                    loop_point_manual_ms,
+                                    volume_enabled,
+                                    volume_db
+                                )
+
+                                replacement_count += 1
+
                         shutil.rmtree(temp_dir, ignore_errors=True)
-                    raise
 
-        except Exception as e:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to import %1").replace("%1", app_config.MOD_FILE_EXT))
-            self.errorOccurred.emit(
-                QCoreApplication.translate("Application", "Import Error"),
-                QCoreApplication.translate("Application", "Failed to import %1 mod for editing:\n\n%2").replace("%1", app_config.MOD_FILE_EXT).replace("%2", str(e))
-            )
-            logger.exception("unhandled")
+                        try:
+                            if game_root_dir:
+                                game = active_game
+                                game_audio_dir = (
+                                    Path(audio_root)
+                                    if audio_root
+                                    else Path(game_root_dir).joinpath(*game.game_audio_subpath)
+                                )
+                                relink_tracker(
+                                    mod_manager, game_audio_dir, game,
+                                    progress_callback=lambda msg: self.statusUpdate.emit(msg),
+                                )
+                        except Exception:
+                            logger.exception("[Audio Browser] Mod target relink failed")
+
+                        self.statusUpdate.emit(
+                            QCoreApplication.translate("Application", "Imported '%1' - %2 replacement(s) loaded. You can now view, edit, or add more replacements.")
+                            .replace("%1", mod_name).replace("%2", str(replacement_count))
+                        )
+
+                        self.successDialogRequested.emit(
+                            QCoreApplication.translate("Application", "Mod Imported for Editing"),
+                            QCoreApplication.translate("Application", "Successfully imported:\n\n"
+                            "Name: %1\n"
+                            "Author: %2\n"
+                            "Version: %3\n"
+                            "Replacements: %4\n\n"
+                            "The replacements are now loaded in your session.\n"
+                            "You can view them in 'Show Changes', add more replacements, "
+                            "or export as a new mod package.")
+                            .replace("%1", mod_name).replace("%2", mod_author)
+                            .replace("%3", mod_version).replace("%4", str(replacement_count)),
+                            f"../assets/{app_config.ASSETS_DIR}/YanagiSmug.png"
+                        )
+
+                    except Exception:
+
+                        if temp_dir.exists():
+                            shutil.rmtree(temp_dir, ignore_errors=True)
+                        raise
+
+            except Exception as e:
+                self.statusUpdate.emit(QCoreApplication.translate("Application", "Failed to import %1").replace("%1", app_config.MOD_FILE_EXT))
+                self.errorOccurred.emit(
+                    QCoreApplication.translate("Application", "Import Error"),
+                    QCoreApplication.translate("Application", "Failed to import %1 mod for editing:\n\n%2").replace("%1", app_config.MOD_FILE_EXT).replace("%2", str(e))
+                )
+                logger.exception("unhandled")
+
+        def on_done():
+            if "imported_mod_metadata" in result:
+                self._imported_mod_metadata = result["imported_mod_metadata"]
+            self._emit_changes_count()
+
+        self._start_write("import", FunctionWorker(work), on_done=on_done)
 
     def _get_patch_pck_wems_by_bnk(self):
         # Cached per game_root: {(patch_path, bnk_id): {wem_id: (override_name, lang_id)}} from Persistent overrides.

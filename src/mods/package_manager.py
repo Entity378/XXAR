@@ -15,6 +15,7 @@ from src.core.config_manager import (
     normalize_game_id,
     resolve_mod_library_dir,
 )
+from src.core.fs_errors import exists_or_raise
 from src.core.game_registry import DEFAULT_GAME_ID, detect_game_id_from_path, get_game
 from src.core.logger import get_logger
 from src.core.paths import get_temp_dir
@@ -749,7 +750,7 @@ class ModPackageManager:
         persistent_audio_dir = Path(persistent_audio_dir)
         game = get_game(detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID))
 
-        if not game_audio_dir.exists():
+        if not exists_or_raise(game_audio_dir):
             raise ModApplicationError(f"Game audio directory not found: {game_audio_dir}")
 
         persistent_audio_dir.mkdir(parents=True, exist_ok=True)
@@ -960,7 +961,7 @@ class ModPackageManager:
                 applied_pcks += 1
 
             except Exception as e:
-                raise ModApplicationError(f"Failed to process {pck_name}: {e}")
+                raise ModApplicationError(f"Failed to process {pck_name}: {e}") from e
             finally:
                 # Release file handles on Windows or they block the mod swap-in.
                 if 'packer' in locals():
@@ -1005,7 +1006,7 @@ class ModPackageManager:
                     status_callback=status_callback,
                 )
         except Exception as e:
-            raise ModApplicationError(f"Failed to run loop point post-processing: {e}")
+            raise ModApplicationError(f"Failed to run loop point post-processing: {e}") from e
 
         # Apply the add-mod HIRC track patches (source-id remap, loop, volume).
         # Run last so it stacks on the rebuilt overlays and the loop/volume post step.
@@ -1023,9 +1024,10 @@ class ModPackageManager:
                     persistent_root=persistent_audio_dir,
                     fresh_clone=False,
                     status_cb=hirc_cb,
+                    soundbank_glob=game.soundbank_pck_glob,
                 )
         except Exception as e:
-            raise ModApplicationError(f"Failed to apply HIRC track patches: {e}")
+            raise ModApplicationError(f"Failed to apply HIRC track patches: {e}") from e
 
         if self.persistent_mod_manager:
 
