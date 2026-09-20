@@ -70,11 +70,12 @@ def _iter_music_types_in_content(content: bytes):
 
 
 def _collect_bnk_music_index(content: bytes):
-    # Count music HIRC objects and collect every MusicTrack source id in one pass.
+    # Count music HIRC objects and collect their obj ids plus every MusicTrack source id in one pass.
     # It is lightweight (no volume scan) and feeds the bnk-list search index.
-    # Returns (music_count, set_of_source_ids).
+    # Returns (music_count, set_of_source_ids, set_of_obj_ids).
     count = 0
-    ids = set()
+    source_ids = set()
+    obj_ids = set()
     for hs, hsz in _find_hirc_sections(content):
         se = hs + hsz
         if hs + 4 > se:
@@ -92,6 +93,8 @@ def _collect_bnk_music_index(content: bytes):
                 break
             if ot in MUSIC_HIRC_TYPES:
                 count += 1
+                if ds + 4 <= de:
+                    obj_ids.add(struct.unpack_from("<I", content, ds)[0])
                 if ot == HIRC_TYPE_MUSIC_TRACK and ds + 9 <= de:
                     num_sources = struct.unpack_from("<I", content, ds + 5)[0]
                     if 0 <= num_sources <= 100:
@@ -99,7 +102,7 @@ def _collect_bnk_music_index(content: bytes):
                         for _ in range(num_sources):
                             if p + _SOURCE_DATA_SIZE > de:
                                 break
-                            ids.add(struct.unpack_from(
+                            source_ids.add(struct.unpack_from(
                                 "<I", content, p + _SOURCE_ID_OFFSET_IN_SOURCE)[0])
                             p += _SOURCE_DATA_SIZE
                         if p + 4 <= de:
@@ -109,10 +112,10 @@ def _collect_bnk_music_index(content: bytes):
                                 for _ in range(num_pl):
                                     if p + _TRACK_SRC_INFO_SIZE > de:
                                         break
-                                    ids.add(struct.unpack_from("<I", content, p + 4)[0])
+                                    source_ids.add(struct.unpack_from("<I", content, p + 4)[0])
                                     p += _TRACK_SRC_INFO_SIZE
             op = de
-    return count, ids
+    return count, source_ids, obj_ids
 
 
 def _parse_music_track_fields(

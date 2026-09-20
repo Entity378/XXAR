@@ -129,7 +129,7 @@ class BnkListLoaderWorker(BaseWorker):
                         continue
                     f.seek(binfo["offset"])
                     content = f.read(binfo["size"])
-                    n_music, src_ids = _collect_bnk_music_index(content)
+                    n_music, src_ids, obj_ids = _collect_bnk_music_index(content)
                     if n_music == 0:
                         continue
                     result.append({
@@ -140,6 +140,7 @@ class BnkListLoaderWorker(BaseWorker):
                         "music_object_count": n_music,
                         "is_override": is_override,
                         "source_ids": sorted(src_ids),
+                        "obj_ids": sorted(obj_ids),
                     })
             if i % 8 == 0 or i == total:
                 self.progress.emit(
@@ -500,16 +501,18 @@ class HircEditorBridge(QObject):
         self.bnkListReady.emit(data)
 
     def _build_bnk_search_blobs(self, data):
-        # Turn each bnk's source ids into a lowercase "id name" search blob.
-        # The bnk-list filter uses it to search all banks by source id or tagged name.
+        # Turn each bnk's source ids, tagged names and HIRC obj ids into one lowercase search blob.
+        # The bnk-list filter uses it to locate a bank by any id the inspector shows.
         name_map = self._get_id_name_map()
         for entry in (data or []):
-            ids = entry.pop("source_ids", []) or []
-            parts = [str(i) for i in ids]
-            for i in ids:
+            source_ids = entry.pop("source_ids", []) or []
+            obj_ids = entry.pop("obj_ids", []) or []
+            parts = [str(i) for i in source_ids]
+            for i in source_ids:
                 nm = name_map.get(int(i))
                 if nm:
                     parts.append(nm.lower())
+            parts.extend(str(i) for i in obj_ids)
             entry["search"] = " ".join(parts)
 
     def _onLoaderFailed(self, msg):
