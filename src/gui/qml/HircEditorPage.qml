@@ -378,6 +378,7 @@ Item {
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
+                            selectByMouse: true
                             clip: true
 
                             onTextChanged: hircEditorPage.applyHircSearch()
@@ -756,6 +757,7 @@ Item {
                                                         Layout.preferredWidth: 160
                                                     }
                                                     TextField {
+                                                        selectByMouse: true
                                                         text: hircEditorPage.getPendingOrDefault(
                                                                   track.obj_id, "src", modelData.index,
                                                                   "" + modelData.source_id
@@ -820,6 +822,7 @@ Item {
                                                         Layout.preferredWidth: 160
                                                     }
                                                     TextField {
+                                                        selectByMouse: true
                                                         text: hircEditorPage.getPendingOrDefault(
                                                                   track.obj_id, "pl", modelData.index,
                                                                   "" + modelData.source_id
@@ -886,6 +889,7 @@ Item {
                                                     Layout.preferredWidth: 160
                                                 }
                                                 TextField {
+                                                    selectByMouse: true
                                                     text: hircEditorPage.getPendingOrDefault(
                                                               track.obj_id, "loop", null,
                                                               (track.loop_ms !== null && track.loop_ms !== undefined)
@@ -940,6 +944,7 @@ Item {
                                                     Layout.preferredWidth: 160
                                                 }
                                                 TextField {
+                                                    selectByMouse: true
                                                     text: hircEditorPage.getPendingOrDefault(
                                                               track.obj_id, "vol", null,
                                                               (track.volume_db !== null && track.volume_db !== undefined)
@@ -1100,6 +1105,7 @@ Item {
                         }
                         TextField {
                             id: wemIdField
+                            selectByMouse: true
                             text: hircEditorPage.wemAddIdText
                             Layout.preferredWidth: 130
                             Layout.preferredHeight: Theme.buttonHeight
@@ -1432,6 +1438,7 @@ Item {
                                                 text: "" + modelData.new_source_id
                                                 color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                                 validator: RegularExpressionValidator { regularExpression: /^[0-9]{0,10}$/ }
+                                                selectByMouse: true
                                                 clip: true
                                                 onEditingFinished: hircEditorPage.editRemapTargetRequested(
                                                     rowRoot.rowData.pck_name, rowRoot.rowData.bnk_id, rowRoot.rowData.track_obj_id,
@@ -1605,6 +1612,7 @@ Item {
                                         radius: Theme.radiusSmall
                                     }
                                     contentItem: TextInput {
+                                        selectByMouse: true
                                         text: parent.textFromValue(parent.value, parent.locale)
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeSmall
@@ -1743,6 +1751,7 @@ Item {
                     color: Theme.cardBackground; radius: Theme.radiusMedium
                     TextInput {
                         id: hircMetaNameInput
+                        selectByMouse: true
                         anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
                         verticalAlignment: Text.AlignVCenter
                         color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; clip: true
@@ -1761,6 +1770,7 @@ Item {
                     color: Theme.cardBackground; radius: Theme.radiusMedium
                     TextInput {
                         id: hircMetaAuthorInput
+                        selectByMouse: true
                         anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
                         verticalAlignment: Text.AlignVCenter
                         color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; clip: true
@@ -1779,6 +1789,7 @@ Item {
                     color: Theme.cardBackground; radius: Theme.radiusMedium
                     TextInput {
                         id: hircMetaVersionInput
+                        selectByMouse: true
                         anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
                         verticalAlignment: Text.AlignVCenter
                         color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
@@ -1813,6 +1824,7 @@ Item {
                         color: Theme.cardBackground; radius: Theme.radiusMedium
                         TextInput {
                             id: hircMetaThumbInput
+                            selectByMouse: true
                             anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
                             verticalAlignment: Text.AlignVCenter
                             color: Theme.textPrimary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall

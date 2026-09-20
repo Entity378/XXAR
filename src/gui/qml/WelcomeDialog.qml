@@ -531,6 +531,7 @@ Item {
                                             font.family: "Alatsi"
                                             font.pixelSize: 14
                                             verticalAlignment: Text.AlignVCenter
+                                            selectByMouse: true
                                             clip: true
                                             text: gameDirectory
 

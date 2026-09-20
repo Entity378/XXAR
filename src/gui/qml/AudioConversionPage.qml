@@ -311,6 +311,7 @@ Item {
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
+                        selectByMouse: true
                         clip: true
                         text: inputPath
 
@@ -378,6 +379,7 @@ Item {
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
+                            selectByMouse: true
                             clip: true
                             text: outputPath
 

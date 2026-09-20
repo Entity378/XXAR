@@ -353,6 +353,7 @@ Item {
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
+                            selectByMouse: true
                             clip: true
 
                             Keys.onReturnPressed: searchRequested(text)
@@ -3116,6 +3117,7 @@ Item {
                                             radius: Theme.radiusSmall
                                         }
                                         contentItem: TextInput {
+                                            selectByMouse: true
                                             text: parent.textFromValue(parent.value, parent.locale)
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.fontSizeSmall
@@ -3591,6 +3593,7 @@ Item {
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
+                        selectByMouse: true
                         clip: true
 
                         Text {
@@ -3626,6 +3629,7 @@ Item {
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
+                        selectByMouse: true
                         clip: true
 
                         Text {
@@ -3662,6 +3666,7 @@ Item {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
                         text: "1.0.0"
+                        selectByMouse: true
                         clip: true
                     }
                 }
@@ -3725,6 +3730,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             readOnly: true
+                            selectByMouse: true
                             clip: true
 
                             Text {

@@ -541,6 +541,7 @@ Item {
 
                             TextArea {
                                 id: detectedFilesText
+                                selectByMouse: true
                                 text: detectedFilesSummary
                                 color: "#cccccc"
                                 font.family: "Alatsi"
@@ -611,6 +612,7 @@ Item {
                                         color: "#ffffff"
                                         font.family: "Alatsi"
                                         font.pixelSize: 14
+                                        selectByMouse: true
                                         clip: true
                                         onTextChanged: modName = text
 
@@ -653,6 +655,7 @@ Item {
                                         color: "#ffffff"
                                         font.family: "Alatsi"
                                         font.pixelSize: 14
+                                        selectByMouse: true
                                         clip: true
                                         onTextChanged: modAuthor = text
 
@@ -696,6 +699,7 @@ Item {
                                         font.family: "Alatsi"
                                         font.pixelSize: 14
                                         text: "1.0.0"
+                                        selectByMouse: true
                                         clip: true
                                         onTextChanged: modVersion = text
                                     }
@@ -727,6 +731,7 @@ Item {
                                         color: "#ffffff"
                                         font.family: "Alatsi"
                                         font.pixelSize: 14
+                                        selectByMouse: true
                                         clip: true
                                         wrapMode: Text.Wrap
                                         onTextChanged: modDescription = text
