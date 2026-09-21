@@ -155,7 +155,7 @@ def apply_volume_patches(content, volume_patches, volume_db_by_source):
         if not vp.has_existing_volume:
             skipped += 1
             continue
-        vol_bytes = struct.pack("<f", float(db_val))
+        vol_bytes = struct.pack("<f", db_val)
         content[vp.volume_value_offset : vp.volume_value_offset + 4] = vol_bytes
         patched += 1
 
@@ -184,7 +184,7 @@ def apply_volume_inserts(content, volume_patches, volume_db_by_source):
         values_start = vp.ids_start_offset + vp.cProps
         # Insert the value then the id, both at the front of their arrays.
         # Doing the higher offset first keeps the lower insertion point valid.
-        content[values_start:values_start] = struct.pack("<f", float(db_val))
+        content[values_start:values_start] = struct.pack("<f", db_val)
         content[vp.ids_start_offset:vp.ids_start_offset] = bytes([VOLUME_PROP_ID])
         content[cProps_offset] = vp.cProps + 1
         if vp.object_size_field_offset:

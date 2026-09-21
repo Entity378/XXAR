@@ -241,7 +241,7 @@ class ModManagerBridge(QObject):
                     )
                     self.persistent_mod_manager = PersistentModManager(
                         persistent_base_path=persistent_base,
-                        tracker_path=Path(new_library) / "mod_tracker.json",
+                        tracker_path=new_library / "mod_tracker.json",
                         game_id=self.active_game_id,
                     )
                     self.mod_package_manager = ModPackageManager(
@@ -432,7 +432,7 @@ class ModManagerBridge(QObject):
                     "description": metadata.get("description", ""),
                     "enabled": mod["enabled"],
                     "priority": mod["priority"],
-                    "thumbnailPath": Path(mod["thumbnail_path"]).as_uri()
+                    "thumbnailPath": mod["thumbnail_path"].as_uri()
                     if mod["thumbnail_path"]
                     else "",
                     "installDate": mod.get("install_date", ""),

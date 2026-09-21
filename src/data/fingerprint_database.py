@@ -19,7 +19,7 @@ class FingerprintDatabase:
         if db_path is None:
             self.db_path = get_fingerprint_database_file()
         else:
-            self.db_path = Path(db_path)
+            self.db_path = db_path
 
         self.database = {}
         self.lock = threading.Lock()

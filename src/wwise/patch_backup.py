@@ -22,10 +22,10 @@ def _backup_root(game_id):
     return get_game_state_dir(game_id) / "patch_backups"
 
 
-def _rel(live_pck, persistent_root):
+def _rel(live_pck, persistent_root: Path):
     # Live override's path relative to the Persistent audio root, or None when it is outside.
     try:
-        return Path(live_pck).relative_to(Path(persistent_root))
+        return Path(live_pck).relative_to(persistent_root)
     except ValueError:
         return None
 
@@ -61,10 +61,9 @@ def _save_ledger(game_id, ledger):
         logger.error(f"[Patch Backup] Failed to write ledger: {e}")
 
 
-def _manifest_entry_map(persistent_root, game):
+def _manifest_entry_map(persistent_root: Path, game):
     # {remoteName: manifest entry} from audio_version_persist at the Persistent root, cached by mtime.
     # The manifest sits above the audio subpath, e.g. Persistent/audio_version_persist.
-    persistent_root = Path(persistent_root)
     top = persistent_root
     for _ in range(len(game.persistent_audio_subpath) - 1):
         top = top.parent
@@ -116,11 +115,11 @@ def _expected_size(live_pck, persistent_root, game):
         return None
 
 
-def _size_matches(path, expected_size):
+def _size_matches(path: Path, expected_size):
     if expected_size is None:
         return True
     try:
-        return Path(path).stat().st_size == expected_size
+        return path.stat().st_size == expected_size
     except OSError:
         return False
 
@@ -193,7 +192,7 @@ def pristine_path(live_pck, persistent_root, game):
     return live_pck
 
 
-def ensure_backup(live_pck, persistent_root, game):
+def ensure_backup(live_pck: Path, persistent_root, game):
     # Write side: capture a pristine backup when missing, or recapture when the game's tag says the override changed.
     # The live file is verified against the manifest (size, then xxh64 while copying), so a non-pristine live is never enshrined.
     _migrate_legacy_backup(live_pck, persistent_root, game)
@@ -207,21 +206,21 @@ def ensure_backup(live_pck, persistent_root, game):
     if bpath.exists() and not _is_stale(rel_key, current_tag, ledger):
         if _size_matches(bpath, expected_size):
             return bpath
-        logger.error(f"[Patch Backup] Backup of {Path(live_pck).name} has the wrong size; discarding it")
+        logger.error(f"[Patch Backup] Backup of {live_pck.name} has the wrong size; discarding it")
         _drop_backup(bpath, rel_key, game.id, ledger)
     if not _size_matches(live_pck, expected_size):
-        logger.error(f"[Patch Backup] Live {Path(live_pck).name} has the wrong size vs the manifest; refusing capture")
+        logger.error(f"[Patch Backup] Live {live_pck.name} has the wrong size vs the manifest; refusing capture")
         return None
     try:
         bpath.parent.mkdir(parents=True, exist_ok=True)
         if not _capture_backup(live_pck, bpath, current_tag):
-            logger.error(f"[Patch Backup] Live {Path(live_pck).name} does not match the manifest tag; refusing capture")
+            logger.error(f"[Patch Backup] Live {live_pck.name} does not match the manifest tag; refusing capture")
             return None
         ledger[rel_key] = current_tag
         _save_ledger(game.id, ledger)
-        logger.info(f"[Patch Backup] Captured pristine {Path(live_pck).name} (tag={current_tag})")
+        logger.info(f"[Patch Backup] Captured pristine {live_pck.name} (tag={current_tag})")
     except Exception as e:
-        logger.error(f"[Patch Backup] Failed to capture {Path(live_pck).name}: {e}")
+        logger.error(f"[Patch Backup] Failed to capture {live_pck.name}: {e}")
         try:
             bpath.unlink()
         except OSError:
@@ -230,12 +229,11 @@ def ensure_backup(live_pck, persistent_root, game):
     return bpath
 
 
-def restore_backups(persistent_root, game):
+def restore_backups(persistent_root: Path, game):
     # Copy every backup back over its live override in Persistent, then drop the backup and its ledger entry.
     root = _backup_root(game.id)
     if not root.exists():
         return 0
-    persistent_root = Path(persistent_root)
     ledger = _load_ledger(game.id)
     restored = 0
     for bfile in root.rglob(f"*{BACKUP_SUFFIX}"):
@@ -262,9 +260,8 @@ def restore_backups(persistent_root, game):
     return restored
 
 
-def migrate_persistent_backups(persistent_root, game):
+def migrate_persistent_backups(persistent_root: Path, game):
     # Bulk move of any legacy co-located Persistent backups into the state dir (per-access migration is the safety net).
-    persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return 0
     moved = 0

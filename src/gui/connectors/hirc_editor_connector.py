@@ -42,7 +42,7 @@ class HircEditorConnector:
         db.bnkHircReady.connect(
             lambda pck, bnk_id, objs: QMetaObject.invokeMethod(
                 page, "setBnkHirc", Qt.ConnectionType.QueuedConnection,
-                Q_ARG("QVariant", pck), Q_ARG("QVariant", int(bnk_id)),
+                Q_ARG("QVariant", pck), Q_ARG("QVariant", bnk_id),
                 Q_ARG("QVariant", objs),
             )
         )
@@ -55,7 +55,7 @@ class HircEditorConnector:
         )
         db.musicPckListReady.connect(lambda data: self._invoke(page, "setMusicPckList", data))
 
-        db.draftChangesCount.connect(lambda n: self._invoke(page, "setDraftCount", int(n)))
+        db.draftChangesCount.connect(lambda n: self._invoke(page, "setDraftCount", n))
         db.draftChangesReady.connect(lambda data: self._invoke(page, "setDraftChanges", data))
         db.exportMetadataDialogReady.connect(lambda prefill: self._invoke(page, "openExportDialog", prefill))
         db.thumbnailPathSelected.connect(lambda p: self._invoke(page, "setThumbnailPath", p))
@@ -63,13 +63,13 @@ class HircEditorConnector:
         db.draftApplied.connect(
             lambda ok, msg: QMetaObject.invokeMethod(
                 page, "onDraftApplied", Qt.ConnectionType.QueuedConnection,
-                Q_ARG("QVariant", bool(ok)), Q_ARG("QVariant", msg),
+                Q_ARG("QVariant", ok), Q_ARG("QVariant", msg),
             )
         )
         db.modExported.connect(
             lambda ok, msg: QMetaObject.invokeMethod(
                 page, "onModExported", Qt.ConnectionType.QueuedConnection,
-                Q_ARG("QVariant", bool(ok)), Q_ARG("QVariant", msg),
+                Q_ARG("QVariant", ok), Q_ARG("QVariant", msg),
             )
         )
 

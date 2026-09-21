@@ -124,9 +124,8 @@ def relocate_orphan_sidecars(game, streaming_root, persistent_root):
     return moved
 
 
-def load_manifest_md5s(streaming_root):
+def load_manifest_md5s(streaming_root: Path):
     # {rel_pck_path: (md5, size)} from the manifests found walking up to the game root.
-    streaming_root = Path(streaming_root)
     d = streaming_root
     for _ in range(_MANIFEST_WALK_UP):
         if d.parent == d:
@@ -214,8 +213,8 @@ def locate_pck_paths(streaming_root: Path, persistent_root: Path, pck_name: str,
 class _Md5Cache:
     # size+mtime keyed md5 cache; losing it only costs rehashing.
 
-    def __init__(self, backup_root):
-        self.backup_root = Path(backup_root)
+    def __init__(self, backup_root: Path):
+        self.backup_root = backup_root
         self.path = self.backup_root / _INDEX_FILE
         self.files = {}
         self.dirty = False
@@ -267,8 +266,8 @@ def _copy_original(src, dst):
     dst.chmod(0o644)
 
 
-def has_streaming_original(streaming_root, rel_path):
-    return (Path(streaming_root) / rel_path).is_file()
+def has_streaming_original(streaming_root: Path, rel_path):
+    return (streaming_root / rel_path).is_file()
 
 
 def _ground_truth(manifest, sidecar_cache, pck, rel):
@@ -285,10 +284,8 @@ def _ground_truth(manifest, sidecar_cache, pck, rel):
     return (None, -1)
 
 
-def promote_originals(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None, manifest=None):
+def promote_originals(game_id, streaming_root: Path, persistent_root: Path, modded_keys, progress_cb=None, manifest=None):
     # Returns (stats, keep); rels in keep must never be deleted by cleanup.
-    streaming_root = Path(streaming_root)
-    persistent_root = Path(persistent_root)
     stats = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0}
     keep = set()
     if not persistent_root.is_dir():
@@ -395,11 +392,9 @@ def promote_originals(game_id, streaming_root, persistent_root, modded_keys, pro
     return stats, keep
 
 
-def remove_misplaced_copies(game_id, streaming_root, persistent_root, manifest=None):
+def remove_misplaced_copies(game_id, streaming_root: Path, persistent_root: Path, manifest=None):
     # Old builds wrote resolver targets at the audio-root level and promotion then adopted them.
     # Deletes a root-level pck only when the manifest skips it there, lists its name under a subfolder, and that original exists on disk.
-    streaming_root = Path(streaming_root)
-    persistent_root = Path(persistent_root)
     if manifest is None:
         manifest = load_manifest_md5s(streaming_root)
     if not manifest:
@@ -429,10 +424,9 @@ def remove_misplaced_copies(game_id, streaming_root, persistent_root, manifest=N
     return removed
 
 
-def cleanup_persistent_overlay(game_id, streaming_root, persistent_root, modded_keys, progress_cb=None):
+def cleanup_persistent_overlay(game_id, streaming_root, persistent_root: Path, modded_keys, progress_cb=None):
     # Sweep misplaced copies -> promote -> wipe overlay where the fallback exists -> restore protected backups.
     streaming_root = Path(streaming_root)
-    persistent_root = Path(persistent_root)
     result = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0,
               "deleted": 0, "kept": 0, "sidecars_moved": 0, "override_restored": 0, "misplaced_removed": 0}
     if not persistent_root.is_dir():

@@ -211,7 +211,7 @@ class PCKPacker:
 
         logger.info(f"  Replaced ID {file_id} with {replacement_file_path.name} ({file_size} bytes)")
 
-    def replace_bnk_wems(self, bnk_id, bnk_wems_dir, lang_id=0):
+    def replace_bnk_wems(self, bnk_id, bnk_wems_dir: Path, lang_id=0):
 
         lang_name = self.language_names.get(lang_id, f'lang_{lang_id}')
         logger.info(f"\n  Modifying BNK {bnk_id} (lang_id={lang_id}, {lang_name})...")
@@ -232,7 +232,7 @@ class PCKPacker:
             logger.error(f"    Error loading BNK: {e}")
             return
 
-        wem_files = list(Path(bnk_wems_dir).glob('*.wem'))
+        wem_files = list(bnk_wems_dir.glob('*.wem'))
         replaced_count = 0
 
         for wem_file in wem_files:
@@ -289,7 +289,7 @@ class PCKPacker:
             for wem_id, wem_bytes in patch_bnk_wems.items():
                 if wem_id in streaming_wems:
                     continue
-                bnk.add_wem(int(wem_id), wem_bytes)
+                bnk.add_wem(wem_id, wem_bytes)
                 transported += 1
             if transported:
                 logger.info(f"    Transported {transported} pristine WEM(s) from Patch.pck override")
@@ -301,14 +301,13 @@ class PCKPacker:
             else:
                 with open(mod_data, 'rb') as wf:
                     mod_bytes = wf.read()
-            wid = int(wem_id)
-            if wid in bnk.list_wems():
+            if wem_id in bnk.list_wems():
                 try:
-                    bnk.replace_wem(wid, wem_bytes=mod_bytes)
+                    bnk.replace_wem(wem_id, wem_bytes=mod_bytes)
                 except KeyError:
-                    bnk.add_wem(wid, mod_bytes)
+                    bnk.add_wem(wem_id, mod_bytes)
             else:
-                bnk.add_wem(wid, mod_bytes)
+                bnk.add_wem(wem_id, mod_bytes)
             replaced += 1
 
         modified_bnk_bytes = bnk.get_bytes()

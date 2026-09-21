@@ -89,10 +89,10 @@ class GameAudioIndex:
             except Exception as e:
                 logger.warning(f"[Relink] Could not scan {Path(read_path).name}: {e}")
 
-    def patch_home(self, wem_id):
+    def patch_home(self, wem_id: int):
         # (override_name, bnk_id) if the wem is embedded in a Patch.pck BNK, else None.
         self._build_patch_index()
-        return self._patch_index.get(int(wem_id))
+        return self._patch_index.get(wem_id)
 
     def entry_is_valid(self, pck_name, file_type, bnk_id, wem_id):
         # A Patch-shadowed wem is only valid from its Patch BNK; the override copy is what the game plays.

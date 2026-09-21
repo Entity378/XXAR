@@ -116,7 +116,7 @@ def extract_hashes(audio_data, sample_rate=SAMPLE_RATE):
             q_dt = min(DT_Q_MAX, int(round(dt * 1000)))
 
             h = (q_f1 << (FREQ_BITS + DT_BITS)) | (q_f2 << DT_BITS) | q_dt
-            hashes.append((int(h), float(t1)))
+            hashes.append((h, float(t1)))
             pairs_found += 1
 
     return hashes

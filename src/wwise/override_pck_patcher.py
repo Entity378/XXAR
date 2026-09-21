@@ -48,7 +48,7 @@ def _owners_by_bnk(override_pcks, target_wems_by_bnk, persistent_root, game):
     for override_pck in override_pcks:
         read_path = patch_backup.pristine_path(override_pck, persistent_root, game)
         try:
-            index = PCKIndexer(str(read_path)).build_index()
+            index = PCKIndexer(read_path).build_index()
         except Exception as e:
             logger.error(f"[Override Patcher] Failed to index {read_path.name} for ownership: {e}")
             continue
@@ -68,8 +68,7 @@ def _owners_by_bnk(override_pcks, target_wems_by_bnk, persistent_root, game):
     return owners
 
 
-def patch_override_pcks(persistent_root, replacements, game, streaming_root=None, progress_callback=None):
-    persistent_root = Path(persistent_root) if persistent_root else None
+def patch_override_pcks(persistent_root: Path, replacements, game, streaming_root=None, progress_callback=None):
     if not persistent_root or not persistent_root.exists():
         return _empty_result()
 

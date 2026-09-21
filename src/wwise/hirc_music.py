@@ -451,7 +451,7 @@ def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> d
         vol = patch.get("volume_db")
         if vol is not None:
             if track.get("has_volume") and track.get("volume_offset_abs") is not None:
-                voff = int(track["volume_offset_abs"])
+                voff = track["volume_offset_abs"]
                 if 0 <= voff + 4 <= len(bnk_bytes):
                     struct.pack_into("<f", bnk_bytes, voff, float(vol))
                     result["volumes"] += 1
@@ -470,7 +470,7 @@ def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> d
         try:
             targets = scan_bank_for_patch_targets(bytes(bnk_bytes), set(loop_map.keys()))
             dur_result = apply_duration_patches(bnk_bytes, targets, loop_map)
-            result["loops"] = int(dur_result.get("patched_offsets", 0))
+            result["loops"] = dur_result.get("patched_offsets", 0)
         except Exception as e:
             logger.warning(f"[HIRC patch] loop duration patch failed: {e}")
 

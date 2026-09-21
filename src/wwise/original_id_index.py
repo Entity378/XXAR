@@ -18,13 +18,12 @@ _lock = threading.Lock()
 _REALLOC_BASE = 0xF0000000
 
 
-def build_original_id_index(streaming_root) -> set:
+def build_original_id_index(streaming_root: Path) -> set:
     # Every bank/sound/external id across the StreamingAssets PCKs (index tables only — no WEM data).
     ids = set()
-    root = Path(streaming_root) if streaming_root else None
-    if root is None or not root.exists():
+    if not streaming_root or not streaming_root.exists():
         return ids
-    for pck in root.rglob("*.pck"):
+    for pck in streaming_root.rglob("*.pck"):
         try:
             data = PCKIndexer(str(pck)).build_index()
         except Exception as e:
@@ -39,11 +38,11 @@ def build_original_id_index(streaming_root) -> set:
     return ids
 
 
-def get_original_id_index(streaming_root, refresh=False) -> set:
+def get_original_id_index(streaming_root: Path, refresh=False) -> set:
     # Cached per StreamingAssets root. Safe to call from any thread.
     if not streaming_root:
         return set()
-    key = str(Path(streaming_root))
+    key = str(streaming_root)
     if not refresh:
         with _lock:
             cached = _cache.get(key)
@@ -62,7 +61,7 @@ def clear_cache(streaming_root=None):
         if streaming_root is None:
             _cache.clear()
         else:
-            _cache.pop(str(Path(streaming_root)), None)
+            _cache.pop(str(streaming_root), None)
 
 
 def allocate_free_ids(colliding_ids, used_ids) -> dict:
@@ -75,7 +74,7 @@ def allocate_free_ids(colliding_ids, used_ids) -> dict:
             candidate += 1
             if candidate > 0xFFFFFFFF:
                 candidate = 1
-        rename[int(old)] = candidate
+        rename[old] = candidate
         used.add(candidate)
         candidate += 1
     return rename

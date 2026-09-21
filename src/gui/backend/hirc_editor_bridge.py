@@ -159,8 +159,8 @@ class WemConvertWorker(BaseWorker):
     def __init__(self, audio_path: Path, dest_wem: Path, normalize: bool = False,
                  streaming_root=None, wem_id=None):
         super().__init__()
-        self._audio_path = Path(audio_path)
-        self._dest_wem = Path(dest_wem)
+        self._audio_path = audio_path
+        self._dest_wem = dest_wem
         self._normalize = normalize
         self._streaming_root = streaming_root
         self._wem_id = wem_id
@@ -171,7 +171,7 @@ class WemConvertWorker(BaseWorker):
             # Building the index here keeps it off the UI thread.
             if self._streaming_root is not None and self._wem_id is not None:
                 from src.wwise.original_id_index import get_original_id_index
-                if int(self._wem_id) in get_original_id_index(self._streaming_root):
+                if self._wem_id in get_original_id_index(self._streaming_root):
                     self.failed.emit(
                         f"WEM id {self._wem_id} already exists in the game's original files. "
                         f"Choose a different (unused) id."
@@ -226,7 +226,7 @@ class ApplyDraftWorker(BaseWorker):
                     self._streaming_root,
                     self._persistent_root,
                     fresh_clone=True,
-                    status_cb=lambda m: self.progress.emit(str(m)),
+                    status_cb=lambda m: self.progress.emit(m),
                     soundbank_glob=self._soundbank_glob,
                 )
             self.finished_ok.emit("Draft applied to the live game.")
@@ -509,7 +509,7 @@ class HircEditorBridge(QObject):
             obj_ids = entry.pop("obj_ids", []) or []
             parts = [str(i) for i in source_ids]
             for i in source_ids:
-                nm = name_map.get(int(i))
+                nm = name_map.get(i)
                 if nm:
                     parts.append(nm.lower())
             parts.extend(str(i) for i in obj_ids)
@@ -575,11 +575,11 @@ class HircEditorBridge(QObject):
             return
         for o in objs:
             for entry in (o.get("sources") or []):
-                nm = name_map.get(int(entry.get("source_id", -1)))
+                nm = name_map.get(entry.get("source_id", -1))
                 if nm:
                     entry["name"] = nm
             for entry in (o.get("playlist") or []):
-                nm = name_map.get(int(entry.get("source_id", -1)))
+                nm = name_map.get(entry.get("source_id", -1))
                 if nm:
                     entry["name"] = nm
 
@@ -857,25 +857,24 @@ class HircEditorBridge(QObject):
         )
         self._workers.start("convert", worker)
 
-    def _on_wem_converted(self, pck, wem_id, lang_id, wem_path, source_name):
+    def _on_wem_converted(self, pck, wem_id: int, lang_id: int, wem_path: str, source_name):
         d = self._get_draft()
-        wid = int(wem_id)
         # One media add per (pck, wem_id): a re-add replaces the previous staging.
         d["media_adds"] = [
             m for m in d["media_adds"]
-            if not (m.get("pck_name") == pck and int(m.get("wem_id")) == wid)
+            if not (m.get("pck_name") == pck and int(m.get("wem_id")) == wem_id)
         ]
         d["media_adds"].append({
             "pck_name": pck,
-            "wem_id": wid,
-            "wem_path": str(wem_path),
-            "lang_id": int(lang_id),
+            "wem_id": wem_id,
+            "wem_path": wem_path,
+            "lang_id": lang_id,
             "source_name": source_name,
         })
         self._save_draft()
         self._emit_draft_count()
-        self.statusUpdate.emit(f"Staged WEM {wid} -> {pck} ({source_name})")
-        self.wemStaged.emit(pck, wid, source_name)
+        self.statusUpdate.emit(f"Staged WEM {wem_id} -> {pck} ({source_name})")
+        self.wemStaged.emit(pck, wem_id, source_name)
 
     @pyqtSlot(str, "QVariant", "QVariant", str, str, str)
     def stageTrackEdits(self, pck_name, bnk_id, track_obj_id,

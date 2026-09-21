@@ -1,6 +1,5 @@
 import subprocess
 import sys
-from pathlib import Path
 
 from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 
@@ -308,9 +307,9 @@ class AudioBrowserConnector:
         )
         streaming_dir, persistent_dir = build_audio_paths(game_id, game_dir)
         if folder_type == "streaming":
-            folder = Path(streaming_dir)
+            folder = streaming_dir
         else:
-            folder = Path(persistent_dir)
+            folder = persistent_dir
 
         if not folder.exists():
             logger.info(f"[Audio Browser] Folder does not exist: {folder}")

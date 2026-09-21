@@ -16,7 +16,7 @@ class SoundDatabase:
         if db_path is None:
             self.db_path = get_sound_database_file()
         else:
-            self.db_path = Path(db_path)
+            self.db_path = db_path
 
         self.database = {}
         self._loaded = False

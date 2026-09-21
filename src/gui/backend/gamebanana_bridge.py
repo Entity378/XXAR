@@ -214,7 +214,7 @@ class FetchModsWorker(BaseWorker):
         self.per_page = per_page
         self.sort = sort
         self.category = category
-        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
+        self.gamebanana_game_id = gamebanana_game_id if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
     def work(self):
         try:
@@ -338,7 +338,7 @@ class FetchMiscModsWorker(BaseWorker):
         self.page = page
         self.per_page = per_page
         self.sort = sort
-        self.gamebanana_game_id = int(gamebanana_game_id) if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
+        self.gamebanana_game_id = gamebanana_game_id if gamebanana_game_id else app_config.GAMEBANANA_GAME_ID
 
     def work(self):
         try:

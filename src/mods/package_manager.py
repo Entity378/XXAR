@@ -42,12 +42,12 @@ def _get_active_game_id():
     return DEFAULT_GAME_ID
 
 
-def _find_overlay_pck(persistent_audio_dir, pck_name):
+def _find_overlay_pck(persistent_audio_dir: Path, pck_name):
     # The overlay a tracker key points at: direct join, else the same basename anywhere under Persistent.
-    direct = Path(persistent_audio_dir) / pck_name
+    direct = persistent_audio_dir / pck_name
     if direct.exists():
         return direct
-    return next(Path(persistent_audio_dir).rglob(Path(pck_name).name), direct)
+    return next(persistent_audio_dir.rglob(Path(pck_name).name), direct)
 
 
 class InvalidModPackageError(Exception):
@@ -387,9 +387,9 @@ class ModPackageManager:
                 logger.error(f"[Mod Manager] Failed to rewrite metadata.json for {mod_uuid}: {e}")
         return relinked
 
-    def migrate_installed_mods(self, game_audio_dir, game=None):
+    def migrate_installed_mods(self, game_audio_dir: Path, game=None):
         # Migrate every installed mod (shared index), saving mod_config once if anything changed.
-        if not game_audio_dir or not Path(game_audio_dir).exists():
+        if not game_audio_dir or not game_audio_dir.exists():
             return
         installed = self.mod_config.get('installed_mods', {})
         if not installed:
@@ -682,8 +682,8 @@ class ModPackageManager:
         return result
 
     @staticmethod
-    def _entry_wem_id(key, info):
-        raw = info.get('file_id') or (str(key).split('|')[-1] if '|' in str(key) else key)
+    def _entry_wem_id(key: str, info):
+        raw = info.get('file_id') or (key.split('|')[-1] if '|' in key else key)
         try:
             return int(raw)
         except (TypeError, ValueError):
@@ -909,7 +909,7 @@ class ModPackageManager:
                         logger.warning(f"Warning: WEM file not found: {wem_path}, skipping...")
                         continue
 
-                    raw_id = file_info.get('file_id') or (str(key).split('|')[-1] if '|' in str(key) else key)
+                    raw_id = file_info.get('file_id') or (key.split('|')[-1] if '|' in key else key)
                     actual_wem_id = int(raw_id)
                     lang_id = file_info.get('lang_id', 0)
 
@@ -974,7 +974,7 @@ class ModPackageManager:
             override_cb = None
             if progress_callback:
                 override_cb = lambda msg: progress_callback(
-                    str(msg), total_pcks, max(total_pcks, 1)
+                    msg, total_pcks, max(total_pcks, 1)
                 )
             patch_override_pcks(
                 persistent_audio_dir, resolved, game,
@@ -995,7 +995,7 @@ class ModPackageManager:
                 if progress_callback:
                     status_callback = (
                         lambda msg: progress_callback(
-                            str(msg), total_pcks, max(total_pcks, 1)
+                            msg, total_pcks, max(total_pcks, 1)
                         )
                     )
                 post_steps(
@@ -1016,7 +1016,7 @@ class ModPackageManager:
                 hirc_cb = None
                 if progress_callback:
                     hirc_cb = lambda msg: progress_callback(
-                        str(msg), total_pcks, max(total_pcks, 1)
+                        msg, total_pcks, max(total_pcks, 1)
                     )
                 apply_hirc_track_patches(
                     merged_hirc_patches,

@@ -271,10 +271,10 @@ class SettingsConnector:
             self._heavy_running = False
         self._set_game_switch_busy(False)
 
-    def _set_game_switch_busy(self, busy):
+    def _set_game_switch_busy(self, busy: bool):
         # Gates the game selector for as long as the reload owns the GUI thread.
         if self.root:
-            self.root.setProperty("gameSwitchInProgress", bool(busy))
+            self.root.setProperty("gameSwitchInProgress", busy)
 
     def _store_game_data_dir_settings(
         self, settings, game_data_dir, target_game_id, set_active=False

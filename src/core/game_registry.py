@@ -41,9 +41,9 @@ class GameDefinition:
     logo_png: str = ""
     logo_256: str = ""
 
-    def is_protected_pck(self, pck_key):
+    def is_protected_pck(self, pck_key: str):
         # Tracker keys may be bare names, folder-qualified ("En/Patch.pck") or full paths: match by basename.
-        return Path(str(pck_key)).name in self.protected_pcks
+        return Path(pck_key).name in self.protected_pcks
 
 
 _ALL_GAMES: tuple[GameDefinition, ...] = (

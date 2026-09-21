@@ -16,8 +16,8 @@ DEFAULT_TOP_K = 200
 
 class ConstellationIndex:
 
-    def __init__(self, sqlite_path):
-        self.path = Path(sqlite_path)
+    def __init__(self, sqlite_path: Path):
+        self.path = sqlite_path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(

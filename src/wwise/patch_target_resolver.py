@@ -22,10 +22,9 @@ def _streamed_scan_glob(game):
     return f"{game.streamed_pck_filter_prefix}*.pck"
 
 
-def find_patch_pck_sources(persistent_root, game):
+def find_patch_pck_sources(persistent_root: Path, game):
     # Live locations of the protected overrides (Patch.pck/Hotfix.pck) under Persistent.
     # Read pre-mod bytes through patch_backup.pristine_path at the read site, not here.
-    persistent_root = Path(persistent_root) if persistent_root else None
     if not persistent_root or not persistent_root.exists():
         return []
 
@@ -48,10 +47,9 @@ def plain_wem_id(info, key):
         return None
 
 
-def canonicalize_pck_keys(resolved, streaming_root, game):
+def canonicalize_pck_keys(resolved, streaming_root: Path, game):
     # Bare and folder-qualified keys can name the same physical pck, which then rebuilds twice with the second output clobbering the first.
     # Rekeys every non-protected bucket to the posix path relative to streaming_root and merges aliases in place.
-    streaming_root = Path(streaming_root) if streaming_root else None
     if not streaming_root or not streaming_root.exists():
         return 0
     merged_buckets = 0
@@ -86,10 +84,9 @@ def canonicalize_pck_keys(resolved, streaming_root, game):
     return merged_buckets
 
 
-def soundbank_bnk_ids(streaming_root, game):
+def soundbank_bnk_ids(streaming_root: Path, game):
     # Set of every bnk_id present in the StreamingAssets SoundBank pcks (the counterpart set for Patch BNKs).
     result = set()
-    streaming_root = Path(streaming_root) if streaming_root else None
     if not streaming_root or not streaming_root.exists():
         return result
     for pck_file in streaming_root.rglob(_soundbank_scan_glob(game)):
@@ -102,10 +99,9 @@ def soundbank_bnk_ids(streaming_root, game):
     return result
 
 
-def streamed_wem_pcks(streaming_root, game):
+def streamed_wem_pcks(streaming_root: Path, game):
     # wem_id -> (pck_name, lang_id) for every direct/external WEM in the Streamed_*.pck of StreamingAssets.
     result = {}
-    streaming_root = Path(streaming_root) if streaming_root else None
     if not streaming_root or not streaming_root.exists():
         return result
     for pck_file in streaming_root.rglob(_streamed_scan_glob(game)):
@@ -165,13 +161,11 @@ def install_whole_patch_bnks(packer, bnk_ids, patch_bnk_content, bnk_lang_ids):
         packer.add_or_replace_bnk_raw(bnk_id, content["full_bnk_bytes"], fallback_lang)
 
 
-def resolve_and_extract(resolved, streaming_root, persistent_root, game, streamed_index=None):
+def resolve_and_extract(resolved, streaming_root: Path, persistent_root: Path, game, streamed_index=None):
     # Mutates `resolved` in place: removes protected pck_name keys, moves entries under the resolved dest_pck.
     # streamed_index, when given, is reused for the streamed-target lookup instead of indexing the pcks again.
     # Returns stats + patch_bnk_content {pck_name: {bnk_id: {source, wems, full_bnk_bytes?}}} for the main loop.
     # Pristine content comes per target pck from the language that owns it (the override holding the modded WEM).
-    streaming_root = Path(streaming_root) if streaming_root else None
-    persistent_root = Path(persistent_root) if persistent_root else None
 
     has_protected_targets = any(game.is_protected_pck(pck) for pck in resolved.keys())
 
@@ -200,7 +194,7 @@ def resolve_and_extract(resolved, streaming_root, persistent_root, game, streame
             for override_pck in persistent_overrides:
                 read_path = patch_backup.pristine_path(override_pck, persistent_root, game)
                 try:
-                    override_index_cache[override_pck] = (read_path, PCKIndexer(str(read_path)).build_index())
+                    override_index_cache[override_pck] = (read_path, PCKIndexer(read_path).build_index())
                 except Exception as e:
                     logger.error(f"[Patch Resolver] Warning: failed to index {read_path.name}: {e}")
         return override_index_cache

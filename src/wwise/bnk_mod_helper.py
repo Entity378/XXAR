@@ -9,10 +9,9 @@ from src.wwise.pck_packer import PCKPacker
 logger = get_logger(__name__)
 
 
-def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir):
+def prepare_bnk_structure(wem_files_dir, bnk_id, output_structure_dir: Path):
 
     wem_files_dir = Path(wem_files_dir)
-    output_structure_dir = Path(output_structure_dir)
 
     bnk_dir = output_structure_dir / f"{bnk_id}_bnk"
     bnk_dir.mkdir(parents=True, exist_ok=True)

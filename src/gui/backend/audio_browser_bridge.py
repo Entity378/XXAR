@@ -159,7 +159,7 @@ class ReplaceAudioWorker(BaseWorker):
             )
 
             # Base must be the audio root: pck_filename can already include the lang folder.
-            persistent_path = Path(self.persistent_root) if self.persistent_root else pck_file_path.parent
+            persistent_path = self.persistent_root if self.persistent_root else pck_file_path.parent
             self.mod_manager.set_persistent_path(str(persistent_path))
 
             self.finished.emit(True,
@@ -433,7 +433,7 @@ class AudioBrowserBridge(QObject):
         repointed = False
         for info in self.language_folders.values():
             try:
-                rel = Path(info["path"]).relative_to(persistent_root)
+                rel = info["path"].relative_to(persistent_root)
             except (KeyError, ValueError):
                 continue
             candidate = streaming_root / rel
@@ -521,7 +521,7 @@ class AudioBrowserBridge(QObject):
     def _active_game(self):
         return get_game(self.game_mode)
 
-    def _tracker_display_file_id(self, tracker_key):
+    def _tracker_display_file_id(self, tracker_key: str):
         handler = self._active_browser_handler
         parse_fn = getattr(handler, "tracker_display_file_id", None)
         if callable(parse_fn):
@@ -529,10 +529,10 @@ class AudioBrowserBridge(QObject):
                 return str(parse_fn(tracker_key))
             except Exception:
                 pass
-        key_text = str(tracker_key or "")
+        key_text = tracker_key or ""
         return key_text.split("|")[1] if "|" in key_text else key_text
 
-    def _tracker_plain_file_id(self, tracker_key):
+    def _tracker_plain_file_id(self, tracker_key: str):
         handler = self._active_browser_handler
         parse_fn = getattr(handler, "tracker_plain_file_id", None)
         if callable(parse_fn):
@@ -540,7 +540,7 @@ class AudioBrowserBridge(QObject):
                 return str(parse_fn(tracker_key))
             except Exception:
                 pass
-        key_text = str(tracker_key or "")
+        key_text = tracker_key or ""
         return key_text.split("|")[-1] if "|" in key_text else key_text
 
     @pyqtSlot()
@@ -745,7 +745,7 @@ class AudioBrowserBridge(QObject):
 
         sorted_folders = sorted(
             self.language_folders.keys(),
-            key=lambda x: (0, "") if x == "Full" else (1, str(x)),
+            key=lambda x: (0, "") if x == "Full" else (1, x),
         )
         if index < 0 or index >= len(sorted_folders):
             return
@@ -756,9 +756,8 @@ class AudioBrowserBridge(QObject):
         self._set_active_pck_filter(None, "")
         self._load_pck_files(folder_path)
 
-    def _load_pck_files(self, directory, file_filter=None, filter_tag=""):
+    def _load_pck_files(self, directory: Path, file_filter=None, filter_tag=""):
 
-        directory = Path(directory)
         if file_filter is None:
             file_filter = self._active_pck_filter
         if not filter_tag:
@@ -805,7 +804,7 @@ class AudioBrowserBridge(QObject):
         collect_pck_files = getattr(
             handler,
             "collect_pck_files",
-            lambda d: sorted(Path(d).glob("*.pck"), key=lambda p: p.name.lower()),
+            lambda d: sorted(d.glob("*.pck"), key=lambda p: p.name.lower()),
         )
         include_pck_file = getattr(
             handler,
@@ -1052,7 +1051,7 @@ class AudioBrowserBridge(QObject):
             logger.error(f"[ExpandPCK] Error during expansion: {e}")
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Error loading %1: %2").replace("%1", Path(pck_path).name).replace("%2", str(e)))
 
-    def _expand_bnk_item(self, bnk_id):
+    def _expand_bnk_item(self, bnk_id: str):
 
         bnk_data = None
         for key, data in self._item_data.items():
@@ -1203,7 +1202,7 @@ class AudioBrowserBridge(QObject):
                                 "bnk_bytes": patch_bnk_bytes,
                                 "pck_path": bnk_data["pck_path"],
                                 "lang_id": bnk_data.get("lang_id", 0),
-                                "source_pck_path": str(patch_path),
+                                "source_pck_path": patch_path,
                                 "source_override": override_name,
                             }
                             # The patch BNK only carries the prefetch; pair it with the full streamed copy so playback isn't truncated.
@@ -1264,7 +1263,7 @@ class AudioBrowserBridge(QObject):
             self.treeItemsReady.emit(items)
 
         except Exception as e:
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Error loading BNK %1: %2").replace("%1", str(bnk_id)).replace("%2", str(e)))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "Error loading BNK %1: %2").replace("%1", bnk_id).replace("%2", str(e)))
 
     @pyqtSlot(str, str, str)
     def onTreeItemDoubleClicked(self, item_id, item_type, pck_path):
@@ -1394,8 +1393,8 @@ class AudioBrowserBridge(QObject):
         if self._playback_duration > 0:
             self.audio_player.set_position(int(position * self._playback_duration))
 
-    def _on_playback_state_changed(self, state):
-        self.statusUpdate.emit(QCoreApplication.translate("Application", "Playback: %1").replace("%1", str(state)))
+    def _on_playback_state_changed(self, state: str):
+        self.statusUpdate.emit(QCoreApplication.translate("Application", "Playback: %1").replace("%1", state))
         has_audio = self.audio_player.current_file is not None
         if state == "playing":
             self.playbackStateUpdate.emit(True, False, True)
@@ -1503,7 +1502,7 @@ class AudioBrowserBridge(QObject):
             logger.error(f"[Audio Browser] Error saving normalize_target_lufs setting: {e}")
 
     @pyqtSlot(str, str, str)
-    def setChangeLoopPointMode(self, pck_file, tracker_key, mode):
+    def setChangeLoopPointMode(self, pck_file: str, tracker_key: str, mode):
         if self._refuse_if_writing():
             return
         replacements = self.mod_manager.get_all_replacements()
@@ -1548,14 +1547,14 @@ class AudioBrowserBridge(QObject):
                     "Application",
                     "Loop point mode updated for %1 (%2).",
                 )
-                .replace("%1", str(pck_file))
-                .replace("%2", str(tracker_key))
+                .replace("%1", pck_file)
+                .replace("%2", tracker_key)
             )
 
     @staticmethod
-    def _parse_duration_to_ms(duration_text):
+    def _parse_duration_to_ms(duration_text: str):
         # Accept "mm:ss.SSS", "mm:ss", or plain milliseconds; return int ms or None.
-        text = str(duration_text or "").strip()
+        text = (duration_text or "").strip()
         if not text:
             return None
         if ":" not in text:
@@ -1574,7 +1573,7 @@ class AudioBrowserBridge(QObject):
         return (minutes * 60 + seconds) * 1000 + millis
 
     @pyqtSlot(str, str, str)
-    def setChangeLoopPointManualMs(self, pck_file, tracker_key, duration_text):
+    def setChangeLoopPointManualMs(self, pck_file: str, tracker_key: str, duration_text):
         if self._refuse_if_writing():
             return
         replacements = self.mod_manager.get_all_replacements()
@@ -1616,8 +1615,8 @@ class AudioBrowserBridge(QObject):
                     "Application",
                     "Loop point manual duration updated for %1 (%2).",
                 )
-                .replace("%1", str(pck_file))
-                .replace("%2", str(tracker_key))
+                .replace("%1", pck_file)
+                .replace("%2", tracker_key)
             )
 
     @pyqtSlot(str, str, bool)
@@ -1637,7 +1636,7 @@ class AudioBrowserBridge(QObject):
         )
 
     @pyqtSlot(str, str, str)
-    def setChangeVolumeDb(self, pck_file, tracker_key, volume_text):
+    def setChangeVolumeDb(self, pck_file: str, tracker_key: str, volume_text):
         if self._refuse_if_writing():
             return
         replacements = self.mod_manager.get_all_replacements()
@@ -1674,8 +1673,8 @@ class AudioBrowserBridge(QObject):
                     "Application",
                     "Volume updated to %3 dB for %1 (%2).",
                 )
-                .replace("%1", str(pck_file))
-                .replace("%2", str(tracker_key))
+                .replace("%1", pck_file)
+                .replace("%2", tracker_key)
                 .replace("%3", str(normalized))
             )
 
@@ -1749,12 +1748,12 @@ class AudioBrowserBridge(QObject):
             self.statusUpdate.emit(QCoreApplication.translate("Application", "No files found matching '%1'").replace("%1", query))
 
     @pyqtSlot(str, str, str, str)
-    def navigateToSearchResult(self, file_id, item_type, pck_path, bnk_id):
+    def navigateToSearchResult(self, file_id: str, item_type, pck_path, bnk_id):
         logger.info(f"[Navigate] navigateToSearchResult called: id={file_id}, type={item_type}, pck={pck_path}, bnk={bnk_id}")
 
         if not pck_path:
             logger.info("[Navigate] No pck_path provided")
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "Cannot navigate to file %1").replace("%1", str(file_id)))
+            self.statusUpdate.emit(QCoreApplication.translate("Application", "Cannot navigate to file %1").replace("%1", file_id))
             return
 
         streamed_prefix = self._active_game().streamed_pck_prefix
@@ -1796,10 +1795,10 @@ class AudioBrowserBridge(QObject):
         else:
             self._do_navigate(file_id, pck_path, bnk_id)
 
-    def _do_navigate(self, file_id, pck_path, bnk_id=""):
+    def _do_navigate(self, file_id: str, pck_path, bnk_id=""):
         logger.info(f"[Navigate] Emitting navigateToItem: {file_id}, {pck_path}, bnk={bnk_id}")
-        self.statusUpdate.emit(QCoreApplication.translate("Application", "Navigated to file %1 in %2").replace("%1", str(file_id)).replace("%2", Path(pck_path).name))
-        self.navigateToItem.emit(file_id, pck_path, str(bnk_id) if bnk_id else "")
+        self.statusUpdate.emit(QCoreApplication.translate("Application", "Navigated to file %1 in %2").replace("%1", file_id).replace("%2", Path(pck_path).name))
+        self.navigateToItem.emit(file_id, pck_path, bnk_id if bnk_id else "")
 
     @pyqtSlot()
     def clearSearch(self):
@@ -2312,7 +2311,7 @@ class AudioBrowserBridge(QObject):
                         replacements,
                         game,
                         streaming_root=streaming_base,
-                        progress_callback=lambda msg: self.statusUpdate.emit(str(msg)),
+                        progress_callback=lambda msg: self.statusUpdate.emit(msg),
                     )
                 except Exception as e:
                     logger.error(f"[Audio Browser] Warning: Override PCK patching failed: {e}")
@@ -2529,7 +2528,7 @@ class AudioBrowserBridge(QObject):
             self._play_wem_from_bnk(meta)
 
     @pyqtSlot(str, str, str, str)
-    def navigateToChange(self, pck_filename, file_id, item_type, bnk_id):
+    def navigateToChange(self, pck_filename, file_id: str, item_type, bnk_id: str):
 
         if not self.game_root_dir:
             self.statusUpdate.emit(QCoreApplication.translate("Application", "Cannot navigate: no game directory selected"))
@@ -2538,9 +2537,9 @@ class AudioBrowserBridge(QObject):
         # Protected overrides (Patch.pck/Hotfix.pck) have only a stub in StreamingAssets, so the tree lists them under the pristine Persistent source.
         # Resolve via the index so pck_path matches the tree node.
         if self._active_game().is_protected_pck(pck_filename):
-            lookup_id = int(file_id) if str(file_id).isdigit() else file_id
+            lookup_id = int(file_id) if file_id.isdigit() else file_id
             embedded = [location for location in self.file_id_index.get(lookup_id, []) if location.get("type") == "wem_embedded"]
-            match = next((location for location in embedded if not bnk_id or str(location.get("bnk_id", "")) == str(bnk_id)), None)
+            match = next((location for location in embedded if not bnk_id or str(location.get("bnk_id", "")) == bnk_id), None)
             target = match or (embedded[0] if embedded else None)
             if target:
                 self.navigateToSearchResult(file_id, "wem_embedded", target["pck_path"], str(target.get("bnk_id", "")))
@@ -2889,9 +2888,9 @@ class AudioBrowserBridge(QObject):
             collect_pck_files = getattr(
                 self._active_browser_handler,
                 "collect_pck_files",
-                lambda d: sorted(Path(d).glob("*.pck"), key=lambda p: p.name.lower()),
+                lambda d: sorted(d.glob("*.pck"), key=lambda p: p.name.lower()),
             )
-            pck_files = list(collect_pck_files(Path(directory)))
+            pck_files = list(collect_pck_files(directory))
             total_pcks = len(pck_files)
 
             active_lang_name = (self.current_language_folder or "").strip().lower()
@@ -3402,7 +3401,7 @@ class AudioBrowserBridge(QObject):
                         pbi.parse_didx()
                     except Exception:
                         continue
-                    bnk_map = result.setdefault((str(patch_path), bank["id"]), {})
+                    bnk_map = result.setdefault((patch_path, bank["id"]), {})
                     for wem in pbi.wem_list:
                         bnk_map.setdefault(
                             wem["wem_id"], (override_name, bank["lang_id"])
@@ -3434,10 +3433,10 @@ class AudioBrowserBridge(QObject):
                 except Exception:
                     continue
                 for bank in banks:
-                    bank_key = (str(patch_path), bank["id"])
+                    bank_key = (patch_path, bank["id"])
                     if bank["id"] in counterpart_ids or bank_key in result:
                         continue
-                    result[bank_key] = {"path": str(patch_path), "bnk_id": bank["id"], "lang_id": bank.get("lang_id", 0), "override": override_name}
+                    result[bank_key] = {"path": patch_path, "bnk_id": bank["id"], "lang_id": bank.get("lang_id", 0), "override": override_name}
         except Exception as e:
             logger.error(f"[Browser] Orphan Patch.pck scan failed: {e}")
         self._orphan_bnks_cache_key = cache_key
@@ -3695,7 +3694,7 @@ class AudioBrowserBridge(QObject):
                     return data
             elif data.get("type") == "wem_embedded" and str(data.get("wem_id")) == item_id:
                 if not pck_path or data.get("pck_path") == pck_path:
-                    if parent_bnk and str(data.get("bnk_id")) != str(parent_bnk):
+                    if parent_bnk and str(data.get("bnk_id")) != parent_bnk:
                         continue
                     return data
             elif data.get("type") == "bnk" and str(data.get("file_id")) == item_id:

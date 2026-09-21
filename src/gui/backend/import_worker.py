@@ -34,8 +34,8 @@ class ImportWorker(BaseWorker):
         self.game_id = detect_game_id_from_path(game_audio_dir, default=DEFAULT_GAME_ID)
         self.game = get_game(self.game_id)
 
-    def _get_pck_priority(self, pck_name):
-        name = str(pck_name or "")
+    def _get_pck_priority(self, pck_name: str):
+        name = pck_name or ""
         if name.startswith(self.game.soundbank_pck_prefix):
             return 1
         if name.startswith(self.game.streamed_pck_prefix):
@@ -52,11 +52,10 @@ class ImportWorker(BaseWorker):
     def _priority_suffix(self, priority):
         return f" ({self._priority_label(priority)})"
 
-    def _is_language_specific_candidate(self, relative_pck):
-        rel = Path(relative_pck)
-        if len(rel.parts) <= 1:
+    def _is_language_specific_candidate(self, relative_pck: Path):
+        if len(relative_pck.parts) <= 1:
             return False
-        top_dir = rel.parts[0]
+        top_dir = relative_pck.parts[0]
         non_language_tabs = set(self.game.non_language_tabs)
         return top_dir not in non_language_tabs
 

@@ -125,8 +125,7 @@ class WwiseConsole:
         except Exception as e:
             logger.warning(f"Migration warning: {e}")
 
-    def _cleanup_wwise_artifacts(self, output_dir):
-        output_dir = Path(output_dir)
+    def _cleanup_wwise_artifacts(self, output_dir: Path):
         wsources = output_dir / "list.wsources"
         if wsources.exists():
             wsources.unlink()
@@ -134,9 +133,9 @@ class WwiseConsole:
         if windows_dir.exists() and windows_dir.is_dir():
             shutil.rmtree(windows_dir)
 
-    def _create_wsources_file(self, wav_files, wav_dir, output_path):
+    def _create_wsources_file(self, wav_files, wav_dir: Path, output_path):
 
-        wav_dir_path = Path(wav_dir).resolve()
+        wav_dir_path = wav_dir.resolve()
 
         if self.is_windows:
             root_path = str(wav_dir_path)
@@ -149,7 +148,7 @@ class WwiseConsole:
         })
 
         for wav_file in wav_files:
-            wav_path = Path(wav_file).resolve()
+            wav_path = wav_file.resolve()
 
             filename = wav_path.name
             ET.SubElement(root, "Source", {
@@ -162,8 +161,8 @@ class WwiseConsole:
         tree.write(wsources_path, encoding="utf-8", xml_declaration=True)
         return wsources_path
 
-    def convert_to_wem(self, wav_file, output_dir=None):
-        wav_file = Path(wav_file).resolve()
+    def convert_to_wem(self, wav_file: Path, output_dir=None):
+        wav_file = wav_file.resolve()
         if output_dir is None:
             output_dir = wav_file.parent
         result = self.batch_convert_to_wem([wav_file], output_dir)
@@ -171,11 +170,11 @@ class WwiseConsole:
             raise RuntimeError(f"WEM file not created from {wav_file.name}")
         return result[0]
 
-    def batch_convert_to_wem(self, wav_files, output_dir):
-        output_dir = Path(output_dir).resolve()
+    def batch_convert_to_wem(self, wav_files, output_dir: Path):
+        output_dir = output_dir.resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        wav_paths = [Path(f).resolve() for f in wav_files]
+        wav_paths = [f.resolve() for f in wav_files]
         if not wav_paths:
             return []
 
@@ -228,7 +227,7 @@ class WwiseConsole:
         project_cache = self.project_path.parent / ".cache"
         found = []
         for wav in wav_files:
-            wem_file = output_dir / Path(wav).with_suffix(".wem").name
+            wem_file = output_dir / wav.with_suffix(".wem").name
             if not wem_file.exists():
                 # Wwise normally writes here:
                 for p in output_dir.rglob(wem_file.name):
@@ -243,7 +242,7 @@ class WwiseConsole:
             if wem_file.exists():
                 found.append(wem_file)
             else:
-                logger.error(f"[X] Failed: {Path(wav).name}")
+                logger.error(f"[X] Failed: {wav.name}")
         return found
 
 

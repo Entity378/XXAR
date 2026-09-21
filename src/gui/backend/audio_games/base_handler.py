@@ -23,8 +23,8 @@ from src.wwise.pck_packer import PCKPacker
 logger = get_logger(__name__)
 
 
-def _natural_sort_key(value):
-    text = str(value or "")
+def _natural_sort_key(value: str):
+    text = value or ""
     parts = re.split(r"(\d+)", text.lower())
     return [int(part) if part.isdigit() else part for part in parts]
 
@@ -175,23 +175,23 @@ class BaseBrowserHandler:
     def _ordered_folder_keys(self):
         priority = dict(self.game.subfolder_sort_priority)
 
-        def sort_key(name):
+        def sort_key(name: str):
             if name == TITLESCREEN_FOLDER_KEY:
-                return (2, 999, str(name).lower())
+                return (2, 999, name.lower())
             if name == "Full":
-                return (0, 0, str(name).lower())
-            return (1, priority.get(name, 99), str(name).lower())
+                return (0, 0, name.lower())
+            return (1, priority.get(name, 99), name.lower())
 
         return sorted(self.bridge.language_folders.keys(), key=sort_key)
 
-    def collect_pck_files(self, directory):
+    def collect_pck_files(self, directory: Path):
         if self.bridge:
             current = getattr(self.bridge, "current_language_folder", None)
             info = (getattr(self.bridge, "language_folders", None) or {}).get(current) or {}
             explicit = info.get("pck_files")
             if explicit:
                 return list(explicit)
-        return sorted(Path(directory).glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
+        return sorted(directory.glob("*.pck"), key=lambda p: _natural_sort_key(p.name))
 
     def include_pck_file(
         self,
@@ -209,7 +209,7 @@ class BaseBrowserHandler:
         non_language_tabs = set(self.game.non_language_tabs)
         is_language_folder = current_language_folder not in non_language_tabs
         if hide_useless_pck_enabled and is_language_folder:
-            if not str(pck_file.name).startswith(self.game.soundbank_pck_filter_prefix):
+            if not pck_file.name.startswith(self.game.soundbank_pck_filter_prefix):
                 return False
         return True
 
@@ -217,18 +217,18 @@ class BaseBrowserHandler:
     def format_pck_display_name(pck_file, directory):
         return pck_file.name
 
-    def _emit_status(self, message):
+    def _emit_status(self, message: str):
         if not message:
             return
         if callable(self._status_callback):
             try:
-                self._status_callback(str(message))
+                self._status_callback(message)
             except Exception:
                 pass
             return
         if self.bridge and hasattr(self.bridge, "statusUpdate"):
             try:
-                self.bridge.statusUpdate.emit(str(message))
+                self.bridge.statusUpdate.emit(message)
             except Exception:
                 pass
 
@@ -306,9 +306,9 @@ class BaseBrowserHandler:
         return self.normalize_loop_manual_ms(round(duration_ms))
 
     @staticmethod
-    def _get_wem_duration_ms(wem_path):
+    def _get_wem_duration_ms(wem_path: Path):
         try:
-            wem_bytes = Path(wem_path).read_bytes()
+            wem_bytes = wem_path.read_bytes()
             if len(wem_bytes) < 12:
                 return None
             if wem_bytes[:4] != b"RIFF" or wem_bytes[8:12] != b"WAVE":
@@ -395,7 +395,7 @@ class BaseBrowserHandler:
             return {"patched_files": 0, "patched_ids": 0}
 
         game_root = (
-            Path(self.bridge.game_root_dir)
+            self.bridge.game_root_dir
             if self.bridge and self.bridge.game_root_dir
             else None
         )
@@ -505,8 +505,8 @@ class BaseBrowserHandler:
     def apply_post_mod_manager_steps(
         cls,
         replacements,
-        streaming_root,
-        persistent_root,
+        streaming_root: Path,
+        persistent_root: Path,
         resolved_pck_names=None,
         status_callback=None,
     ):
@@ -519,8 +519,6 @@ class BaseBrowserHandler:
         if not duration_ms_by_track and not volume_db_by_track:
             return {"patched_files": 0, "patched_ids": 0}
 
-        streaming_root = Path(streaming_root) if streaming_root else None
-        persistent_root = Path(persistent_root) if persistent_root else None
         if not streaming_root or not streaming_root.exists():
             raise FileNotFoundError(
                 QCoreApplication.translate(
@@ -537,7 +535,7 @@ class BaseBrowserHandler:
             )
 
         resolved_names = {
-            str(Path(name).name).lower()
+            Path(name).name.lower()
             for name in (resolved_pck_names or [])
             if str(name).strip()
         }
@@ -827,14 +825,13 @@ class BaseBrowserHandler:
             if p.name.lower().startswith(prefix)
         ]
 
-    def _find_titlescreen_pcks(self, audio_root):
+    def _find_titlescreen_pcks(self, audio_root: Path):
         # Some games keep the title-screen PCK in a sibling folder of streaming_root (e.g. ZZZ stores Minimum.pck under Audio/Windows/Min/ while streaming_root is Full/).
         # Scan streaming_root and its siblings to cover both layouts.
         names = self.game.titlescreen_pcks
         if not names or not audio_root:
             return []
         name_set = {n.lower() for n in names}
-        audio_root = Path(audio_root)
 
         search_roots = [audio_root]
         parent = audio_root.parent
@@ -857,13 +854,10 @@ class BaseBrowserHandler:
         return sorted(found, key=lambda p: _natural_sort_key(p.name))
 
     @staticmethod
-    def _persistent_overlay_path(src_pck, streaming_root, persistent_root):
+    def _persistent_overlay_path(src_pck: Path, streaming_root: Path, persistent_root: Path):
         # Mirror a source PCK path into the persistent overlay tree.
         # This works whether src_pck is under streaming_root or in a sibling folder (e.g. ZZZ's Min/Minimum.pck vs Full/ streaming_root).
         # The mapping is performed by swapping the StreamingAssets segment with the Persistent equivalent.
-        src_pck = Path(src_pck)
-        streaming_root = Path(streaming_root)
-        persistent_root = Path(persistent_root)
         try:
             rel = src_pck.relative_to(streaming_root)
             return persistent_root / rel
@@ -875,12 +869,12 @@ class BaseBrowserHandler:
                 return Path(*src_parts[:i], "Persistent", *src_parts[i + 1:])
         return persistent_root / src_pck.name
 
-    def _find_override_pcks(self, persistent_root):
-        if not persistent_root or not Path(persistent_root).exists():
+    def _find_override_pcks(self, persistent_root: Path):
+        if not persistent_root or not persistent_root.exists():
             return []
         return [
             p
-            for p in Path(persistent_root).rglob("*.pck")
+            for p in persistent_root.rglob("*.pck")
             if p.name in self.game.protected_pcks
         ]
 
@@ -925,7 +919,7 @@ class BaseBrowserHandler:
                 if duration_ms is None:
                     missing_durations.append(str(track_id))
                     continue
-                duration_ms_by_track[track_id] = float(duration_ms)
+                duration_ms_by_track[track_id] = duration_ms
 
         if invalid_manual:
             self._emit_status(

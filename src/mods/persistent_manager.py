@@ -15,7 +15,7 @@ class PersistentModManager:
 
         self.persistent_base_path = Path(persistent_base_path) if persistent_base_path else None
         if tracker_path:
-            self.mod_tracker_path = Path(tracker_path)
+            self.mod_tracker_path = tracker_path
         else:
             self.mod_tracker_path = get_game_mod_tracker_file(game_id or DEFAULT_GAME_ID)
         self.mod_tracker_path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,14 +27,14 @@ class PersistentModManager:
 
         self.persistent_base_path = Path(path)
 
-    def add_replacement(self, pck_filename, file_id, wem_path, file_type='wem', lang_id=0, bnk_id=None, loop_point_mode='auto', loop_point_manual_ms=0, volume_enabled=True, volume_db=0.0):
+    def add_replacement(self, pck_filename, file_id, wem_path: str, file_type='wem', lang_id=0, bnk_id=None, loop_point_mode='auto', loop_point_manual_ms=0, volume_enabled=True, volume_db=0.0):
 
         if pck_filename not in self.mod_tracker:
             self.mod_tracker[pck_filename] = {}
 
         key = f"{bnk_id}|{file_id}" if bnk_id is not None else str(file_id)
         self.mod_tracker[pck_filename][key] = {
-            'wem_path': str(wem_path),
+            'wem_path': wem_path,
             'file_type': file_type,
             'lang_id': lang_id,
             'bnk_id': bnk_id,
@@ -55,8 +55,8 @@ class PersistentModManager:
 
         return pck_filename in self.mod_tracker and len(self.mod_tracker[pck_filename]) > 0
 
-    def remove_replacement(self, pck_filename, file_id, bnk_id=None):
-        key = f"{bnk_id}|{file_id}" if bnk_id is not None else str(file_id)
+    def remove_replacement(self, pck_filename, file_id: str, bnk_id=None):
+        key = f"{bnk_id}|{file_id}" if bnk_id is not None else file_id
 
         if pck_filename in self.mod_tracker:
             if key in self.mod_tracker[pck_filename]:

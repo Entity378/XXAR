@@ -68,7 +68,7 @@ def _is_managed_install():
     # If the running exe isn't under the registered root, notify only so we never upgrade a different copy.
     try:
         exe = Path(_get_real_exe_path()).resolve()
-        root = Path(install_root).resolve()
+        root = install_root.resolve()
         return os.path.normcase(str(exe)).startswith(os.path.normcase(str(root)) + os.sep)
     except OSError:
         return False
@@ -137,7 +137,7 @@ def parse_version(version_str):
     return base_tuple + (-1, 0)
 
 
-def _safe_extract_tar(tf, dest):
+def _safe_extract_tar(tf, dest: Path):
     # filter='data' (Python 3.11.4+) blocks traversal/symlink escapes; older Python validates manually below.
     try:
         tf.extractall(dest, filter='data')
@@ -145,7 +145,7 @@ def _safe_extract_tar(tf, dest):
     except TypeError:
         pass
 
-    dest_resolved = Path(dest).resolve()
+    dest_resolved = dest.resolve()
     for member in tf.getmembers():
         target = (dest_resolved / member.name).resolve()
         try:
