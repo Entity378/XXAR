@@ -196,7 +196,7 @@ def resolve_and_extract(resolved, streaming_root: Path, persistent_root: Path, g
                 try:
                     override_index_cache[override_pck] = (read_path, PCKIndexer(read_path).build_index())
                 except Exception as e:
-                    logger.error(f"[Patch Resolver] Warning: failed to index {read_path.name}: {e}")
+                    logger.error(f"[Patch Resolver] Warning: failed to index {Path(read_path).name}: {e}")
         return override_index_cache
 
     def _winning_override(bnk_id, wem_id):
@@ -218,7 +218,7 @@ def resolve_and_extract(resolved, streaming_root: Path, persistent_root: Path, g
                     bnk_bytes = handle.read(bank["size"])
                 embedded_wems = set(BNKFile(bnk_bytes=bnk_bytes).list_wems())
             except Exception as e:
-                logger.error(f"[Patch Resolver] Warning: failed to read BNK {bnk_id} from {read_path.name}: {e}")
+                logger.error(f"[Patch Resolver] Warning: failed to read BNK {bnk_id} from {Path(read_path).name}: {e}")
                 continue
             candidate = (override_pck, bank, bnk_bytes)
             if fallback is None:

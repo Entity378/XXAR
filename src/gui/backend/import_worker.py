@@ -77,7 +77,7 @@ class ImportWorker(BaseWorker):
                 for live_path, override_name in find_patch_pck_sources(persistent_root, self.game):
                     if name_filter is not None and override_name not in name_filter:
                         continue
-                    scan_path = patch_backup.pristine_path(live_path, persistent_root, self.game)
+                    scan_path = Path(patch_backup.pristine_path(live_path, persistent_root, self.game))
                     sources.append((scan_path, override_name, -1))
 
         return sources

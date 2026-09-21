@@ -50,7 +50,7 @@ def _owners_by_bnk(override_pcks, target_wems_by_bnk, persistent_root, game):
         try:
             index = PCKIndexer(read_path).build_index()
         except Exception as e:
-            logger.error(f"[Override Patcher] Failed to index {read_path.name} for ownership: {e}")
+            logger.error(f"[Override Patcher] Failed to index {Path(read_path).name} for ownership: {e}")
             continue
         bank_by_id = {entry["id"]: entry for entry in index.get("banks", [])}
         with open(read_path, "rb") as handle:
