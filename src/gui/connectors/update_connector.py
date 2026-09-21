@@ -235,8 +235,12 @@ class UpdateConnector:
                 old_version = flag_file.read_text().strip()
                 flag_file.unlink()
                 new_version = QCoreApplication.applicationVersion()
-                logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
                 _prune_stale_update_artifacts(get_updates_dir())
+                # The flag is written before the installer runs, so an unchanged version means the update never landed.
+                if old_version == new_version:
+                    logger.warning(f"[{APP_NAME}]Update did not complete, still on {new_version}")
+                    return
+                logger.info(f"[{APP_NAME}]Update success! {old_version} -> {new_version}")
                 QMetaObject.invokeMethod(
                     self.root,
                     "showSuccessDialog",
