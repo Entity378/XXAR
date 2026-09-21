@@ -10,9 +10,7 @@ namespace XXAR.Setup
     public partial class App : Application
     {
         private static readonly string[] SilentSwitches = { "/silent", "/verysilent", "/s" };
-
-        // The app's updater launches us and only then quits, so its files are still locked for a moment.
-        private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(60);
+        private static readonly string[] QuietSwitches = { "/verysilent", "/s" };
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -22,18 +20,20 @@ namespace XXAR.Setup
             var switches = e.Args.Select(argument => argument.ToLowerInvariant()).ToArray();
             var session = SetupSession.Start(forceRemove: switches.Contains("/uninstall"));
 
-            if (switches.Any(SilentSwitches.Contains))
+            // The app's updater passes /silent: no questions, but the update shows its progress and restarts the app.
+            var updating = switches.Contains("/silent") && !switches.Any(QuietSwitches.Contains) && !session.RemoveOnly;
+            if (!updating && switches.Any(SilentSwitches.Contains))
             {
                 Shutdown(RunSilently(session, purge: switches.Contains("/purge")));
                 return;
             }
 
-            var window = new MainWindow(session);
+            var window = new MainWindow(session, updating);
             MainWindow = window;
             window.Show();
         }
 
-        // Used by the app's own updater; 0 means it worked, 1 means look in the log.
+        // Used for scripted installs and removals; 0 means it worked, 1 means look in the log.
         private static int RunSilently(SetupSession session, bool purge)
         {
             try
@@ -44,7 +44,7 @@ namespace XXAR.Setup
                     return 0;
                 }
 
-                WaitForAppToClose(session.Machine.InstalledRoot);
+                UpdateHandoff.WaitForAppToClose(session.Machine.InstalledRoot);
 
                 if (session.RemoveOnly)
                 {
@@ -62,22 +62,6 @@ namespace XXAR.Setup
                 Journal.Error("silent run failed", ex);
                 return 1;
             }
-        }
-
-        private static void WaitForAppToClose(string installedRoot)
-        {
-            if (installedRoot == null) return;
-
-            var launcher = InstallLocations.LauncherIn(installedRoot);
-            var giveUpAt = DateTime.UtcNow + ShutdownGrace;
-            if (!AppLock.IsRunning(launcher)) return;
-
-            Journal.Info("waiting for XXAR to close");
-            while (AppLock.IsRunning(launcher) && DateTime.UtcNow < giveUpAt)
-                Thread.Sleep(500);
-
-            // Still locked means the job below throws AppRunningException, which the caller logs.
-            Journal.Info(AppLock.IsRunning(launcher) ? "XXAR is still running" : "XXAR closed");
         }
     }
 }

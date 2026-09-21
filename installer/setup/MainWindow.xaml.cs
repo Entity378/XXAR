@@ -13,12 +13,12 @@ namespace XXAR.Setup
     {
         public SetupSession Session { get; }
 
-        public MainWindow(SetupSession session)
+        public MainWindow(SetupSession session, bool updating = false)
         {
             Session = session;
             InitializeComponent();
             SourceInitialized += (sender, e) => UseDarkTitleBar();
-            Show(FirstStep());
+            Show(updating ? new ProgressStep(this, removing: false, updating: true) : FirstStep());
         }
 
         public void Show(object step)

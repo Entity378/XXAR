@@ -12,13 +12,15 @@ namespace XXAR.Setup.Steps
     {
         private readonly MainWindow wizard;
         private readonly bool removing;
+        private readonly bool updating;
         private readonly CancellationTokenSource cancel = new CancellationTokenSource();
         private bool alreadyRan;
 
-        public ProgressStep(MainWindow wizard, bool removing)
+        public ProgressStep(MainWindow wizard, bool removing, bool updating = false)
         {
             this.wizard = wizard;
             this.removing = removing;
+            this.updating = updating;
             InitializeComponent();
 
             if (removing)
@@ -26,6 +28,14 @@ namespace XXAR.Setup.Steps
                 Frame.Heading = "Removing XXAR";
                 Frame.Subheading = "Please wait while XXAR is removed from your computer.";
                 // Removal is quick and has no rollback; cancelling midway would only leave it half done.
+                Cancel.IsEnabled = false;
+            }
+
+            if (updating)
+            {
+                Frame.Heading = "Updating XXAR";
+                Frame.Subheading = "Please wait while XXAR is updated. It will restart when done.";
+                // The user already chose to update from the app, so the run goes to the end.
                 Cancel.IsEnabled = false;
             }
         }
@@ -41,12 +51,24 @@ namespace XXAR.Setup.Steps
                 CurrentAction.Text = step.Status;
             });
 
+            if (updating)
+            {
+                CurrentAction.Text = "Waiting for XXAR to close...";
+                await Task.Run(() => UpdateHandoff.WaitForAppToClose(wizard.Session.Machine.InstalledRoot));
+            }
+
             // The retry loop exists for one case only: the app was running and the user closed it.
             while (true)
             {
                 try
                 {
                     await Task.Run(() => RunJob(progress));
+                    if (updating)
+                    {
+                        UpdateHandoff.Relaunch(wizard.Session.TargetRoot);
+                        wizard.Close(0);
+                        return;
+                    }
                     wizard.Show(new FinishStep(wizard, FinishOutcome.Success, removing));
                     return;
                 }
