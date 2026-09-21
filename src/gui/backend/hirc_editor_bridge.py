@@ -807,6 +807,8 @@ class HircEditorBridge(QObject):
     @pyqtSlot(str, "QVariant", str, "QVariant")
     def stageAddWem(self, pck_name, wem_id, audio_file_path, lang_id):
         # Convert (if needed) then stage a new WEM add into the named media pck.
+        if self._refuse_if_writing():
+            return
         pck = str(pck_name)
         try:
             wid = int(wem_id)
@@ -865,6 +867,8 @@ class HircEditorBridge(QObject):
     def stageTrackEdits(self, pck_name, bnk_id, track_obj_id,
                         remaps_json, loop_ms, volume_db):
         # Stage one MusicTrack's edits: source remaps (JSON list) + optional loop/volume.
+        if self._refuse_if_writing():
+            return
         pck = str(pck_name)
         try:
             bnk = int(bnk_id)
@@ -1042,6 +1046,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot(str, "QVariant", "QVariant", str)
     def setDraftTrackLoop(self, pck, bnk_id, track_obj_id, value):
+        if self._refuse_if_writing():
+            return
         tp = self._find_track_patch(pck, bnk_id, track_obj_id)
         if tp is None:
             return
@@ -1057,6 +1063,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot(str, "QVariant", "QVariant", str)
     def setDraftTrackVolume(self, pck, bnk_id, track_obj_id, value):
+        if self._refuse_if_writing():
+            return
         tp = self._find_track_patch(pck, bnk_id, track_obj_id)
         if tp is None:
             return
@@ -1072,6 +1080,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot(str, "QVariant", "QVariant", str, "QVariant", str)
     def setDraftRemapTarget(self, pck, bnk_id, track_obj_id, slot, index, value):
+        if self._refuse_if_writing():
+            return
         tp = self._find_track_patch(pck, bnk_id, track_obj_id)
         if tp is None:
             return
@@ -1101,6 +1111,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot(str, "QVariant")
     def removeDraftMediaAdd(self, pck_name, wem_id):
+        if self._refuse_if_writing():
+            return
         d = self._get_draft()
         wid = int(wem_id)
         before = len(d["media_adds"])
@@ -1115,6 +1127,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot(str, "QVariant", "QVariant")
     def removeDraftTrackPatch(self, pck_name, bnk_id, track_obj_id):
+        if self._refuse_if_writing():
+            return
         d = self._get_draft()
         bnk = int(bnk_id)
         tid = int(track_obj_id)
@@ -1132,6 +1146,8 @@ class HircEditorBridge(QObject):
 
     @pyqtSlot()
     def resetDraft(self):
+        if self._refuse_if_writing():
+            return
         d = self._get_draft()
         try:
             wem_dir = get_game_hirc_draft_wem_dir(self._draft_game_id or self._current_game_id())

@@ -31,7 +31,7 @@ from src.core.game_registry import (
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 from src.gui.backend import dialogs
-from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder, game_write_state
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
@@ -181,6 +181,8 @@ class ModManagerBridge(QObject):
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
+        self._refresh_pending = False
+        game_write_state().busyChanged.connect(self._on_game_write_busy_changed)
 
         self.persistent_mod_manager = PersistentModManager(game_id=self.active_game_id)
         self.mod_package_manager = ModPackageManager(
@@ -446,7 +448,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot(str, bool)
     def setModEnabled(self, mod_uuid, enabled):
-
+        if self._refuse_if_writing():
+            return
         try:
             self.mod_package_manager.set_mod_enabled(mod_uuid, enabled)
             state = "enabled" if enabled else "disabled"
@@ -458,7 +461,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot()
     def enableAllMods(self):
-
+        if self._refuse_if_writing():
+            return
         try:
             self.mod_package_manager.set_all_mods_enabled(True)
             logger.info("[Mod Manager] All mods enabled")
@@ -470,7 +474,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot()
     def disableAllMods(self):
-
+        if self._refuse_if_writing():
+            return
         try:
             self.mod_package_manager.set_all_mods_enabled(False)
             logger.info("[Mod Manager] All mods disabled")
@@ -619,7 +624,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot(str)
     def removeMod(self, mod_uuid):
-
+        if self._refuse_if_writing():
+            return
         try:
             logger.info(f"[Mod Manager] Removing mod: {mod_uuid}")
             self.mod_package_manager.remove_mod(mod_uuid)
@@ -633,7 +639,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot(list)
     def removeMods(self, mod_uuids):
-
+        if self._refuse_if_writing():
+            return
         errors = []
         removed = 0
         for mod_uuid in mod_uuids:
@@ -655,12 +662,21 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot()
     def refreshMods(self):
-
+        # A running write still owns mod_config: reloading it now would drop what it is adding.
+        # The refresh is replayed once the write releases the game lock.
+        if game_lock_holder() is not None:
+            self._refresh_pending = True
+            return
+        self._refresh_pending = False
         logger.info("[Mod Manager] Refreshing mod list...")
         self.mod_package_manager.load_config()
         mods = self.getInstalledMods()
         self.modsLoaded.emit(mods)
         logger.info(f"[Mod Manager] Loaded {len(mods)} mod(s)")
+
+    def _on_game_write_busy_changed(self):
+        if self._refresh_pending and not game_write_state().busy:
+            self.refreshMods()
 
     @pyqtSlot(str)
     def saveConflictPreferences(self, preferences_json):
