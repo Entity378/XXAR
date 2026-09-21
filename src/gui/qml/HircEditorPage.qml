@@ -25,7 +25,6 @@ Item {
     signal editTrackVolumeRequested(string pckName, var bnkId, var trackObjId, string value)
     signal editRemapTargetRequested(string pckName, var bnkId, var trackObjId, string slot, var index, string value)
     signal applyAllRequested()
-    property bool writeInProgress: false
     signal importModForEditingRequested()
     signal exportModRequested()
     signal resetDraftRequested()
@@ -397,10 +396,12 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Search")
                         onClicked: hircEditorPage.applyHircSearch()
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Clear")
                         onClicked: hircSearchInput.text = ""
                     }
@@ -452,7 +453,7 @@ Item {
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeSmall
                                     }
-                                    MouseArea {
+                                    XXARMouseArea {
                                         id: refreshArea
                                         anchors.fill: parent
                                         hoverEnabled: true
@@ -572,7 +573,7 @@ Item {
                                             elide: Text.ElideRight
                                         }
                                     }
-                                    MouseArea {
+                                    XXARMouseArea {
                                         id: bnkMouse
                                         anchors.fill: parent
                                         hoverEnabled: true
@@ -1008,7 +1009,7 @@ Item {
                                                     font.pixelSize: Theme.fontSizeSmall
                                                     font.bold: true
                                                 }
-                                                MouseArea {
+                                                XXARMouseArea {
                                                     id: applyArea
                                                     anchors.fill: parent
                                                     hoverEnabled: true
@@ -1188,7 +1189,7 @@ Item {
                                 font.pixelSize: Theme.fontSizeSmall
                                 font.bold: true
                             }
-                            MouseArea {
+                            XXARMouseArea {
                                 id: addArea
                                 anchors.fill: parent
                                 hoverEnabled: true
@@ -1213,10 +1214,10 @@ Item {
 
                     XXARButton {
                         text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
-                        enabled: !hircEditorPage.writeInProgress
                         onClicked: hircEditorPage.importModForEditingRequested()
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         text: hircEditorPage.draftCount > 0
                               ? qsTranslate("Application", "Show Changes (%1)").arg(hircEditorPage.draftCount)
                               : qsTranslate("Application", "Show Changes")
@@ -1224,7 +1225,6 @@ Item {
                     }
                     XXARButton {
                         text: qsTranslate("Application", "Export as Mod Package")
-                        enabled: !hircEditorPage.writeInProgress
                         onClicked: hircEditorPage.exportModRequested()
                     }
                     XXARButton {
@@ -1431,7 +1431,7 @@ Item {
                                             color: Theme.inputBackground || "#2a2a2a"
                                             border.color: srcInput.activeFocus ? Theme.primaryAccent : Theme.cardBackground
                                             border.width: 1
-                                            TextInput {
+                                            XXARTextInput {
                                                 id: srcInput
                                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
                                                 verticalAlignment: Text.AlignVCenter
@@ -1488,7 +1488,7 @@ Item {
                                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                     text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                 }
-                                SpinBox {
+                                XXARSpinBox {
                                     id: hircLoopSpin
                                     from: 0
                                     to: 3600000
@@ -1585,7 +1585,7 @@ Item {
                                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                     text: "—"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                                 }
-                                SpinBox {
+                                XXARSpinBox {
                                     anchors.fill: parent
                                     visible: rowRoot.rowData.kind === "track"
                                     from: -960
@@ -1676,6 +1676,7 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Close")
                         onClicked: { changesOverlay.closing = true; changesHideTimer.start() }
                     }
@@ -1838,6 +1839,7 @@ Item {
                         }
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Browse")
                         onClicked: hircEditorPage.browseThumbnailRequested()
                     }
@@ -1851,6 +1853,7 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Cancel")
                         buttonColor: Theme.disabledAccent
                         onClicked: { metadataOverlay.closing = true; metadataHideTimer.start() }

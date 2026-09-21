@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.15
 import QtQuick.Effects
 import "."
+import "../components"
 
 Item {
     id: mod_Manager
@@ -27,7 +28,6 @@ Item {
     property int currentSortMode: 0
     property bool gridViewMode: false
     property bool devMode: false
-    readonly property bool writeInProgress: modManager ? modManager.writeInProgress : false
 
     signal testErrorClicked(string kind)
     property var sortOptions: [qsTranslate("Application", "Default"), qsTranslate("Application", "Name (A-Z)"), qsTranslate("Application", "Name (Z-A)"), qsTranslate("Application", "Author (A-Z)"), qsTranslate("Application", "Author (Z-A)"), qsTranslate("Application", "Newest First"), qsTranslate("Application", "Oldest First"), qsTranslate("Application", "Enabled First")]
@@ -151,7 +151,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_install_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -186,7 +186,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_import_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -221,7 +221,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_remove_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -288,7 +288,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_enableall_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -321,7 +321,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_disableall_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -345,7 +345,6 @@ Item {
                     Text {
                         id: clearmods
                         anchors.centerIn: parent
-                        opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 20
@@ -355,10 +354,9 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_clearmods_mouse
                         anchors.fill: parent
-                        enabled: !mod_Manager.writeInProgress
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: clearModsClicked()
@@ -386,7 +384,7 @@ Item {
                         textFormat: Text.PlainText
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MouseArea {
+                    XXARMouseArea {
                         id: btn_refresh_mouse
                         anchors.fill: parent
                         hoverEnabled: true
@@ -752,7 +750,7 @@ Item {
                                     textFormat: Text.PlainText
                                     verticalAlignment: Text.AlignVCenter
                                 }
-                                MouseArea {
+                                XXARMouseArea {
                                     id: toggleMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
@@ -993,7 +991,7 @@ Item {
                                     font.pixelSize: 16
                                     text: model.enabled ? qsTranslate("Application", "Enabled") : qsTranslate("Application", "Disabled")
                                 }
-                                MouseArea {
+                                XXARMouseArea {
                                     id: gridToggleBtn
                                     anchors.fill: parent
                                     hoverEnabled: true
@@ -1086,7 +1084,6 @@ Item {
                 anchors.margins: 16
                 height: 60
                 width: 220
-                opacity: mod_Manager.writeInProgress ? 0.55 : 1.0
 
                 Rectangle {
                     anchors.fill: parent
@@ -1129,7 +1126,7 @@ Item {
                     }
 
                     Text {
-                        text: mod_Manager.writeInProgress ? qsTranslate("Application", "Working...") : qsTranslate("Application", "Apply Mods")
+                        text: gameWriteState.busy ? qsTranslate("Application", "Working...") : qsTranslate("Application", "Apply Mods")
                         color: "#000000"
                         font.family: "Alatsi"
                         font.pixelSize: 22
@@ -1139,10 +1136,9 @@ Item {
                     }
                 }
 
-                MouseArea {
+                XXARMouseArea {
                     id: btn_apply_mouse
                     anchors.fill: parent
-                    enabled: !mod_Manager.writeInProgress
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: applyModsClicked()

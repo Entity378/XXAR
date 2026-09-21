@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Effects
+import "../components"
 
 Item {
     id: settingsPage
@@ -2586,7 +2587,7 @@ Item {
                     }
                 }
 
-                MouseArea {
+                XXARMouseArea {
                     id: saveMouse
                     anchors.fill: parent
                     hoverEnabled: true

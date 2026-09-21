@@ -19,7 +19,6 @@ from PyQt6.QtCore import (
     QObject,
     Qt,
     QTimer,
-    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
@@ -267,7 +266,6 @@ class AudioBrowserBridge(QObject):
     gameDirectoryReady = pyqtSignal(str, arguments=["path"])
     errorOccurred = pyqtSignal(str, str, arguments=["title", "message"])
     alertDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "stickerPath"])
-    writeInProgressChanged = pyqtSignal()
     wwiseErrorDialog = pyqtSignal(str, str, arguments=["title", "message"])
     successDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "imagePath"])
     searchResultsReady = pyqtSignal(str, list, arguments=["query", "results"])
@@ -354,7 +352,6 @@ class AudioBrowserBridge(QObject):
         )
 
         self._workers = WorkerRegistry("audio_browser")
-        self._write_in_progress = False
         self._write_done = None
         self._index_cancel = threading.Event()
         self._playback_duration = 0
@@ -373,16 +370,6 @@ class AudioBrowserBridge(QObject):
         self.audio_player.error_occurred.connect(self._on_playback_error)
         self._set_active_game_databases(self.game_mode)
 
-    @pyqtProperty(bool, notify=writeInProgressChanged)
-    def writeInProgress(self):
-        return self._write_in_progress
-
-    def _set_write_in_progress(self, value):
-        if self._write_in_progress == value:
-            return
-        self._write_in_progress = value
-        self.writeInProgressChanged.emit()
-
     def _refuse_if_writing(self):
         # Backstop for the disabled controls: the tracker must not change under a running write.
         if game_lock_holder() is None:
@@ -399,11 +386,9 @@ class AudioBrowserBridge(QObject):
             self.alertDialogRequested.emit(*dialogs.write_in_progress())
             return
         self._write_done = on_done
-        self._set_write_in_progress(True)
 
     @pyqtSlot()
     def _on_write_finished(self):
-        self._set_write_in_progress(False)
         on_done, self._write_done = self._write_done, None
         if on_done is not None:
             # Deferred one turn so the registry has released the game lock before on_done runs.

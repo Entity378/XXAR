@@ -375,7 +375,7 @@ Item {
                         }
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: startMouse
                         anchors.fill: parent
                         enabled: root.selectedFilePath && !root.isMatching

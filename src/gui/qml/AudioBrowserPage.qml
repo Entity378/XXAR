@@ -193,7 +193,7 @@ Item {
                                     font.pixelSize: Theme.fontSizeSmall
                                 }
 
-                                MouseArea {
+                                XXARMouseArea {
                                     id: tabMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
@@ -371,10 +371,12 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Search")
                         onClicked: searchRequested(searchInput.text)
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Clear")
                         onClicked: {
                             searchInput.text = ""
@@ -382,6 +384,7 @@ Item {
                         }
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         id: findMatchingSoundBtn
                         text: qsTranslate("Application", "Find Matching Sound")
                         buttonColor: Theme.primaryAccent
@@ -481,7 +484,7 @@ Item {
                                         visible: mergeWemChecked
                                     }
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -498,7 +501,7 @@ Item {
                                     font.pixelSize: Theme.fontSizeSmall
                                     anchors.verticalCenter: parent.verticalCenter
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -532,7 +535,7 @@ Item {
                                         visible: hideUselessPckChecked
                                     }
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -549,7 +552,7 @@ Item {
                                     font.pixelSize: Theme.fontSizeSmall
                                     anchors.verticalCenter: parent.verticalCenter
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -582,7 +585,7 @@ Item {
                                         visible: hideEmptyBnkChecked
                                     }
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -599,7 +602,7 @@ Item {
                                     font.pixelSize: Theme.fontSizeSmall
                                     anchors.verticalCenter: parent.verticalCenter
 
-                                    MouseArea {
+                                    XXARMouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -733,6 +736,7 @@ Item {
                                 spacing: 8
 
                                 XXARButton {
+                                    allowDuringWrite: true
                                     text: tagDbDownloading
                                         ? qsTranslate("Application", "Downloading...")
                                         : qsTranslate("Application", "Download Official Tags")
@@ -863,6 +867,7 @@ Item {
                             }
 
                             XXARButton {
+                                allowDuringWrite: true
                                 text: qsTranslate("Application", "Open Tag Database Folder")
                                 buttonColor: Theme.disabledAccent
                                 z: 10
@@ -1155,7 +1160,7 @@ Item {
                                 }
                             }
 
-                            MouseArea {
+                            XXARMouseArea {
                                 id: itemMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
@@ -1229,11 +1234,11 @@ Item {
                     XXARButton {
                         objectName: "tutorialImportModBtn"
                         text: qsTranslate("Application", "Import %1 for Editing").replace("%1", modFileExt)
-                        enabled: !audioBrowserBackend.writeInProgress
                         buttonColor: Theme.primaryAccent
                         onClicked: importModForEditingClicked()
                     }
                     XXARButton {
+                        allowDuringWrite: true
                         objectName: "tutorialShowChangesBtn"
                         text: changesCount > 0 ? qsTranslate("Application", "Show Changes (%1)").arg(changesCount) : qsTranslate("Application", "Show Changes")
                         onClicked: showChangesClicked()
@@ -1241,13 +1246,11 @@ Item {
                     XXARButton {
                         objectName: "tutorialExportBtn"
                         text: qsTranslate("Application", "Export as Mod Package")
-                        enabled: !audioBrowserBackend.writeInProgress
                         onClicked: exportModClicked()
                     }
                     XXARButton {
                         objectName: "tutorialResetBtn"
                         text: qsTranslate("Application", "Reset All Changes")
-                        enabled: !audioBrowserBackend.writeInProgress
                         buttonColor: Theme.disabledAccent
                         textColor: Theme.textPrimary
                         onClicked: resetAllClicked()
@@ -1321,6 +1324,7 @@ Item {
                                 }
                             }
                             XXARButton {
+                                allowDuringWrite: true
                                 id: playerBtnPause
                                 text: "Pause"
                                 enabled: isPlaying
@@ -1350,6 +1354,7 @@ Item {
                                 }
                             }
                             XXARButton {
+                                allowDuringWrite: true
                                 id: playerBtnStop
                                 text: "Stop"
                                 enabled: isPlaying || isPaused
@@ -2036,7 +2041,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: replaceArea
                         objectName: "tutorialReplaceArea"
                         anchors.fill: parent
@@ -2097,7 +2102,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: muteArea
                         anchors.fill: parent
                         hoverEnabled: true
@@ -2132,7 +2137,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: playArea
                         anchors.fill: parent
                         hoverEnabled: true
@@ -2162,7 +2167,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: exportArea
                         objectName: "tutorialExportArea"
                         anchors.fill: parent
@@ -2335,7 +2340,7 @@ Item {
                             }
                         }
 
-                        MouseArea {
+                        XXARMouseArea {
                             id: resultMouse
                             anchors.fill: parent
                             hoverEnabled: true
@@ -2364,6 +2369,7 @@ Item {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             searchResultsOverlay.closing = true
@@ -2562,7 +2568,8 @@ Item {
                             }
                         }
 
-                        MouseArea {
+                        XXARMouseArea {
+                            dimParentWhileLocked: false
                             id: matchResultMouse
                             anchors.fill: parent
                             hoverEnabled: true
@@ -2600,6 +2607,7 @@ Item {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             matchResultsOverlay.closing = true
@@ -2822,7 +2830,7 @@ Item {
                                     spacing: 6
                                     visible: loopPointEditable
 
-                                    ComboBox {
+                                    XXARComboBox {
                                         id: rowLoopModeCombo
                                         model: [
                                             qsTranslate("Application", "Automatic"),
@@ -2939,7 +2947,7 @@ Item {
                                         }
                                     }
 
-                                    SpinBox {
+                                    XXARSpinBox {
                                         id: rowLoopManualSpin
                                         from: 1
                                         to: 3600000
@@ -3054,7 +3062,7 @@ Item {
                                     spacing: 4
                                     visible: volumeEditable
 
-                                    CheckBox {
+                                    XXARCheckBox {
                                         id: volEnableCheck
                                         anchors.verticalCenter: parent.verticalCenter
                                         checked: volumeEnabled !== false
@@ -3083,7 +3091,7 @@ Item {
                                         }
                                     }
 
-                                    SpinBox {
+                                    XXARSpinBox {
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: volEnableCheck.checked
                                         width: 62
@@ -3174,6 +3182,7 @@ Item {
                                     spacing: 10
 
                                     XXARButton {
+                                        allowDuringWrite: true
                                         text: qsTranslate("Application", "Play")
                                         width: 52
                                         height: 28
@@ -3211,7 +3220,8 @@ Item {
                             }
                         }
 
-                        MouseArea {
+                        XXARMouseArea {
+                            dimParentWhileLocked: false
                             id: changeMouse
                             anchors.left: parent.left
                             anchors.top: parent.top
@@ -3250,7 +3260,6 @@ Item {
                         text: qsTranslate("Application", "Apply Changes")
                         buttonColor: Theme.primaryAccent
                         visible: changesModel.count > 0
-                        enabled: !audioBrowserBackend.writeInProgress
                         onClicked: {
                             applyChangesClicked()
                             changesOverlay.closing = true
@@ -3259,6 +3268,7 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Close")
                         onClicked: {
                             changesOverlay.closing = true
@@ -3457,6 +3467,7 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Cancel")
                         buttonColor: Theme.disabledAccent
                         onClicked: {
@@ -3466,6 +3477,7 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Save")
                         buttonColor: Theme.primaryAccent
                         onClicked: {
@@ -3746,6 +3758,7 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Browse")
                         onClicked: audioBrowserBackend.browseThumbnail()
                     }
@@ -3760,6 +3773,7 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Cancel")
                         buttonColor: Theme.disabledAccent
                         onClicked: {

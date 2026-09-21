@@ -1,7 +1,7 @@
 import weakref
 from typing import Dict, Optional
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtProperty, pyqtSignal
 
 from src.core.logger import get_logger
 
@@ -127,6 +127,8 @@ class WorkerRegistry(QObject):
         if holds_game_lock:
             self._game_lock_holders.add(name)
         worker.start()
+        if holds_game_lock:
+            game_write_state().refresh()
         return True
 
     def _on_finished(self):
@@ -142,6 +144,8 @@ class WorkerRegistry(QObject):
             worker.wait()
             self._workers.pop(name, None)
             self._game_lock_holders.discard(name)
+            # Unconditional: a game_lock_holder() call may already have dropped this holder as finished.
+            game_write_state().refresh()
 
     def cancel(self, name: str):
         worker = self._workers.get(name)
@@ -213,3 +217,33 @@ def game_lock_holder(skip_current_thread: bool = True) -> Optional[str]:
         if name is not None:
             return name
     return None
+
+
+class GameWriteState(QObject):
+    # The game lock as a QML property: every XXAR input locks itself while busy is true.
+    busyChanged = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self._busy = False
+
+    @pyqtProperty(bool, notify=busyChanged)
+    def busy(self):
+        return self._busy
+
+    def refresh(self):
+        busy = game_lock_holder(skip_current_thread=False) is not None
+        if busy != self._busy:
+            self._busy = busy
+            self.busyChanged.emit()
+
+
+_game_write_state = None
+
+
+def game_write_state() -> GameWriteState:
+    # Created on the GUI thread by main_qml before any write can start.
+    global _game_write_state
+    if _game_write_state is None:
+        _game_write_state = GameWriteState()
+    return _game_write_state

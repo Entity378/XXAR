@@ -4,7 +4,13 @@ import "../qml"
 
 Button {
     id: control
-    opacity: enabled ? 1.0 : 0.55
+    opacity: enabled && !writeLocked ? 1.0 : 0.55
+
+    // Locks itself while a game-file write runs, unless allowDuringWrite is set.
+    property bool allowDuringWrite: false
+    readonly property bool writeLocked: !allowDuringWrite && gameWriteState.busy
+
+    Keys.onPressed: (event) => { event.accepted = control.writeLocked }
 
     property color buttonColor: Theme.primaryAccent
     property color textColor: Theme.textOnAccent
@@ -45,4 +51,6 @@ Button {
         cursorShape: Qt.PointingHandCursor
         onPressed: mouse.accepted = false
     }
+
+    WriteLock { active: control.writeLocked }
 }

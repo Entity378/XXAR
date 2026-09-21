@@ -10,7 +10,6 @@ from PyQt6.QtCore import (
     QCoreApplication,
     QObject,
     QTimer,
-    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
@@ -160,7 +159,6 @@ class ModManagerBridge(QObject):
     progressUpdate = pyqtSignal(str, arguments=["message"])
     errorOccurred = pyqtSignal(str, str, arguments=["title", "message"])
     alertDialogRequested = pyqtSignal(str, str, str, arguments=["title", "message", "stickerPath"])
-    writeInProgressChanged = pyqtSignal()
 
     wwiseStatusChanged = pyqtSignal(bool, arguments=["installed"])
     modCreationModeChanged = pyqtSignal(bool, arguments=["enabled"])
@@ -183,7 +181,6 @@ class ModManagerBridge(QObject):
         self.persistent_dir = ""
         self.active_game_id = DEFAULT_GAME_ID
         self.conflict_preferences = {}
-        self._write_in_progress = False
 
         self.persistent_mod_manager = PersistentModManager(game_id=self.active_game_id)
         self.mod_package_manager = ModPackageManager(
@@ -844,16 +841,6 @@ class ModManagerBridge(QObject):
 
         self._start_write("apply", work)
 
-    @pyqtProperty(bool, notify=writeInProgressChanged)
-    def writeInProgress(self):
-        return self._write_in_progress
-
-    def _set_write_in_progress(self, value):
-        if self._write_in_progress == value:
-            return
-        self._write_in_progress = value
-        self.writeInProgressChanged.emit()
-
     def _refuse_if_writing(self):
         # Backstop for the disabled buttons: no second write, and none while a game switch runs.
         if game_lock_holder() is None:
@@ -865,18 +852,11 @@ class ModManagerBridge(QObject):
         # Every game-file write runs off the GUI thread and holds the game lock.
         # work() must only touch what it captured on the GUI thread and report through signals.
         worker = FunctionWorker(work)
-        worker.workerFinished.connect(self._on_write_finished)
         if refresh:
             worker.workerFinished.connect(self.refreshMods)
         if not self._workers.start(name, worker, holds_game_lock=True):
             logger.warning(f"[Mod Manager] {name} refused: game lock held by {game_lock_holder()}")
             self.alertDialogRequested.emit(*dialogs.write_in_progress())
-            return
-        self._set_write_in_progress(True)
-
-    @pyqtSlot()
-    def _on_write_finished(self):
-        self._set_write_in_progress(False)
 
     def _report_write_failure(self, error, fallback_message):
         # A file held open by the game needs the game closed, not admin rights.

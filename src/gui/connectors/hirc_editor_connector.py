@@ -36,7 +36,6 @@ class HircEditorConnector:
         page.resetDraftRequested.connect(db.resetDraft)
         page.browseThumbnailRequested.connect(db.browseThumbnail)
         page.createModRequested.connect(db.createModPackage)
-        db.writeInProgressChanged.connect(lambda: page.setProperty("writeInProgress", db.writeInProgress))
 
         db.bnkListReady.connect(lambda data: self._invoke(page, "setBnkList", data))
         db.bnkHircReady.connect(

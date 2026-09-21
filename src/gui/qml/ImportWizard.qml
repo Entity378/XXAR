@@ -954,7 +954,7 @@ Item {
                         font.pixelSize: Theme.fontSizeNormal
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: createBtnMouse
                         anchors.fill: parent
                         hoverEnabled: true

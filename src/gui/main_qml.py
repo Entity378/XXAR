@@ -47,7 +47,7 @@ from src.core.config_manager import get_settings_file, normalize_game_id
 from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
 from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
 from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
-from src.gui.backend.base_worker import BaseWorker, WorkerRegistry, shutdown_all_workers
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry, game_write_state, shutdown_all_workers
 from src.gui.backend.gamebanana_bridge import GameBananaBridge
 from src.gui.backend.hirc_editor_bridge import HircEditorBridge
 from src.gui.backend.mod_manager_bridge import ModManagerBridge
@@ -312,6 +312,7 @@ class Application(
         context.setContextProperty("gameBananaBackend", self.gamebanana_bridge)
         context.setContextProperty("uiTheme", self.ui_theme_bridge)
         context.setContextProperty("hircEditorBackend", self.hirc_editor_bridge)
+        context.setContextProperty("gameWriteState", game_write_state())
         self.clipboard_helper = ClipboardHelper()
         context.setContextProperty("clipboardHelper", self.clipboard_helper)
 

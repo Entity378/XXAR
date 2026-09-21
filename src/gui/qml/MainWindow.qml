@@ -241,7 +241,7 @@ ApplicationWindow {
                             smooth: true
                             mipmap: true
                         }
-                        MouseArea {
+                        XXARMouseArea {
                             id: swapGameMouseGI
                             anchors.fill: parent
                             cursorShape: gameSwapBlocked || activeGameShort == "GI" ? Qt.ArrowCursor : Qt.PointingHandCursor
@@ -277,7 +277,7 @@ ApplicationWindow {
                             smooth: true
                             mipmap: true
                         }
-                        MouseArea {
+                        XXARMouseArea {
                             id: swapGameMouseHSR
                             anchors.fill: parent
                             cursorShape: gameSwapBlocked || activeGameShort == "HSR" ? Qt.ArrowCursor : Qt.PointingHandCursor
@@ -313,7 +313,7 @@ ApplicationWindow {
                             smooth: true
                             mipmap: true
                         }
-                        MouseArea {
+                        XXARMouseArea {
                             id: swapGameMouseZZZ
                             anchors.fill: parent
                             cursorShape: gameSwapBlocked || activeGameShort == "ZZZ" ? Qt.ArrowCursor : Qt.PointingHandCursor
@@ -1004,7 +1004,7 @@ ApplicationWindow {
                                 }
                             }
 
-                            MouseArea {
+                            XXARMouseArea {
                                 id: swapGameMouse
                                 anchors.fill: parent
                                 cursorShape: gameSwapBlocked ? Qt.ArrowCursor : Qt.PointingHandCursor
@@ -1790,7 +1790,8 @@ ApplicationWindow {
                         }
                     }
                 }
-                if (hasMod) {
+                // No drop while a game-file write runs: installMods would only refuse it.
+                if (hasMod && !gameWriteState.busy) {
                     drag.accept()
                     mainWindow.isDraggingMod = true
                 } else {

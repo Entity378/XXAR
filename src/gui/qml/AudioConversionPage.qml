@@ -333,11 +333,13 @@ Item {
                     spacing: Theme.spacingSmall
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Browse File")
                         onClicked: browseInputFileClicked()
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Browse Directory")
                         onClicked: browseInputDirectoryClicked()
                     }
@@ -396,6 +398,7 @@ Item {
                     }
 
                     XXARButton {
+                        allowDuringWrite: true
                         text: qsTranslate("Application", "Browse")
                         onClicked: browseOutputDirectoryClicked()
                     }
@@ -524,6 +527,7 @@ Item {
                 }
 
                 XXARButton {
+                    allowDuringWrite: true
                     objectName: "tutorialConvertBtn"
                     Layout.fillWidth: true
                     Layout.preferredHeight: Theme.buttonHeightLarge

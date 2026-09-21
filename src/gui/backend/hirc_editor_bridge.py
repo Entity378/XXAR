@@ -19,7 +19,6 @@ def _natural_pck_key(name: str) -> list:
 from PyQt6.QtCore import (
     QObject,
     QTimer,
-    pyqtProperty,
     pyqtSignal,
     pyqtSlot,
 )
@@ -243,7 +242,6 @@ class HircEditorBridge(QObject):
     bnkHircReady = pyqtSignal(str, "qint64", "QVariant")
     statusUpdate = pyqtSignal(str)
     errorOccurred = pyqtSignal(str, str)
-    writeInProgressChanged = pyqtSignal()
     patchApplied = pyqtSignal(str, "qint64", "qint64", "qint64")
     loopPatchApplied = pyqtSignal(str, "qint64", "qint64", float)
     volumePatchApplied = pyqtSignal(str, "qint64", float)
@@ -263,7 +261,6 @@ class HircEditorBridge(QObject):
     def __init__(self):
         super().__init__()
         self._workers = WorkerRegistry("hirc_editor")
-        self._write_in_progress = False
         self._write_done = None
         self._draft = {"media_adds": [], "track_patches": []}
         self._draft_game_id: Optional[str] = None
@@ -738,16 +735,6 @@ class HircEditorBridge(QObject):
     # The draft holds media adds and track patches, persisted per game so it survives restarts.
     # Apply All replays it onto the live game and Export packages it as a .xxar.
 
-    @pyqtProperty(bool, notify=writeInProgressChanged)
-    def writeInProgress(self):
-        return self._write_in_progress
-
-    def _set_write_in_progress(self, value):
-        if self._write_in_progress == value:
-            return
-        self._write_in_progress = value
-        self.writeInProgressChanged.emit()
-
     def _refuse_if_writing(self):
         # Backstop for the disabled controls: the draft must not change under a running write.
         if game_lock_holder() is None:
@@ -766,11 +753,9 @@ class HircEditorBridge(QObject):
             self.errorOccurred.emit(title, message)
             return
         self._write_done = on_done
-        self._set_write_in_progress(True)
 
     @pyqtSlot()
     def _on_write_finished(self):
-        self._set_write_in_progress(False)
         on_done, self._write_done = self._write_done, None
         if on_done is not None:
             # Deferred one turn so the registry has released the game lock before on_done runs.
