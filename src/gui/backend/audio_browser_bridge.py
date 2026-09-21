@@ -2170,13 +2170,13 @@ class AudioBrowserBridge(QObject):
                     logger.exception("[Audio Browser] Relink before apply failed")
 
                 # The resolver rewrites keys in place: never hand it the live tracker.
-                replacements = {pck: {key: dict(info) for key, info in files.items()}
+                resolved_replacements = {pck: {key: dict(info) for key, info in files.items()}
                                 for pck, files in mod_manager.get_all_replacements().items()}
 
                 # Merge bare and folder-qualified keys naming the same pck before anything consumes them.
                 # Aliased buckets rebuild the same pck twice and the second output clobbers the first.
                 try:
-                    merged_aliases = canonicalize_pck_keys(replacements, streaming_base, game)
+                    merged_aliases = canonicalize_pck_keys(resolved_replacements, streaming_base, game)
                     if merged_aliases:
                         logger.info(f"[Audio Browser] Merged {merged_aliases} aliased pck bucket(s) into canonical keys")
                 except Exception as e:
@@ -2189,7 +2189,7 @@ class AudioBrowserBridge(QObject):
                 patch_bnk_content = {}
                 try:
                     patch_info = resolve_and_extract(
-                        replacements, streaming_base, persistent_path, game,
+                        resolved_replacements, streaming_base, persistent_path, game,
                         streamed_index=streamed_index,
                     )
                     patch_bnk_content = patch_info.get("patch_bnk_content", {})
@@ -2204,16 +2204,16 @@ class AudioBrowserBridge(QObject):
 
                 # Also patch the streamed copy of any WEM that lives both in a BNK and in a Streamed_*.pck.
                 try:
-                    mirrored = add_streamed_duplicates(replacements, streaming_base, game, streamed_index=streamed_index)
+                    mirrored = add_streamed_duplicates(resolved_replacements, streaming_base, game, streamed_index=streamed_index)
                     if mirrored:
                         logger.info(f"[Audio Browser] Mirrored {mirrored} BNK patch(es) into their streamed duplicate pck")
                 except Exception as e:
                     logger.error(f"[Audio Browser] Warning: streamed-duplicate mirroring failed: {e}")
 
-                total_files = sum(len(files) for files in replacements.values())
+                total_files = sum(len(files) for files in resolved_replacements.values())
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Applying %1 change(s)...").replace("%1", str(total_files)))
 
-                for pck_filename, files in replacements.items():
+                for pck_filename, files in resolved_replacements.items():
                     # Defensive: protected PCKs should have been remapped above.
                     if game.is_protected_pck(pck_filename):
                         logger.info(f"[Audio Browser] Skipping rebuild of protected PCK {pck_filename} (unexpected post-remap)")
@@ -2308,7 +2308,7 @@ class AudioBrowserBridge(QObject):
                 try:
                     patch_override_pcks(
                         persistent_path,
-                        replacements,
+                        resolved_replacements,
                         game,
                         streaming_root=streaming_base,
                         progress_callback=lambda msg: self.statusUpdate.emit(msg),
@@ -2320,7 +2320,7 @@ class AudioBrowserBridge(QObject):
                     handler, "apply_post_pack_steps", None
                 )
                 if callable(post_pack_steps):
-                    post_pack_steps(replacements)
+                    post_pack_steps(resolved_replacements)
 
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))
