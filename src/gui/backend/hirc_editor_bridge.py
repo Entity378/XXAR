@@ -1307,7 +1307,7 @@ class HircEditorBridge(QObject):
                         if not file_id or src is None or not src.exists():
                             logger.warning(f"[HIRC Editor] Skipping add {pck_name}/{file_id}: WEM missing in package")
                             continue
-                        staged.append((pck_name, file_id, src, int(info.get("lang_id", 0)), info.get("source_name", "")))
+                        staged.append((pck_name, file_id, src, int(info.get("lang_id", 0)), info.get("sound_name", "")))
                 result["tmp"] = tmp
                 result["staged"] = staged
             except Exception as e:
