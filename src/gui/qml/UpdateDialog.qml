@@ -276,7 +276,7 @@ Item {
                         }
                     }
 
-                    MouseArea {
+                    XXARMouseArea {
                         id: updateMouse
                         anchors.fill: parent
                         hoverEnabled: !root.isDownloading

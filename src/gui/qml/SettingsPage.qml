@@ -2057,7 +2057,7 @@ Item {
                                             font.bold: false
                                         }
 
-                                        MouseArea {
+                                        XXARMouseArea {
                                             id: restartBtnMouse
                                             anchors.fill: parent
                                             hoverEnabled: true
