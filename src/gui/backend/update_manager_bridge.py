@@ -326,7 +326,7 @@ class UpdateManagerBridge(QObject):
     updateDownloaded = pyqtSignal()
     updateProgress = pyqtSignal(int)      # percent
     updateError = pyqtSignal(str)         # message
-    updateApplied = pyqtSignal()          # binary replaced successfully
+    updateApplied = pyqtSignal()          # handed off to the installer; the app quits next
 
     def __init__(self):
         super().__init__()

@@ -208,7 +208,7 @@ class UpdateConnector:
         self.update_manager_bridge.applyUpdate()
 
     def _on_update_applied(self):
-        logger.info(f"[{APP_NAME}]Update applied successfully, restarting application...")
+        logger.info(f"[{APP_NAME}]Update handed off, quitting")
         try:
             flag_file = get_updates_dir() / "update_success"
             flag_file.parent.mkdir(parents=True, exist_ok=True)
