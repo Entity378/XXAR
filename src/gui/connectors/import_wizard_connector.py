@@ -5,6 +5,8 @@ from PyQt6.QtCore import Q_ARG, QCoreApplication, QMetaObject, QObject, Qt
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME
 from src.core.logger import get_logger
+from src.gui.backend import dialogs
+from src.gui.backend.base_worker import game_lock_holder
 from src.gui.backend.import_worker import ImportWorker
 from src.gui.utils.native_dialogs import NativeDialogs
 
@@ -110,6 +112,10 @@ class ImportWizardConnector:
 
     def on_wizard_create_mod(self, wizard_data_js):
         logger.info("[Import Wizard] Creating mod...")
+        # The import scans the game pcks and installs into the shared mod manager, so it waits out any game write.
+        if game_lock_holder() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
 
         wizard_data = wizard_data_js.toVariant()
         logger.info(f"[Import Wizard] Data: {wizard_data}")
@@ -177,7 +183,7 @@ class ImportWizardConnector:
         worker.progress.connect(self.on_import_progress)
         worker.progressPercent.connect(self.on_import_percent)
         worker.finished.connect(self.on_import_finished)
-        self._app_workers.start("import", worker)
+        self._app_workers.start("import", worker, holds_game_lock=True)
 
     def on_wizard_cancelled(self):
         logger.info("[Import Wizard] Wizard cancelled")

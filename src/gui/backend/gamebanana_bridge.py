@@ -16,7 +16,7 @@ import py7zr
 import rarfile
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 
-from src.gui.backend.base_worker import BaseWorker, WorkerRegistry
+from src.gui.backend.base_worker import BaseWorker, WorkerRegistry, game_lock_holder, game_write_state
 
 import src.core.app_config as app_config
 from src.core.app_config import APP_NAME, APP_VERSION
@@ -1107,6 +1107,7 @@ class GameBananaBridge(QObject):
         self.current_sort = "default"
         self.cached_mods = []
         self._install_queue = []
+        game_write_state().busyChanged.connect(self._start_next_install)
         self._current_download_url = ""
         self._current_download_mod_id = 0
         self._mod_item_types = {}
@@ -1398,10 +1399,11 @@ class GameBananaBridge(QObject):
             logger.error(f"[GameBanana] Download error: {result}")
 
     def _run_install(self, archive_path, chosen_mod, gamebanana_id=0, download_url="", item_type="Sound"):
-        if self._workers.is_running("install"):
+        self.installStateChanged.emit(True)
+        # A download can finish during a game write: the install waits in the queue until the lock is free.
+        if self._workers.is_running("install") or game_lock_holder() is not None:
             self._install_queue.append((archive_path, chosen_mod, gamebanana_id, download_url, item_type))
             return
-        self.installStateChanged.emit(True)
         worker = InstallModWorker(archive_path, chosen_mod, gamebanana_id, download_url, item_type, game_id=self._active_game_id)
         worker.finished.connect(self._on_install_finished)
         captured_url = download_url
@@ -1412,7 +1414,7 @@ class GameBananaBridge(QObject):
                 _save_cache()
             self.multipleModsFound.emit(names, archive_path)
         worker.multipleFound.connect(_on_multiple_found)
-        self._workers.start("install", worker)
+        self._workers.start("install", worker, holds_game_lock=True)
 
     @pyqtSlot(str, str)
     def installChosenMod(self, zip_path, mod_name):
@@ -1436,7 +1438,7 @@ class GameBananaBridge(QObject):
             self.installStateChanged.emit(False)
 
     def _start_next_install(self):
-        if not self._install_queue or self._workers.is_running("install"):
+        if not self._install_queue or self._workers.is_running("install") or game_lock_holder() is not None:
             return
         next_path, next_mod, next_gid, next_url, next_type = self._install_queue.pop(0)
         worker = InstallModWorker(next_path, next_mod, next_gid, next_url, next_type, game_id=self._active_game_id)
@@ -1444,7 +1446,7 @@ class GameBananaBridge(QObject):
         worker.multipleFound.connect(
             lambda names: self.multipleModsFound.emit(names, next_path)
         )
-        self._workers.start("install", worker)
+        self._workers.start("install", worker, holds_game_lock=True)
 
     @pyqtSlot(result='QVariantList')
     def getInstalledModNames(self):
