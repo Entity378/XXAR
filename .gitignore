@@ -31,6 +31,7 @@ extracted*/
 output/
 temp*/
 test*/
+!tests/
 verify*/
 tools*/
 dist*/
