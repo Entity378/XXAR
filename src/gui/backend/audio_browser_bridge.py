@@ -63,7 +63,7 @@ from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.mod_relinker import relink_tracker
 from src.mods.package_manager import ModPackageManager, is_hirc_mod
 from src.mods.persistent_manager import PersistentModManager
-from src.mods.persistent_originals import cleanup_persistent_overlay, locate_pck_paths
+from src.mods.persistent_originals import cleanup_persistent_overlay, locate_pck_paths, record_written_overlays
 from src.wwise import patch_backup
 from src.wwise.bnk_indexer import BNKIndexer, count_didx_wems
 from src.wwise.override_pck_patcher import patch_override_pcks
@@ -2306,7 +2306,8 @@ class AudioBrowserBridge(QObject):
                     handler, "apply_post_pack_steps", None
                 )
                 if callable(post_pack_steps):
-                    post_pack_steps(resolved_replacements)
+                    post_step_result = post_pack_steps(resolved_replacements)
+                    record_written_overlays(game.id, persistent_path, post_step_result.get("written_paths"))
 
 
                 self.statusUpdate.emit(QCoreApplication.translate("Application", "Successfully applied %1 change(s)!").replace("%1", str(total_files)))

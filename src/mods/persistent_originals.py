@@ -266,6 +266,42 @@ def _copy_original(src, dst):
     dst.chmod(0o644)
 
 
+def _written_overlays_path(game_id):
+    return get_game_state_dir(game_id) / "written_overlays.json"
+
+
+def load_written_overlays(game_id):
+    try:
+        return set(json.loads(_written_overlays_path(game_id).read_text(encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+def _save_written_overlays(game_id, overlay_rels):
+    try:
+        _written_overlays_path(game_id).write_text(json.dumps(sorted(overlay_rels), indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.error(f"[Persistent Originals] Failed to save the written overlays list: {e}")
+
+
+def record_written_overlays(game_id, persistent_root: Path, written_paths):
+    # Pcks XXAR rewrote outside the tracker (loop/volume and HIRC bank patches), so cleanup wipes them even without ground truth.
+    game = get_game(game_id)
+    overlay_rels = load_written_overlays(game_id)
+    added = False
+    for written_path in written_paths or ():
+        written_path = Path(written_path)
+        if game.is_protected_pck(written_path.name):
+            continue
+        try:
+            overlay_rels.add(written_path.relative_to(persistent_root).as_posix())
+            added = True
+        except ValueError:
+            continue
+    if added:
+        _save_written_overlays(game_id, overlay_rels)
+
+
 def has_streaming_original(streaming_root: Path, rel_path):
     return (streaming_root / rel_path).is_file()
 
@@ -438,8 +474,9 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root: Path, m
     except Exception as e:
         logger.error(f"[Persistent Originals] Misplaced-copy sweep failed: {e}")
 
+    written_overlays = load_written_overlays(game_id)
     stats, keep = promote_originals(
-        game_id, streaming_root, persistent_root, modded_keys, progress_cb, manifest
+        game_id, streaming_root, persistent_root, set(modded_keys or ()) | written_overlays, progress_cb, manifest
     )
     result.update(stats)
 
@@ -462,6 +499,9 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root: Path, m
             logger.error(f"[Persistent Originals] Failed to delete {rel}: {e}")
             continue
         result["sidecars_moved"] += _reunite_sidecars((streaming_root / rel).parent, pck.parent, pck.name)
+
+    if written_overlays:
+        _save_written_overlays(game_id, {rel for rel in written_overlays if (persistent_root / rel).is_file()})
 
     try:
         result["sidecars_moved"] += relocate_orphan_sidecars(game, streaming_root, persistent_root)

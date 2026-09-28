@@ -180,7 +180,7 @@ def test_reapplying_a_music_mod_does_not_stack_the_retiming(tmp_path, game_id):
 @pytest.mark.parametrize(("game_id", "has_manifest"), [
     ("zzz", True),
     ("genshin", True),
-    pytest.param("hsr", False, marks=pytest.mark.xfail(strict=True, reason="bug: pcks rewritten by the loop/volume post step are not recorded in mod_tracker, so without a manifest the overlay survives disabling")),
+    ("hsr", False),
 ])
 def test_disabling_a_loop_mod_removes_every_overlay_it_wrote(tmp_path, game_id, has_manifest):
     env = music_env(tmp_path, game_id)

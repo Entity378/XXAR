@@ -276,6 +276,19 @@ def test_heuristic_never_promotes_a_tracked_mod(tmp_path, modded_key, streaming_
     assert read_or_none(install.streaming_root / REL) == streaming_files.get(REL)
 
 
+def test_heuristic_wipes_an_overlay_xxar_recorded_writing_and_forgets_it(tmp_path):
+    install = make_game_install(tmp_path, "zzz", streaming_files={REL: ORIGINAL}, persistent_files={REL: MODDED, "Full/Patch.pck": MODDED})
+    persistent_originals.record_written_overlays("zzz", install.persistent_root, [install.persistent_root / REL, install.persistent_root / "Full/Patch.pck"])
+    assert persistent_originals.load_written_overlays("zzz") == {REL}
+
+    result = run_cleanup(install)
+
+    assert overlay_counts(result) == counts(kept_mod=1, deleted=1)
+    assert not (install.persistent_root / REL).exists()
+    assert (install.streaming_root / REL).read_bytes() == ORIGINAL
+    assert persistent_originals.load_written_overlays("zzz") == set()
+
+
 def test_protected_overrides_are_never_promoted_or_wiped_but_get_restored(tmp_path):
     override_pck = build_pck(banks=[bank(700, {})])
     stub = b"AKPK-stub"

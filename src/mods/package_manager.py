@@ -22,7 +22,7 @@ from src.core.paths import get_temp_dir
 from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.mod_relinker import GameAudioIndex, relink_metadata
-from src.mods.persistent_originals import locate_pck_paths
+from src.mods.persistent_originals import locate_pck_paths, record_written_overlays
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import add_streamed_duplicates, canonicalize_pck_keys, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_packer import PCKPacker
@@ -1015,13 +1015,14 @@ class ModPackageManager:
                             msg, total_pcks, max(total_pcks, 1)
                         )
                     )
-                post_steps(
+                post_step_result = post_steps(
                     resolved,
                     streaming_root=game_audio_dir,
                     persistent_root=persistent_audio_dir,
                     resolved_pck_names=pck_list,
                     status_callback=status_callback,
                 )
+                record_written_overlays(game.id, persistent_audio_dir, post_step_result.get("written_paths"))
         except Exception as e:
             raise ModApplicationError(f"Failed to run loop point post-processing: {e}") from e
 
@@ -1035,7 +1036,7 @@ class ModPackageManager:
                     hirc_cb = lambda msg: progress_callback(
                         msg, total_pcks, max(total_pcks, 1)
                     )
-                apply_hirc_track_patches(
+                hirc_summary = apply_hirc_track_patches(
                     merged_hirc_patches,
                     streaming_root=game_audio_dir,
                     persistent_root=persistent_audio_dir,
@@ -1043,6 +1044,7 @@ class ModPackageManager:
                     status_cb=hirc_cb,
                     soundbank_glob=game.soundbank_pck_glob,
                 )
+                record_written_overlays(game.id, persistent_audio_dir, hirc_summary.get("written_paths"))
         except Exception as e:
             raise ModApplicationError(f"Failed to apply HIRC track patches: {e}") from e
 

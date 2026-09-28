@@ -66,8 +66,8 @@ def _ensure_writable_overlay(source_pck, streaming_root, persistent_root, fresh_
 def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fresh_clone=False, status_cb=None, soundbank_glob=None):
     # Each patch is {pck_name, bnk_id, track_obj_id, source_remaps, loop_ms?, volume_db?}.
     # The stored pck_name can be stale, so each bnk is found by id in whatever soundbank pck holds it.
-    # Return counts of patched bank files and patched bnks.
-    apply_summary = {"patched_files": 0, "patched_bnks": 0}
+    # Return counts of patched bank files and patched bnks, plus the overlay paths written.
+    apply_summary = {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
     if not track_patches:
         return apply_summary
     streaming_root = Path(streaming_root) if streaming_root else None
@@ -138,6 +138,7 @@ def apply_hirc_track_patches(track_patches, streaming_root, persistent_root, fre
                         overlay_file.write(new_bytes)
             apply_summary["patched_bnks"] += len(modified)
             apply_summary["patched_files"] += 1
+            apply_summary["written_paths"].append(overlay_pck)
         except Exception as e:
             logger.error(f"[HIRC mod] Failed to patch {soundbank_pck.name}: {e}")
             continue

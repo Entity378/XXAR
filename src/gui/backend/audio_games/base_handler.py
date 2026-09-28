@@ -427,6 +427,7 @@ class BaseBrowserHandler:
         source_ids = set(duration_ms_by_track.keys()) | set(volume_db_by_track.keys())
         patched_file_count = 0
         patched_track_ids = set()
+        written_paths = []
 
         for bank_source in bank_files:
             rel_parent = bank_source.parent.relative_to(streaming_root)
@@ -447,6 +448,7 @@ class BaseBrowserHandler:
             )
             if did_patch:
                 patched_file_count += 1
+                written_paths.append(bank_target)
 
         for titlescreen_pck in titlescreen_pcks:
             titlescreen_target = self._persistent_overlay_path(
@@ -467,6 +469,7 @@ class BaseBrowserHandler:
             )
             if did_patch:
                 patched_file_count += 1
+                written_paths.append(titlescreen_target)
 
         # Protected override PCKs (Patch.pck/Hotfix.pck) still hold the HIRC Wwise loads for any BNK that wasn't nulled, so patch them too.
         # allow_grow=False keeps these size-preserving: loop points and existing-volume overwrites apply, a volume insert is skipped (a grow would corrupt the file and trigger a re-download).
@@ -487,6 +490,7 @@ class BaseBrowserHandler:
         result = {
             "patched_files": patched_file_count,
             "patched_ids": len(patched_track_ids),
+            "written_paths": written_paths,
         }
         if result["patched_files"] > 0:
             label = self.game.short_label
@@ -549,6 +553,7 @@ class BaseBrowserHandler:
         patched_file_count = 0
         patched_track_ids = set()
         volume_patched_count = 0
+        written_paths = []
 
         for bank_source in bank_files:
             try:
@@ -577,6 +582,7 @@ class BaseBrowserHandler:
             )
             if did_patch:
                 patched_file_count += 1
+                written_paths.append(bank_target)
 
         for titlescreen_pck in titlescreen_pcks:
             titlescreen_target = handler._persistent_overlay_path(
@@ -601,6 +607,7 @@ class BaseBrowserHandler:
             )
             if did_patch:
                 patched_file_count += 1
+                written_paths.append(titlescreen_target)
 
         # Protected override PCKs (Patch.pck/Hotfix.pck) still hold the HIRC Wwise loads for any BNK that wasn't nulled, so patch them too.
         # allow_grow=False keeps these size-preserving: loop points and existing-volume overwrites apply, a volume insert is skipped (a grow would corrupt the file and trigger a re-download).
@@ -622,6 +629,7 @@ class BaseBrowserHandler:
         result = {
             "patched_files": patched_file_count,
             "patched_ids": len(patched_track_ids),
+            "written_paths": written_paths,
         }
         if result["patched_files"] > 0:
             label = handler.game.short_label

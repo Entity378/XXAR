@@ -84,7 +84,7 @@ def test_fresh_clone_copies_the_soundbank_and_remaps_the_track(tmp_path, game_id
     apply_summary = apply_patches(env, [track_patch(env.keys.soundbank, loop_ms=25000.0)], fresh_clone=True)
     overlay = env.persistent_root / env.keys.soundbank
 
-    assert apply_summary == {"patched_files": 1, "patched_bnks": 1}
+    assert apply_summary == {"patched_files": 1, "patched_bnks": 1, "written_paths": [overlay]}
     assert overlay_track(env)[:2] == ([NEW_SOURCE_ID], [(NEW_SOURCE_ID, 0.0, 25000.0)])
     assert overlay.stat().st_size == (env.streaming_root / env.keys.soundbank).stat().st_size
     assert bank_bytes(overlay, SECOND_SFX_BNK_ID) == bank_bytes(env.streaming_root / env.keys.soundbank, SECOND_SFX_BNK_ID)
@@ -98,7 +98,7 @@ def test_a_volume_insert_grows_the_bank_and_repacks_the_overlay(tmp_path, game_i
     apply_summary = apply_patches(env, [track_patch(env.keys.soundbank, volume_db=-5.0)], fresh_clone=True)
     overlay = env.persistent_root / env.keys.soundbank
 
-    assert apply_summary == {"patched_files": 1, "patched_bnks": 1}
+    assert apply_summary == {"patched_files": 1, "patched_bnks": 1, "written_paths": [overlay]}
     assert overlay_track(env)[2] == {0x00: -5.0}
     assert len(bank_bytes(overlay, MUSIC_BNK_ID)) == len(bank_bytes(env.streaming_root / env.keys.soundbank, MUSIC_BNK_ID)) + 5
     assert BNKFile(bnk_bytes=bank_bytes(overlay, MUSIC_BNK_ID)).data["HIRC"].entries == 2
@@ -145,7 +145,7 @@ def test_reapplying_the_same_patch_changes_nothing(tmp_path):
 
     second_summary = apply_patches(env, patches, fresh_clone=False)
 
-    assert second_summary == {"patched_files": 0, "patched_bnks": 0}
+    assert second_summary == {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
     assert (env.persistent_root / env.keys.soundbank).read_bytes() == overlay_after_first_apply
 
 
@@ -154,7 +154,7 @@ def test_a_stale_pck_name_still_finds_the_bank_by_id(tmp_path):
 
     apply_summary = apply_patches(env, [track_patch("Full/SoundBank_SFX_99.pck")], fresh_clone=True)
 
-    assert apply_summary == {"patched_files": 1, "patched_bnks": 1}
+    assert apply_summary == {"patched_files": 1, "patched_bnks": 1, "written_paths": [env.persistent_root / env.keys.soundbank]}
     assert overlay_track(env)[0] == [NEW_SOURCE_ID]
 
 
@@ -164,7 +164,7 @@ def test_an_unknown_bank_is_skipped(tmp_path):
 
     apply_summary = apply_patches(env, [unknown_bank_patch], fresh_clone=True)
 
-    assert apply_summary == {"patched_files": 0, "patched_bnks": 0}
+    assert apply_summary == {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
     assert list(env.persistent_root.rglob("*.pck")) == []
 
 
@@ -174,7 +174,7 @@ def test_a_patch_for_an_unknown_track_leaves_the_overlay_pristine(tmp_path):
 
     apply_summary = apply_patches(env, [unknown_track_patch], fresh_clone=True)
 
-    assert apply_summary == {"patched_files": 0, "patched_bnks": 0}
+    assert apply_summary == {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
     assert (env.persistent_root / env.keys.soundbank).read_bytes() == (env.streaming_root / env.keys.soundbank).read_bytes()
 
 
@@ -186,8 +186,8 @@ def test_the_soundbank_glob_limits_where_banks_are_searched(tmp_path):
     summary_with_game_glob = apply_patches(env, [track_patch(keys.streamed)], fresh_clone=True)
     summary_with_any_pck = apply_patches(env, [track_patch(keys.streamed)], fresh_clone=True, soundbank_glob=None)
 
-    assert summary_with_game_glob == {"patched_files": 0, "patched_bnks": 0}
-    assert summary_with_any_pck == {"patched_files": 1, "patched_bnks": 1}
+    assert summary_with_game_glob == {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
+    assert summary_with_any_pck == {"patched_files": 1, "patched_bnks": 1, "written_paths": [env.persistent_root / keys.streamed]}
     assert overlay_track(env, keys.streamed)[0] == [NEW_SOURCE_ID]
 
 
@@ -196,7 +196,7 @@ def test_missing_roots_skip_every_patch(tmp_path):
 
     apply_summary = apply_hirc_track_patches([track_patch(env.keys.soundbank)], env.streaming_root / "missing", env.persistent_root)
 
-    assert apply_summary == {"patched_files": 0, "patched_bnks": 0}
+    assert apply_summary == {"patched_files": 0, "patched_bnks": 0, "written_paths": []}
 
 
 def test_the_status_callback_reports_patched_files(tmp_path):
