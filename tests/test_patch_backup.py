@@ -223,7 +223,6 @@ def test_restore_backups_recreates_an_override_the_game_wiped(tmp_path):
     assert live_patch_pck.read_bytes() == pristine
 
 
-@pytest.mark.xfail(strict=True, reason="bug: restore_backups checks only the size, so a same-size stale backup overwrites the updated override")
 def test_restore_backups_never_puts_back_a_backup_the_game_update_made_stale(tmp_path):
     old_pristine = pristine_override(seed=1)
     install, live_patch_pck = make_override_install(tmp_path, old_pristine)
@@ -234,9 +233,10 @@ def test_restore_backups_never_puts_back_a_backup_the_game_update_made_stale(tmp
     live_patch_pck.write_bytes(updated_pristine)
     write_persist_manifest(install, {PATCH_REL: updated_pristine})
 
-    patch_backup.restore_backups(install.persistent_root, install.game)
-
+    assert patch_backup.restore_backups(install.persistent_root, install.game) == 0
     assert live_patch_pck.read_bytes() == updated_pristine
+    assert not list(backup_root().rglob("*.xxar_backup"))
+    assert read_ledger() == {}
 
 
 def test_restore_backups_drops_a_backup_whose_size_disagrees_with_the_manifest(tmp_path):

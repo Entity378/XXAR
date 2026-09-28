@@ -240,6 +240,10 @@ def restore_backups(persistent_root: Path, game):
         rel = bfile.relative_to(root)
         live_rel = rel.with_name(rel.name[:-len(BACKUP_SUFFIX)])
         target = persistent_root / live_rel
+        if _is_stale(live_rel.as_posix(), _current_tag(target, persistent_root, game), ledger):
+            logger.info(f"[Patch Backup] Backup of {live_rel.as_posix()} predates the game's update; dropping it without restore")
+            _drop_backup(bfile, live_rel.as_posix(), game.id, ledger)
+            continue
         if not _size_matches(bfile, _expected_size(target, persistent_root, game)):
             logger.error(f"[Patch Backup] Backup of {live_rel.as_posix()} has the wrong size; dropping it without restore")
             _drop_backup(bfile, live_rel.as_posix(), game.id, ledger)
