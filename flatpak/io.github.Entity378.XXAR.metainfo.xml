@@ -50,6 +50,23 @@
   </requires>
 
   <releases>
+    <release version="1.1.5" date="2026-09-28">
+      <description>
+        <p>Safer applying, better music loops and smoother updates.</p>
+        <ul>
+          <li>Zenless Zone Zero: the title screen audio in Minimum.pck can now be modded</li>
+          <li>Zenless Zone Zero: voice mods are repaired after game updates and go to the bank of their own language, and the HIRC editor can write to ZZZ files again</li>
+          <li>Controls are locked while game files are being written, so nothing can interfere with an apply</li>
+          <li>Updates show their progress, restart XXAR when they finish and only report success once the new version is running</li>
+          <li>Replacing only the intro of a music track now moves its loop along, and a shorter loop no longer leaves a silent gap before it repeats</li>
+          <li>Honkai Star Rail: disabling a loop or volume mod now brings the original music back</li>
+          <li>Removing mods no longer puts back an outdated Patch.pck after a game update</li>
+          <li>Importing a mod from pck files no longer confuses a sound's short preview with the full track</li>
+          <li>Mod packages that point to files outside themselves are rejected</li>
+          <li>Text in fields and mod descriptions can be selected with the mouse</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.4" date="2026-09-20">
       <description>
         <p>Fewer crashes, a smoother interface and a faster browser.</p>
