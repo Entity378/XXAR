@@ -78,7 +78,7 @@ def scan_bank_for_patch_targets(content, source_ids):
 
         section_tracks = []
         track_obj_to_sources = {}  # track_obj_id -> set of its source_ids
-        track_obj_to_clips = {}    # track_obj_id -> list of its TrackPatchInfo clips
+        track_obj_to_all_clips = {}
         section_segment_candidates = []
 
         for _ in range(num_objects):
@@ -91,6 +91,9 @@ def scan_bank_for_patch_targets(content, source_ids):
                 break
 
             if obj_type == HIRC_TYPE_MUSIC_TRACK:
+                parsed_track = _parse_track_clips(content, obj_data_start, obj_size)
+                if parsed_track is not None:
+                    track_obj_to_all_clips[parsed_track[0]] = parsed_track[2]
                 result = _parse_music_track(
                     content, obj_data_start, obj_size, source_id_set
                 )
@@ -101,7 +104,6 @@ def scan_bank_for_patch_targets(content, source_ids):
                     track_obj_to_sources[track_obj_id] = {
                         p.source_id for p in patches
                     }
-                    track_obj_to_clips[track_obj_id] = list(patches)
 
             elif obj_type == HIRC_TYPE_MUSIC_SEGMENT:
                 seg_info = _parse_music_segment(content, obj_data_start, obj_size)
@@ -126,14 +128,18 @@ def scan_bank_for_patch_targets(content, source_ids):
             node_params_end = seg_info.fDuration_offset - seg_data_start
             seg_node_data = content[seg_data_start : seg_data_start + node_params_end]
             associated = set()
-            member_clips = []
             for tid_bytes, tid in track_id_bytes_map.items():
                 if tid_bytes in seg_node_data:
                     associated.update(track_obj_to_sources.get(tid, set()))
-                    member_clips.extend(track_obj_to_clips.get(tid, []))
             if associated:
                 seg_info.associated_source_ids = associated
-                seg_info.member_clips = member_clips
+                # Untouched clips are members too, so re-timing sees the whole timeline (e.g. a loop after a replaced intro).
+                seg_info.member_clips = [
+                    clip
+                    for tid, clips in track_obj_to_all_clips.items()
+                    if struct.pack("<I", tid) in seg_node_data
+                    for clip in clips
+                ]
                 all_segments.append(seg_info)
 
         all_tracks.extend(section_tracks)
@@ -239,12 +245,16 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
     for segment in targets.segments:
         clip_timings = []  # (clip, old_fPlayAt, old_duration, new_duration)
         for clip in segment.member_clips:
-            new_duration = duration_ms_by_source.get(clip.source_id)
-            if new_duration is None or clip.clear_region_offset not in original_timings:
-                continue
-            old_play_at, old_duration = original_timings[clip.clear_region_offset]
-            clip_timings.append((clip, old_play_at, old_duration, float(new_duration)))
-        if not clip_timings:
+            if clip.clear_region_offset in original_timings:
+                old_play_at, old_duration = original_timings[clip.clear_region_offset]
+                new_duration = float(duration_ms_by_source[clip.source_id])
+            else:
+                # An untouched clip keeps its length but still moves with the clips that end before it.
+                old_play_at = struct.unpack_from("<d", content, clip.fPlayAt_offset)[0]
+                old_duration = struct.unpack_from("<d", content, clip.fSrcDuration_offset)[0]
+                new_duration = old_duration
+            clip_timings.append((clip, old_play_at, old_duration, new_duration))
+        if not any(clip.clear_region_offset in original_timings for clip, *_ in clip_timings):
             continue
 
         old_timeline_end = max(play_at + duration for _, play_at, duration, _ in clip_timings)
@@ -253,6 +263,7 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
             continue  # loop-with-tail: leave untouched
 
         segment_changed = False
+        retimed_source_ids = set()
         new_clip_ends = []
         for clip, old_play_at, _, new_duration in clip_timings:
             # Shift this clip by the total growth of the clips that finish before it starts.
@@ -266,6 +277,7 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
                 struct.pack_into("<d", content, clip.fPlayAt_offset, new_play_at)
                 patched_offsets += 1
                 segment_changed = True
+                retimed_source_ids.add(clip.source_id)
             new_clip_ends.append(new_play_at + new_duration)
 
         new_segment_duration = max(new_clip_ends)
@@ -277,7 +289,8 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
             segment_changed = True
 
         if segment_changed:
-            patched_source_ids.update(clip.source_id for clip, *_ in clip_timings)
+            patched_source_ids.update(clip.source_id for clip, *_ in clip_timings if clip.clear_region_offset in original_timings)
+            patched_source_ids.update(retimed_source_ids)
 
     return {
         "patched_offsets": patched_offsets,
@@ -336,8 +349,8 @@ def _find_hirc_sections(content):
     return results
 
 
-def _parse_music_track(content, data_start, obj_size, source_ids):
-    # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track references any id in `source_ids`, else None.
+def _parse_track_clips(content, data_start, obj_size):
+    # Returns (obj_id, track_source_ids, every playlist clip as TrackPatchInfo, playlist end offset), or None on an unexpected layout.
     end = data_start + obj_size
     if data_start + 9 > end:
         return None
@@ -359,9 +372,6 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
         track_source_ids.add(sid)
         p += _SOURCE_DATA_SIZE
 
-    if not (track_source_ids & source_ids):
-        return None
-
     if p + 4 > end:
         return None
     num_playlist = struct.unpack_from("<I", content, p)[0]
@@ -373,20 +383,32 @@ def _parse_music_track(content, data_start, obj_size, source_ids):
     if items_end > end:
         return None
 
-    patches = []
+    clips = []
     for _ in range(num_playlist):
-        pl_source_id = struct.unpack_from("<I", content, p + 4)[0]
-        if pl_source_id in source_ids:
-            patches.append(
-                TrackPatchInfo(
-                    source_id=pl_source_id,
-                    fSrcDuration_offset=p + _TRACK_SRC_DURATION_OFFSET_IN_ITEM,
-                    fPlayAt_offset=p + _TRACK_SRC_PLAY_AT_OFFSET_IN_ITEM,
-                    clear_region_offset=p + 8,  # eventID(4)+fPlayAt(8)+fBeginTrim(8)+fEndTrim(8) = 28 bytes
-                )
+        clips.append(
+            TrackPatchInfo(
+                source_id=struct.unpack_from("<I", content, p + 4)[0],
+                fSrcDuration_offset=p + _TRACK_SRC_DURATION_OFFSET_IN_ITEM,
+                fPlayAt_offset=p + _TRACK_SRC_PLAY_AT_OFFSET_IN_ITEM,
+                clear_region_offset=p + 8,  # eventID(4)+fPlayAt(8)+fBeginTrim(8)+fEndTrim(8) = 28 bytes
             )
+        )
         p += _TRACK_SRC_INFO_SIZE
+    return obj_id, track_source_ids, clips, p
 
+
+def _parse_music_track(content, data_start, obj_size, source_ids):
+    # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track references any id in `source_ids`, else None.
+    end = data_start + obj_size
+    parsed_track = _parse_track_clips(content, data_start, obj_size)
+    if parsed_track is None:
+        return None
+    obj_id, track_source_ids, clips, p = parsed_track
+
+    if not (track_source_ids & source_ids):
+        return None
+
+    patches = [clip for clip in clips if clip.source_id in source_ids]
     if not patches:
         return None
 

@@ -257,11 +257,12 @@ def test_duration_patch_on_the_loop_keeps_the_intro_schedule():
     assert result["patched_source_ids"] == {LOOP_SOURCE}
 
 
-@pytest.mark.xfail(strict=True, reason="bug: patching only the intro leaves the loop clip at its old fPlayAt")
-def test_duration_patch_on_the_intro_re_times_the_loop():
-    patched_bnk, _ = patch_durations(intro_loop_bank(12215.0, 103473.0, 115688.0), {INTRO_SOURCE: 15000.0})
+@pytest.mark.parametrize("split_tracks", [False, True], ids=["one_track", "two_tracks"])
+def test_duration_patch_on_the_intro_re_times_the_loop(split_tracks):
+    patched_bnk, result = patch_durations(intro_loop_bank(12215.0, 103473.0, 115688.0, split_tracks=split_tracks), {INTRO_SOURCE: 15000.0})
 
-    assert patched_bnk == intro_loop_bank(15000.0, 103473.0, 118473.0)
+    assert patched_bnk == intro_loop_bank(15000.0, 103473.0, 118473.0, split_tracks=split_tracks)
+    assert result["patched_source_ids"] == {INTRO_SOURCE, LOOP_SOURCE}
 
 
 def test_duration_patch_keeps_the_musical_length_of_a_loop_with_tail():
