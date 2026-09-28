@@ -8,10 +8,6 @@ from src.gui.translation_manager import TranslationManager
 
 TRANSLATIONS_DIR = Path(__file__).resolve().parent.parent / "src" / "gui" / "translations"
 SUPPORTED_CODES = [language["code"] for language in TranslationManager.SUPPORTED_LANGUAGES]
-STALE_SPANISH_QM = pytest.param(
-    "es",
-    marks=pytest.mark.xfail(strict=True, reason="bug: zzar_es.qm is stale, four .ts sources were edited after its last lrelease in 71450da"),
-)
 
 
 def parse_ts(language_code):
@@ -65,7 +61,7 @@ def test_finished_translations_are_not_empty(language_code):
     assert empty_finished_sources == []
 
 
-@pytest.mark.parametrize("language_code", [STALE_SPANISH_QM if code == "es" else code for code in SUPPORTED_CODES])
+@pytest.mark.parametrize("language_code", SUPPORTED_CODES)
 def test_compiled_qm_matches_its_ts_source(qapp, language_code):
     translator = QTranslator()
     assert translator.load(str(TRANSLATIONS_DIR / f"zzar_{language_code}.qm"))
