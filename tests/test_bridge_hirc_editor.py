@@ -227,7 +227,6 @@ def test_apply_draft_adds_the_wem_to_the_persistent_overlay(editor, genshin_inst
     assert read_pck_wem(genshin_install.streaming_root / "Music0.pck", TRACK_SOURCE_ID) == make_wem(TRACK_SOURCE_ID, 128)
 
 
-@pytest.mark.xfail(strict=True, reason="bug: HIRC editor resolves pcks as <audio dir>/<name>, missing ZZZ's Full/ subfolder")
 def test_apply_draft_adds_the_wem_to_a_zzz_music_pck(editor, tmp_path):
     install = make_zzz_install(tmp_path / "games")
     configure_game_in_settings(install)

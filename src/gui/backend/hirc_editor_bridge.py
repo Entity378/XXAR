@@ -42,6 +42,7 @@ from src.gui.backend import dialogs
 from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
+from src.mods.persistent_originals import locate_pck_paths
 from src.wwise.hirc_music import (
     _collect_bnk_music_index,
     _extract_track_source_ids,
@@ -649,15 +650,17 @@ class HircEditorBridge(QObject):
         )
 
     def _ensure_persistent_copy(self, pck_name: str) -> Path:
+        # Pck names come bare from the pck list, so the source is searched below the audio root (ZZZ keeps them in Full/).
         audio_dir = self._game_audio_dir()
-        streaming_pck = audio_dir / pck_name if audio_dir else None
         persistent_dir = self._game_persistent_audio_dir()
-        if persistent_dir is None or streaming_pck is None or not streaming_pck.exists():
+        streaming_pck, target_pck = None, None
+        if audio_dir is not None and persistent_dir is not None:
+            streaming_pck, target_pck = locate_pck_paths(audio_dir, persistent_dir, pck_name)
+        if streaming_pck is None:
             raise FileNotFoundError(
                 "StreamingAssets pck or Persistent dir unavailable"
             )
-        persistent_dir.mkdir(parents=True, exist_ok=True)
-        target_pck = persistent_dir / pck_name
+        target_pck.parent.mkdir(parents=True, exist_ok=True)
         if not target_pck.exists():
             logger.info(f"[HIRC Editor] Cloning {streaming_pck} -> {target_pck}")
             self.statusUpdate.emit(f"Cloning {pck_name} to Persistent...")
