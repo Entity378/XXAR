@@ -109,17 +109,19 @@ class ImportWorker(BaseWorker):
                 self.progress.emit("Extracting audio from PCK files...")
                 self.progressPercent.emit(5)
 
-                extracted_wem_ids = {}
+                # A WEM id can exist as a bnk-embedded prefetch and as a loose full copy, so each kind is kept and compared apart.
+                extracted_loose_wems = {}
+                extracted_embedded_wems = {}
                 total_pcks_to_extract = len(files)
                 for pck_idx, (pck_name, pck_info) in enumerate(files.items()):
                     pck_path = pck_info['path']
+                    extracted_path = temp_dir / 'extracted' / str(pck_idx)
 
                     indexer = PCKIndexer(str(pck_path))
-                    indexer.extract_all(str(temp_dir / 'extracted'), extract_bnk=True)
+                    indexer.extract_all(str(extracted_path), extract_bnk=True)
 
-                    extracted_path = temp_dir / 'extracted'
-
-                    wem_files = list(extracted_path.rglob('*.wem'))
+                    loose_wem_files = list(extracted_path.rglob('*.wem'))
+                    embedded_wem_files = []
 
                     bnk_files = list(extracted_path.rglob('*.bnk'))
                     for bnk_file in bnk_files:
@@ -135,34 +137,30 @@ class ImportWorker(BaseWorker):
                                     embedded_wem = extracted_path / 'bnk_embedded' / f"{wem_id}.wem"
                                     embedded_wem.parent.mkdir(parents=True, exist_ok=True)
                                     embedded_wem.write_bytes(wem_data)
-                                    wem_files.append(embedded_wem)
+                                    embedded_wem_files.append(embedded_wem)
                         except Exception as e:
                             self.progress.emit(f"Warning: Could not parse BNK {bnk_file.name}: {e}")
 
-                    self.progress.emit(f"Found {len(wem_files)} audio files in {pck_name}")
+                    self.progress.emit(f"Found {len(loose_wem_files) + len(embedded_wem_files)} audio files in {pck_name}")
                     pck_progress = int(5 + ((pck_idx + 1) / max(total_pcks_to_extract, 1)) * 25)
                     self.progressPercent.emit(pck_progress)
 
-                    for wem_file in wem_files:
-                        file_id = wem_file.stem
-                        dest_wem = wem_dir / f"{file_id}.wem"
-                        shutil.copy2(wem_file, dest_wem)
-                        extracted_wem_ids[file_id] = dest_wem
-
-                extracted_path = temp_dir / 'extracted'
-                if extracted_path.exists():
-                    shutil.rmtree(extracted_path)
+                    for wem_file in loose_wem_files:
+                        extracted_loose_wems[wem_file.stem] = wem_file
+                    for wem_file in embedded_wem_files:
+                        extracted_embedded_wems[wem_file.stem] = wem_file
 
                 game_audio_dir = Path(self.game_audio_dir)
                 if not game_audio_dir.exists():
                     raise Exception("Game audio directory not set. Please set it in Settings first.")
 
                 input_pck_names = set(f"{name}.pck" if not name.endswith('.pck') else name for name in files.keys())
-                self.progress.emit(f"Scanning matching game PCKs ({', '.join(input_pck_names)}) to locate {len(extracted_wem_ids)} extracted WEM file(s)...")
+                target_wem_ids = set(extracted_loose_wems) | set(extracted_embedded_wems)
+                self.progress.emit(f"Scanning matching game PCKs ({', '.join(input_pck_names)}) to locate {len(target_wem_ids)} extracted WEM file(s)...")
                 self.progressPercent.emit(30)
 
-                target_wem_ids = set(extracted_wem_ids.keys())
                 file_id_to_pck = {}
+                modified_loose_ids = set()
                 skipped_bnks = 0
                 skipped_wems = 0
 
@@ -195,9 +193,9 @@ class ImportWorker(BaseWorker):
 
                                     for wem in bnk_indexer.wem_list:
                                         file_id = str(wem['wem_id'])
-                                        if file_id in target_wem_ids:
+                                        if file_id in extracted_embedded_wems:
                                             original_wem = bnk_indexer.extract_wem(wem['wem_id'])
-                                            modded_wem = extracted_wem_ids[file_id].read_bytes()
+                                            modded_wem = extracted_embedded_wems[file_id].read_bytes()
                                             if original_wem == modded_wem:
                                                 continue
                                             lang_id = bnk_info['lang_id']
@@ -209,21 +207,22 @@ class ImportWorker(BaseWorker):
                             for wem_info in indexer.index_data['sounds'] + indexer.index_data['externals']:
                                 file_id = str(wem_info['id'])
                                 lang_id = wem_info['lang_id']
-                                if file_id in target_wem_ids:
+                                if file_id in extracted_loose_wems:
                                     try:
                                         original_wem = indexer.extract_single_file(wem_info['id'], 'wem', lang_id)
-                                        modded_wem = extracted_wem_ids[file_id].read_bytes()
+                                        modded_wem = extracted_loose_wems[file_id].read_bytes()
                                         if original_wem == modded_wem:
                                             continue
                                     except Exception:
                                         skipped_wems += 1
+                                    modified_loose_ids.add(file_id)
                                     if file_id not in file_id_to_pck or priority >= file_id_to_pck[file_id][3]:
                                         file_id_to_pck[file_id] = (game_pck_name, None, lang_id, priority)
 
                         except Exception as e:
                             self.progress.emit(f"Warning: Could not scan {game_pck_path.name}: {e}")
 
-                identical_count = len(extracted_wem_ids) - len(file_id_to_pck)
+                identical_count = len(target_wem_ids) - len(file_id_to_pck)
                 self.progress.emit(f"Found {len(file_id_to_pck)} modified WEM file(s) ({identical_count} identical, skipped)")
                 if skipped_bnks or skipped_wems:
                     self.progress.emit(
@@ -231,11 +230,6 @@ class ImportWorker(BaseWorker):
                         f"and were skipped — some mod replacements may be missing their game-side target."
                     )
                 self.progressPercent.emit(58)
-
-                for file_id in list(extracted_wem_ids.keys()):
-                    if file_id not in file_id_to_pck:
-                        wem_path = wem_dir / f"{file_id}.wem"
-                        wem_path.unlink(missing_ok=True)
 
                 for file_id in file_id_to_pck:
                     game_pck_name, bnk_id, lang_id, priority = file_id_to_pck[file_id]
@@ -250,9 +244,12 @@ class ImportWorker(BaseWorker):
                         bnk_key = 'direct'
 
                     sub_dir.mkdir(parents=True, exist_ok=True)
-                    src = wem_dir / f"{file_id}.wem"
-                    if src.exists():
-                        shutil.move(str(src), str(sub_dir / f"{file_id}.wem"))
+                    # The loose copy is the full audio, so it wins over a bnk prefetch whenever it changed.
+                    if file_id in modified_loose_ids:
+                        modded_wem_path = extracted_loose_wems[file_id]
+                    else:
+                        modded_wem_path = extracted_embedded_wems[file_id]
+                    shutil.copy2(modded_wem_path, sub_dir / f"{file_id}.wem")
 
                     if game_pck_name not in replacements:
                         replacements[game_pck_name] = {}
@@ -265,6 +262,8 @@ class ImportWorker(BaseWorker):
                         'lang_id': lang_id,
                         'file_type': 'bnk' if bnk_id is not None else 'wem'
                     }
+
+                shutil.rmtree(temp_dir / 'extracted', ignore_errors=True)
 
                 for pck_name, pck_files_map in replacements.items():
                     file_count = sum(len(files) for files in pck_files_map.values())

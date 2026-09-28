@@ -235,7 +235,6 @@ def test_pck_import_keeps_only_the_changed_wems_of_a_single_pck(tmp_path, qapp):
     }
 
 
-@pytest.mark.xfail(strict=True, reason="bug: pck import keys extracted wems by id, so a bnk prefetch and its streamed copy overwrite each other")
 def test_pck_import_ignores_an_unchanged_wem_present_in_two_pcks(tmp_path, qapp):
     env = make_mod_env(tmp_path, "zzz")
     modded_files = modded_sfx_pcks(env, make_wem(77), make_wem(78))
@@ -246,6 +245,25 @@ def test_pck_import_ignores_an_unchanged_wem_present_in_two_pcks(tmp_path, qapp)
         env.keys.soundbank: {"1001.bnk": {str(EMBEDDED_WEM_ID): wem_entry(f"wem_files/1001/{EMBEDDED_WEM_ID}.wem", file_type="bnk")}},
         env.keys.streamed: {"direct": {str(STREAMED_WEM_ID): wem_entry(f"wem_files/direct/{STREAMED_WEM_ID}.wem")}},
     }
+
+
+def test_pck_import_stores_the_full_audio_when_prefetch_and_streamed_copy_both_changed(tmp_path, qapp):
+    env = make_mod_env(tmp_path, "zzz")
+    layout = LAYOUTS["zzz"]
+    modded_dir = env.work_dir / "modded"
+    modded_dir.mkdir(parents=True)
+    full_audio = make_wem(90, 200)
+    (modded_dir / layout.soundbank).write_bytes(build_pck(banks=[(SFX_BNK_ID, 0, build_bnk(SFX_BNK_ID, {EMBEDDED_WEM_ID: make_wem(1), SHARED_WEM_ID: full_audio[:48]}))]))
+    (modded_dir / layout.streamed).write_bytes(build_pck(sounds=[(SHARED_WEM_ID, 0, full_audio)]))
+    modded_files = {name[:-len(".pck")]: {"path": str(modded_dir / name)} for name in (layout.soundbank, layout.streamed)}
+
+    run_import(env, import_data(env, "pck_folder", modded_files))
+    installed_mod = env.manager.get_installed_mods()[0]
+
+    assert installed_mod["metadata"]["replacements"] == {
+        env.keys.soundbank: {"1001.bnk": {str(SHARED_WEM_ID): wem_entry(f"wem_files/1001/{SHARED_WEM_ID}.wem", file_type="bnk")}},
+    }
+    assert (env.manager.mods_dir / installed_mod["uuid"] / "wem_files" / "1001" / f"{SHARED_WEM_ID}.wem").read_bytes() == full_audio
 
 
 def test_import_reports_a_missing_game_audio_dir(tmp_path, qapp):
