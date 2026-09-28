@@ -139,6 +139,20 @@ class HIRC:
         return self.tag + pack('<I', len(self)) + pack('<I', self.entries) + self.data.getvalue()
 
 
+class RawChunk:
+    # A chunk BNKFile does not parse (STID, INIT, STMG, ENVS, PLAT...), written back byte for byte.
+
+    def __init__(self, tag, data):
+        self.tag = tag
+        self.data = data
+
+    def __len__(self):
+        return len(self.data.getvalue())
+
+    def getdata(self):
+        return self.tag + pack('<I', len(self)) + self.data.getvalue()
+
+
 class BNKFile:
 
     def __init__(self, bnk_path=None, bnk_bytes=None):
@@ -180,6 +194,7 @@ class BNKFile:
                 else:
 
                     logger.debug(f"  Unknown BNK chunk: {tag_str} ({size} bytes)")
+                    self.data[tag_str] = RawChunk(tag, chunk_data)
 
             except (struct_error, UnicodeDecodeError):
                 break

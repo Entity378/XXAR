@@ -85,14 +85,13 @@ def test_real_embedded_bnks_parse_and_split_into_their_wems(real_game_audio_dirs
                         problems.append(f"{bank_label}: the two parsers extract different bytes for WEM {wem_id}")
                     if wem_bytes and wem_bytes[:4] != b"RIFF":
                         problems.append(f"{bank_label}: WEM {wem_id} is not a RIFF blob")
-                if has_only_standard_chunks(bnk_bytes) and bnk.get_bytes() != bnk_bytes:
+                if bnk.get_bytes() != bnk_bytes:
                     problems.append(f"{bank_label}: unmodified re-serialization differs")
                 checked_banks += 1
     assert checked_banks
     assert not problems, "\n".join(problems[:20])
 
 
-@pytest.mark.xfail(strict=True, reason="bug: BNKFile drops STID/INIT/STMG/ENVS/PLAT chunks when it re-serializes a bank")
 @pytest.mark.parametrize("game_id", GAME_IDS)
 def test_real_bnks_with_other_chunks_survive_an_unmodified_round_trip(real_game_audio_dirs, game_id):
     game_dirs = installed_game(real_game_audio_dirs, game_id)

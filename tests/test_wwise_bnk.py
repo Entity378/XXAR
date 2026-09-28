@@ -176,7 +176,6 @@ def test_unknown_chunk_does_not_break_parsing():
     assert {wem_id: bank.extract_wem(wem_id) for wem_id in bank.list_wems()} == wems
 
 
-@pytest.mark.xfail(strict=True, reason="bug: BNKFile drops chunks it does not know when serializing")
 def test_unknown_chunk_survives_serialization():
     bnk_bytes = build_bnk(BANK_ID, wems=sample_wems()) + b"STID" + struct.pack("<I", 8) + b"\x01\x00\x00\x00abcd"
 
