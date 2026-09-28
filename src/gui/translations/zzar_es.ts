@@ -1582,7 +1582,7 @@ Discord: Entity378
 
 O abre un issue en el repositorio de GitHub.
 
-Solo hablo inglés y neerlandés.</translation>
+Solo hablo inglés e italiano.</translation>
         </message>
         <message>
             <location filename="../qml/SettingsPage.qml" line="464" />
@@ -1830,7 +1830,7 @@ Solo hablo inglés y neerlandés.</translation>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="35" />
             <source>Oh and if you ever wanted to ask me something, im all ears (DM Entity378 on Discord or make an issue on the github).</source>
-            <translation>Ah si quisieras preguntarme algo, estoy a toda oreja (MD Entity378 en Discord or haz un issue/problema en github (Creador solo puede hablar en Inglés y Holandés!).</translation>
+            <translation>Ah si quisieras preguntarme algo, estoy a toda oreja (MD Entity378 en Discord o haz un issue/problema en github).</translation>
         </message>
         <message>
             <location filename="../qml/TutorialOverlay.qml" line="42" />
