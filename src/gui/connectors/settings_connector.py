@@ -67,6 +67,7 @@ class SettingsConnector:
         self.root.setProperty("activeAssetsDir", app_config.ASSETS_DIR)
         self.root.setProperty("activeLogoPng", app_config.LOGO_PNG)
         self.root.setProperty("activeLogo256", app_config.LOGO_256)
+        self.root.setProperty("activeLogo256Source", f"../assets/{app_config.ASSETS_DIR}/{app_config.LOGO_256}")
         self.root.setProperty("activeAppFullName", app_config.APP_FULL_NAME)
 
         if getattr(self, "settings_page", None):

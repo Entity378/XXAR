@@ -138,6 +138,7 @@ def run_scenario(application):
                 "game": game_id,
                 "switched": switched,
                 "active_game_short": root.property("activeGameShort"),
+                "logo_source": root.property("activeLogo256Source"),
                 "tab": tab,
                 "current_tab": root.property("currentTab"),
             })

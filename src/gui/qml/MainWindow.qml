@@ -28,9 +28,13 @@ ApplicationWindow {
     property string activeAssetsDir: assetsDir
     property string activeLogoPng: logoPng
     property string activeLogo256: logo256
+    // Set in one assignment on a game switch, so the logo never loads a half-switched dir/file pair.
+    property string activeLogo256Source: ""
     property string activeModFileExt: modFileExt
     property string activeModFileExtUpper: modFileExtUpper
     property string activeAppFullName: appFullName
+
+    Component.onCompleted: activeLogo256Source = "../assets/" + activeAssetsDir + "/" + activeLogo256
 
     onModCreationEnabledChanged: {
         if (!modCreationEnabled && (currentTab === 2 || currentTab === 3)) {
@@ -209,7 +213,7 @@ ApplicationWindow {
                     Image {
                         width: 75
                         height: 75
-                        source: "../assets/" + activeAssetsDir + "/" + activeLogo256
+                        source: activeLogo256Source
                         sourceSize.width: width * Screen.devicePixelRatio
                         sourceSize.height: height * Screen.devicePixelRatio
                         fillMode: Image.PreserveAspectFit
@@ -880,7 +884,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     width: 32
                                     height: 32
-                                    source: "../assets/" + activeAssetsDir + "/" + activeLogo256
+                                    source: activeLogo256Source
                                     sourceSize.width: width * Screen.devicePixelRatio
                                     sourceSize.height: height * Screen.devicePixelRatio
                                     fillMode: Image.PreserveAspectFit

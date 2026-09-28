@@ -167,6 +167,13 @@ def test_gamebanana_link_hover_binds_an_existing_property(smoke_report):
     assert [problem for problem in qml_problems(smoke_report) if is_gamebanana_link_hover_warning(problem)] == []
 
 
-@pytest.mark.xfail(strict=True, reason="bug: a game switch sets activeAssetsDir and activeLogo256 one at a time, so the logo loads a missing file")
 def test_game_switch_never_loads_a_missing_logo(smoke_report):
     assert [problem for problem in qml_problems(smoke_report) if is_half_switched_logo_warning(problem)] == []
+
+
+def test_the_logo_follows_every_game_switch(smoke_report):
+    from src.core.game_registry import get_game
+
+    for entry in smoke_report["visited"]:
+        game = get_game(entry["game"])
+        assert entry["logo_source"] == f"../assets/{game.assets_dir}/{game.logo_256}"
