@@ -550,7 +550,7 @@ Rectangle {
                                     color: Theme.backgroundColor
                                     radius: Theme.radiusMedium
 
-                                    Text {
+                                    TextEdit {
                                         id: descText
                                         anchors.left: parent.left
                                         anchors.right: parent.right
@@ -560,13 +560,15 @@ Rectangle {
                                         color: Theme.textPrimary
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeSmall
-                                        wrapMode: Text.WordWrap
-                                        textFormat: Text.RichText
+                                        wrapMode: TextEdit.WordWrap
+                                        textFormat: TextEdit.RichText
+                                        readOnly: true
+                                        selectByMouse: true
                                         onLinkActivated: Qt.openUrlExternally(link)
                                         MouseArea {
                                             anchors.fill: parent
                                             acceptedButtons: Qt.NoButton
-                                            cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
                                         }
                                     }
                                 }

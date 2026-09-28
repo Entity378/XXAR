@@ -209,12 +209,15 @@ Item {
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-                        Text {
+                        TextEdit {
                             text: modDescription || qsTranslate("Application", "No description provided.")
                             color: modDescription ? "#cccccc" : "#666666"
                             font.family: "Alatsi"
                             font.pixelSize: 14
-                            wrapMode: Text.WordWrap
+                            wrapMode: TextEdit.WordWrap
+                            textFormat: TextEdit.AutoText
+                            readOnly: true
+                            selectByMouse: true
                             width: descScrollView.availableWidth
                         }
                     }
