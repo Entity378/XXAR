@@ -163,7 +163,6 @@ def test_no_other_qml_warnings(smoke_report):
     assert other == []
 
 
-@pytest.mark.xfail(strict=True, reason="bug: GameBananaModDialog.qml reads containsMouse from a HoverHandler, which only has hovered")
 def test_gamebanana_link_hover_binds_an_existing_property(smoke_report):
     assert [problem for problem in qml_problems(smoke_report) if is_gamebanana_link_hover_warning(problem)] == []
 

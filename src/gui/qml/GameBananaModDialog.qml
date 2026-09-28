@@ -473,10 +473,10 @@ Rectangle {
 
                                 Text {
                                     text: qsTranslate("Application", "View on GameBanana ↗")
-                                    color: gbLinkHover.containsMouse ? Theme.primaryAccent : Theme.textSecondary
+                                    color: gbLinkHover.hovered ? Theme.primaryAccent : Theme.textSecondary
                                     font.family: Theme.fontFamilyTitle
                                     font.pixelSize: 12
-                                    font.underline: gbLinkHover.containsMouse
+                                    font.underline: gbLinkHover.hovered
                                     verticalAlignment: Text.AlignVCenter
                                     visible: modData && modData.id > 0
 
