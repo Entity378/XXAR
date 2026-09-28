@@ -1083,6 +1083,8 @@ class ModManagerBridge(QObject):
 
     @pyqtSlot(str)
     def exportMod(self, mod_uuid):
+        if self._refuse_if_writing():
+            return
 
         try:
             logger.info(f"[Mod Manager] Exporting mod: {mod_uuid}")
@@ -1206,8 +1208,9 @@ class ModManagerBridge(QObject):
                     logger.exception(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")
                     self.errorOccurred.emit("Export Error", f"Failed to export mod: {str(e)}")
 
-            if not self._workers.start("export", FunctionWorker(work)):
-                self.errorOccurred.emit("Export", "An export is already in progress.")
+            # The export reads the mod library, so it holds the game lock like a write.
+            # Otherwise a Remove could delete the mod's files halfway through.
+            self._start_write("export", work)
 
         except Exception as e:
             logger.exception(f"[Mod Manager] ERROR: Failed to export mod: {str(e)}")

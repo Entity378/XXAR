@@ -1807,8 +1807,8 @@ class AudioBrowserBridge(QObject):
         if not filename:
             return
 
-        if self._workers.is_running("replace"):
-            self.statusUpdate.emit(QCoreApplication.translate("Application", "A replacement is already in progress"))
+        # A write can start while the file dialog is open, and the loading popup must not open over a refused start.
+        if self._refuse_if_writing():
             return
 
         self.loadingStarted.emit(QCoreApplication.translate("Application", "Converting audio..."))
@@ -1819,7 +1819,8 @@ class AudioBrowserBridge(QObject):
         worker = ReplaceAudioWorker(filename, meta, normalize, self.mod_manager, self._audio_root, persistent_root, self.normalize_target_lufs)
         worker.progress.connect(self._on_replace_progress)
         worker.finished.connect(self._on_replace_finished)
-        self._workers.start("replace", worker)
+        # The worker stages the replacement into the tracker, so it holds the game lock like a write.
+        self._start_write("replace", worker)
 
     def _on_replace_progress(self, message):
         self.loadingStarted.emit(message)

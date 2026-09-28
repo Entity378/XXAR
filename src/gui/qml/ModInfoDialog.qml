@@ -370,7 +370,7 @@ Item {
                     font.pixelSize: Theme.fontSizeMedium
                 }
 
-                MouseArea {
+                XXARMouseArea {
                     id: exportBtnMouse
                     anchors.fill: parent
                     hoverEnabled: true

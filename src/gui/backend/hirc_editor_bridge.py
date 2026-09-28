@@ -827,13 +827,11 @@ class HircEditorBridge(QObject):
         except (TypeError, ValueError):
             lid = 0
 
-        if self._workers.is_running("convert"):
-            self.statusUpdate.emit("A conversion is already in progress...")
-            return
         gid = self._current_game_id()
         dest = get_game_hirc_draft_wem_dir(gid) / f"{wid}.wem"
         self.statusUpdate.emit(f"Converting {src.name} to WEM...")
         # Validate the id against the originals inside the worker (off the UI thread).
+        # It reads the game pcks and ends by changing the draft, so it holds the game lock like a write.
         worker = WemConvertWorker(src, dest, streaming_root=self._game_audio_dir(), wem_id=wid)
         worker.finished_ok.connect(
             lambda wem_path, sname, p=pck, w=wid, l=lid:
@@ -842,7 +840,7 @@ class HircEditorBridge(QObject):
         worker.failed.connect(
             lambda msg: self.errorOccurred.emit("Add WEM", f"Conversion failed:\n{msg}")
         )
-        self._workers.start("convert", worker)
+        self._start_write("convert", worker)
 
     def _on_wem_converted(self, pck, wem_id: int, lang_id: int, wem_path: str, source_name):
         d = self._get_draft()
