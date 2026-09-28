@@ -17,6 +17,7 @@ from mod_builders import (
     STREAMED_WEM_ID,
     VOICE_BNK_ID,
     VOICE_LANG_ID,
+    VOICE_LANGUAGES,
     VOICE_WEM_ID,
     GameKeys,
     bank_wems,
@@ -88,7 +89,7 @@ def test_scan_sources_union_streaming_pcks_with_persistent_overrides(tmp_path):
     scan_sources = worker._build_scan_sources(env.streaming_root)
 
     assert sorted((str(path), logical_name, priority) for path, logical_name, priority in scan_sources) == sorted([
-        (str(env.streaming_root / keys.soundbank), keys.soundbank, 1),
+        (str(env.streaming_root / keys.soundbank), keys.soundbank, 2),
         (str(env.streaming_root / keys.streamed), keys.streamed, 0),
         (str(env.streaming_root / keys.voice_soundbank), keys.voice_soundbank, 1),
         (str(env.streaming_root / keys.voice_streamed), keys.voice_streamed, 0),
@@ -114,6 +115,19 @@ def test_a_voice_soundbank_outranks_its_streamed_pck(tmp_path, game_id):
     layout = LAYOUTS[game_id]
 
     assert worker._get_pck_priority(layout.voice_soundbank) > worker._get_pck_priority(layout.voice_streamed)
+
+
+def test_a_sound_shared_with_a_voice_bank_keeps_its_sfx_soundbank_target(tmp_path, qapp):
+    keys = GameKeys("zzz")
+    voice_bnk_sharing_an_sfx = build_bnk(VOICE_BNK_ID, {VOICE_WEM_ID: make_wem(6), EMBEDDED_WEM_ID: make_wem(1)}, language_id=VOICE_LANG_ID)
+    env = make_mod_env(tmp_path, "zzz", streaming_files={
+        keys.voice_soundbank: build_pck(banks=[(VOICE_BNK_ID, VOICE_LANG_ID, voice_bnk_sharing_an_sfx)], languages=VOICE_LANGUAGES),
+    })
+    source_files = write_source_wems(env, [str(EMBEDDED_WEM_ID)])
+
+    run_import(env, import_data(env, "wem_folder", source_files))
+
+    assert list(env.manager.get_installed_mods()[0]["metadata"]["replacements"]) == [keys.soundbank]
 
 
 @pytest.mark.parametrize("game_id", GAME_IDS)

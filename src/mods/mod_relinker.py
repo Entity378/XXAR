@@ -36,8 +36,8 @@ class GameAudioIndex:
         self.game = game
         self._pck_cache = {}        # path -> PCKIndexer (index built)
         self._bnk_wems = {}         # (path, bnk_id) -> set(wem_id)
-        self._direct_index = None   # wem_id -> [pck_basename]
-        self._embedded_index = None  # wem_id -> [(pck_basename, bnk_id)]
+        self._direct_index = None   # wem_id -> [pck path relative to game_audio_dir]
+        self._embedded_index = None  # wem_id -> [(pck relative path, bnk_id)]
         self._patch_index = None    # wem_id -> (override_name, bnk_id)
 
     def _indexer(self, path):
@@ -128,7 +128,7 @@ class GameAudioIndex:
                 logger.warning(f"[Relink] Could not index {pck.name}: {e}")
                 continue
             for entry in data["sounds"] + data["externals"]:
-                self._direct_index.setdefault(entry["id"], []).append(pck.name)
+                self._direct_index.setdefault(entry["id"], []).append(pck.relative_to(self.game_audio_dir).as_posix())
 
     def _build_embedded_index(self, progress_callback=None):
         if self._embedded_index is not None:
@@ -147,22 +147,38 @@ class GameAudioIndex:
                     wem_ids = set(BNKFile(bnk_bytes=bnk_bytes).list_wems())
                     self._bnk_wems[(str(pck), bank["id"])] = wem_ids
                     for wem_id in wem_ids:
-                        self._embedded_index.setdefault(wem_id, []).append((pck.name, bank["id"]))
+                        self._embedded_index.setdefault(wem_id, []).append((pck.relative_to(self.game_audio_dir).as_posix(), bank["id"]))
             except Exception as e:
                 logger.warning(f"[Relink] Could not scan bnks in {pck.name}: {e}")
 
-    def _prefer_pck(self, names):
-        # Authoritative target first: a SoundBank container, then a Streamed one, then anything.
-        sb = self.game.soundbank_pck_filter_prefix
-        st = self.game.streamed_pck_filter_prefix
-        for prefix in (sb, st):
+    def _folder_name(self, pck_name):
+        # Folder name of the pck a broken entry pointed at, so a relink stays in that language (or in the SFX folder).
+        live_pck = self.find_live_pck(pck_name)
+        if live_pck is not None:
+            return live_pck.parent.name if live_pck.parent != self.game_audio_dir else ""
+        return Path(str(pck_name).replace("\\", "/")).parent.name
+
+    def _prefer_pck(self, names, near_pck=None):
+        # Same folder as the broken entry first, then an SFX SoundBank, a language SoundBank, a Streamed pck, then anything.
+        if near_pck:
+            near_folder = self._folder_name(near_pck)
+            same_folder = [n for n in names if Path(n).parent.name == near_folder]
+            if same_folder:
+                names = same_folder
+        prefixes = (
+            self.game.soundbank_pck_prefix,
+            self.game.soundbank_pck_filter_prefix,
+            self.game.streamed_pck_prefix,
+            self.game.streamed_pck_filter_prefix,
+        )
+        for prefix in prefixes:
             if prefix:
-                match = next((n for n in names if n.startswith(prefix)), None)
+                match = next((n for n in names if Path(n).name.startswith(prefix)), None)
                 if match:
                     return match
         return names[0]
 
-    def locate(self, wem_id, progress_callback=None):
+    def locate(self, wem_id, progress_callback=None, near_pck=None):
         # Returns {'pck_name','file_type','bnk_id'} for the id's current home, or None.
         # Priority Patch.pck > SoundBank > Streamed: a Patch-embedded copy is what the game plays, so it wins.
         # The target stays Patch.pck/bnk; the apply remaps it (add whole BNK to a host SoundBank + null).
@@ -174,12 +190,12 @@ class GameAudioIndex:
         self._build_direct_index()
         direct = self._direct_index.get(wem_id)
         if direct:
-            return {"pck_name": self._prefer_pck(direct), "file_type": "wem", "bnk_id": None}
+            return {"pck_name": self._prefer_pck(direct, near_pck), "file_type": "wem", "bnk_id": None}
 
         self._build_embedded_index(progress_callback)
         embedded = self._embedded_index.get(wem_id)
         if embedded:
-            pck_name = self._prefer_pck([p for p, _ in embedded])
+            pck_name = self._prefer_pck([p for p, _ in embedded], near_pck)
             bnk_id = next(b for p, b in embedded if p == pck_name)
             return {"pck_name": pck_name, "file_type": "bnk", "bnk_id": bnk_id}
 
@@ -216,7 +232,7 @@ def relink_replacements(replacements, game_audio_dir, game, progress_callback=No
     unresolved = []
 
     for old_pck, key, wem_id, file_type, old_bnk_id in broken:
-        loc = index.locate(wem_id, progress_callback)
+        loc = index.locate(wem_id, progress_callback, near_pck=old_pck)
         if not loc:
             unresolved.append((old_pck, wem_id))
             logger.debug(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")
@@ -331,7 +347,7 @@ def relink_metadata(metadata, game_audio_dir, game, progress_callback=None, inde
     unresolved = []
 
     for old_pck, old_bnk_id, file_key, wem_id, file_type in broken:
-        loc = index.locate(wem_id, progress_callback)
+        loc = index.locate(wem_id, progress_callback, near_pck=old_pck)
         if not loc:
             unresolved.append((old_pck, wem_id))
             logger.debug(f"[Relink] WEM {wem_id} not found in any PCK, leaving unchanged")

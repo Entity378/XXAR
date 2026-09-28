@@ -63,8 +63,8 @@ def test_entry_is_valid_checks_the_live_game_audio(tmp_path, pck_key, file_type,
 
 
 @pytest.mark.parametrize(("wem_id", "expected_home"), [
-    (1002, {"pck_name": "Streamed_SFX_7.pck", "file_type": "wem", "bnk_id": None}),
-    (2001, {"pck_name": "SoundBank_SFX_1.pck", "file_type": "bnk", "bnk_id": 100}),
+    (1002, {"pck_name": "Full/Streamed_SFX_7.pck", "file_type": "wem", "bnk_id": None}),
+    (2001, {"pck_name": "Full/SoundBank_SFX_1.pck", "file_type": "bnk", "bnk_id": 100}),
     (4242, None),
 ])
 def test_locate_finds_the_current_home_of_a_wem(tmp_path, wem_id, expected_home):
@@ -81,7 +81,7 @@ def test_locate_prefers_a_soundbank_container_over_a_streamed_one(tmp_path):
 
     home = GameAudioIndex(install.streaming_root, install.game).locate(1002)
 
-    assert home == {"pck_name": "SoundBank_SFX_2.pck", "file_type": "wem", "bnk_id": None}
+    assert home == {"pck_name": "Full/SoundBank_SFX_2.pck", "file_type": "wem", "bnk_id": None}
 
 
 def test_patch_embedded_copy_wins_and_is_read_from_the_pristine_backup(tmp_path):
@@ -122,11 +122,39 @@ def test_relink_replacements_follows_wems_the_update_moved(tmp_path):
 
     assert result == {"relinked": 2, "unresolved": []}
     assert replacements == {
-        "Full/SoundBank_SFX_1.pck": {"100|1001": bnk_replacement(100, 1001, "valid.wem")},
-        "Streamed_SFX_7.pck": {"1002": {**bnk_replacement(100, 1002, "moved_out.wem", **audio_settings), "file_type": "wem", "bnk_id": None}},
-        "SoundBank_SFX_1.pck": {"100|2001": {**wem_replacement(2001, "moved_in.wem"), "file_type": "bnk", "bnk_id": 100}},
+        "Full/SoundBank_SFX_1.pck": {
+            "100|1001": bnk_replacement(100, 1001, "valid.wem"),
+            "100|2001": {**wem_replacement(2001, "moved_in.wem"), "file_type": "bnk", "bnk_id": 100},
+        },
+        "Full/Streamed_SFX_7.pck": {"1002": {**bnk_replacement(100, 1002, "moved_out.wem", **audio_settings), "file_type": "wem", "bnk_id": None}},
     }
     assert relink_replacements(replacements, install.streaming_root, install.game) == {"relinked": 0, "unresolved": []}
+
+
+@pytest.mark.parametrize("old_pck", ["Full/Streamed_SFX_1.pck", "Streamed_SFX_1.pck"])
+def test_a_sound_shared_with_a_voice_bank_relinks_to_its_sfx_soundbank(tmp_path, old_pck):
+    install = make_game_install(tmp_path, "zzz", streaming_files={
+        "Full/En/SoundBank_En_0.pck": build_pck(banks=[bank(300, {4001: make_wem(4)}, lang_id=1)], languages=ENGLISH),
+        "Full/SoundBank_SFX_8.pck": build_pck(banks=[bank(100, {4001: make_wem(4)})]),
+    })
+    replacements = {old_pck: {"4001": wem_replacement(4001)}}
+
+    relink_replacements(replacements, install.streaming_root, install.game)
+
+    assert list(replacements) == ["Full/SoundBank_SFX_8.pck"]
+
+
+def test_a_voice_shared_by_two_languages_relinks_within_its_own_language(tmp_path):
+    install = make_game_install(tmp_path, "zzz", streaming_files={
+        "Full/En/SoundBank_En_0.pck": build_pck(banks=[bank(300, {5001: make_wem(5)}, lang_id=1)], languages=ENGLISH),
+        "Full/Jp/SoundBank_Jp_0.pck": build_pck(banks=[bank(300, {5001: make_wem(5)}, lang_id=1)], languages=ENGLISH),
+        "Full/Jp/Streamed_Jp_1.pck": build_pck(sounds=[sound(6001, lang_id=1)], languages=ENGLISH),
+    })
+    replacements = {"Full/Jp/Streamed_Jp_1.pck": {"5001": wem_replacement(5001)}}
+
+    relink_replacements(replacements, install.streaming_root, install.game)
+
+    assert list(replacements) == ["Full/Jp/SoundBank_Jp_0.pck"]
 
 
 def test_entry_shadowed_by_a_patch_bank_is_relinked_to_the_override(tmp_path):
@@ -176,7 +204,7 @@ def test_relink_metadata_repairs_a_flat_v1_mod(tmp_path):
     assert result == {"relinked": 1, "unresolved": []}
     assert metadata["replacements"] == {
         "Full/SoundBank_SFX_1.pck": {"1001": {"wem_file": "wem_files/1001.wem", "bnk_id": 100, "file_type": "bnk"}},
-        "Streamed_SFX_7.pck": {"1002": {"wem_file": "wem_files/1002.wem", "bnk_id": None, "file_type": "wem", "volume_db": -4.0}},
+        "Full/Streamed_SFX_7.pck": {"1002": {"wem_file": "wem_files/1002.wem", "bnk_id": None, "file_type": "wem", "volume_db": -4.0}},
     }
 
 
@@ -195,9 +223,11 @@ def test_relink_metadata_repairs_a_nested_mod(tmp_path, format_version):
 
     assert result == {"relinked": 2, "unresolved": []}
     assert metadata["replacements"] == {
-        "Full/SoundBank_SFX_1.pck": {"100.bnk": {"1001": {"wem_file": "wem_files/100/1001.wem", "file_type": "bnk"}}},
-        "Streamed_SFX_7.pck": {"direct": {"1002": {"wem_file": "wem_files/100/1002.wem", "file_type": "wem", "loop_point_mode": "disabled"}}},
-        "SoundBank_SFX_1.pck": {"100.bnk": {"2001": {"wem_file": "wem_files/2001.wem", "file_type": "bnk"}}},
+        "Full/SoundBank_SFX_1.pck": {"100.bnk": {
+            "1001": {"wem_file": "wem_files/100/1001.wem", "file_type": "bnk"},
+            "2001": {"wem_file": "wem_files/2001.wem", "file_type": "bnk"},
+        }},
+        "Full/Streamed_SFX_7.pck": {"direct": {"1002": {"wem_file": "wem_files/100/1002.wem", "file_type": "wem", "loop_point_mode": "disabled"}}},
     }
 
 
@@ -209,7 +239,7 @@ def test_relink_metadata_reuses_a_shared_index(tmp_path):
     result = relink_metadata(metadata, None, install.game, index=shared_index)
 
     assert result == {"relinked": 1, "unresolved": []}
-    assert metadata["replacements"] == {"SoundBank_SFX_1.pck": {"100.bnk": {"2001": {"file_type": "bnk"}}}}
+    assert metadata["replacements"] == {"Full/SoundBank_SFX_1.pck": {"100.bnk": {"2001": {"file_type": "bnk"}}}}
 
 
 def test_relink_tracker_saves_the_repaired_tracker(tmp_path):
@@ -221,8 +251,8 @@ def test_relink_tracker_saves_the_repaired_tracker(tmp_path):
 
     saved_tracker = json.loads(manager.mod_tracker_path.read_text(encoding="utf-8"))
     assert result == {"relinked": 1, "unresolved": []}
-    assert list(saved_tracker) == ["Streamed_SFX_7.pck"]
-    assert (saved_tracker["Streamed_SFX_7.pck"]["1002"]["wem_path"], saved_tracker["Streamed_SFX_7.pck"]["1002"]["volume_db"]) == ("moved_out.wem", -4.0)
+    assert list(saved_tracker) == ["Full/Streamed_SFX_7.pck"]
+    assert (saved_tracker["Full/Streamed_SFX_7.pck"]["1002"]["wem_path"], saved_tracker["Full/Streamed_SFX_7.pck"]["1002"]["volume_db"]) == ("moved_out.wem", -4.0)
 
 
 def test_relink_tracker_does_not_rewrite_a_healthy_tracker(tmp_path):

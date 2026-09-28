@@ -35,7 +35,10 @@ class ImportWorker(BaseWorker):
         self.game = get_game(self.game_id)
 
     def _get_pck_priority(self, pck_name: str):
+        # SFX SoundBanks outrank language SoundBanks, so a sound shared with a voice bank keeps its SFX target.
         name = pck_name or ""
+        if name.startswith(self.game.soundbank_pck_prefix):
+            return 2
         if name.startswith(self.game.soundbank_pck_filter_prefix):
             return 1
         if name.startswith(self.game.streamed_pck_filter_prefix):
@@ -43,6 +46,8 @@ class ImportWorker(BaseWorker):
         return 0
 
     def _priority_label(self, priority):
+        if priority == 2:
+            return self.game.soundbank_pck_prefix
         if priority == 1:
             return self.game.soundbank_pck_filter_prefix
         if priority < 0:
