@@ -302,7 +302,6 @@ def test_install_keeps_path_traversal_entries_inside_the_mod_dir(env, tmp_path):
     assert list(tmp_path.rglob("escaped.txt")) == [env.manager.mods_dir / installed_mod_uuid / "escaped.txt"]
 
 
-@pytest.mark.xfail(strict=True, reason="bug: validate_mod_package accepts a wem_file reference that escapes the mod dir")
 def test_validate_rejects_a_wem_file_reference_escaping_the_mod_dir(env, tmp_path):
     escaping_reference = "../../../outside.wem"
     metadata = minimal_metadata(replacements={"Full/Streamed_SFX_0.pck": {"direct": {"120001": {"wem_file": escaping_reference, "lang_id": 0, "file_type": "wem"}}}})
@@ -487,6 +486,14 @@ def test_a_mod_whose_folder_vanished_is_dropped_from_the_config(env):
     assert [mod["uuid"] for mod in env.manager.get_installed_mods()] == [kept_mod_uuid]
     assert list(resolved) == [env.keys.streamed]
     assert json.loads(env.manager.config_path.read_text())["load_order"] == [kept_mod_uuid]
+
+
+def test_resolve_conflicts_skips_an_installed_wem_file_escaping_the_mod_dir(env):
+    installed_mod_uuid = install_enabled(env, "Tampered", {env.keys.streamed: [mod_entry(env.work_dir / "a", STREAMED_WEM_ID, make_wem(1))]})
+    installed_replacements = env.manager.mod_config["installed_mods"][installed_mod_uuid]["metadata"]["replacements"]
+    installed_replacements[env.keys.streamed]["direct"][str(STREAMED_WEM_ID)]["wem_file"] = "../../outside.wem"
+
+    assert env.manager.resolve_conflicts() == {env.keys.streamed: {}}
 
 
 def test_resolve_conflicts_lets_the_later_mod_in_load_order_win(env):

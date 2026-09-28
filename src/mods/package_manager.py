@@ -68,6 +68,12 @@ _AUDIO_SETTING_KEYS = (
 )
 
 
+def _escapes_mod_dir(wem_file):
+    # Zip extraction drops ".." from entry names, but apply joins wem_file to the mod dir as written.
+    normalized = str(wem_file).replace('\\', '/')
+    return normalized.startswith('/') or ':' in normalized or '..' in normalized.split('/')
+
+
 def count_replacements(metadata):
     # Total replacements; handles v1.0 flat and v2.0/v3.0 per-bnk layouts.
     # HIRC-only add-mods (no WEM replacements) count their track patches so they don't read as empty.
@@ -255,6 +261,10 @@ class ModPackageManager:
                         for bnk_key, files in bnk_entries.items():
                             for file_id, file_info in files.items():
                                 wem_file = file_info.get('wem_file', '')
+                                if wem_file and _escapes_mod_dir(wem_file):
+                                    raise InvalidModPackageError(
+                                        f"Referenced WEM file points outside the mod: {wem_file}"
+                                    )
                                 if wem_file and wem_file not in file_list:
                                     raise InvalidModPackageError(
                                         f"Referenced WEM file not found in archive: {wem_file}"
@@ -263,6 +273,10 @@ class ModPackageManager:
                     for pck_name, files in replacements.items():
                         for file_id, file_info in files.items():
                             wem_file = file_info.get('wem_file', '')
+                            if wem_file and _escapes_mod_dir(wem_file):
+                                raise InvalidModPackageError(
+                                    f"Referenced WEM file points outside the mod: {wem_file}"
+                                )
                             if wem_file and wem_file not in file_list:
                                 raise InvalidModPackageError(
                                     f"Referenced WEM file not found in archive: {wem_file}"
@@ -516,6 +530,9 @@ class ModPackageManager:
                 for file_id, file_info in files.items():
 
                     wem_file = file_info.get('wem_file', '')
+                    if wem_file and _escapes_mod_dir(wem_file):
+                        logger.warning(f"[Mod Manager] Skipping {wem_file} in '{mod_name}': it points outside the mod folder")
+                        continue
                     wem_path = mod_dir / wem_file if wem_file else None
 
                     bnk_id = file_info.get('bnk_id')
