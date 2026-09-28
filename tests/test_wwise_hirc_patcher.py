@@ -265,6 +265,65 @@ def test_duration_patch_on_the_intro_re_times_the_loop(split_tracks):
     assert result["patched_source_ids"] == {INTRO_SOURCE, LOOP_SOURCE}
 
 
+def clip_play_ats(bnk_bytes, source_id):
+    return [read_f64(bnk_bytes, track.fPlayAt_offset) for track in scan_bank_for_patch_targets(bnk_bytes, {source_id}).tracks]
+
+
+def segment_duration(bnk_bytes, source_id):
+    return read_f64(bnk_bytes, scan_bank_for_patch_targets(bnk_bytes, {source_id}).segments[0].fDuration_offset)
+
+
+def test_duration_patch_on_one_layer_leaves_the_parallel_layers_in_place():
+    # A lane replaced at 0 must not drag another lane that only happens to start where it ends.
+    layered_bank = build_bnk(BANK_ID, hirc_objects=[
+        music_track(TRACK_ID, [clip(INTRO_SOURCE, 0.0, 3000.0)], parent_id=SEGMENT_ID),
+        music_track(LOOP_TRACK_ID, [clip(LOOP_SOURCE, 3000.0, 3000.0)], parent_id=SEGMENT_ID),
+        music_track(THIRD_TRACK_ID, [clip(THIRD_SOURCE, 0.0, 6000.0)], parent_id=SEGMENT_ID),
+        music_segment(SEGMENT_ID, [TRACK_ID, LOOP_TRACK_ID, THIRD_TRACK_ID], 6000.0),
+    ])
+
+    patched_bnk, _ = patch_durations(layered_bank, {INTRO_SOURCE: 2400.0})
+
+    assert clip_play_ats(patched_bnk, LOOP_SOURCE) == [3000.0]
+    assert clip_play_ats(patched_bnk, THIRD_SOURCE) == [0.0]
+    assert segment_duration(patched_bnk, THIRD_SOURCE) == 6000.0
+
+
+def test_duration_patch_keeps_the_crossfade_between_a_replaced_intro_and_its_loop():
+    crossfaded_bank = intro_loop_bank(8013.9, 85347.2, 93347.2, loop_play_at=8000.0, split_tracks=True)
+
+    patched_bnk, result = patch_durations(crossfaded_bank, {INTRO_SOURCE: 10000.0})
+
+    assert clip_play_ats(patched_bnk, LOOP_SOURCE) == [pytest.approx(9986.1)]
+    assert segment_duration(patched_bnk, LOOP_SOURCE) == pytest.approx(95333.3)
+    assert result["patched_source_ids"] == {INTRO_SOURCE, LOOP_SOURCE}
+
+
+def test_duration_patch_reads_a_trimmed_loop_end_as_the_segment_end():
+    trimmed_loop_bank = build_bnk(BANK_ID, hirc_objects=[
+        music_track(TRACK_ID, [clip(INTRO_SOURCE, 0.0, 3107.1)], parent_id=SEGMENT_ID),
+        music_track(LOOP_TRACK_ID, [clip(LOOP_SOURCE, 3096.8, 58861.6, end_trim=-22.9)], parent_id=SEGMENT_ID),
+        music_segment(SEGMENT_ID, [TRACK_ID, LOOP_TRACK_ID], 61935.5),
+    ])
+
+    patched_bnk, _ = patch_durations(trimmed_loop_bank, {LOOP_SOURCE: 47089.3})
+
+    assert clip_play_ats(patched_bnk, LOOP_SOURCE) == [3096.8]
+    assert segment_duration(patched_bnk, LOOP_SOURCE) == pytest.approx(3096.8 + 47089.3)
+
+
+def test_duration_patch_does_not_chain_switch_alternatives():
+    alternatives_bank = build_bnk(BANK_ID, hirc_objects=[
+        music_track(TRACK_ID, [clip(INTRO_SOURCE, 0.0, 12215.0), clip(LOOP_SOURCE, 12215.0, 103473.0)], parent_id=SEGMENT_ID, subtrack_count=2),
+        music_segment(SEGMENT_ID, [TRACK_ID], 115688.0),
+    ])
+
+    patched_bnk, _ = patch_durations(alternatives_bank, {INTRO_SOURCE: 15000.0})
+
+    assert clip_play_ats(patched_bnk, LOOP_SOURCE) == [12215.0]
+    assert segment_duration(patched_bnk, LOOP_SOURCE) == 115688.0
+
+
 def test_duration_patch_keeps_the_musical_length_of_a_loop_with_tail():
     patched_bnk, result = patch_durations(intro_loop_bank(12215.0, 103473.0, 110000.0), {INTRO_SOURCE: 10000.0, LOOP_SOURCE: 90000.0})
 

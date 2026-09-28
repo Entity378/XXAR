@@ -38,14 +38,14 @@ def music_node_base(parent_id=0, props=(), fx_count=0):
     return struct.pack("<BB", 0, fx_count) + fx_chunk + struct.pack("<IB", parent_id, 0) + prop_bundle(props) + b"\x00"
 
 
-def music_track(obj_id, clips, source_ids=None, props=(), parent_id=0, fx_count=0, automation_point_counts=()):
+def music_track(obj_id, clips, source_ids=None, props=(), parent_id=0, fx_count=0, automation_point_counts=(), subtrack_count=1):
     if source_ids is None:
         source_ids = list(dict.fromkeys(clip_source_id(track_clip) for track_clip in clips))
     body = struct.pack("<BI", 0, len(source_ids))
     for source_id in source_ids:
         body += struct.pack("<IBIIB", VORBIS_PLUGIN_ID, STREAMING, source_id, 4096, 0)
     body += struct.pack("<I", len(clips)) + b"".join(clips)
-    body += struct.pack("<II", 1, len(automation_point_counts))
+    body += struct.pack("<II", subtrack_count, len(automation_point_counts))
     for clip_index, point_count in enumerate(automation_point_counts):
         body += struct.pack("<III", clip_index, 0, point_count) + b"\x00" * 12 * point_count
     body += struct.pack("<IB", 0, 0)
