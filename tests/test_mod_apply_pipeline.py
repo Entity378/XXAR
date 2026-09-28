@@ -128,7 +128,6 @@ def test_apply_snapshots_the_resolved_mods_into_mod_tracker_json(tmp_path, game_
     }
 
 
-@pytest.mark.xfail(strict=True, reason="bug: the mod_tracker snapshot keys entries by bare wem id, so two bnks sharing a wem id collapse")
 def test_tracker_snapshot_keeps_two_bnks_that_embed_the_same_wem(tmp_path):
     keys = GameKeys("zzz")
     soundbank = build_pck(banks=[

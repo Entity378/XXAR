@@ -1053,18 +1053,21 @@ class ModPackageManager:
                 persistent_format[pck_name] = {}
                 for key, file_info in files.items():
                     actual_wem_id = file_info.get('file_id', key)
+                    bnk_id = file_info.get('bnk_id')
+                    # Same key as PersistentModManager.add_replacement, so two bnks embedding one WEM id stay apart.
+                    tracker_key = f"{bnk_id}|{actual_wem_id}" if bnk_id is not None else str(actual_wem_id)
                     tracker_entry = {
                         'wem_path': file_info['wem_path'],
                         'file_type': file_info.get('file_type', 'wem'),
                         'lang_id': file_info.get('lang_id', 0),
-                        'bnk_id': file_info.get('bnk_id'),
+                        'bnk_id': bnk_id,
                         'date_modified': datetime.now().isoformat(),
                         'source': 'mod_manager'
                     }
                     for audio_key in _AUDIO_SETTING_KEYS:
                         if audio_key in file_info:
                             tracker_entry[audio_key] = file_info[audio_key]
-                    persistent_format[pck_name][actual_wem_id] = tracker_entry
+                    persistent_format[pck_name][tracker_key] = tracker_entry
 
             self.persistent_mod_manager.import_replacements_from_mods(persistent_format)
 
