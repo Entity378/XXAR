@@ -120,7 +120,6 @@ def test_conversions_without_tools_explain_how_to_install_them(tmp_path, tools_o
 
 
 @windows_only
-@pytest.mark.xfail(strict=True, reason="bug: any_to_wav leaks its temp output .wav when FFmpeg is missing")
 def test_any_to_wav_without_ffmpeg_leaves_no_temp_output(tmp_path, tools_off_path, private_temp_dir):
     wav_file = tmp_path / "voice.wav"
     wav_file.write_bytes(b"RIFF")

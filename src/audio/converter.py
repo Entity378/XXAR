@@ -165,20 +165,6 @@ class AudioConverter:
 
     def any_to_wav(self, input_file, output_file=None, sample_rate=48000, channels=2, normalize=True, normalize_lufs=-9):
 
-        input_file = Path(input_file)
-        tmp_generated = False
-        if output_file is None:
-            candidate = input_file.with_suffix('.wav')
-            if candidate == input_file:
-                tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-                tmp.close()
-                output_file = Path(tmp.name)
-                tmp_generated = True
-            else:
-                output_file = candidate
-        else:
-            output_file = Path(output_file)
-
         if not self.ffmpeg_path:
             if IS_WINDOWS:
                 raise RuntimeError(
@@ -192,6 +178,20 @@ class AudioConverter:
                     "  Arch Linux: sudo pacman -S ffmpeg\n"
                     "  Ubuntu/Debian: sudo apt install ffmpeg"
                 )
+
+        input_file = Path(input_file)
+        tmp_generated = False
+        if output_file is None:
+            candidate = input_file.with_suffix('.wav')
+            if candidate == input_file:
+                tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                tmp.close()
+                output_file = Path(tmp.name)
+                tmp_generated = True
+            else:
+                output_file = candidate
+        else:
+            output_file = Path(output_file)
 
         wrote_output = False
         try:
