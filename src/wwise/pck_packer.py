@@ -638,9 +638,10 @@ class PCKPacker:
             for lang_id, file_info in lang_items:
                 package_id, file_size, origin_offset = file_info
 
+                # Past 4 GiB the start is stored in blocks, so the data moves up to the next block boundary.
                 offset_multiplicand = (init_offset >> 32) + 1
                 offset_multiplier = ceil(init_offset / offset_multiplicand)
-                fill_bytes = init_offset % offset_multiplicand
+                fill_bytes = offset_multiplier * offset_multiplicand - init_offset
 
                 file_list.append((package_id, file_size, origin_offset, fill_bytes))
 
@@ -658,13 +659,13 @@ class PCKPacker:
     def _write_audio_data(self, f, file_list):
 
         for package_id, file_size, origin_offset, fill_bytes in file_list:
+            if fill_bytes:
+                f.write(b'\xFF' * fill_bytes)
+
             file_obj = self.file_list[package_id]
             file_obj.seek(origin_offset)
             data = file_obj.read(file_size)
             f.write(data)
-
-            if fill_bytes:
-                f.write(b'\xFF' * fill_bytes)
 
     def close(self):
 

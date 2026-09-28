@@ -308,7 +308,6 @@ class OffsetSink:
         return bytes(self.content[start:start + size])
 
 
-@pytest.mark.xfail(strict=True, reason="bug: past 4 GiB the alignment fill is written after each file instead of before it")
 def test_rebuild_rows_past_4_gib_point_at_their_data(tmp_path):
     # Writing 4 GiB is not an option, so the table and data writers are driven at a 4 GiB offset directly.
     first_wem, second_wem = make_wem(1, 63), make_wem(2, 64)
