@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from src.core.config_manager import get_settings_file
 from src.gui.utils.path_memory import get_last_dir, save_last_dir
 from helpers import read_settings, write_settings
@@ -62,7 +60,6 @@ def test_non_dict_last_dirs_is_replaced_on_save(tmp_path):
     assert read_settings()["last_dirs"] == {"import_audio": str(tmp_path)}
 
 
-@pytest.mark.xfail(strict=True, reason="bug: get_last_dir calls .get on a non-dict last_dirs that save_last_dir already guards against")
 def test_non_dict_last_dirs_falls_back_on_read():
     write_settings({"last_dirs": ["not", "a", "dict"]})
     assert get_last_dir("import_audio", fallback="D:/fallback") == "D:/fallback"

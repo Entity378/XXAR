@@ -34,6 +34,8 @@ def get_last_dir(key, fallback=None):
         return fallback or str(Path.home())
     settings, _ = _load_settings()
     last_dirs = settings.get(_SETTINGS_KEY, {})
+    if not isinstance(last_dirs, dict):
+        last_dirs = {}
     last = last_dirs.get(key, "")
     if last and Path(last).is_dir():
         return last
