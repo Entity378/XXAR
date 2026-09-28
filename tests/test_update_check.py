@@ -386,7 +386,6 @@ def test_flatpak_update_reinstalls_through_the_host(bridge, tmp_path, monkeypatc
     assert len(applied) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="bug: applyUpdate emits updateApplied after _apply_linux_update refused outside Flatpak")
 def test_flatpak_bundle_outside_the_sandbox_is_not_reported_as_applied(bridge, tmp_path, monkeypatch, launched_processes):
     monkeypatch.setattr(update_manager_bridge, "IS_FLATPAK", False)
     prepare_downloaded_update(bridge, tmp_path, "flatpak", "XXAR-linux-x86_64.flatpak")

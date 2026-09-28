@@ -457,7 +457,9 @@ class UpdateManagerBridge(QObject):
             elif self._downloaded_kind == "msi":
                 self._apply_msi_update(current_exe)
             elif self._downloaded_kind == "flatpak":
-                self._apply_linux_update(current_exe)
+                # Outside the sandbox nothing is handed off, so the app must not quit as if updated.
+                if not self._apply_linux_update(current_exe):
+                    return
             else:
                 self.updateError.emit(f"Unknown update kind: {self._downloaded_kind}")
                 return
@@ -501,7 +503,7 @@ class UpdateManagerBridge(QObject):
                 f"Bundle downloaded to: {bundle}\n"
                 f"Install it manually with:  flatpak install --user {bundle}"
             )
-            return
+            return False
 
         # Host reinstalls in place (rewrites the OSTree ref); running app keeps the old commit until relaunch.
         args = [
@@ -519,3 +521,4 @@ class UpdateManagerBridge(QObject):
             close_fds=True,
             **HOST_SPAWN_KWARGS,
         )
+        return True
