@@ -76,5 +76,5 @@ def allocate_free_ids(colliding_ids, used_ids) -> dict:
                 candidate = 1
         rename[old] = candidate
         used.add(candidate)
-        candidate += 1
+        candidate = candidate + 1 if candidate < 0xFFFFFFFF else 1
     return rename

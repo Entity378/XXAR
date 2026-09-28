@@ -103,7 +103,6 @@ def test_allocate_free_ids_wraps_around_past_the_last_id(monkeypatch):
     assert rename == {10: 2, 20: 3}
 
 
-@pytest.mark.xfail(strict=True, reason="bug: the id after 0xFFFFFFFF is handed out before wrapping around")
 def test_allocate_free_ids_stays_within_32_bits_at_the_end_of_the_range(monkeypatch):
     monkeypatch.setattr(original_id_index, "_REALLOC_BASE", 0xFFFFFFFF)
 
