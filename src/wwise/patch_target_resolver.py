@@ -48,28 +48,23 @@ def plain_wem_id(info, key):
 
 
 def canonicalize_pck_keys(resolved, streaming_root: Path, game):
-    # Bare and folder-qualified keys can name the same physical pck, which then rebuilds twice with the second output clobbering the first.
-    # Rekeys every non-protected bucket to the posix path relative to streaming_root and merges aliases in place.
+    # Rekeys every non-protected bucket to the pck locate_pck_paths rebuilds, so aliases of one pck merge instead of clobbering each other.
+    # The import is local because persistent_originals imports this module.
+    from src.mods.persistent_originals import locate_pck_paths
+
     if not streaming_root or not streaming_root.exists():
         return 0
     merged_buckets = 0
     for pck_name in list(resolved.keys()):
         if game.is_protected_pck(pck_name):
             continue
-        pck_basename = Path(pck_name).name
-        if (streaming_root / pck_name).exists():
-            canonical = Path(pck_name).as_posix()
-        else:
-            candidates = []
-            try:
-                for subdir in sorted(streaming_root.iterdir()):
-                    if subdir.is_dir() and (subdir / pck_basename).exists():
-                        candidates.append(subdir / pck_basename)
-            except OSError:
+        try:
+            source_pck, _ = locate_pck_paths(streaming_root, streaming_root, pck_name, entries=resolved[pck_name])
+            if source_pck is None:
                 continue
-            if not candidates:
-                continue
-            canonical = candidates[0].relative_to(streaming_root).as_posix()
+            canonical = source_pck.relative_to(streaming_root).as_posix()
+        except (OSError, ValueError):
+            continue
         if canonical == pck_name:
             continue
         alias_entries = resolved.pop(pck_name)

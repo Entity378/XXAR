@@ -235,7 +235,6 @@ def test_relink_tracker_does_not_rewrite_a_healthy_tracker(tmp_path):
     assert not manager.mod_tracker_path.exists()
 
 
-@pytest.mark.xfail(strict=True, reason="bug: relinker scans only SoundBank_SFX_* for embedded WEMs, ZZZ voices moved into a bank stay broken")
 def test_voice_wem_moved_into_a_voice_bank_is_relinked(tmp_path):
     install = make_game_install(tmp_path, "zzz", streaming_files={
         "Full/En/SoundBank_En_1.pck": build_pck(banks=[bank(300, {3001: make_wem(1)}, lang_id=1)], languages=ENGLISH),

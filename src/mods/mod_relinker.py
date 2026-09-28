@@ -134,7 +134,7 @@ class GameAudioIndex:
         if self._embedded_index is not None:
             return
         self._embedded_index = {}
-        soundbank_pcks = sorted(self.game_audio_dir.rglob(self.game.soundbank_pck_glob))
+        soundbank_pcks = sorted(self.game_audio_dir.rglob(f"{self.game.soundbank_pck_filter_prefix}*.pck"))
         for idx, pck in enumerate(soundbank_pcks):
             if self.game.is_protected_pck(pck.name):
                 continue
@@ -154,7 +154,7 @@ class GameAudioIndex:
     def _prefer_pck(self, names):
         # Authoritative target first: a SoundBank container, then a Streamed one, then anything.
         sb = self.game.soundbank_pck_filter_prefix
-        st = self.game.streamed_pck_prefix
+        st = self.game.streamed_pck_filter_prefix
         for prefix in (sb, st):
             if prefix:
                 match = next((n for n in names if n.startswith(prefix)), None)

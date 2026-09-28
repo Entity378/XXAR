@@ -90,7 +90,7 @@ def test_scan_sources_union_streaming_pcks_with_persistent_overrides(tmp_path):
     assert sorted((str(path), logical_name, priority) for path, logical_name, priority in scan_sources) == sorted([
         (str(env.streaming_root / keys.soundbank), keys.soundbank, 1),
         (str(env.streaming_root / keys.streamed), keys.streamed, 0),
-        (str(env.streaming_root / keys.voice_soundbank), keys.voice_soundbank, 0),
+        (str(env.streaming_root / keys.voice_soundbank), keys.voice_soundbank, 1),
         (str(env.streaming_root / keys.voice_streamed), keys.voice_streamed, 0),
         (str(patch_backup.backup_path(live_patch, env.persistent_root, "zzz")), "Patch.pck", -1),
         (str(env.persistent_root / "Full" / "En" / "Hotfix.pck"), "Hotfix.pck", -1),
@@ -107,15 +107,7 @@ def test_scan_sources_honor_the_name_filter_on_both_roots(tmp_path):
     assert sorted((logical_name, priority) for _, logical_name, priority in scan_sources) == [("Full/Streamed_SFX_0.pck", 0), ("Patch.pck", -1)]
 
 
-def voice_priority_cases():
-    for game_id in GAME_IDS:
-        marks = []
-        if game_id == "zzz":
-            marks = [pytest.mark.xfail(strict=True, reason="bug: ImportWorker ranks only SoundBank_SFX_ as soundbank, so ZZZ voice banks tie with streamed pcks")]
-        yield pytest.param(game_id, marks=marks)
-
-
-@pytest.mark.parametrize("game_id", list(voice_priority_cases()))
+@pytest.mark.parametrize("game_id", GAME_IDS)
 def test_a_voice_soundbank_outranks_its_streamed_pck(tmp_path, game_id):
     env = make_mod_env(tmp_path, game_id)
     worker = ImportWorker(import_data(env, "wem_folder", {}), str(env.streaming_root), env.manager, str(env.persistent_root))

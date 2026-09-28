@@ -36,18 +36,18 @@ class ImportWorker(BaseWorker):
 
     def _get_pck_priority(self, pck_name: str):
         name = pck_name or ""
-        if name.startswith(self.game.soundbank_pck_prefix):
+        if name.startswith(self.game.soundbank_pck_filter_prefix):
             return 1
-        if name.startswith(self.game.streamed_pck_prefix):
+        if name.startswith(self.game.streamed_pck_filter_prefix):
             return 0
         return 0
 
     def _priority_label(self, priority):
         if priority == 1:
-            return self.game.soundbank_pck_prefix
+            return self.game.soundbank_pck_filter_prefix
         if priority < 0:
             return "Persistent"
-        return self.game.streamed_pck_prefix
+        return self.game.streamed_pck_filter_prefix
 
     def _priority_suffix(self, priority):
         return f" ({self._priority_label(priority)})"

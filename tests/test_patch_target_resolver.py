@@ -273,12 +273,10 @@ def test_canonicalize_leaves_protected_and_unknown_keys_alone(tmp_path):
     pytest.param(
         "zzz", {"Full/En/Streamed_En_1.pck": build_pck(sounds=[sound(6001)])},
         "Streamed_En_1.pck", {"6001": wem_replacement(6001)}, id="zzz-nested-voice",
-        marks=pytest.mark.xfail(strict=True, reason="bug: canonicalize_pck_keys searches only one folder level, ZZZ voices live in Full/En"),
     ),
     pytest.param(
         "hsr", {"English/External0.pck": build_pck(sounds=[sound(6001)]), "Japanese/External0.pck": build_pck(sounds=[sound(6101)])},
         "External0.pck", {"6101": wem_replacement(6101)}, id="hsr-shared-basename",
-        marks=pytest.mark.xfail(strict=True, reason="bug: canonicalize_pck_keys picks the first folder, ignoring which language holds the entries"),
     ),
 ])
 def test_canonical_key_names_the_pck_that_locate_pck_paths_rebuilds(tmp_path, game_id, streaming_files, bare_key, entries):

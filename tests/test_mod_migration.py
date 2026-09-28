@@ -148,15 +148,7 @@ def test_relink_keeps_audio_settings_and_add_entries(tmp_path):
     assert migrated[LAYOUTS["zzz"].soundbank]["1001.bnk"]["4000000001"]["is_add"] is True
 
 
-def voice_relink_cases():
-    for game_id in GAME_IDS:
-        marks = []
-        if game_id == "zzz":
-            marks = [pytest.mark.xfail(strict=True, reason="bug: mod_relinker scans only SoundBank_SFX_* for embedded wems, so ZZZ voice mods never relink")]
-        yield pytest.param(game_id, marks=marks)
-
-
-@pytest.mark.parametrize("game_id", list(voice_relink_cases()))
+@pytest.mark.parametrize("game_id", GAME_IDS)
 def test_install_relinks_a_voice_wem_that_moved_to_another_voice_bank(tmp_path, game_id):
     keys = GameKeys(game_id)
     updated_voice_soundbank = build_pck(banks=[

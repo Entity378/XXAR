@@ -220,10 +220,7 @@ def test_a_conflict_preference_beats_the_load_order(tmp_path):
 def alias_cases():
     for game_id in GAME_IDS:
         yield pytest.param(game_id, "sfx", id=f"{game_id}-sfx")
-        voice_marks = []
-        if game_id == "zzz":
-            voice_marks = [pytest.mark.xfail(strict=True, reason="bug: canonicalize_pck_keys only looks one folder deep, so Full/En pck aliases still clobber")]
-        yield pytest.param(game_id, "voice", id=f"{game_id}-voice", marks=voice_marks)
+        yield pytest.param(game_id, "voice", id=f"{game_id}-voice")
 
 
 @pytest.mark.parametrize(("game_id", "pck_kind"), list(alias_cases()))
