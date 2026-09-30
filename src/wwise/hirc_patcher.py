@@ -1,5 +1,6 @@
 import struct
 from dataclasses import dataclass, field
+from typing import Optional
 
 from src.core.logger import get_logger
 
@@ -7,6 +8,7 @@ logger = get_logger(__name__)
 
 HIRC_TYPE_MUSIC_SEGMENT = 0x0A
 HIRC_TYPE_MUSIC_TRACK = 0x0B
+ENTRY_MARKER_ID = 0x0298DF12
 END_MARKER_ID = 0x5BBBD648
 
 VOLUME_PROP_ID = 0x00
@@ -50,6 +52,7 @@ class VolumePatchInfo:
 class SegmentPatchInfo:
     fDuration_offset: int
     end_marker_fPos_offset: int
+    entry_marker_fPos_offset: Optional[int] = None  # None when the segment has no entry cue
     associated_source_ids: set = field(default_factory=set)
     member_clips: list = field(default_factory=list)  # TrackPatchInfo of the segment's clips (for timeline re-timing)
     has_alternative_subtracks: bool = False
@@ -219,9 +222,14 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
                 struct.unpack_from("<d", content, track.fSrcDuration_offset)[0],
             )
             original_trims[track.clear_region_offset] = _clip_trims(content, track)
+    # The entry cue follows the clips that play at it, so each segment clip keeps its audible span from before any write.
+    spans_before_patch = {}  # clear_region_offset -> (audible start, audible end)
+    for segment in targets.segments:
+        for clip in segment.member_clips:
+            spans_before_patch.setdefault(clip.clear_region_offset, _audible_span(content, clip))
 
-    # Pass 1 clears eventID and trims and sets fSrcDuration, but preserves fPlayAt.
-    # Zeroing fPlayAt collapses intro+loop clips onto t=0 and makes them overlap.
+    # Pass 1 starts each replaced clip where its old audio became audible, clears eventID and trims and sets fSrcDuration.
+    # Keeping fPlayAt under a cleared begin trim would put the start of the new audio before the segment and cut it.
     event_id_zeros = b"\x00\x00\x00\x00"
     trim_zeros = b"\x00" * 16
     for track in targets.tracks:
@@ -229,71 +237,36 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
         if new_duration is None:
             continue
         clear_offset = track.clear_region_offset
+        old_play_at = original_timings[clear_offset][0]
+        old_begin_trim = original_trims[clear_offset][0]
         event_id = slice(clear_offset, clear_offset + 4)
+        play_at = slice(track.fPlayAt_offset, track.fPlayAt_offset + 8)
         trims = slice(clear_offset + 12, clear_offset + 28)
         src_duration = slice(track.fSrcDuration_offset, track.fSrcDuration_offset + 8)
+        play_at_bytes = struct.pack("<d", old_play_at + old_begin_trim)
         duration_bytes = struct.pack("<d", float(new_duration))
         if (content[event_id] == event_id_zeros
+                and content[play_at] == play_at_bytes
                 and content[trims] == trim_zeros
                 and content[src_duration] == duration_bytes):
             continue
         content[event_id] = event_id_zeros
+        content[play_at] = play_at_bytes
         content[trims] = trim_zeros
         content[src_duration] = duration_bytes
         patched_offsets += 1
         patched_source_ids.add(track.source_id)
 
     # Pass 2 re-times clips and recomputes duration only for clean concatenations.
-    # Loop-with-tail segments keep their musical fDuration and every fPlayAt untouched.
+    # Loop-with-tail segments keep their musical fDuration and are not re-timed.
     for segment in targets.segments:
         chain = _sequential_chain(content, segment, original_timings, original_trims)
         if chain is not None:
-            chain_offsets, chain_source_ids = _retime_chain(content, segment, chain, original_timings, duration_ms_by_source)
-            patched_offsets += chain_offsets
-            patched_source_ids.update(chain_source_ids)
-            continue
-
-        clip_timings = []  # (clip, old_fPlayAt, old_duration, new_duration)
-        for clip in segment.member_clips:
-            new_duration = duration_ms_by_source.get(clip.source_id)
-            if new_duration is None or clip.clear_region_offset not in original_timings:
-                continue
-            old_play_at, old_duration = original_timings[clip.clear_region_offset]
-            clip_timings.append((clip, old_play_at, old_duration, float(new_duration)))
-        if not clip_timings:
-            continue
-
-        old_timeline_end = max(play_at + duration for _, play_at, duration, _ in clip_timings)
-        old_segment_duration = struct.unpack_from("<d", content, segment.fDuration_offset)[0]
-        if abs(old_segment_duration - old_timeline_end) > _CONCAT_TOLERANCE_MS:
-            continue  # loop-with-tail: leave untouched
-
-        segment_changed = False
-        new_clip_ends = []
-        for clip, old_play_at, _, new_duration in clip_timings:
-            # Shift this clip by the total growth of the clips that finish before it starts.
-            shift = sum(
-                other_new - other_old
-                for other, other_at, other_old, other_new in clip_timings
-                if other is not clip and other_at + other_old <= old_play_at + _CONCAT_TOLERANCE_MS
-            )
-            new_play_at = old_play_at + shift
-            if abs(new_play_at - old_play_at) > 1e-6:
-                struct.pack_into("<d", content, clip.fPlayAt_offset, new_play_at)
-                patched_offsets += 1
-                segment_changed = True
-            new_clip_ends.append(new_play_at + new_duration)
-
-        new_segment_duration = max(new_clip_ends)
-        old_marker_pos = struct.unpack_from("<d", content, segment.end_marker_fPos_offset)[0]
-        if abs(new_segment_duration - old_segment_duration) > 1e-6 or abs(new_segment_duration - old_marker_pos) > 1e-6:
-            struct.pack_into("<d", content, segment.fDuration_offset, new_segment_duration)
-            struct.pack_into("<d", content, segment.end_marker_fPos_offset, new_segment_duration)
-            patched_offsets += 1
-            segment_changed = True
-
-        if segment_changed:
-            patched_source_ids.update(clip.source_id for clip, *_ in clip_timings)
+            segment_offsets, segment_source_ids = _retime_chain(content, segment, chain, original_timings, duration_ms_by_source)
+        else:
+            segment_offsets, segment_source_ids = _retime_replaced_clips(content, segment, spans_before_patch, original_timings, duration_ms_by_source)
+        patched_offsets += segment_offsets + _follow_entry_cue(content, segment, spans_before_patch, original_timings)
+        patched_source_ids.update(segment_source_ids)
 
     return {
         "patched_offsets": patched_offsets,
@@ -307,6 +280,85 @@ def _clip_trims(content, clip):
         struct.unpack_from("<d", content, clip.clear_region_offset + 12)[0],
         struct.unpack_from("<d", content, clip.clear_region_offset + 20)[0],
     )
+
+
+def _audible_span(content, clip):
+    # (start, end) of the part of a clip that plays on its segment timeline, trims included.
+    play_at = struct.unpack_from("<d", content, clip.fPlayAt_offset)[0]
+    src_duration = struct.unpack_from("<d", content, clip.fSrcDuration_offset)[0]
+    begin_trim, end_trim = _clip_trims(content, clip)
+    return play_at + begin_trim, play_at + src_duration + end_trim
+
+
+def _retime_replaced_clips(content, segment, spans_before_patch, original_timings, duration_ms_by_source):
+    # Outside a sequential chain only the replaced clips move, each by how much the replaced clips before it grew.
+    # Spans include the trims, so an end trim landing on fDuration reads as a concatenation; returns (patched offsets, source ids).
+    replaced_spans = []  # (clip, old audible start, old audible end, new duration)
+    for clip in segment.member_clips:
+        new_duration = duration_ms_by_source.get(clip.source_id)
+        if new_duration is None or clip.clear_region_offset not in original_timings:
+            continue
+        old_start, old_end = spans_before_patch[clip.clear_region_offset]
+        replaced_spans.append((clip, old_start, old_end, float(new_duration)))
+    if not replaced_spans:
+        return 0, set()
+
+    old_timeline_end = max(old_end for _, _, old_end, _ in replaced_spans)
+    old_segment_duration = struct.unpack_from("<d", content, segment.fDuration_offset)[0]
+    if abs(old_segment_duration - old_timeline_end) > _CONCAT_TOLERANCE_MS:
+        return 0, set()  # loop-with-tail: leave untouched
+
+    patched_offsets = 0
+    new_clip_ends = []
+    for clip, old_start, _, new_duration in replaced_spans:
+        # Pass 1 left the clip at old_start, so only the growth of the clips that finish before it moves it again.
+        shift = sum(
+            other_new_duration - (other_end - other_start)
+            for other, other_start, other_end, other_new_duration in replaced_spans
+            if other is not clip and other_end <= old_start + _CONCAT_TOLERANCE_MS
+        )
+        if abs(shift) > 1e-6:
+            struct.pack_into("<d", content, clip.fPlayAt_offset, old_start + shift)
+            patched_offsets += 1
+        new_clip_ends.append(old_start + shift + new_duration)
+
+    new_segment_duration = max(new_clip_ends)
+    old_marker_pos = struct.unpack_from("<d", content, segment.end_marker_fPos_offset)[0]
+    if abs(new_segment_duration - old_segment_duration) > 1e-6 or abs(new_segment_duration - old_marker_pos) > 1e-6:
+        struct.pack_into("<d", content, segment.fDuration_offset, new_segment_duration)
+        struct.pack_into("<d", content, segment.end_marker_fPos_offset, new_segment_duration)
+        patched_offsets += 1
+    if not patched_offsets:
+        return 0, set()
+    return patched_offsets, {clip.source_id for clip, *_ in replaced_spans}
+
+
+def _follow_entry_cue(content, segment, spans_before_patch, original_timings):
+    # The entry cue stays on the clip that plays at it, and moves to the start of a replaced one so none of it is skipped as pre-entry.
+    # Untouched layers playing at the cue keep it on their downbeat instead; returns the number of patched offsets.
+    if segment.entry_marker_fPos_offset is None:
+        return 0
+    entry = struct.unpack_from("<d", content, segment.entry_marker_fPos_offset)[0]
+    clips_at_entry = []
+    for clip in segment.member_clips:
+        start, end = spans_before_patch[clip.clear_region_offset]
+        if clip.source_id and start < end and start - _CONCAT_TOLERANCE_MS <= entry < end:
+            clips_at_entry.append(clip)
+    if not clips_at_entry:
+        return 0
+    # On the boundary between two clips the cue belongs to the one that starts there.
+    latest_start = max(spans_before_patch[clip.clear_region_offset][0] for clip in clips_at_entry)
+    clips_at_entry = [clip for clip in clips_at_entry if spans_before_patch[clip.clear_region_offset][0] >= latest_start - _CONCAT_TOLERANCE_MS]
+    untouched_clips = [clip for clip in clips_at_entry if clip.clear_region_offset not in original_timings]
+    if untouched_clips:
+        clip = untouched_clips[0]
+        new_entry = entry + _audible_span(content, clip)[0] - spans_before_patch[clip.clear_region_offset][0]
+    else:
+        new_entry = min(_audible_span(content, clip)[0] for clip in clips_at_entry)
+    if abs(new_entry - entry) <= 1e-6:
+        return 0
+    struct.pack_into("<d", content, segment.entry_marker_fPos_offset, new_entry)
+    return 1
 
 
 def _sequential_chain(content, segment, original_timings, original_trims):
@@ -351,10 +403,11 @@ def _retime_chain(content, segment, chain, original_timings, duration_ms_by_sour
     changed_source_ids = set()
     shift = 0.0
     new_clip_ends = []
-    for _, old_end, clip in chain:
+    for old_start, old_end, clip in chain:
         if clip.clear_region_offset in original_timings:
-            play_at = original_timings[clip.clear_region_offset][0]
-            new_end = play_at + float(duration_ms_by_source[clip.source_id])
+            # Pass 1 already moved a replaced clip to old_start, where its old audio became audible.
+            play_at = old_start
+            new_end = old_start + float(duration_ms_by_source[clip.source_id])
             changed_source_ids.add(clip.source_id)
         else:
             play_at = struct.unpack_from("<d", content, clip.fPlayAt_offset)[0]
@@ -602,7 +655,7 @@ def _parse_volume_from_track(content, p, end, track_patches, object_size_field_o
 
 def _parse_music_segment(content, data_start, obj_size):
     # Parse a MusicSegment (0x0A) HIRC object.
-    # Uses marker-scanning heuristic to locate fDuration and the end marker's fPosition.
+    # Uses marker-scanning heuristic to locate fDuration and the fPosition of the entry and end markers.
     # Returns SegmentPatchInfo or None.
     data = content[data_start : data_start + obj_size]
 
@@ -615,6 +668,7 @@ def _parse_music_segment(content, data_start, obj_size):
         parsed_ok = True
         last_id = None
         last_fpos_data_offset = None
+        entry_fpos_data_offset = None
 
         for _ in range(nm):
             if p + 16 > obj_size:
@@ -625,6 +679,8 @@ def _parse_music_segment(content, data_start, obj_size):
             if nlen > 500:
                 parsed_ok = False
                 break
+            if marker_id == ENTRY_MARKER_ID:
+                entry_fpos_data_offset = p + 4
             last_id = marker_id
             last_fpos_data_offset = p + 4  # fPosition is 4 bytes after marker start
             p += 16 + nlen
@@ -635,6 +691,7 @@ def _parse_music_segment(content, data_start, obj_size):
         return SegmentPatchInfo(
             fDuration_offset=data_start + try_off - 8,
             end_marker_fPos_offset=data_start + last_fpos_data_offset,
+            entry_marker_fPos_offset=None if entry_fpos_data_offset is None else data_start + entry_fpos_data_offset,
         )
 
     return None

@@ -61,11 +61,11 @@ def music_children(child_ids):
     return struct.pack("<I", len(child_ids)) + b"".join(struct.pack("<I", child_id) for child_id in child_ids)
 
 
-def music_segment(obj_id, child_ids, duration, end_marker_position=None, entry_marker_name=b""):
+def music_segment(obj_id, child_ids, duration, end_marker_position=None, entry_marker_name=b"", entry_marker_position=0.0):
     end_position = duration if end_marker_position is None else end_marker_position
     body = b"\x00" + music_node_base() + b"\x00" * 20 + music_children(child_ids) + meter_and_stingers()
     body += struct.pack("<dI", duration, 2)
-    body += struct.pack("<IdI", ENTRY_MARKER_ID, 0.0, len(entry_marker_name)) + entry_marker_name
+    body += struct.pack("<IdI", ENTRY_MARKER_ID, entry_marker_position, len(entry_marker_name)) + entry_marker_name
     body += struct.pack("<IdI", END_MARKER_ID, end_position, 0)
     return hirc_object(MUSIC_SEGMENT, obj_id, body)
 

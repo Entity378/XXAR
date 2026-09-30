@@ -5,6 +5,7 @@ import pytest
 from helpers import build_bnk, build_pck, make_wem
 from hirc_builders import (
     END_MARKER_ID,
+    ENTRY_MARKER_ID,
     LOW_PASS_FILTER,
     MUSIC_TRACK,
     PITCH,
@@ -38,7 +39,7 @@ TRACK_SHAPES = [(0, ()), (2, ()), (0, (3,)), (1, (2, 5))]
 TRACK_SHAPE_IDS = ["plain", "effects", "clip_automation", "effects_and_automation"]
 
 
-def intro_loop_bank(intro_ms, loop_ms, segment_ms, loop_play_at=None, split_tracks=False):
+def intro_loop_bank(intro_ms, loop_ms, segment_ms, loop_play_at=None, split_tracks=False, entry_ms=0.0):
     loop_play_at = intro_ms if loop_play_at is None else loop_play_at
     intro_clip = clip(INTRO_SOURCE, 0.0, intro_ms)
     loop_clip = clip(LOOP_SOURCE, loop_play_at, loop_ms)
@@ -47,12 +48,21 @@ def intro_loop_bank(intro_ms, loop_ms, segment_ms, loop_play_at=None, split_trac
     else:
         tracks = [music_track(TRACK_ID, [intro_clip, loop_clip], parent_id=SEGMENT_ID)]
     child_ids = [TRACK_ID, LOOP_TRACK_ID] if split_tracks else [TRACK_ID]
-    return build_bnk(BANK_ID, hirc_objects=[*tracks, music_segment(SEGMENT_ID, child_ids, segment_ms)])
+    return build_bnk(BANK_ID, hirc_objects=[*tracks, music_segment(SEGMENT_ID, child_ids, segment_ms, entry_marker_position=entry_ms)])
 
 
-def single_clip_bank(clip_ms, segment_ms, **clip_fields):
+def single_clip_bank(clip_ms, segment_ms, entry_ms=0.0, **clip_fields):
     track = music_track(TRACK_ID, [clip(INTRO_SOURCE, duration=clip_ms, **clip_fields)], parent_id=SEGMENT_ID)
-    return build_bnk(BANK_ID, hirc_objects=[track, music_segment(SEGMENT_ID, [TRACK_ID], segment_ms)])
+    return build_bnk(BANK_ID, hirc_objects=[track, music_segment(SEGMENT_ID, [TRACK_ID], segment_ms, entry_marker_position=entry_ms)])
+
+
+def layered_bank(intro_ms, loop_ms, segment_ms, entry_ms):
+    # Two lanes that both start at 0, like the HSR layers that share a pickup before the entry cue.
+    return build_bnk(BANK_ID, hirc_objects=[
+        music_track(TRACK_ID, [clip(INTRO_SOURCE, 0.0, intro_ms)], parent_id=SEGMENT_ID),
+        music_track(LOOP_TRACK_ID, [clip(LOOP_SOURCE, 0.0, loop_ms)], parent_id=SEGMENT_ID),
+        music_segment(SEGMENT_ID, [TRACK_ID, LOOP_TRACK_ID], segment_ms, entry_marker_position=entry_ms),
+    ])
 
 
 def intro_loop_playlist_bank(intro_ms, loop_ms):
@@ -106,16 +116,20 @@ def test_scan_reports_clip_fields_and_the_linked_segment():
     assert read_f64(bnk_bytes, segment.fDuration_offset) == 115688.0
     assert read_u32(bnk_bytes, segment.end_marker_fPos_offset - 4) == END_MARKER_ID
     assert read_f64(bnk_bytes, segment.end_marker_fPos_offset) == 115688.0
+    assert read_u32(bnk_bytes, segment.entry_marker_fPos_offset - 4) == ENTRY_MARKER_ID
 
 
 def test_scan_finds_the_end_marker_after_a_named_marker():
     track = music_track(TRACK_ID, [clip(INTRO_SOURCE, duration=5000.0)])
-    bnk_bytes = build_bnk(BANK_ID, hirc_objects=[track, music_segment(SEGMENT_ID, [TRACK_ID], 4800.0, entry_marker_name=b"LoopStart")])
+    bnk_bytes = build_bnk(BANK_ID, hirc_objects=[
+        track, music_segment(SEGMENT_ID, [TRACK_ID], 4800.0, entry_marker_name=b"LoopStart", entry_marker_position=250.0),
+    ])
 
     (segment,) = scan_bank_for_patch_targets(bnk_bytes, {INTRO_SOURCE}).segments
 
     assert read_f64(bnk_bytes, segment.fDuration_offset) == 4800.0
     assert read_f64(bnk_bytes, segment.end_marker_fPos_offset) == 4800.0
+    assert read_f64(bnk_bytes, segment.entry_marker_fPos_offset) == 250.0
 
 
 @pytest.mark.parametrize("source_ids", [set(), {UNUSED_SOURCE}])
@@ -342,17 +356,103 @@ def test_duration_patch_on_a_single_clip_segment(segment_ms, expected_segment_ms
     assert patched_bnk == single_clip_bank(12000.0, expected_segment_ms)
 
 
-def test_duration_patch_clears_event_id_and_trims_but_keeps_play_at():
-    original_bnk = single_clip_bank(10000.0, 10500.0, play_at=500.0, begin_trim=250.0, end_trim=-686.77, event_id=77)
+def test_duration_patch_moves_play_at_to_the_audible_start_and_clears_event_id_and_trims():
+    original_bnk = single_clip_bank(10000.0, 9813.23, play_at=500.0, begin_trim=250.0, end_trim=-686.77, event_id=77)
 
     patched_bnk, _ = patch_durations(original_bnk, {INTRO_SOURCE: 12000.0})
 
-    assert patched_bnk == single_clip_bank(12000.0, 12500.0, play_at=500.0)
+    assert patched_bnk == single_clip_bank(12000.0, 12750.0, play_at=750.0)
 
 
-def test_duration_patch_is_idempotent():
-    durations = {INTRO_SOURCE: 10000.0, LOOP_SOURCE: 90000.0}
-    once_patched_bnk, _ = patch_durations(intro_loop_bank(12215.0, 103473.0, 115688.0), durations)
+def test_duration_patch_starts_the_new_audio_where_a_trimmed_lead_in_ended():
+    # GI Banks1 bnk 207114398 track 853216092 trims a lead-in off a clip placed before the segment start.
+    original_bnk = single_clip_bank(255000.0, 253048.78, play_at=-1951.22, begin_trim=1951.22)
+
+    patched_bnk, _ = patch_durations(original_bnk, {INTRO_SOURCE: 157544.0})
+
+    assert patched_bnk == single_clip_bank(157544.0, 157544.0)
+
+
+def test_duration_patch_reads_an_end_trim_on_the_segment_end_as_a_concatenation():
+    # GI Banks1 bnk 207114398 track 439374376 was taken for a loop-with-tail and kept a 16 s gap before its exit cue.
+    original_bnk = single_clip_bank(241296.771, 240000.104, end_trim=-1296.667)
+
+    patched_bnk, _ = patch_durations(original_bnk, {INTRO_SOURCE: 218410.0})
+
+    assert patched_bnk == single_clip_bank(218410.0, 218410.0)
+
+
+def test_duration_patch_moves_an_entry_cue_inside_a_replaced_clip_to_its_start():
+    # Without pre-entry the audio before the entry cue is skipped, so the replacement must not start before it.
+    patched_bnk, _ = patch_durations(single_clip_bank(10000.0, 10000.0, entry_ms=761.4), {INTRO_SOURCE: 12000.0})
+
+    assert patched_bnk == single_clip_bank(12000.0, 12000.0)
+
+
+def test_duration_patch_plays_a_replacement_of_a_trimmed_clip_whole_from_the_entry_cue():
+    # GI Banks1 bnk 207114398 track 596725186 has a trimmed lead-in, an end trim on the segment end and its entry cue at 370 ms.
+    original_bnk = single_clip_bank(253141.333, 247888.889, entry_ms=370.37, play_at=-1111.111, begin_trim=1111.111, end_trim=-4141.333)
+
+    patched_bnk, _ = patch_durations(original_bnk, {INTRO_SOURCE: 218279.0})
+
+    assert patched_bnk == single_clip_bank(218279.0, 218279.0)
+
+
+def test_duration_patch_re_times_the_loop_after_a_trimmed_intro():
+    # HSR Banks28 segment 382947072 trims its intro from a clip placed before the segment start.
+    original_bnk = build_bnk(BANK_ID, hirc_objects=[
+        music_track(TRACK_ID, [clip(INTRO_SOURCE, -4067.5, 16067.5, begin_trim=4067.5)], parent_id=SEGMENT_ID),
+        music_track(LOOP_TRACK_ID, [clip(LOOP_SOURCE, 12000.0, 100000.0)], parent_id=SEGMENT_ID),
+        music_segment(SEGMENT_ID, [TRACK_ID, LOOP_TRACK_ID], 112000.0),
+    ])
+
+    patched_bnk, _ = patch_durations(original_bnk, {INTRO_SOURCE: 15000.0})
+
+    assert patched_bnk == intro_loop_bank(15000.0, 100000.0, 115000.0, split_tracks=True)
+
+
+@pytest.mark.parametrize(
+    "durations, expected_bnk",
+    [
+        ({INTRO_SOURCE: 6000.0}, intro_loop_bank(6000.0, 100000.0, 106000.0, entry_ms=6000.0)),
+        ({LOOP_SOURCE: 90000.0}, intro_loop_bank(4700.0, 90000.0, 94700.0, entry_ms=4700.0)),
+        ({INTRO_SOURCE: 6000.0, LOOP_SOURCE: 90000.0}, intro_loop_bank(6000.0, 90000.0, 96000.0, entry_ms=6000.0)),
+    ],
+    ids=["intro", "loop", "both"],
+)
+def test_duration_patch_keeps_the_entry_cue_on_the_loop_after_an_intro_in_pre_entry(durations, expected_bnk):
+    # GI Banks15 bnk 2087051407 plays its intro only as pre-entry, and every loop enters where the loop clip starts.
+    patched_bnk, _ = patch_durations(intro_loop_bank(4700.0, 100000.0, 104700.0, entry_ms=4700.0), durations)
+
+    assert patched_bnk == expected_bnk
+
+
+@pytest.mark.parametrize(
+    "durations, expected_bnk",
+    [
+        ({INTRO_SOURCE: 5000.0}, layered_bank(5000.0, 8000.0, 8000.0, entry_ms=375.0)),
+        ({INTRO_SOURCE: 5000.0, LOOP_SOURCE: 9000.0}, layered_bank(5000.0, 9000.0, 9000.0, entry_ms=0.0)),
+    ],
+    ids=["one_layer", "every_layer"],
+)
+def test_duration_patch_leaves_the_entry_cue_on_an_untouched_layer(durations, expected_bnk):
+    # HSR Banks10 bnk 1376947663 has two layers that share a pickup before the entry cue.
+    patched_bnk, _ = patch_durations(layered_bank(3429.1, 8000.0, 8000.0, entry_ms=375.0), durations)
+
+    assert patched_bnk == expected_bnk
+
+
+@pytest.mark.parametrize(
+    "original_bnk, durations",
+    [
+        (intro_loop_bank(12215.0, 103473.0, 115688.0), {INTRO_SOURCE: 10000.0, LOOP_SOURCE: 90000.0}),
+        (single_clip_bank(253141.333, 247888.889, entry_ms=370.37, play_at=-1111.111, begin_trim=1111.111, end_trim=-4141.333), {INTRO_SOURCE: 218279.0}),
+        (intro_loop_bank(4700.0, 100000.0, 104700.0, entry_ms=4700.0), {INTRO_SOURCE: 6000.0}),
+    ],
+    ids=["intro_loop", "trimmed_clip_with_entry_cue", "intro_in_pre_entry"],
+)
+def test_duration_patch_is_idempotent(original_bnk, durations):
+    once_patched_bnk, _ = patch_durations(original_bnk, durations)
 
     twice_patched_bnk, result = patch_durations(once_patched_bnk, durations)
 
