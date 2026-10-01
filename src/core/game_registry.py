@@ -283,3 +283,26 @@ def extract_game_data_dir_from_audio_path(audio_dir) -> str:
         if parent.name in _DATA_DIR_TO_GAME:
             return str(parent)
     return str(audio_path)
+
+
+def refresh_stored_audio_dirs(settings) -> bool:
+    # Re-derives every stored audio folder pair from its game data folder, so a release that moves an audio root re-points them.
+    # Returns whether settings changed.
+    key_pairs = [get_audio_settings_keys(game.id) for game in _ALL_GAMES]
+    key_pairs.append(("game_audio_dir", "persistent_audio_dir"))
+    changed = False
+    for audio_key, persistent_key in key_pairs:
+        stored_audio_dir = settings.get(audio_key)
+        if not stored_audio_dir:
+            continue
+        data_dir = Path(extract_game_data_dir_from_audio_path(stored_audio_dir))
+        game = _DATA_DIR_TO_GAME.get(data_dir.name)
+        if game is None:
+            continue
+        audio_dir, persistent_dir = (str(path) for path in build_audio_paths(game.id, data_dir))
+        if stored_audio_dir == audio_dir and settings.get(persistent_key) == persistent_dir:
+            continue
+        settings[audio_key] = audio_dir
+        settings[persistent_key] = persistent_dir
+        changed = True
+    return changed

@@ -61,12 +61,19 @@ def _save_ledger(game_id, ledger):
         logger.error(f"[Patch Backup] Failed to write ledger: {e}")
 
 
+def _persistent_top(persistent_root: Path, game):
+    # The Persistent folder itself, however deep below it the caller's audio root sits.
+    for folder in (persistent_root, *persistent_root.parents):
+        if folder.name == game.persistent_audio_subpath[0]:
+            return folder
+    return None
+
+
 def _manifest_entry_map(persistent_root: Path, game):
     # {remoteName: manifest entry} from audio_version_persist at the Persistent root, cached by mtime.
-    # The manifest sits above the audio subpath, e.g. Persistent/audio_version_persist.
-    top = persistent_root
-    for _ in range(len(game.persistent_audio_subpath) - 1):
-        top = top.parent
+    top = _persistent_top(persistent_root, game)
+    if top is None:
+        return {}
     manifest = top / _MANIFEST_NAME
     if not manifest.exists():
         return {}
@@ -89,11 +96,13 @@ def _manifest_entry_map(persistent_root: Path, game):
 
 def _remote_name(live_pck, persistent_root, game):
     # The manifest keys overrides by their path under the Persistent root, e.g. "Audio/Windows/Full/En/Patch.pck".
-    rel = _rel(live_pck, persistent_root)
-    if rel is None:
+    top = _persistent_top(persistent_root, game)
+    if top is None:
         return None
-    prefix = game.persistent_audio_subpath[1:]
-    return "/".join([*prefix, *rel.parts])
+    try:
+        return Path(live_pck).relative_to(top).as_posix()
+    except ValueError:
+        return None
 
 
 def _manifest_entry(live_pck, persistent_root, game):
@@ -262,6 +271,94 @@ def restore_backups(persistent_root: Path, game):
             logger.error(f"[Patch Backup] Failed to restore {live_rel.as_posix()}: {e}")
     _save_ledger(game.id, ledger)
     return restored
+
+
+def _xxh64_tag(path):
+    # The decimal xxh64 that audio_version_persist stores as an override's content tag.
+    h = xxhash.xxh64()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return str(h.intdigest())
+
+
+def _listed_override_tags(persistent_root: Path, game):
+    # {path under persistent_root: current tag} of every protected override the game's manifest lists.
+    top = _persistent_top(persistent_root, game)
+    listed = {}
+    for name, entry in _manifest_entry_map(persistent_root, game).items():
+        tag = str(entry.get("md5", ""))
+        if not game.is_protected_pck(name) or not tag.isdigit():
+            continue
+        try:
+            listed[(top / name).relative_to(persistent_root).as_posix()] = tag
+        except ValueError:
+            continue
+    return listed
+
+
+def _adopt_pristine_copy(copy_path, listed, persistent_root, game, ledger):
+    # Moves a copy into the empty backup slot of the override whose current tag its content hashes to.
+    tag = _xxh64_tag(copy_path)
+    for rel_key, current_tag in listed.items():
+        slot = backup_path(persistent_root / rel_key, persistent_root, game.id)
+        if current_tag != tag or slot.exists():
+            continue
+        slot.parent.mkdir(parents=True, exist_ok=True)
+        copy_path.chmod(0o644)
+        shutil.move(str(copy_path), str(slot))
+        ledger[rel_key] = tag
+        return rel_key
+    return None
+
+
+def repair_backups(persistent_root: Path, game):
+    # Keeps only backups of the game's current originals, so a backup from an older game version is never restored.
+    # Backups and stray copies an older audio root left behind fill the empty slot of the override they match, or are removed.
+    listed = _listed_override_tags(persistent_root, game)
+    if not listed:
+        return 0
+    root = _backup_root(game.id)
+    ledger = _load_ledger(game.id)
+    loaded_ledger = dict(ledger)
+    strays = []
+    for bfile in list(root.rglob(f"*{BACKUP_SUFFIX}")) if root.exists() else []:
+        rel = bfile.relative_to(root)
+        rel_key = rel.with_name(rel.name[:-len(BACKUP_SUFFIX)]).as_posix()
+        if rel_key not in listed:
+            ledger.pop(rel_key, None)
+            strays.append(bfile)
+            continue
+        try:
+            # Captures taken while the manifest was unreadable carry no tag, so their content is hashed once.
+            if ledger.get(rel_key) is None:
+                ledger[rel_key] = _xxh64_tag(bfile)
+            if ledger[rel_key] != listed[rel_key]:
+                bfile.chmod(0o644)
+                bfile.unlink()
+                ledger.pop(rel_key)
+                logger.info(f"[Patch Backup] Backup of {rel_key} is not the game's current original; dropped it")
+        except OSError as e:
+            logger.error(f"[Patch Backup] Failed to check the backup of {rel_key}: {e}")
+    for pck in persistent_root.rglob("*.pck"):
+        if game.is_protected_pck(pck.name) and pck.relative_to(persistent_root).as_posix() not in listed:
+            strays.append(pck)
+    adopted = 0
+    for stray in strays:
+        try:
+            owner_rel = _adopt_pristine_copy(stray, listed, persistent_root, game, ledger)
+            if owner_rel:
+                adopted += 1
+                logger.info(f"[Patch Backup] Kept the stray copy {stray} as the original of {owner_rel}")
+                continue
+            stray.chmod(0o644)
+            stray.unlink()
+            logger.info(f"[Patch Backup] Removed the stray copy {stray}")
+        except OSError as e:
+            logger.error(f"[Patch Backup] Failed to sort out the stray copy {stray}: {e}")
+    if ledger != loaded_ledger:
+        _save_ledger(game.id, ledger)
+    return adopted
 
 
 def migrate_persistent_backups(persistent_root: Path, game):

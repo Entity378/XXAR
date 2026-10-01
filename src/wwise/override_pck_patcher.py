@@ -191,6 +191,7 @@ def _null_bnk_ids_in_file_table(pck_path, target_bnk_ids):
 def restore_override_pck_backups(persistent_root, game):
     # Restore originals from the state-dir backups, first sweeping any legacy co-located backup into it.
     patch_backup.migrate_persistent_backups(persistent_root, game)
+    patch_backup.repair_backups(persistent_root, game)
     return patch_backup.restore_backups(persistent_root, game)
 
 

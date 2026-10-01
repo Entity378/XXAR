@@ -44,7 +44,7 @@ from src.core.app_config import (
     switch_active_game,
 )
 from src.core.config_manager import get_settings_file, normalize_game_id
-from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games
+from src.core.game_registry import DEFAULT_GAME_ID, get_supported_games, refresh_stored_audio_dirs
 from src.gui.backend.audio_browser_bridge import AudioBrowserBridge
 from src.gui.backend.audio_conversion_bridge import AudioConversionBridge
 from src.gui.backend.base_worker import BaseWorker, WorkerRegistry, game_write_state, shutdown_all_workers
@@ -287,6 +287,8 @@ class Application(
             logger.warning(f"[{APP_NAME}] WARNING: ZZZ font not found at {zzz_font}")
 
         self.engine = QQmlApplicationEngine()
+        # Before any bridge reads them, so the Mod Manager and the Browser agree on every game's audio root.
+        self._refresh_stored_audio_dirs()
         self.mod_manager_bridge = ModManagerBridge()
         self.audio_browser_bridge = AudioBrowserBridge()
         # Stop its threads and close the constellation index in the right order at exit.
@@ -541,6 +543,17 @@ class Application(
         except Exception as e:
             logger.error(f"Warning: Failed to load settings: {e}")
         return {}
+
+    def _refresh_stored_audio_dirs(self):
+        settings = self.load_settings()
+        if not refresh_stored_audio_dirs(settings):
+            return
+        try:
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=2)
+            logger.info(f"[{APP_NAME}] Re-pointed the stored audio folders to the current game layout")
+        except Exception as e:
+            logger.error(f"[{APP_NAME}] Failed to save the re-pointed audio folders: {e}")
 
     def on_progress_update(self, message):
         if "successfully" in message.lower() or "applied" in message.lower():

@@ -21,6 +21,7 @@ from src.core.game_registry import (
     normalize_game_data_dir,
     normalize_game_id,
     normalize_game_mode,
+    refresh_stored_audio_dirs,
 )
 from helpers import make_game_install
 
@@ -226,6 +227,35 @@ def test_extract_game_data_dir_from_unrelated_or_empty_path(tmp_path):
     assert extract_game_data_dir_from_audio_path(tmp_path / "audio") == str(tmp_path / "audio")
     assert extract_game_data_dir_from_audio_path("") == ""
     assert extract_game_data_dir_from_audio_path(None) == ""
+
+
+def test_refresh_stored_audio_dirs_repoints_folders_saved_under_an_older_audio_root(tmp_path):
+    # Up to 1.1.4 the ZZZ audio root was Audio/Windows/Full, and an update keeps settings.json as it was.
+    zzz_install = make_game_install(tmp_path / "zzz", "zzz")
+    genshin_install = make_game_install(tmp_path / "genshin", "genshin")
+    old_zzz_dirs = (str(zzz_install.streaming_root / "Full"), str(zzz_install.persistent_root / "Full"))
+    current_genshin_dirs = (str(genshin_install.streaming_root), str(genshin_install.persistent_root))
+    settings = {
+        "zzz_game_audio_dir": old_zzz_dirs[0], "zzz_persistent_audio_dir": old_zzz_dirs[1],
+        "game_audio_dir": old_zzz_dirs[0], "persistent_audio_dir": old_zzz_dirs[1],
+        "genshin_game_audio_dir": current_genshin_dirs[0], "genshin_persistent_audio_dir": current_genshin_dirs[1],
+        "hsr_game_audio_dir": "",
+    }
+
+    assert refresh_stored_audio_dirs(settings) is True
+    current_zzz_dirs = (str(zzz_install.streaming_root), str(zzz_install.persistent_root))
+    assert (settings["zzz_game_audio_dir"], settings["zzz_persistent_audio_dir"]) == current_zzz_dirs
+    assert (settings["game_audio_dir"], settings["persistent_audio_dir"]) == current_zzz_dirs
+    assert (settings["genshin_game_audio_dir"], settings["genshin_persistent_audio_dir"]) == current_genshin_dirs
+    assert settings["hsr_game_audio_dir"] == ""
+    assert refresh_stored_audio_dirs(settings) is False
+
+
+def test_refresh_stored_audio_dirs_leaves_folders_outside_a_game_alone(tmp_path):
+    settings = {"zzz_game_audio_dir": str(tmp_path / "audio"), "zzz_persistent_audio_dir": str(tmp_path / "persistent")}
+
+    assert refresh_stored_audio_dirs(settings) is False
+    assert settings == {"zzz_game_audio_dir": str(tmp_path / "audio"), "zzz_persistent_audio_dir": str(tmp_path / "persistent")}
 
 
 @pytest.mark.parametrize("game", ALL_GAMES, ids=GAME_IDS)

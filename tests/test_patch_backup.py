@@ -6,8 +6,11 @@ from helpers import build_pck, make_game_install, make_wem
 from overlay_builders import bank, with_bank_ids_zeroed, write_persist_manifest, xxh64_tag
 from src.core.config_manager import get_game_state_dir
 from src.wwise import patch_backup
+from src.wwise.override_pck_patcher import restore_override_pck_backups
 
 PATCH_REL = "Full/En/Patch.pck"
+# The same override keyed under Audio/Windows/Full, the ZZZ audio root up to 1.1.4.
+OLD_ROOT_PATCH_REL = "En/Patch.pck"
 
 
 def pristine_override(seed=1, extra_wems=0):
@@ -26,6 +29,21 @@ def backup_root(game_id="zzz"):
 
 def read_ledger(game_id="zzz"):
     return json.loads((backup_root(game_id) / "backup_index.json").read_text(encoding="utf-8"))
+
+
+def write_backup(rel, content, tag, game_id="zzz"):
+    backup = backup_root(game_id) / f"{rel}.xxar_backup"
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    backup.write_bytes(content)
+    ledger_path = backup_root(game_id) / "backup_index.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.exists() else {}
+    ledger[rel] = tag
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    return backup
+
+
+def persistent_pcks(install):
+    return sorted(path.relative_to(install.persistent_root).as_posix() for path in install.persistent_root.rglob("*.pck"))
 
 
 def test_backup_path_mirrors_the_persistent_subpath_in_the_state_dir(tmp_path):
@@ -251,3 +269,105 @@ def test_restore_backups_drops_a_backup_whose_size_disagrees_with_the_manifest(t
     assert live_patch_pck.read_bytes() == new_pristine
     assert not list(backup_root().rglob("*.xxar_backup"))
     assert read_ledger() == {}
+
+
+def test_the_manifest_tags_are_read_from_an_audio_root_below_the_registry_one(tmp_path):
+    # Settings saved up to 1.1.4 still point the ZZZ Persistent root at Audio/Windows/Full.
+    pristine = pristine_override()
+    install, live_patch_pck = make_override_install(tmp_path, with_bank_ids_zeroed(pristine, [101]))
+    write_persist_manifest(install, {PATCH_REL: pristine})
+
+    assert patch_backup.ensure_backup(live_patch_pck, install.persistent_root / "Full", install.game) is None
+    assert not list(backup_root().rglob("*.xxar_backup"))
+
+
+@pytest.mark.parametrize("stored_root", ["Full", ""], ids=["root-saved-by-1.1.4", "current-root"])
+def test_a_backup_from_an_older_game_version_is_never_restored(tmp_path, stored_root):
+    old_pristine = pristine_override(seed=1)
+    updated_pristine = pristine_override(seed=2, extra_wems=1)
+    install, live_patch_pck = make_override_install(tmp_path, updated_pristine)
+    write_persist_manifest(install, {PATCH_REL: updated_pristine})
+    write_backup(OLD_ROOT_PATCH_REL, old_pristine, xxh64_tag(old_pristine))
+
+    assert restore_override_pck_backups(install.persistent_root / stored_root, install.game) == 0
+    assert live_patch_pck.read_bytes() == updated_pristine
+    assert persistent_pcks(install) == [PATCH_REL]
+    assert not list(backup_root().rglob("*.xxar_backup"))
+
+
+def test_a_backup_taken_under_the_old_audio_root_restores_its_nulled_override(tmp_path):
+    pristine = pristine_override()
+    install, live_patch_pck = make_override_install(tmp_path, with_bank_ids_zeroed(pristine, [101]))
+    write_persist_manifest(install, {PATCH_REL: pristine})
+    write_backup(OLD_ROOT_PATCH_REL, pristine, xxh64_tag(pristine))
+
+    assert restore_override_pck_backups(install.persistent_root, install.game) == 1
+    assert live_patch_pck.read_bytes() == pristine
+    assert persistent_pcks(install) == [PATCH_REL]
+    assert not list(backup_root().rglob("*.xxar_backup"))
+    assert read_ledger() == {}
+
+
+def test_a_copy_restored_beside_the_real_override_goes_back_where_it_belongs(tmp_path):
+    # 1.1.5 restored backups taken under Audio/Windows/Full one folder too high and left the real override nulled.
+    pristine = pristine_override()
+    install, live_patch_pck = make_override_install(tmp_path, with_bank_ids_zeroed(pristine, [101]))
+    stray_copy = install.persistent_root / OLD_ROOT_PATCH_REL
+    stray_copy.parent.mkdir(parents=True)
+    stray_copy.write_bytes(pristine)
+    write_persist_manifest(install, {PATCH_REL: pristine})
+
+    assert restore_override_pck_backups(install.persistent_root, install.game) == 1
+    assert live_patch_pck.read_bytes() == pristine
+    assert persistent_pcks(install) == [PATCH_REL]
+
+
+def test_a_stray_nulled_copy_is_removed(tmp_path):
+    pristine = pristine_override()
+    install, live_patch_pck = make_override_install(tmp_path, pristine)
+    stray_copy = install.persistent_root / OLD_ROOT_PATCH_REL
+    stray_copy.parent.mkdir(parents=True)
+    stray_copy.write_bytes(with_bank_ids_zeroed(pristine, [101]))
+    write_persist_manifest(install, {PATCH_REL: pristine})
+
+    assert restore_override_pck_backups(install.persistent_root, install.game) == 0
+    assert live_patch_pck.read_bytes() == pristine
+    assert persistent_pcks(install) == [PATCH_REL]
+
+
+def test_an_untagged_backup_is_hashed_before_it_is_restored(tmp_path):
+    # The update swaps a WEM payload in place, so the override keeps its size.
+    old_pristine = pristine_override(seed=1)
+    updated_pristine = build_pck(banks=[bank(101, {1010: make_wem(777)})])
+    install, live_patch_pck = make_override_install(tmp_path, updated_pristine)
+    write_persist_manifest(install, {PATCH_REL: updated_pristine})
+    write_backup(PATCH_REL, old_pristine, None)
+
+    assert restore_override_pck_backups(install.persistent_root, install.game) == 0
+    assert live_patch_pck.read_bytes() == updated_pristine
+    assert not list(backup_root().rglob("*.xxar_backup"))
+
+
+def test_an_untagged_backup_of_the_current_original_is_tagged_and_kept(tmp_path):
+    pristine = pristine_override()
+    install, live_patch_pck = make_override_install(tmp_path, with_bank_ids_zeroed(pristine, [101]))
+    write_persist_manifest(install, {PATCH_REL: pristine})
+    backup = write_backup(PATCH_REL, pristine, None)
+
+    assert patch_backup.repair_backups(install.persistent_root, install.game) == 0
+    assert backup.read_bytes() == pristine
+    assert read_ledger() == {PATCH_REL: xxh64_tag(pristine)}
+
+
+@pytest.mark.parametrize(("game_id", "rel"), [("genshin", "Patch.pck"), ("hsr", "English/Hotfix.pck")])
+def test_repair_leaves_games_without_a_manifest_alone(tmp_path, game_id, rel):
+    pristine = pristine_override()
+    install, _ = make_override_install(tmp_path, pristine, game_id, rel)
+    stray_copy = install.persistent_root / "Old" / "Patch.pck"
+    stray_copy.parent.mkdir(parents=True)
+    stray_copy.write_bytes(pristine)
+    backup = write_backup(f"Old/{rel}", pristine, None, game_id)
+
+    assert patch_backup.repair_backups(install.persistent_root, install.game) == 0
+    assert stray_copy.read_bytes() == pristine
+    assert backup.read_bytes() == pristine
