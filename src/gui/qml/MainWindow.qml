@@ -36,6 +36,25 @@ ApplicationWindow {
 
     Component.onCompleted: activeLogo256Source = "../assets/" + activeAssetsDir + "/" + activeLogo256
 
+    // Closing mid-write would hide the window while the write goes on, so the window stays until it ends.
+    property bool closeWhenWriteEnds: false
+
+    onClosing: function(close) {
+        if (gameWriteState.busy) {
+            close.accepted = false
+            closeWhenWriteEnds = true
+            showSuccessToast(qsTranslate("Application", "%1 will close as soon as it finishes writing the game files").replace("%1", appName))
+        }
+    }
+
+    Connections {
+        target: gameWriteState
+        function onBusyChanged() {
+            if (mainWindow.closeWhenWriteEnds && !gameWriteState.busy)
+                mainWindow.close()
+        }
+    }
+
     onModCreationEnabledChanged: {
         if (!modCreationEnabled && (currentTab === 2 || currentTab === 3)) {
             currentTab = 1
