@@ -1,4 +1,5 @@
 import json
+import threading
 
 import pytest
 
@@ -264,6 +265,45 @@ def test_draft_exports_as_a_hirc_mod_and_imports_back(editor, genshin_install, t
     editor.importModForEditing(str(package))
 
     assert wait_until(lambda: counts and counts[-1] == (2,) and game_lock_free())
+
+
+def test_import_for_editing_clears_the_old_draft_when_a_queued_write_starts_right_after(editor, genshin_install, tmp_path, sandbox):
+    # A GameBanana install waiting in its queue starts on busyChanged, as soon as the import releases the game lock.
+    from src.core.config_manager import get_game_hirc_draft_wem_dir
+    from src.gui.backend.base_worker import FunctionWorker, WorkerRegistry, game_write_state
+
+    stage_new_wem(editor, tmp_path, "Music0.pck")
+    sandbox.dialog_answers["save_file"] = str(tmp_path / "export" / "Hirc Mod")
+    (tmp_path / "export").mkdir()
+    exported = record_signal(editor.modExported)
+    editor.createModPackage("Hirc Mod", "Tester", "", "desc", "")
+    assert wait_until(lambda: exported and game_lock_free())
+    stage_new_wem(editor, tmp_path, "Music0.pck", wem_id=NEW_WEM_ID + 1)
+    old_draft_wem = get_game_hirc_draft_wem_dir("genshin") / f"{NEW_WEM_ID + 1}.wem"
+    assert old_draft_wem.exists()
+
+    queue_registry = WorkerRegistry("gamebanana_queue")
+    release_queued_write = threading.Event()
+    queued = []
+
+    def start_queued_write():
+        if not game_write_state().busy and not queued:
+            queued.append(queue_registry.start("install", FunctionWorker(lambda: release_queued_write.wait(10)), holds_game_lock=True))
+
+    errors = record_signal(editor.errorOccurred)
+    counts = record_signal(editor.draftChangesCount)
+    game_write_state().busyChanged.connect(start_queued_write)
+    try:
+        editor.importModForEditing(str(tmp_path / "export" / "Hirc Mod.giar"))
+        assert wait_until(lambda: queued)
+    finally:
+        game_write_state().busyChanged.disconnect(start_queued_write)
+        release_queued_write.set()
+        assert wait_until(lambda: not queue_registry.is_running("install") and game_lock_free())
+
+    assert errors == []
+    assert counts[-1] == (1,)
+    assert not old_draft_wem.exists()
 
 
 def test_importing_a_plain_replacement_mod_is_refused(editor, genshin_install, tmp_path):

@@ -213,6 +213,57 @@ def test_refused_lock_start_does_not_flip_busy(workers):
     assert busy_changes == []
 
 
+def test_on_done_runs_with_the_lock_free_before_a_queued_write_can_take_it(workers):
+    # A GameBanana install waiting in its queue starts on busyChanged, as soon as the lock is free.
+    registry = workers.registry()
+    queue_registry = workers.registry()
+    gate = workers.gate()
+    queued_gate = workers.gate()
+    events = []
+
+    def start_queued_write():
+        if not game_write_state().busy and "queued write started" not in events:
+            queue_registry.start("install", gated_worker(queued_gate), holds_game_lock=True)
+            events.append("queued write started")
+
+    game_write_state().busyChanged.connect(start_queued_write)
+    assert registry.start("apply", gated_worker(gate), holds_game_lock=True, on_done=lambda: events.append(("on_done", game_lock_holder())))
+    gate.set()
+
+    assert wait_until(lambda: "queued write started" in events)
+    assert events == [("on_done", None), "queued write started"]
+
+
+def test_start_write_refused_by_the_lock_notifies_and_drops_on_done(workers):
+    first_registry = workers.registry()
+    second_registry = workers.registry()
+    gate = workers.gate()
+    notified = []
+    completions = []
+
+    def notify(*dialog):
+        notified.append(dialog)
+
+    assert first_registry.start_write("apply", gated_worker(gate), notify)
+    assert not second_registry.start_write("export", FunctionWorker(lambda: None), notify, on_done=lambda: completions.append("export"))
+    gate.set()
+
+    assert wait_until(lambda: game_lock_holder(False) is None)
+    assert [dialog[0] for dialog in notified] == ["Operation In Progress"]
+    assert completions == []
+
+
+def test_a_failing_on_done_still_releases_busy(workers):
+    registry = workers.registry()
+
+    def broken_completion():
+        raise RuntimeError("completion failed")
+
+    assert registry.start("apply", FunctionWorker(lambda: None), holds_game_lock=True, on_done=broken_completion)
+
+    assert wait_until(lambda: game_write_state().busy is False and not registry.is_running("apply"))
+
+
 def test_cancel_sets_the_function_worker_cancel_event(workers):
     registry = workers.registry()
     cancel_event = threading.Event()

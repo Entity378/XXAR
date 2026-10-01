@@ -18,7 +18,6 @@ def _natural_pck_key(name: str) -> list:
 
 from PyQt6.QtCore import (
     QObject,
-    QTimer,
     pyqtSignal,
     pyqtSlot,
 )
@@ -38,8 +37,7 @@ from src.core.game_registry import (
 )
 from src.core.logger import get_logger
 from src.data.sound_database import SoundDatabase
-from src.gui.backend import dialogs
-from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, refuse_if_writing
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.persistent_originals import locate_pck_paths
@@ -262,7 +260,6 @@ class HircEditorBridge(QObject):
     def __init__(self):
         super().__init__()
         self._workers = WorkerRegistry("hirc_editor")
-        self._write_done = None
         self._draft = {"media_adds": [], "track_patches": []}
         self._draft_game_id: Optional[str] = None
         # Reverse index {wem_id: name} from the per-game sound database.
@@ -738,31 +735,16 @@ class HircEditorBridge(QObject):
     # The draft holds media adds and track patches, persisted per game so it survives restarts.
     # Apply All replays it onto the live game and Export packages it as a .xxar.
 
-    def _refuse_if_writing(self):
-        # Backstop for the disabled controls: the draft must not change under a running write.
-        if game_lock_holder() is None:
-            return False
-        title, message, _ = dialogs.write_in_progress()
+    def _notify_write_in_progress(self, title, message, _sticker):
         self.errorOccurred.emit(title, message)
-        return True
+
+    def _refuse_if_writing(self):
+        return refuse_if_writing(self._notify_write_in_progress)
 
     def _start_write(self, name, worker, on_done=None):
         # Every game-file write runs off the GUI thread and holds the game lock.
-        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it.
-        worker.workerFinished.connect(self._on_write_finished)
-        if not self._workers.start(name, worker, holds_game_lock=True):
-            logger.warning(f"[HIRC Editor] {name} refused: game lock held by {game_lock_holder()}")
-            title, message, _ = dialogs.write_in_progress()
-            self.errorOccurred.emit(title, message)
-            return
-        self._write_done = on_done
-
-    @pyqtSlot()
-    def _on_write_finished(self):
-        on_done, self._write_done = self._write_done, None
-        if on_done is not None:
-            # Deferred one turn so the registry has released the game lock before on_done runs.
-            QTimer.singleShot(0, on_done)
+        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it once the lock is free.
+        self._workers.start_write(name, worker, self._notify_write_in_progress, on_done=on_done)
 
     def _get_draft(self) -> dict:
         gid = self._current_game_id()

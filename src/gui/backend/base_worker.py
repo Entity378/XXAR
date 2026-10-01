@@ -1,9 +1,10 @@
 import weakref
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 from PyQt6.QtCore import QObject, QThread, pyqtProperty, pyqtSignal
 
 from src.core.logger import get_logger
+from src.gui.backend import dialogs
 
 logger = get_logger(__name__)
 
@@ -81,6 +82,7 @@ class WorkerRegistry(QObject):
         self._owner_name = owner_name or "workers"
         self._workers: Dict[str, QThread] = {}
         self._game_lock_holders: set = set()
+        self._on_done: Dict[str, Callable] = {}
         _registries.append(weakref.ref(self))
 
     def is_running(self, name: str) -> bool:
@@ -97,9 +99,9 @@ class WorkerRegistry(QObject):
     def get(self, name: str) -> Optional[QThread]:
         return self._workers.get(name)
 
-    def start(self, name: str, worker: QThread, holds_game_lock: bool = False) -> bool:
+    def start(self, name: str, worker: QThread, holds_game_lock: bool = False, on_done: Optional[Callable] = None) -> bool:
         # Refuse to start over a still-running worker; the caller should report "busy".
-        # Returns True if the worker was started.
+        # Returns True if the worker was started; on_done then runs on the GUI thread once it has finished.
 
         # A worker born on another thread cannot be reparented here, so Qt leaves it unowned.
         # Dropping the Python reference then frees a live QThread: qFatal, process gone, no log.
@@ -126,6 +128,8 @@ class WorkerRegistry(QObject):
         self._workers[name] = worker
         if holds_game_lock:
             self._game_lock_holders.add(name)
+        if on_done is not None:
+            self._on_done[name] = on_done
         worker.start()
         if holds_game_lock:
             game_write_state().refresh()
@@ -144,8 +148,24 @@ class WorkerRegistry(QObject):
             worker.wait()
             self._workers.pop(name, None)
             self._game_lock_holders.discard(name)
-            # Unconditional: a game_lock_holder() call may already have dropped this holder as finished.
-            game_write_state().refresh()
+            on_done = self._on_done.pop(name, None)
+            try:
+                # Before busyChanged: a write queued on it (a GameBanana install) must not take the lock first.
+                if on_done is not None:
+                    on_done()
+            except Exception:
+                logger.exception("[%s] completion of '%s' failed", self._owner_name, name)
+            finally:
+                # Unconditional: a game_lock_holder() call may already have dropped this holder as finished.
+                game_write_state().refresh()
+
+    def start_write(self, name: str, worker: QThread, notify: Callable, on_done: Optional[Callable] = None) -> bool:
+        # A game-file write holds the game lock, and a refused one tells the user through notify(title, message, sticker).
+        if self.start(name, worker, holds_game_lock=True, on_done=on_done):
+            return True
+        logger.warning("[%s] write '%s' refused: game lock held by '%s'", self._owner_name, name, game_lock_holder(False))
+        notify(*dialogs.write_in_progress())
+        return False
 
     def cancel(self, name: str):
         worker = self._workers.get(name)
@@ -192,6 +212,7 @@ class WorkerRegistry(QObject):
                 pass
         self._workers.clear()
         self._game_lock_holders.clear()
+        self._on_done.clear()
 
 
 def shutdown_all_workers(timeout_ms: int = 3000):
@@ -204,6 +225,14 @@ def shutdown_all_workers(timeout_ms: int = 3000):
             registry.shutdown(timeout_ms)
         except Exception:
             logger.exception("worker registry shutdown failed")
+
+
+def refuse_if_writing(notify: Callable) -> bool:
+    # Backstop for the locked inputs: a slot that changes shared state does nothing while a game write runs.
+    if game_lock_holder() is None:
+        return False
+    notify(*dialogs.write_in_progress())
+    return True
 
 
 def game_lock_holder(skip_current_thread: bool = True) -> Optional[str]:

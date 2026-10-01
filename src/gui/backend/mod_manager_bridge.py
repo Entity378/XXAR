@@ -31,7 +31,7 @@ from src.core.game_registry import (
 from src.core.logger import get_logger
 from src.core.subprocess_utils import IS_WINDOWS, SUBPROCESS_KWARGS, is_frozen
 from src.gui.backend import dialogs
-from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder, game_write_state
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder, game_write_state, refuse_if_writing
 from src.gui.utils.native_dialogs import NativeDialogs
 from src.mods.package_manager import (
     _AUDIO_SETTING_KEYS,
@@ -858,21 +858,12 @@ class ModManagerBridge(QObject):
         self._start_write("apply", work)
 
     def _refuse_if_writing(self):
-        # Backstop for the disabled buttons: no second write, and none while a game switch runs.
-        if game_lock_holder() is None:
-            return False
-        self.alertDialogRequested.emit(*dialogs.write_in_progress())
-        return True
+        return refuse_if_writing(self.alertDialogRequested.emit)
 
     def _start_write(self, name, work, refresh=False):
         # Every game-file write runs off the GUI thread and holds the game lock.
         # work() must only touch what it captured on the GUI thread and report through signals.
-        worker = FunctionWorker(work)
-        if refresh:
-            worker.workerFinished.connect(self.refreshMods)
-        if not self._workers.start(name, worker, holds_game_lock=True):
-            logger.warning(f"[Mod Manager] {name} refused: game lock held by {game_lock_holder()}")
-            self.alertDialogRequested.emit(*dialogs.write_in_progress())
+        self._workers.start_write(name, FunctionWorker(work), self.alertDialogRequested.emit, on_done=self.refreshMods if refresh else None)
 
     def _report_write_failure(self, error, fallback_message):
         # A file held open by the game needs the game closed, not admin rights.

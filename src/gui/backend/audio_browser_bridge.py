@@ -26,7 +26,7 @@ from PyQt6.QtCore import (
 import src.core.app_config as app_config
 from src.audio import constellation
 from src.audio.converter import AudioConverter
-from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, game_lock_holder
+from src.gui.backend.base_worker import BaseWorker, FunctionWorker, WorkerRegistry, refuse_if_writing
 from src.audio.matcher import AudioMatcher
 from src.audio.player import AudioPlayer
 from src.core.app_config import APP_NAME
@@ -352,7 +352,6 @@ class AudioBrowserBridge(QObject):
         )
 
         self._workers = WorkerRegistry("audio_browser")
-        self._write_done = None
         self._index_cancel = threading.Event()
         self._playback_duration = 0
 
@@ -371,28 +370,12 @@ class AudioBrowserBridge(QObject):
         self._set_active_game_databases(self.game_mode)
 
     def _refuse_if_writing(self):
-        # Backstop for the disabled controls: the tracker must not change under a running write.
-        if game_lock_holder() is None:
-            return False
-        self.alertDialogRequested.emit(*dialogs.write_in_progress())
-        return True
+        return refuse_if_writing(self.alertDialogRequested.emit)
 
     def _start_write(self, name, worker, on_done=None):
         # Every game-file write runs off the GUI thread and holds the game lock.
-        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it.
-        worker.workerFinished.connect(self._on_write_finished)
-        if not self._workers.start(name, worker, holds_game_lock=True):
-            logger.warning(f"[Audio Browser] {name} refused: game lock held by {game_lock_holder()}")
-            self.alertDialogRequested.emit(*dialogs.write_in_progress())
-            return
-        self._write_done = on_done
-
-    @pyqtSlot()
-    def _on_write_finished(self):
-        on_done, self._write_done = self._write_done, None
-        if on_done is not None:
-            # Deferred one turn so the registry has released the game lock before on_done runs.
-            QTimer.singleShot(0, on_done)
+        # The worker only touches what it captured on the GUI thread, and on_done() runs back on it once the lock is free.
+        self._workers.start_write(name, worker, self.alertDialogRequested.emit, on_done=on_done)
 
     def _invalidate_caches(self):
         self._index_cache.clear()
