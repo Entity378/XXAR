@@ -439,6 +439,15 @@ def test_duration_patch_keeps_the_entry_cue_on_the_loop_after_an_intro_in_pre_en
     assert patched_bnk == expected_bnk
 
 
+def test_duration_patch_keeps_the_entry_cue_on_the_loop_when_the_intro_crossfades_over_it():
+    # An intro that crossfades into its loop still plays at the cue, which belongs to the loop that starts there.
+    crossfaded_bnk = intro_loop_bank(5000.0, 100000.0, 104700.0, loop_play_at=4700.0, entry_ms=4700.0)
+
+    patched_bnk, _ = patch_durations(crossfaded_bnk, {INTRO_SOURCE: 6000.0, LOOP_SOURCE: 90000.0})
+
+    assert patched_bnk == intro_loop_bank(6000.0, 90000.0, 95700.0, loop_play_at=5700.0, entry_ms=5700.0)
+
+
 @pytest.mark.parametrize(
     "durations, expected_bnk",
     [
