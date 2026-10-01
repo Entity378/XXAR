@@ -21,6 +21,13 @@
 
 ---
 
+## Disclaimer
+
+XXAR is a fan-made tool and is not affiliated with HoYoverse. Use at your own risk.
+
+XXAR can be false flagged as a virus by Windows Defender.\
+I have no intention of spending 10 euros a month to certify the app, so if this happens to you, please add it to the Defender exclusions list.
+
 ## What is XXAR?
 
 XXAR is a **Mod Manager** and a **Mod Creator** for HoYoverse game audio.
@@ -147,7 +154,3 @@ Found a bug or have an idea? Open an issue! Pull requests are welcome too.
 ## License
 
 XXAR is licensed under the [GNU General Public License v3.0](LICENSE).
-
-## Disclaimer
-
-XXAR is a fan-made tool and is not affiliated with HoYoverse. Use at your own risk.
