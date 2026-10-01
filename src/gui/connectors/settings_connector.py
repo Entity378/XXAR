@@ -935,13 +935,14 @@ class SettingsConnector:
                 logger.info(f"[{APP_NAME}] No persistent directory configured yet")
                 return
 
-            persistent_path = Path(persistent_dir)
+            # Language folders sit in the main audio folder, which is Full/ for ZZZ.
+            persistent_path = Path(persistent_dir).joinpath(*game_def.main_audio_subpath)
             if not persistent_path.exists():
                 logger.info(f"[{APP_NAME}] Persistent directory does not exist yet")
                 return
 
             streaming_dir = settings.get(streaming_key, "") or settings.get("game_audio_dir", "")
-            streaming_path = Path(streaming_dir) if streaming_dir else None
+            streaming_path = Path(streaming_dir).joinpath(*game_def.main_audio_subpath) if streaming_dir else None
 
             language_folders = []
             moveable_folders = []
@@ -1007,10 +1008,9 @@ class SettingsConnector:
                 )
                 return
 
-            persistent_path = Path(persistent_dir)
-            streaming_path = Path(streaming_dir)
-            source = persistent_path / folder_name
-            destination = streaming_path / folder_name
+            main_audio_subpath = get_game(selected_game).main_audio_subpath
+            source = Path(persistent_dir).joinpath(*main_audio_subpath, folder_name)
+            destination = Path(streaming_dir).joinpath(*main_audio_subpath, folder_name)
 
             if not source.exists():
                 QMetaObject.invokeMethod(
