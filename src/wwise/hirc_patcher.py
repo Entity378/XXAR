@@ -102,7 +102,7 @@ def scan_bank_for_patch_targets(content, source_ids):
                     if parsed_track[3] + 4 <= obj_data_start + obj_size:
                         track_obj_to_subtracks[parsed_track[0]] = struct.unpack_from("<I", content, parsed_track[3])[0]
                 result = _parse_music_track(
-                    content, obj_data_start, obj_size, source_id_set
+                    content, obj_data_start, obj_size, parsed_track, source_id_set
                 )
                 if result is not None:
                     track_obj_id, patches, vol_patches = result
@@ -405,34 +405,6 @@ def _write_segment_duration(content, segment, new_segment_duration):
 # Internal helpers
 
 
-def _adjust_hirc_sizes(content, offset_inside_object, delta):
-    # Walk back to the enclosing HIRC header, bump its section size and the containing object's size by `delta`.
-    search_start = max(0, offset_inside_object - 0x100000)
-    chunk = bytes(content[search_start : offset_inside_object])
-    hirc_pos = chunk.rfind(b"HIRC")
-    if hirc_pos == -1:
-        return
-    hirc_abs = search_start + hirc_pos
-
-    # HIRC section: "HIRC"(4) + section_size(u32) + numObjects(u32) + objects...
-    section_size_off = hirc_abs + 4
-    old_section_size = struct.unpack_from("<I", content, section_size_off)[0]
-    struct.pack_into("<I", content, section_size_off, old_section_size + delta)
-
-    # Find the object containing offset_inside_object.
-    obj_pos = hirc_abs + 8 + 4  # skip HIRC(4) + section_size(4) + numObjects(4)
-    section_end = hirc_abs + 8 + old_section_size
-    while obj_pos + 5 <= section_end:
-        obj_size_off = obj_pos + 1
-        obj_size = struct.unpack_from("<I", content, obj_size_off)[0]
-        obj_data_start = obj_pos + 5
-        obj_data_end = obj_data_start + obj_size
-        if obj_data_start <= offset_inside_object < obj_data_end:
-            struct.pack_into("<I", content, obj_size_off, obj_size + delta)
-            return
-        obj_pos = obj_data_end
-
-
 def _find_hirc_sections(content):
     # Yield (data_start, data_size) for each HIRC section in raw bytes.
     # data_start points to the first byte after the 8-byte header (HIRC + u32 size), i.e. the numItems u32.
@@ -501,10 +473,9 @@ def _parse_track_clips(content, data_start, obj_size):
     return obj_id, track_source_ids, clips, p
 
 
-def _parse_music_track(content, data_start, obj_size, source_ids):
+def _parse_music_track(content, data_start, obj_size, parsed_track, source_ids):
     # Returns (obj_id, [TrackPatchInfo], [VolumePatchInfo]) when the track references any id in `source_ids`, else None.
     end = data_start + obj_size
-    parsed_track = _parse_track_clips(content, data_start, obj_size)
     if parsed_track is None:
         return None
     obj_id, track_source_ids, clips, p = parsed_track
