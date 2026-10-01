@@ -919,7 +919,7 @@ class SettingsConnector:
                 settings.get("selected_game", DEFAULT_GAME_ID)
             )
             game_def = get_game(selected_game)
-            if not game_def.check_streaming_pairing:
+            if not game_def.check_persistent_language_folders:
                 logger.info(f"[{APP_NAME}] Skipping language check for game: {selected_game}")
                 return
 

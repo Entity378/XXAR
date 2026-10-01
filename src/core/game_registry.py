@@ -27,6 +27,7 @@ class GameDefinition:
     subfolder_sort_priority: tuple[tuple[str, int], ...] = ()
     non_language_tabs: tuple[str, ...] = ("Full", "Common")
     check_streaming_pairing: bool = False
+    check_persistent_language_folders: bool = False
     merge_wem_default: bool = True
     hide_useless_pck_default: bool = True
     loop_point_patching_supported: bool = False
@@ -76,6 +77,7 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         subfolder_sort_priority=(),
         non_language_tabs=("Full", "Common"),
         check_streaming_pairing=True,
+        check_persistent_language_folders=True,
         merge_wem_default=True,
         hide_useless_pck_default=True,
         loop_point_patching_supported=True,
