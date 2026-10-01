@@ -154,6 +154,23 @@ def test_wem_import_targets_each_file_where_the_game_plays_it(tmp_path, qapp, ga
     }
 
 
+def test_a_sound_the_title_screen_shares_with_the_game_keeps_its_in_game_target(tmp_path, qapp):
+    # Min/Minimum.pck sits under the ZZZ audio root since 1.1.5 and is scanned after every Full/ pck.
+    keys = GameKeys("zzz")
+    title_screen_only_wem_id = 140001
+    env = make_mod_env(tmp_path, "zzz", streaming_files={
+        "Min/Minimum.pck": build_pck(sounds=[(STREAMED_WEM_ID, 0, make_wem(8)), (title_screen_only_wem_id, 0, make_wem(9))]),
+    })
+    source_files = write_source_wems(env, [str(STREAMED_WEM_ID), str(title_screen_only_wem_id)])
+
+    run_import(env, import_data(env, "wem_folder", source_files))
+
+    assert env.manager.get_installed_mods()[0]["metadata"]["replacements"] == {
+        keys.streamed: {"direct": {str(STREAMED_WEM_ID): wem_entry(f"wem_files/direct/{STREAMED_WEM_ID}.wem")}},
+        "Min/Minimum.pck": {"direct": {str(title_screen_only_wem_id): wem_entry(f"wem_files/direct/{title_screen_only_wem_id}.wem")}},
+    }
+
+
 def test_wem_import_saves_the_package_and_installs_its_audio(tmp_path, qapp):
     env = make_mod_env(tmp_path, "zzz")
     thumbnail_source = tmp_path / "cover.bmp"
