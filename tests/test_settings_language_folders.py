@@ -58,10 +58,10 @@ def zzz_install_with_a_language_downloaded_in_game(tmp_path):
 def test_a_language_downloaded_in_game_is_offered_for_the_move(host, zzz_install_with_a_language_downloaded_in_game):
     host.check_multiple_languages()
 
-    (method, languages, moveable, hash_pcks), = host.notifications
+    (method, languages, moveable), = host.notifications
     assert method == "showMultipleLanguagesWarning"
     assert set(languages.split(", ")) == {"En", "Kr"}
-    assert (moveable, hash_pcks) == ("Kr", "")
+    assert moveable == "Kr"
 
 
 def test_moving_a_language_lands_it_beside_the_launcher_languages(qapp, host, zzz_install_with_a_language_downloaded_in_game):

@@ -75,18 +75,6 @@ def test_same_id_in_several_languages_is_looked_up_per_language(tmp_path):
         indexer.extract_single_file(900, "wem")
 
 
-def test_extract_single_file_reuses_an_open_handle(tmp_path):
-    tables = sample_tables()
-    pck_path = write_pck(tmp_path, **tables)
-    indexer = PCKIndexer(pck_path)
-    indexer.build_index()
-
-    with open(pck_path, "rb") as pck_file:
-        extracted = [indexer.extract_single_file(file_id, lang_id=lang_id, file_handle=pck_file) for file_id, lang_id, _ in tables["sounds"] + tables["externals"]]
-
-    assert extracted == [file_bytes for _, _, file_bytes in tables["sounds"] + tables["externals"]]
-
-
 def test_header_without_externals_section(tmp_path):
     tables = sample_tables()
     pck_path = write_pck(tmp_path, banks=tables["banks"], sounds=tables["sounds"], with_externals_section=False)

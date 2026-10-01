@@ -193,7 +193,6 @@ class UpdateConnector:
             Qt.ConnectionType.QueuedConnection,
             Q_ARG("QVariant", "English, Japanese"),
             Q_ARG("QVariant", "English"),
-            Q_ARG("QVariant", "External0.pck"),
         )
 
     def _on_update_dialog_accepted(self):

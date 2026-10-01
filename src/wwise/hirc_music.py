@@ -465,7 +465,6 @@ def apply_track_patches_to_bnk(bnk_bytes: bytearray, patches_for_bnk: list) -> d
                 loop_map[s["source_id"]] = float(loop_ms)
 
     # Loop durations reuse the HIRC patcher, matching by current source_id.
-    # This mirrors hirc_editor_bridge._patch_loop_ms.
     if loop_map:
         try:
             targets = scan_bank_for_patch_targets(bytes(bnk_bytes), set(loop_map.keys()))

@@ -179,8 +179,7 @@ class PCKIndexer:
         else:
             raise ValueError(f"Invalid file_type: {file_type}")
 
-    def extract_single_file(self, file_id, file_type='wem', lang_id=None, file_handle=None):
-        # Pass file_handle when extracting many entries: reopening the pck per call dominates bulk loops.
+    def extract_single_file(self, file_id, file_type='wem', lang_id=None):
         if self._lookup is None:
             self._build_lookup()
 
@@ -189,10 +188,6 @@ class PCKIndexer:
 
         if not file_info:
             raise KeyError(f"File {file_id} not found in PCK index")
-
-        if file_handle is not None:
-            file_handle.seek(file_info['offset'])
-            return file_handle.read(file_info['size'])
 
         with open(self.pck_path, 'rb') as f:
             f.seek(file_info['offset'])

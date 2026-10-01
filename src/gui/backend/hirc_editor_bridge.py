@@ -2,7 +2,6 @@ import json
 import os
 import re
 import shutil
-import struct
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -43,13 +42,7 @@ from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.persistent_originals import locate_pck_paths
 from src.wwise.hirc_music import (
     _collect_bnk_music_index,
-    _extract_track_source_ids,
     _scan_bnk_music_objects,
-    apply_track_patches_to_bnk,
-)
-from src.wwise.hirc_patcher import (
-    apply_duration_patches,
-    scan_bank_for_patch_targets,
 )
 from src.wwise.patch_target_resolver import soundbank_bnk_ids
 from src.wwise.pck_indexer import PCKIndexer
@@ -241,10 +234,6 @@ class HircEditorBridge(QObject):
     bnkHircReady = pyqtSignal(str, "qint64", "QVariant")
     statusUpdate = pyqtSignal(str)
     errorOccurred = pyqtSignal(str, str)
-    patchApplied = pyqtSignal(str, "qint64", "qint64", "qint64")
-    loopPatchApplied = pyqtSignal(str, "qint64", "qint64", float)
-    volumePatchApplied = pyqtSignal(str, "qint64", float)
-    wemAdded = pyqtSignal(str, "qint64", str)
     musicPckListReady = pyqtSignal("QVariant")
     inspectorCleared = pyqtSignal()
 
@@ -327,36 +316,6 @@ class HircEditorBridge(QObject):
 
     # ── Patch slots ─────────────────────────────────────────────────────
 
-    @pyqtSlot(str, "QVariant", "QVariant", "QVariant")
-    def patchSourceId(self, pck_name, abs_offset_in_pck, old_wem, new_wem):
-        pck = str(pck_name)
-        off = int(abs_offset_in_pck)
-        old = int(old_wem)
-        new = int(new_wem)
-        logger.info(f"[HIRC Editor] Patch sourceID {pck}@{off}: {old} -> {new}")
-        try:
-            self._patch_source_id(pck, off, old, new)
-        except Exception as e:
-            logger.exception("[HIRC Editor] sourceID patch failed")
-            self.errorOccurred.emit("Patch Error", f"Source ID patch failed:\n{e}")
-            return
-        self.patchApplied.emit(pck, off, old, new)
-
-    @pyqtSlot(str, "QVariant", "QVariant", "QVariant")
-    def patchLoopMs(self, pck_name, bnk_id, track_obj_id, loop_ms):
-        pck = str(pck_name)
-        bnk = int(bnk_id)
-        tid = int(track_obj_id)
-        ms = float(loop_ms)
-        logger.info(f"[HIRC Editor] Patch loop {pck}:{bnk} track {tid} -> {ms} ms")
-        try:
-            self._patch_loop_ms(pck, bnk, tid, ms)
-        except Exception as e:
-            logger.exception("[HIRC Editor] Loop patch failed")
-            self.errorOccurred.emit("Patch Error", f"Loop patch failed:\n{e}")
-            return
-        self.loopPatchApplied.emit(pck, bnk, tid, ms)
-
     @pyqtSlot()
     def listMusicPcks(self):
         # Emit a list of media pcks (Music*, Streamed*, Minimum) the user can target for wem insertion.
@@ -408,25 +367,6 @@ class HircEditorBridge(QObject):
                 }
         return sorted(seen.values(), key=lambda r: _natural_pck_key(r["pck_name"]))
 
-    @pyqtSlot(str, "QVariant", str)
-    def addWemToPck(self, pck_name, wem_id, wem_file_path):
-        # Insert (or replace) a WEM with the given id into the named media pck.
-        # Operates on the Persistent override.
-        # Clones the original from StreamingAssets first if the override doesn't exist yet.
-        pck = str(pck_name)
-        wid = int(wem_id)
-        src_path = Path(str(wem_file_path))
-        logger.info(f"[HIRC Editor] Add WEM {wid} -> {pck} from {src_path}")
-        try:
-            self._add_wem_to_pck(pck, wid, src_path)
-        except Exception as e:
-            logger.exception("[HIRC Editor] Add WEM failed")
-            self.errorOccurred.emit(
-                "Add WEM Error", f"Failed to add WEM {wid} to {pck}:\n{e}"
-            )
-            return
-        self.wemAdded.emit(pck, wid, str(src_path))
-
     def _add_wem_to_pck(self, pck_name: str, wem_id: int, src_wem: Path):
         if not src_wem.exists():
             raise FileNotFoundError(f"WEM file not found: {src_wem}")
@@ -465,20 +405,6 @@ class HircEditorBridge(QObject):
         self.statusUpdate.emit(
             f"Added WEM {wem_id} to {pck_name} ({size:,} B from {src_wem.name})"
         )
-
-    @pyqtSlot(str, "QVariant", "QVariant")
-    def patchVolumeDb(self, pck_name, abs_offset_in_pck, db_value):
-        pck = str(pck_name)
-        off = int(abs_offset_in_pck)
-        db = float(db_value)
-        logger.info(f"[HIRC Editor] Patch volume {pck}@{off} -> {db} dB")
-        try:
-            self._patch_volume_db(pck, off, db)
-        except Exception as e:
-            logger.exception("[HIRC Editor] Volume patch failed")
-            self.errorOccurred.emit("Patch Error", f"Volume patch failed:\n{e}")
-            return
-        self.volumePatchApplied.emit(pck, off, db)
 
     # ── Internal: loader callbacks ──────────────────────────────────────
 
@@ -584,67 +510,6 @@ class HircEditorBridge(QObject):
         self._id_name_game_id = None
 
     # ── Internal: patching ──────────────────────────────────────────────
-
-    def _patch_source_id(self, pck_name: str, abs_offset: int,
-                         old_wem: int, new_wem: int):
-        target_pck = self._ensure_persistent_copy(pck_name)
-        with open(target_pck, "r+b") as f:
-            f.seek(abs_offset)
-            cur = f.read(4)
-            if struct.unpack("<I", cur)[0] != old_wem:
-                raise ValueError(
-                    f"Expected {old_wem} at offset {abs_offset}, "
-                    f"found {struct.unpack('<I', cur)[0]}"
-                )
-            f.seek(abs_offset)
-            f.write(struct.pack("<I", new_wem))
-        self.statusUpdate.emit(
-            f"Patched {pck_name} @{abs_offset}: {old_wem} -> {new_wem}"
-        )
-
-    def _patch_loop_ms(self, pck_name: str, bnk_id: int,
-                       track_obj_id: int, loop_ms: float):
-        target_pck = self._ensure_persistent_copy(pck_name)
-        indexer = PCKIndexer(str(target_pck))
-        indexer.build_index()
-        bnk_info = next(
-            (b for b in indexer.index_data["banks"] if b["id"] == bnk_id), None
-        )
-        if bnk_info is None:
-            raise KeyError(f"bnk_id {bnk_id} not in {pck_name}")
-
-        with open(target_pck, "rb") as f:
-            f.seek(bnk_info["offset"])
-            bnk_content = bytearray(f.read(bnk_info["size"]))
-
-        track_source_ids = _extract_track_source_ids(bnk_content, track_obj_id)
-        if not track_source_ids:
-            raise ValueError(
-                f"Track {track_obj_id} has no AkBankSourceData with sources"
-            )
-
-        targets = scan_bank_for_patch_targets(bnk_content, track_source_ids)
-        duration_map = {sid: loop_ms for sid in track_source_ids}
-
-        result = apply_duration_patches(bnk_content, targets, duration_map)
-
-        with open(target_pck, "r+b") as f:
-            f.seek(bnk_info["offset"])
-            f.write(bytes(bnk_content))
-
-        self.statusUpdate.emit(
-            f"Loop patched: {pck_name}:{bnk_id} track {track_obj_id} -> "
-            f"{loop_ms} ms ({result['patched_offsets']} fields)"
-        )
-
-    def _patch_volume_db(self, pck_name: str, abs_offset: int, db_value: float):
-        target_pck = self._ensure_persistent_copy(pck_name)
-        with open(target_pck, "r+b") as f:
-            f.seek(abs_offset)
-            f.write(struct.pack("<f", db_value))
-        self.statusUpdate.emit(
-            f"Volume patched: {pck_name} @{abs_offset} -> {db_value} dB"
-        )
 
     def _ensure_persistent_copy(self, pck_name: str) -> Path:
         # Pck names come bare from the pck list, so the source is searched below the audio root (ZZZ keeps them in Full/).

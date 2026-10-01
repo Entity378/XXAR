@@ -91,7 +91,6 @@ ApplicationWindow {
     signal conflictsResolved()
     signal languageWarningDontShowAgain(bool dontShow)
     signal moveLanguageToStreaming(string folderName)
-    signal moveHashPckToStreaming(string pckName)
     signal selectGameRequested(string gameID)
 
     function showConfirmDialog(title, message, actionId, customSticker) {
@@ -157,7 +156,6 @@ ApplicationWindow {
     }
 
     property string pendingMoveableFolders: ""
-    property string pendingHashPcks: ""
 
     function hideLanguageWarningDialog() {
         if (languageWarningDialog.visible) {
@@ -166,14 +164,13 @@ ApplicationWindow {
         }
     }
 
-    function showMultipleLanguagesWarning(languages, moveableFolders, hashPcks) {
+    function showMultipleLanguagesWarning(languages, moveableFolders) {
         if (tutorialActive || tutorialOverlay.visible) {
             pendingLanguageWarning = languages
             pendingMoveableFolders = moveableFolders || ""
-            pendingHashPcks = hashPcks || ""
             return
         }
-        languageWarningDialog.setLanguages(languages, moveableFolders || "", hashPcks || "")
+        languageWarningDialog.setLanguages(languages, moveableFolders || "")
         languageWarningDialog.visible = true
     }
 
@@ -1169,15 +1166,13 @@ ApplicationWindow {
             visible: false
             property string languagesText: ""
             property string moveableFoldersStr: ""
-            property string hashPcksStr: ""
             property bool dontShowAgainChecked: false
             property bool closing: false
             property string movingFolder: ""
 
-            function setLanguages(languages, moveable, hashPcks) {
+            function setLanguages(languages, moveable) {
                 languagesText = languages
                 moveableFoldersStr = moveable || ""
-                hashPcksStr = hashPcks || ""
                 movingFolder = ""
             }
 
@@ -1362,110 +1357,6 @@ ApplicationWindow {
                         }
                     }
 
-                    Rectangle {
-                        visible: languageWarningDialog.hashPcksStr.length > 0
-                        width: parent.width
-                        color: Qt.rgba(0, 0, 0, 0.3)
-                        radius: 8
-                        border.color: Qt.rgba(255, 255, 255, 0.1)
-                        border.width: 1
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        height: visible ? hashPckColumn.height + 20 : 0
-
-                        Column {
-                            id: hashPckColumn
-                            width: parent.width - 20
-                            anchors.centerIn: parent
-                            spacing: 6
-
-                            Text {
-                                text: qsTranslate("Application", "Game update files found in Persistent:")
-                                color: "#aaaaaa"
-                                font.family: "Alatsi"
-                                font.pixelSize: 13
-                                width: parent.width
-                            }
-
-                            Repeater {
-                                model: languageWarningDialog.hashPcksStr.length > 0
-                                       ? languageWarningDialog.hashPcksStr.split(", ") : []
-
-                                Rectangle {
-                                    width: hashPckColumn.width
-                                    height: 50
-                                    radius: 8
-                                    color: Qt.rgba(255, 255, 255, 0.05)
-
-                                    Row {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
-                                        spacing: 12
-
-                                        Text {
-                                            text: "• " + modelData
-                                            color: Theme.primaryAccent
-                                            font.family: "Alatsi"
-                                            font.pixelSize: 16
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width - (hashMoveBtn.visible || hashMovingIndicator.visible ? 185 : 0)
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Rectangle {
-                                            id: hashMoveBtn
-                                            visible: languageWarningDialog.movingFolder === ""
-                                            width: 170
-                                            height: 36
-                                            radius: 8
-                                            color: hashMoveBtnMouse.pressed ? Theme.accentDark : (hashMoveBtnMouse.containsMouse ? Theme.accentLight : Theme.primaryAccent)
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            Behavior on color { ColorAnimation { duration: 100 } }
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: qsTranslate("Application", "Move to Streaming")
-                                                color: "#000000"
-                                                font.family: "Alatsi"
-                                                font.pixelSize: 14
-                                                font.bold: false
-                                            }
-
-                                            XXARMouseArea {
-                                                id: hashMoveBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    languageWarningDialog.movingFolder = modelData
-                                                    mainWindow.moveHashPckToStreaming(modelData)
-                                                }
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            id: hashMovingIndicator
-                                            visible: languageWarningDialog.movingFolder === modelData
-                                            width: 170
-                                            height: 36
-                                            radius: 8
-                                            color: Qt.rgba(255, 255, 255, 0.1)
-                                            anchors.verticalCenter: parent.verticalCenter
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: qsTranslate("Application", "Moving...")
-                                                color: "#aaaaaa"
-                                                font.family: "Alatsi"
-                                                font.pixelSize: 14
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     Text {
                         text: appName + qsTranslate("Application", " needs these folders in StreamingAssets to work properly. Click \"Move to Streaming\" to fix this automatically.")
                         color: "#aaaaaa"
@@ -1595,10 +1486,9 @@ ApplicationWindow {
             onTutorialFinished: {
                 mainWindow.tutorialActive = false
                 if (mainWindow.pendingLanguageWarning !== "") {
-                    mainWindow.showMultipleLanguagesWarning(mainWindow.pendingLanguageWarning, mainWindow.pendingMoveableFolders, mainWindow.pendingHashPcks)
+                    mainWindow.showMultipleLanguagesWarning(mainWindow.pendingLanguageWarning, mainWindow.pendingMoveableFolders)
                     mainWindow.pendingLanguageWarning = ""
                     mainWindow.pendingMoveableFolders = ""
-                    mainWindow.pendingHashPcks = ""
                 }
             }
         }
