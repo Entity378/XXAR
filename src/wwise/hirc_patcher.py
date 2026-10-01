@@ -257,8 +257,8 @@ def apply_duration_patches(content, targets, duration_ms_by_source):
         patched_offsets += 1
         patched_source_ids.add(track.source_id)
 
-    # Pass 2 re-times clips and recomputes duration only for clean concatenations.
-    # Loop-with-tail segments keep their musical fDuration and are not re-timed.
+    # Pass 2 re-times every sequential chain, keeping any silence after it, and elsewhere only replaced clips that end their segment.
+    # A loop-with-tail keeps its musical fDuration and is not re-timed.
     for segment in targets.segments:
         chain = _sequential_chain(content, segment, original_timings, original_trims)
         if chain is not None:
@@ -393,11 +393,14 @@ def _sequential_chain(content, segment, original_timings, original_trims):
 
 def _retime_chain(content, segment, chain, original_timings, duration_ms_by_source):
     # Each clip moves by how much the clips before it grew, so an untouched loop starts where a replaced intro now ends.
-    # A loop-with-tail chain keeps its musical fDuration and every fPlayAt; returns (patched offsets, replaced or moved source ids).
+    # Silence after the chain keeps its length and a loop-with-tail keeps its musical fDuration; returns (patched offsets, replaced or moved source ids).
     old_chain_end = max(end for _, end, _ in chain)
     old_segment_duration = struct.unpack_from("<d", content, segment.fDuration_offset)[0]
-    if abs(old_segment_duration - old_chain_end) > _CONCAT_TOLERANCE_MS:
+    trailing_silence_ms = old_segment_duration - old_chain_end
+    if trailing_silence_ms < -_CONCAT_TOLERANCE_MS:
         return 0, set()
+    if trailing_silence_ms <= _CONCAT_TOLERANCE_MS:
+        trailing_silence_ms = 0.0
 
     patched_offsets = 0
     changed_source_ids = set()
@@ -419,7 +422,7 @@ def _retime_chain(content, segment, chain, original_timings, duration_ms_by_sour
         new_clip_ends.append(new_end + shift)
         shift = new_end + shift - old_end
 
-    new_segment_duration = max(new_clip_ends)
+    new_segment_duration = max(new_clip_ends) + trailing_silence_ms
     old_marker_pos = struct.unpack_from("<d", content, segment.end_marker_fPos_offset)[0]
     if abs(new_segment_duration - old_segment_duration) > 1e-6 or abs(new_segment_duration - old_marker_pos) > 1e-6:
         struct.pack_into("<d", content, segment.fDuration_offset, new_segment_duration)

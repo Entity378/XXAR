@@ -345,6 +345,18 @@ def test_duration_patch_keeps_the_musical_length_of_a_loop_with_tail():
     assert result["patched_source_ids"] == {INTRO_SOURCE, LOOP_SOURCE}
 
 
+@pytest.mark.parametrize("intro_ms", [2400.0, 4000.0], ids=["shorter_intro", "longer_intro"])
+def test_duration_patch_keeps_the_junction_and_the_silence_after_the_loop(intro_ms):
+    # HSR Banks10 and GI Banks15 leave silence between the loop end and the segment end.
+    # The re-timing used to give up there and left a gap or an overlap between the new intro and the loop.
+    original_bnk = intro_loop_bank(3000.0, 50000.0, 53500.0, loop_play_at=3010.0)
+
+    patched_bnk, result = patch_durations(original_bnk, {INTRO_SOURCE: intro_ms})
+
+    assert patched_bnk == intro_loop_bank(intro_ms, 50000.0, intro_ms + 50500.0, loop_play_at=intro_ms + 10.0)
+    assert result["patched_source_ids"] == {INTRO_SOURCE, LOOP_SOURCE}
+
+
 @pytest.mark.parametrize(
     "segment_ms, expected_segment_ms",
     [(10761.0, 12000.0), (10762.5, 12000.0), (10153.0, 10153.0)],
