@@ -488,10 +488,19 @@ class ModPackageManager:
 
         self.save_config()
 
+    def _conflict_pck_key(self, pck_name):
+        # Mods made before 1.1.5 key ZZZ pcks relative to Full/ and newer ones include it, so both must land in one bucket.
+        main_dir = "/".join(part for part in get_game(self.game_id).main_audio_subpath if part)
+        key = pck_name.replace("\\", "/")
+        if main_dir and key.startswith(f"{main_dir}/"):
+            return key[len(main_dir) + 1:]
+        return key
+
     def resolve_conflicts(self, preferences=None):
 
         preferences = preferences or {}
         resolved = {}
+        pck_bucket_by_normalized_name = {}
         conflicts_tracker = defaultdict(lambda: defaultdict(list))
 
         all_replacements = defaultdict(lambda: defaultdict(dict))
@@ -523,7 +532,9 @@ class ModPackageManager:
             mod_dir = self.mods_dir / mod_uuid
 
             normalized_replacements = self._normalize_metadata_replacements(metadata)
-            for pck_name, files in normalized_replacements.items():
+            for raw_pck_name, files in normalized_replacements.items():
+                # The first spelling seen names the bucket, so mods sharing one key format keep it as written.
+                pck_name = pck_bucket_by_normalized_name.setdefault(self._conflict_pck_key(raw_pck_name), raw_pck_name)
                 if pck_name not in resolved:
                     resolved[pck_name] = {}
 
@@ -562,13 +573,15 @@ class ModPackageManager:
                     if conflict_key in resolved[pck_name]:
 
                         prev_uuid = resolved[pck_name][conflict_key]['mod_uuid']
-                        conflicts_tracker[pck_name][conflict_key].append(prev_uuid)
+                        if prev_uuid != mod_uuid:
+                            conflicts_tracker[pck_name][conflict_key].append(prev_uuid)
 
                     resolved[pck_name][conflict_key] = replacement_info
 
         for pref_key, preferred_mod in preferences.items():
             try:
                 pck_name, file_id = pref_key.split(':', 1)
+                pck_name = pck_bucket_by_normalized_name.get(self._conflict_pck_key(pck_name), pck_name)
                 if pck_name in all_replacements and file_id in all_replacements[pck_name]:
                     if preferred_mod in all_replacements[pck_name][file_id]:
 

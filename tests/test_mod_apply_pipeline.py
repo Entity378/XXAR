@@ -206,6 +206,26 @@ def test_the_later_mod_in_load_order_wins_the_game_file(tmp_path, game_id):
     assert wem_after_reorder == make_wem(110)
 
 
+def test_mods_keyed_with_and_without_full_conflict_and_follow_the_load_order(tmp_path):
+    # Mods made up to 1.1.4 key ZZZ pcks relative to Full/, while the 1.1.5 Browser exports Full/ keys.
+    env = make_mod_env(tmp_path, "zzz")
+    old_format_key = env.keys.soundbank.removeprefix("Full/")
+    old_format_uuid = install_enabled(env, "Old Format", {old_format_key: [mod_entry(env.work_dir / "a", EMBEDDED_WEM_ID, make_wem(110), bnk_id=SFX_BNK_ID)]})
+    new_format_uuid = install_enabled(env, "New Format", {env.keys.soundbank: [mod_entry(env.work_dir / "b", EMBEDDED_WEM_ID, make_wem(111), bnk_id=SFX_BNK_ID)]})
+
+    conflicts = env.manager.get_mod_conflicts_summary()["conflicts"]
+    run_apply(env)
+    wem_with_default_order = bank_wems(env.persistent_root / env.keys.soundbank, SFX_BNK_ID)[EMBEDDED_WEM_ID]
+    env.manager.update_load_order([new_format_uuid, old_format_uuid])
+    run_apply(env)
+    wem_after_reorder = bank_wems(env.persistent_root / env.keys.soundbank, SFX_BNK_ID)[EMBEDDED_WEM_ID]
+
+    assert [(conflict["winner_mod"], conflict["loser_mods"]) for conflict in conflicts] == [("New Format", ["Old Format"])]
+    assert wem_with_default_order == make_wem(111)
+    assert wem_after_reorder == make_wem(110)
+    assert list(env.tracker.get_all_replacements()) == [env.keys.soundbank]
+
+
 def test_a_conflict_preference_beats_the_load_order(tmp_path):
     env = make_mod_env(tmp_path, "zzz")
     install_enabled(env, "Earlier", {env.keys.soundbank: [mod_entry(env.work_dir / "a", EMBEDDED_WEM_ID, make_wem(110), bnk_id=SFX_BNK_ID)]})
