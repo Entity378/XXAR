@@ -50,6 +50,20 @@
   </requires>
 
   <releases>
+    <release version="1.1.6" date="2026-10-01">
+      <description>
+        <p>Fixes for the problems reported after 1.1.5.</p>
+        <ul>
+          <li>Zenless Zone Zero: the game no longer downloads its resources again after every apply</li>
+          <li>GameBanana: the Install button shows again instead of Download</li>
+          <li>Replaced music no longer loses its first seconds, and a replaced intro stays joined to its loop when silence follows the loop</li>
+          <li>Zenless Zone Zero: conflicts between mods made before and after 1.1.5 are detected</li>
+          <li>Zenless Zone Zero: importing a mod no longer targets the title screen copy of a sound shared with the game</li>
+          <li>Zenless Zone Zero: languages downloaded in game are found again and can be moved to StreamingAssets</li>
+          <li>While game files are being written, closing XXAR waits for the write to finish and Move to Streaming is locked</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.5" date="2026-09-28">
       <description>
         <p>Safer applying, better music loops and smoother updates.</p>
