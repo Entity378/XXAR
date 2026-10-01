@@ -161,6 +161,37 @@ def test_mod_details_report_files_and_support(gamebanana, fake_gamebanana):
     assert [(file["download_url"], file["has_mod_file"]) for file in mod["files"]] == [(DOWNLOAD_URL, True)]
 
 
+@pytest.mark.parametrize("file_api_body", [b"\nWarning: require_once(ParentModel.php): Failed to open stream\n", {"_sErrorCode": "NO_SUCH_RECORD"}], ids=["php_warning", "unexpected_json"])
+def test_mod_details_read_the_archive_from_the_documented_api_when_the_file_endpoint_fails(gamebanana, fake_gamebanana, file_api_body):
+    # GameBanana's apiv11 File endpoint once answered with a PHP warning, which left every file on Download.
+    routes, _ = fake_gamebanana
+    routes.update({
+        f"itemtype=Sound&itemid={SOUND_MOD_ID}": SOUND_DETAILS,
+        f"/File/{FILE_ID}": file_api_body,
+        f"itemtype=File&itemid={FILE_ID}&fields=aFlattenedFileList()": {"aFlattenedFileList()": ["release/Cool Sound.zzar"]},
+    })
+    details = record_signal(gamebanana.modDetailsLoaded)
+
+    gamebanana.fetchModDetails(SOUND_MOD_ID)
+
+    assert wait_until(lambda: details)
+    assert [file["has_mod_file"] for file in details[0][0]["files"]] == [True]
+
+
+def test_an_unreadable_archive_listing_is_asked_again_next_time(gamebanana, fake_gamebanana):
+    routes, requested_urls = fake_gamebanana
+    routes[f"itemtype=Sound&itemid={SOUND_MOD_ID}"] = SOUND_DETAILS
+    details = record_signal(gamebanana.modDetailsLoaded)
+
+    gamebanana.fetchModDetails(SOUND_MOD_ID)
+    assert wait_until(lambda: details)
+    routes[f"/File/{FILE_ID}"] = {"_aArchiveFileTree": ["release/Cool Sound.zzar"]}
+    gamebanana.fetchModDetails(SOUND_MOD_ID)
+
+    assert wait_until(lambda: len(details) == 2)
+    assert [[file["has_mod_file"] for file in mod["files"]] for mod, *_ in details] == [[False], [True]]
+
+
 def test_download_installs_the_mod_and_links_it_to_gamebanana(gamebanana, fake_gamebanana, tmp_path):
     routes, _ = fake_gamebanana
     routes[DOWNLOAD_URL] = mod_archive(tmp_path, "Cool Sound")

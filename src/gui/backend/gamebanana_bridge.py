@@ -204,6 +204,41 @@ GAMEBANANA_API_BASE = "https://gamebanana.com/apiv11"
 GAMEBANANA_USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
 
 
+def _tree_has_mod(tree):
+    if isinstance(tree, list):
+        for item in tree:
+            if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
+                return True
+            elif isinstance(item, (dict, list)):
+                if _tree_has_mod(item):
+                    return True
+    elif isinstance(tree, dict):
+        for key, value in tree.items():
+            if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
+                return True
+            if _tree_has_mod(value):
+                return True
+    return False
+
+
+def _archive_has_mod(file_id):
+    # The site's File endpoint is undocumented and broke on apiv11, so the documented Core API backs it up.
+    # True/False from the archive listing, None when neither API could be read.
+    for url, listing_key in (
+        (f"https://gamebanana.com/apiv13/File/{file_id}", "_aArchiveFileTree"),
+        (f"https://api.gamebanana.com/Core/Item/Data?itemtype=File&itemid={file_id}&fields=aFlattenedFileList()&return_keys=true", "aFlattenedFileList()"),
+    ):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
+            with _urlopen(req, timeout=8) as response:
+                data = json.loads(response.read().decode('utf-8'))
+        except Exception:
+            continue
+        if isinstance(data, dict) and listing_key in data:
+            return _tree_has_mod(data[listing_key])
+    return None
+
+
 class FetchModsWorker(BaseWorker):
 
     finished = pyqtSignal(bool, object)
@@ -478,7 +513,7 @@ class FetchMiscModsWorker(BaseWorker):
                 for f in data.get('_aFiles', []):
                     if isinstance(f, dict):
                         file_id = f.get('_idRow', 0)
-                        if file_id and self._file_has_mod(file_id):
+                        if file_id and _archive_has_mod(file_id):
                             _cache_set("mod_support_misc", mod_id, True)
                             _cache_set("mod_thumbnail", mod_id, thumbnail)
                             return (True, thumbnail)
@@ -507,33 +542,6 @@ class FetchMiscModsWorker(BaseWorker):
                     base = base_url.rstrip('/')
                     return f"{base}/{file_name}"
         return ''
-
-    def _file_has_mod(self, file_id):
-        try:
-            url = f"{GAMEBANANA_API_BASE}/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
-            with _urlopen(req, timeout=8) as response:
-                data = json.loads(response.read().decode('utf-8'))
-            tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-            return self._tree_has_mod(tree)
-        except Exception:
-            return False
-
-    def _tree_has_mod(self, tree):
-        if isinstance(tree, list):
-            for item in tree:
-                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                elif isinstance(item, (dict, list)):
-                    if self._tree_has_mod(item):
-                        return True
-        elif isinstance(tree, dict):
-            for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                if self._tree_has_mod(value):
-                    return True
-        return False
 
 
 class FetchModDetailsWorker(BaseWorker):
@@ -735,20 +743,12 @@ class FetchModDetailsWorker(BaseWorker):
                     if cached:
                         any_supported = True
                     continue
-                try:
-                    url = f"https://gamebanana.com/apiv11/File/{file_id}"
-                    req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
-                    with _urlopen(req, timeout=8) as response:
-                        data = json.loads(response.read().decode('utf-8'))
-                    tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-                    result = self._tree_has_mod(tree)
-                    f['has_mod_file'] = result
-                    if str(file_id).isdigit():
-                        _cache_set("file_has_mod", int(file_id), result)
-                    if result:
-                        any_supported = True
-                except Exception:
-                    f['has_mod_file'] = False
+                result = _archive_has_mod(file_id)
+                f['has_mod_file'] = bool(result)
+                if result is not None and str(file_id).isdigit():
+                    _cache_set("file_has_mod", int(file_id), result)
+                if result:
+                    any_supported = True
 
         try:
             url = f"https://gamebanana.com/apiv11/{self.item_type}/{self.mod_id}/ProfilePage"
@@ -771,22 +771,6 @@ class FetchModDetailsWorker(BaseWorker):
             pass
 
         return any_supported
-
-    def _tree_has_mod(self, tree):
-        if isinstance(tree, list):
-            for item in tree:
-                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                elif isinstance(item, (dict, list)):
-                    if self._tree_has_mod(item):
-                        return True
-        elif isinstance(tree, dict):
-            for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                if self._tree_has_mod(value):
-                    return True
-        return False
 
 
 class FetchThumbnailsWorker(BaseWorker):
@@ -884,41 +868,13 @@ class FetchModSupportWorker(BaseWorker):
                     if isinstance(file_entry, dict):
                         file_id = file_entry.get('_idRow', 0)
                         if file_id:
-                            if self._check_file_contents(file_id):
+                            if _archive_has_mod(file_id):
                                 _cache_set("mod_support", mod_id, True)
                                 return (mod_id, True)
         except Exception as e:
             logger.error(f"[GameBanana] Error checking mod support for {mod_id}: {e}")
         _cache_set("mod_support", mod_id, False)
         return (mod_id, False)
-
-    def _check_file_contents(self, file_id):
-        try:
-            url = f"https://gamebanana.com/apiv11/File/{file_id}"
-            req = urllib.request.Request(url, headers={'User-Agent': GAMEBANANA_USER_AGENT})
-            with _urlopen(req, timeout=8) as response:
-                data = json.loads(response.read().decode('utf-8'))
-
-            tree = data.get('_aArchiveFileTree', []) if isinstance(data, dict) else []
-            return self._tree_has_mod(tree)
-        except Exception:
-            return False
-
-    def _tree_has_mod(self, tree):
-        if isinstance(tree, list):
-            for item in tree:
-                if isinstance(item, str) and item.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                elif isinstance(item, (dict, list)):
-                    if self._tree_has_mod(item):
-                        return True
-        elif isinstance(tree, dict):
-            for key, value in tree.items():
-                if isinstance(key, str) and key.lower().endswith(app_config.MOD_FILE_EXT):
-                    return True
-                if self._tree_has_mod(value):
-                    return True
-        return False
 
     def work(self):
         with ThreadPoolExecutor(max_workers=self.CONCURRENT_REQUESTS) as pool:
