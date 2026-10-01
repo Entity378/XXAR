@@ -490,7 +490,7 @@ class ModPackageManager:
 
     def _conflict_pck_key(self, pck_name):
         # Mods made before 1.1.5 key ZZZ pcks relative to Full/ and newer ones include it, so both must land in one bucket.
-        main_dir = "/".join(part for part in get_game(self.game_id).main_audio_subpath if part)
+        main_dir = "/".join(get_game(self.game_id).main_audio_subpath)
         key = pck_name.replace("\\", "/")
         if main_dir and key.startswith(f"{main_dir}/"):
             return key[len(main_dir) + 1:]

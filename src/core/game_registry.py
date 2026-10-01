@@ -13,7 +13,7 @@ class GameDefinition:
     install_dir_name: str
     game_audio_subpath: tuple[str, ...]
     persistent_audio_subpath: tuple[str, ...]
-    main_audio_subpath: tuple[str, ...]
+    main_audio_subpath: tuple[str, ...] = ()
     gamebanana_game_id: Optional[int] = None
     soundbank_pck_glob: str = "*.pck"
     streamed_pck_glob: str = "*.pck"
@@ -96,7 +96,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         install_dir_name="Genshin Impact game",
         game_audio_subpath=("StreamingAssets", "AudioAssets"),
         persistent_audio_subpath=("Persistent", "AudioAssets"),
-        main_audio_subpath=("",),
         gamebanana_game_id=8552,
         soundbank_pck_glob="Bank*.pck",
         streamed_pck_glob="Streamed*.pck",
@@ -135,7 +134,6 @@ _ALL_GAMES: tuple[GameDefinition, ...] = (
         install_dir_name="Star Rail Games",
         game_audio_subpath=("StreamingAssets", "Audio", "AudioPackage", "Windows"),
         persistent_audio_subpath=("Persistent", "Audio", "AudioPackage", "Windows"),
-        main_audio_subpath=("",),
         gamebanana_game_id=18366,
         soundbank_pck_glob="Banks*.pck",
         streamed_pck_glob="Streamed*.pck",

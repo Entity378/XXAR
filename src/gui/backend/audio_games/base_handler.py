@@ -100,13 +100,10 @@ class BaseBrowserHandler:
                 "pck_count": len(pck_files),
             }
 
-        # Shallowest first: a nested namesake (HSR ships DecodedBanks/English) must never shadow the real folder.
-        for subfolder in sorted(audio_root.rglob("*/"), key=lambda folder: len(folder.parts)):
-            if subfolder == main_dir or not subfolder.is_dir():
+        for subfolder in main_dir.iterdir():
+            if not subfolder.is_dir():
                 continue
             if not include_all_subdirs and subfolder.name not in known_dirs:
-                continue
-            if subfolder.name in b.language_folders:
                 continue
             pck_files = list(subfolder.glob("*.pck"))
             if not pck_files:
@@ -117,9 +114,9 @@ class BaseBrowserHandler:
                 "pck_count": len(pck_files),
             }
 
-        persistent_root = data_folder.joinpath(*self.game.persistent_audio_subpath)
-        if persistent_root.exists():
-            for subfolder in sorted(persistent_root.rglob("*/"), key=lambda folder: len(folder.parts)):
+        persistent_main_dir = data_folder.joinpath(*self.game.persistent_audio_subpath, *self.game.main_audio_subpath)
+        if persistent_main_dir.exists():
+            for subfolder in persistent_main_dir.iterdir():
                 if not subfolder.is_dir():
                     continue
                 if not include_all_subdirs and subfolder.name not in known_dirs:
@@ -451,9 +448,7 @@ class BaseBrowserHandler:
                 written_paths.append(bank_target)
 
         for titlescreen_pck in titlescreen_pcks:
-            titlescreen_target = self._persistent_overlay_path(
-                titlescreen_pck, streaming_root, persistent_root
-            )
+            titlescreen_target = persistent_root / titlescreen_pck.relative_to(streaming_root)
             titlescreen_target.parent.mkdir(parents=True, exist_ok=True)
 
             scan_source = titlescreen_target if titlescreen_target.exists() else titlescreen_pck
@@ -585,9 +580,7 @@ class BaseBrowserHandler:
                 written_paths.append(bank_target)
 
         for titlescreen_pck in titlescreen_pcks:
-            titlescreen_target = handler._persistent_overlay_path(
-                titlescreen_pck, streaming_root, persistent_root
-            )
+            titlescreen_target = persistent_root / titlescreen_pck.relative_to(streaming_root)
             titlescreen_target.parent.mkdir(parents=True, exist_ok=True)
 
             if titlescreen_target.exists() and titlescreen_pck.name.lower() in resolved_names:
@@ -834,48 +827,14 @@ class BaseBrowserHandler:
         ]
 
     def _find_titlescreen_pcks(self, audio_root: Path):
-        # Some games keep the title-screen PCK in a sibling folder of streaming_root (e.g. ZZZ stores Minimum.pck under Audio/Windows/Min/ while streaming_root is Full/).
-        # Scan streaming_root and its siblings to cover both layouts.
-        names = self.game.titlescreen_pcks
+        # Every game keeps its title-screen pck under the audio root: ZZZ in Min/, GI and HSR at the top.
+        names = {name.lower() for name in self.game.titlescreen_pcks}
         if not names or not audio_root:
             return []
-        name_set = {n.lower() for n in names}
-
-        search_roots = [audio_root]
-        parent = audio_root.parent
-        if parent.exists() and parent != audio_root:
-            for sibling in parent.iterdir():
-                if sibling.is_dir() and sibling.resolve() != audio_root.resolve():
-                    search_roots.append(sibling)
-
-        found = []
-        seen = set()
-        for root in search_roots:
-            for p in root.rglob("*.pck"):
-                if p.name.lower() not in name_set:
-                    continue
-                key = str(p.resolve()).lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                found.append(p)
-        return sorted(found, key=lambda p: _natural_sort_key(p.name))
-
-    @staticmethod
-    def _persistent_overlay_path(src_pck: Path, streaming_root: Path, persistent_root: Path):
-        # Mirror a source PCK path into the persistent overlay tree.
-        # This works whether src_pck is under streaming_root or in a sibling folder (e.g. ZZZ's Min/Minimum.pck vs Full/ streaming_root).
-        # The mapping is performed by swapping the StreamingAssets segment with the Persistent equivalent.
-        try:
-            rel = src_pck.relative_to(streaming_root)
-            return persistent_root / rel
-        except Exception:
-            pass
-        src_parts = src_pck.parts
-        for i, part in enumerate(src_parts):
-            if part == "StreamingAssets":
-                return Path(*src_parts[:i], "Persistent", *src_parts[i + 1:])
-        return persistent_root / src_pck.name
+        return sorted(
+            (p for p in audio_root.rglob("*.pck") if p.name.lower() in names),
+            key=lambda p: _natural_sort_key(p.name),
+        )
 
     def _find_override_pcks(self, persistent_root: Path):
         if not persistent_root or not persistent_root.exists():
