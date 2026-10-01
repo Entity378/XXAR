@@ -1327,7 +1327,7 @@ ApplicationWindow {
                                                 font.bold: false
                                             }
 
-                                            MouseArea {
+                                            XXARMouseArea {
                                                 id: moveBtnMouse
                                                 anchors.fill: parent
                                                 hoverEnabled: true
@@ -1431,7 +1431,7 @@ ApplicationWindow {
                                                 font.bold: false
                                             }
 
-                                            MouseArea {
+                                            XXARMouseArea {
                                                 id: hashMoveBtnMouse
                                                 anchors.fill: parent
                                                 hoverEnabled: true

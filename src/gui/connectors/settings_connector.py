@@ -992,6 +992,10 @@ class SettingsConnector:
             logger.error(f"[{APP_NAME}] Error checking multiple languages: {e}")
 
     def on_move_language_to_streaming(self, folder_name):
+        # Moving game pcks must wait for a running game write to finish.
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
         try:
             settings = self.load_settings()
             selected_game = normalize_game_id(
@@ -1060,6 +1064,10 @@ class SettingsConnector:
             )
 
     def on_move_hash_pck_to_streaming(self, pck_name):
+        # Moving game pcks must wait for a running game write to finish.
+        if self._blocking_write() is not None:
+            self.on_alert_dialog_requested(*dialogs.write_in_progress())
+            return
         try:
             settings = self.load_settings()
             selected_game = normalize_game_id(

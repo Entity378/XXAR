@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from bridge_helpers import holding_game_lock
 from helpers import build_pck, configure_game_in_settings, make_game_install, make_wem, read_settings
 from src.gui.connectors import settings_connector
 
@@ -19,6 +20,9 @@ class LanguageFolderHost(settings_connector.SettingsConnector):
 
     def load_settings(self):
         return read_settings()
+
+    def on_alert_dialog_requested(self, title, message, sticker_path=""):
+        self.notifications.append(("alert", title))
 
 
 @pytest.fixture
@@ -70,3 +74,14 @@ def test_moving_a_language_lands_it_beside_the_launcher_languages(qapp, host, zz
     assert not (install.persistent_root / "Full" / "Kr").exists()
     assert (install.persistent_root / EN_PATCH).exists()
     assert [method for method, *_ in host.notifications] == ["showSuccessToast", "hideLanguageWarningDialog"]
+
+
+def test_no_language_moves_while_a_game_write_runs(qapp, host, zzz_install_with_a_language_downloaded_in_game):
+    install = zzz_install_with_a_language_downloaded_in_game
+
+    with holding_game_lock():
+        host.on_move_language_to_streaming("Kr")
+
+    assert (install.persistent_root / KR_SOUNDBANK).exists()
+    assert not (install.streaming_root / KR_SOUNDBANK).exists()
+    assert host.notifications == [("alert", "Operation In Progress")]
