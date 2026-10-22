@@ -111,6 +111,18 @@ SoundBank_SFX_1.pck
 
 > **Heads up:** The games also have `Streamed_SFX_*.pck` files that contain the same sound IDs, but the game **doesn't always use those**. XXAR targets the correct SoundBank files so your mods actually work.
 
+## ZZZ voice packs downloaded by Steam
+
+This source build can prepare voice packs that Steam's ZZZ installation stores
+only in `Persistent`. It verifies pristine packs against the game's audio
+catalogue, preserves backup copies, and registers the originals in
+`StreamingAssets` before applying audio mods.
+
+On the first Apply, XXAR may ask you to start ZZZ once, enter the game, then close
+it and Apply again. This lets ZZZ process the new original-audio catalogue before
+XXAR writes modified packs. The same step may be needed after a voice-pack
+update. XXAR reads the game's acknowledgement marker and never writes it.
+
 ## Requirements
 
 (Only applies if running from source)

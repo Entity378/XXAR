@@ -28,6 +28,7 @@ from src.core.logger import get_logger
 from src.gui.backend import dialogs
 from src.gui.backend.base_worker import game_lock_holder
 from src.gui.utils.native_dialogs import NativeDialogs
+from src.mods.steam_audio import prepare_steam_audio
 
 logger = get_logger(__name__)
 
@@ -1018,24 +1019,33 @@ class SettingsConnector:
                 )
                 return
 
-            logger.info(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
-            destination.mkdir(parents=True, exist_ok=True)
+            steam_audio = (
+                prepare_steam_audio(selected_game, streaming_dir, persistent_dir)
+                if selected_game == "zzz" else {}
+            )
+            if steam_audio.get("prepared"):
+                # Downloaded Steam languages also need a verified base catalogue
+                # entry. Keep Persistent copies for the normal apply cleanup.
+                logger.info(f"[{APP_NAME}] Prepared Steam language originals for {folder_name}")
+            else:
+                logger.info(f"[{APP_NAME}] Moving language folder: {source} -> {destination}")
+                destination.mkdir(parents=True, exist_ok=True)
 
-            skipped = []
-            for item in source.iterdir():
-                if item.is_file() and item.name in get_game(selected_game).protected_pcks:
-                    skipped.append(item.name)
-                    logger.info(f"[{APP_NAME}] Leaving protected file in Persistent: {item.name}")
-                    continue
-                shutil.move(str(item), str(destination / item.name))
+                skipped = []
+                for item in source.iterdir():
+                    if item.is_file() and item.name in get_game(selected_game).protected_pcks:
+                        skipped.append(item.name)
+                        logger.info(f"[{APP_NAME}] Leaving protected file in Persistent: {item.name}")
+                        continue
+                    shutil.move(str(item), str(destination / item.name))
 
-            if not any(source.iterdir()):
-                source.rmdir()
-                logger.info(f"[{APP_NAME}] Removed empty source folder: {source}")
-            elif skipped:
-                logger.info(f"[{APP_NAME}] Source folder kept (contains protected files: {', '.join(skipped)})")
+                if not any(source.iterdir()):
+                    source.rmdir()
+                    logger.info(f"[{APP_NAME}] Removed empty source folder: {source}")
+                elif skipped:
+                    logger.info(f"[{APP_NAME}] Source folder kept (contains protected files: {', '.join(skipped)})")
 
-            logger.info(f"[{APP_NAME}] Successfully moved {folder_name} to StreamingAssets")
+                logger.info(f"[{APP_NAME}] Successfully moved {folder_name} to StreamingAssets")
 
             QMetaObject.invokeMethod(
                 self.root, "showSuccessToast", Qt.ConnectionType.QueuedConnection,

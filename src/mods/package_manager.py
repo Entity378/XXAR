@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
+import xxhash
 
 from src.core.app_config import APP_VERSION as app_version
 from src.core.config_manager import (
@@ -23,6 +24,7 @@ from src.gui.backend.audio_games import get_browser_handler_class
 from src.mods.hirc_mod_apply import apply_hirc_track_patches
 from src.mods.mod_relinker import GameAudioIndex, relink_metadata
 from src.mods.persistent_originals import locate_pck_paths, record_written_overlays
+from src.mods.steam_audio import prepare_steam_audio
 from src.wwise.override_pck_patcher import patch_override_pcks
 from src.wwise.patch_target_resolver import add_streamed_duplicates, canonicalize_pck_keys, install_whole_patch_bnks, resolve_and_extract, streamed_wem_pcks
 from src.wwise.pck_packer import PCKPacker
@@ -48,6 +50,22 @@ def _find_overlay_pck(persistent_audio_dir: Path, pck_name):
     if direct.exists():
         return direct
     return next(persistent_audio_dir.rglob(Path(pck_name).name), direct)
+
+
+def _steam_audio_catalog_acknowledged(game_audio_dir, persistent_audio_dir):
+    """The game records the base audio catalogue hash after processing it.
+
+    A fresh catalogue must be processed with pristine voices first: that startup
+    may remove redundant Persistent packs, including a prematurely built mod.
+    This marker belongs to ZZZ; XXAR only reads it.
+    """
+    try:
+        base_catalog = game_audio_dir.parent.parent / "audio_version"
+        marker = persistent_audio_dir.parent.parent / "base_version_hash"
+        acknowledged = marker.read_text(encoding="utf-8").strip().split("_")[-1]
+        return acknowledged == str(xxhash.xxh64(base_catalog.read_bytes()).intdigest())
+    except (OSError, UnicodeError):
+        return False
 
 
 class InvalidModPackageError(Exception):
@@ -784,6 +802,16 @@ class ModPackageManager:
             raise ModApplicationError(f"Game audio directory not found: {game_audio_dir}")
 
         persistent_audio_dir.mkdir(parents=True, exist_ok=True)
+
+        # Headless callers also need the registered Steam voice-pack originals.
+        # Do not continue if preparing those originals failed in GUI cleanup.
+        steam_audio = prepare_steam_audio(game.id, game_audio_dir, persistent_audio_dir)
+        if steam_audio.get("prepared") and not _steam_audio_catalog_acknowledged(game_audio_dir, persistent_audio_dir):
+            raise ModApplicationError(
+                "Steam voice originals are prepared. Start ZZZ once, enter the game, "
+                "then close it and click Apply again. ZZZ must register the original "
+                "voice packs before audio mods can be written."
+            )
 
         # Migrate installed mods to the current game version before resolving, so a game
         # update that moved sounds to other PCKs doesn't silently break them.

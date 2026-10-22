@@ -1,5 +1,5 @@
 # Promotes pristine originals from Persistent into StreamingAssets and wipes Persistent
-# Pristine = md5 match vs the launcher pkg_version manifests or the game's .hash sidecars.
+# Pristine = launcher/sidecar MD5, or Steam voice originals verified by the game catalogue's xxHash64.
 
 import hashlib
 import json
@@ -10,6 +10,7 @@ from src.core.config_manager import get_game_state_dir
 from src.core.fs_errors import exists_or_raise
 from src.core.game_registry import get_game
 from src.core.logger import get_logger
+from src.mods.steam_audio import prepare_steam_audio
 from src.wwise.override_pck_patcher import restore_override_pck_backups
 from src.wwise.patch_target_resolver import plain_wem_id
 from src.wwise.pck_indexer import PCKIndexer
@@ -320,7 +321,7 @@ def _ground_truth(manifest, sidecar_cache, pck, rel):
     return (None, -1)
 
 
-def promote_originals(game_id, streaming_root: Path, persistent_root: Path, modded_keys, progress_cb=None, manifest=None):
+def promote_originals(game_id, streaming_root: Path, persistent_root: Path, modded_keys, progress_cb=None, manifest=None, verified_streaming=None):
     # Returns (stats, keep); rels in keep must never be deleted by cleanup.
     stats = {"promoted": 0, "updated": 0, "kept_mod": 0, "orphan": 0, "conflict": 0}
     keep = set()
@@ -338,6 +339,7 @@ def promote_originals(game_id, streaming_root: Path, persistent_root: Path, modd
     if manifest is None:
         manifest = load_manifest_md5s(streaming_root)
     sidecar_cache = {}
+    verified_streaming = set(verified_streaming or ())
 
     for pck in persistent_root.rglob("*.pck"):
         if game.is_protected_pck(pck.name):
@@ -348,6 +350,10 @@ def promote_originals(game_id, streaming_root: Path, persistent_root: Path, modd
         except (ValueError, OSError):
             continue
         s_path = streaming_root / rel
+        if rel in verified_streaming and s_path.is_file():
+            # Steam preparation already checked this fallback against the
+            # game's catalogue; the incomplete launcher list cannot reject it.
+            continue
         original_md5, expected_size = _ground_truth(manifest, sidecar_cache, pck, rel)
 
         if original_md5:
@@ -468,6 +474,7 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root: Path, m
     if not persistent_root.is_dir():
         return result
 
+    steam_audio = prepare_steam_audio(game_id, streaming_root, persistent_root, progress_cb)
     manifest = load_manifest_md5s(streaming_root)
     try:
         result["misplaced_removed"] = remove_misplaced_copies(game_id, streaming_root, persistent_root, manifest)
@@ -476,9 +483,17 @@ def cleanup_persistent_overlay(game_id, streaming_root, persistent_root: Path, m
 
     written_overlays = load_written_overlays(game_id)
     stats, keep = promote_originals(
-        game_id, streaming_root, persistent_root, set(modded_keys or ()) | written_overlays, progress_cb, manifest
+        game_id, streaming_root, persistent_root, set(modded_keys or ()) | written_overlays, progress_cb, manifest,
+        verified_streaming=steam_audio.get("verified_rels", ())
     )
     result.update(stats)
+    # The launcher manifest omits Steam-downloaded voice packs. These fallbacks
+    # were verified against the game's audio catalogue before being registered.
+    keep.difference_update(steam_audio.get("verified_rels", ()))
+    if steam_audio.get("prepared"):
+        result["promoted"] += steam_audio.get("promoted", 0)
+        result["updated"] += steam_audio.get("updated", 0)
+        result["steam_registered"] = steam_audio.get("registered", 0)
 
     game = get_game(game_id)
     for pck in persistent_root.rglob("*.pck"):
